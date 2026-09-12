@@ -2,8 +2,7 @@ use eframe::egui::{self, Color32};
 
 use crate::{
     hp67::Hp67State,
-    key_depth_hp67_v2::KeyDepthOverlay,
-    key_press_overlay::KeyPressOverlay,
+    key_depth_hp67_v3::KeyDepthOverlay,
     panel::Hp67Panel,
 };
 
@@ -35,13 +34,10 @@ impl eframe::App for Hp67App {
                     self.state.handle(event);
                 }
 
-                // Base key renderer owns the complete static keyboard appearance.
+                // One renderer owns both released and pressed states.  A press is
+                // only a rigid, pixel-snapped translation of the same keycap and
+                // the same legend geometry.
                 KeyDepthOverlay::paint(ui, host_rect);
-
-                // The press overlay masks only the animated key and redraws it as
-                // one rigid keycap translated into its socket.  Geometry and text
-                // never scale or compress during travel.
-                KeyPressOverlay::paint(ui, host_rect);
             });
 
         if ctx.input(|i| i.pointer.any_down()) {
