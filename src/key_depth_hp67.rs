@@ -4,27 +4,21 @@ const DESIGN_W: f32 = 330.0;
 const DESIGN_H: f32 = 620.0;
 
 const PANEL: Color32 = Color32::from_rgb(45, 46, 43);
-const LIGHT_TEXT: Color32 = Color32::from_rgb(235, 236, 228);
-const DARK_TEXT: Color32 = Color32::from_rgb(31, 34, 33);
+const WHITE: Color32 = Color32::from_rgb(238, 239, 232);
+const YELLOW: Color32 = Color32::from_rgb(220, 208, 54);
+const CYAN: Color32 = Color32::from_rgb(82, 207, 225);
+const DARK: Color32 = Color32::from_rgb(27, 29, 28);
 
 #[derive(Clone, Copy)]
-enum KeyStyle {
-    Olive,
-    Orange,
-    Blue,
-    White,
-    Black,
-}
+enum KeyStyle { Olive, Orange, Blue, White, Black }
 
 #[derive(Clone, Copy)]
-enum SubAlign {
-    Center,
-    Right,
-}
+enum SubAlign { Center, Right }
 
 #[derive(Clone, Copy)]
 struct KeySpec {
-    x: f32,
+    id: &'static str,
+    cx: f32,
     y: f32,
     w: f32,
     h: f32,
@@ -36,62 +30,55 @@ struct KeySpec {
 }
 
 const fn k(
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    top_h: f32,
-    style: KeyStyle,
-    main: &'static str,
-    sub: Option<&'static str>,
-    sub_align: SubAlign,
+    id: &'static str, cx: f32, y: f32, w: f32, h: f32, top_h: f32,
+    style: KeyStyle, main: &'static str, sub: Option<&'static str>, sub_align: SubAlign,
 ) -> KeySpec {
-    KeySpec { x, y, w, h, top_h, style, main, sub, sub_align }
+    KeySpec { id, cx, y, w, h, top_h, style, main, sub, sub_align }
 }
 
 const KEYS: &[KeySpec] = &[
-    k(49.0, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "A", None, SubAlign::Center),
-    k(99.5, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "B", None, SubAlign::Center),
-    k(150.0, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "C", None, SubAlign::Center),
-    k(200.5, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "D", None, SubAlign::Center),
-    k(251.0, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "E", None, SubAlign::Center),
+    k("a", 65.0, 169.5, 35.0, 29.5, 20.0, KeyStyle::Olive, "A", None, SubAlign::Center),
+    k("b",116.0, 169.5, 35.0, 29.5, 20.0, KeyStyle::Olive, "B", None, SubAlign::Center),
+    k("c",167.0, 169.5, 35.0, 29.5, 20.0, KeyStyle::Olive, "C", None, SubAlign::Center),
+    k("d",218.0, 169.5, 35.0, 29.5, 20.0, KeyStyle::Olive, "D", None, SubAlign::Center),
+    k("e",269.0, 169.5, 35.0, 29.5, 20.0, KeyStyle::Olive, "E", None, SubAlign::Center),
 
-    k(49.0, 224.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "Σ+", Some("Σ−"), SubAlign::Center),
-    k(99.5, 224.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "GTO", Some("RTN"), SubAlign::Center),
-    k(150.0, 224.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "DSP", Some("ENG"), SubAlign::Center),
-    k(200.5, 224.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "(i)", Some("x↔I"), SubAlign::Center),
-    k(251.0, 224.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "SST", Some("BST"), SubAlign::Center),
+    k("sigma", 65.0, 223.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "", Some(""), SubAlign::Center),
+    k("gto",  116.0,223.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "GTO", Some("RTN"), SubAlign::Center),
+    k("dsp",  167.0,223.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "DSP", Some("ENG"), SubAlign::Center),
+    k("indirect",218.0,223.2,35.0,31.0,19.1,KeyStyle::Olive,"(i)",Some(""),SubAlign::Center),
+    k("sst",  269.0,223.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "SST", Some("BST"), SubAlign::Center),
 
-    k(49.0, 279.0, 31.0, 27.5, 18.5, KeyStyle::Orange, "f", None, SubAlign::Center),
-    k(99.5, 279.0, 31.0, 27.5, 18.5, KeyStyle::Blue, "g", None, SubAlign::Center),
-    k(150.0, 279.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "STO", Some("ST I"), SubAlign::Center),
-    k(200.5, 279.0, 31.0, 29.5, 18.0, KeyStyle::Olive, "RCL", Some("RC I"), SubAlign::Center),
-    k(251.0, 279.0, 31.0, 27.5, 18.5, KeyStyle::Black, "h", None, SubAlign::Center),
+    k("f", 65.0, 278.0, 35.0, 29.5, 20.0, KeyStyle::Orange, "f", None, SubAlign::Center),
+    k("g",116.0, 278.0, 35.0, 29.5, 20.0, KeyStyle::Blue, "g", None, SubAlign::Center),
+    k("sto",167.0,278.0,35.0,31.0,19.1,KeyStyle::Olive,"STO",Some("ST I"),SubAlign::Center),
+    k("rcl",218.0,278.0,35.0,31.0,19.1,KeyStyle::Olive,"RCL",Some("RC I"),SubAlign::Center),
+    k("h",269.0, 278.0, 35.0, 29.5, 20.0, KeyStyle::Black, "h", None, SubAlign::Center),
 
-    k(49.0, 333.5, 79.5, 29.5, 18.2, KeyStyle::Olive, "ENTER", Some("DEG"), SubAlign::Right),
-    k(150.0, 333.5, 31.0, 29.5, 18.0, KeyStyle::Olive, "CHS", Some("RAD"), SubAlign::Center),
-    k(200.5, 333.5, 31.0, 29.5, 18.0, KeyStyle::Olive, "EEX", Some("GRD"), SubAlign::Center),
-    k(251.0, 333.5, 31.0, 29.5, 18.0, KeyStyle::Olive, "CLX", Some("DEL"), SubAlign::Center),
+    k("enter", 90.0, 332.2, 84.0, 31.0, 19.5, KeyStyle::Olive, "ENTER", Some("DEG"), SubAlign::Right),
+    k("chs",  167.0,332.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "CHS", Some("RAD"), SubAlign::Center),
+    k("eex",  218.0,332.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "EEX", Some("GRD"), SubAlign::Center),
+    k("clx",  269.0,332.2, 35.0, 31.0, 19.1, KeyStyle::Olive, "CLx", Some("DEL"), SubAlign::Center),
 
-    k(49.0, 386.5, 22.0, 28.0, 17.5, KeyStyle::Olive, "−", Some("SF"), SubAlign::Center),
-    k(99.0, 386.5, 36.0, 28.0, 17.5, KeyStyle::White, "7", Some("x↔y"), SubAlign::Center),
-    k(172.0, 386.5, 36.0, 28.0, 17.5, KeyStyle::White, "8", Some("R▼"), SubAlign::Center),
-    k(245.0, 386.5, 37.0, 28.0, 17.5, KeyStyle::White, "9", Some("R▲"), SubAlign::Center),
+    k("minus", 60.5,384.6, 27.0,30.5,18.6,KeyStyle::Olive,"−",Some("SF"),SubAlign::Center),
+    k("7",117.5,384.6, 40.0,30.5,18.6,KeyStyle::White,"7",Some(""),SubAlign::Center),
+    k("8",190.5,384.6, 40.0,30.5,18.6,KeyStyle::White,"8",Some(""),SubAlign::Center),
+    k("9",263.5,384.6, 40.0,30.5,18.6,KeyStyle::White,"9",Some(""),SubAlign::Center),
 
-    k(49.0, 438.8, 22.0, 28.0, 17.5, KeyStyle::Olive, "+", Some("CF"), SubAlign::Center),
-    k(99.0, 438.8, 36.0, 28.0, 17.5, KeyStyle::White, "4", Some("1/x"), SubAlign::Center),
-    k(172.0, 438.8, 36.0, 28.0, 17.5, KeyStyle::White, "5", Some("yˣ"), SubAlign::Center),
-    k(245.0, 438.8, 37.0, 28.0, 17.5, KeyStyle::White, "6", Some("ABS"), SubAlign::Center),
+    k("plus", 60.5,436.8, 27.0,30.5,18.6,KeyStyle::Olive,"+",Some("CF"),SubAlign::Center),
+    k("4",117.5,436.8, 40.0,30.5,18.6,KeyStyle::White,"4",Some(""),SubAlign::Center),
+    k("5",190.5,436.8, 40.0,30.5,18.6,KeyStyle::White,"5",Some(""),SubAlign::Center),
+    k("6",263.5,436.8, 40.0,30.5,18.6,KeyStyle::White,"6",Some("ABS"),SubAlign::Center),
 
-    k(49.0, 491.1, 22.0, 28.0, 17.5, KeyStyle::Olive, "×", Some("F?"), SubAlign::Center),
-    k(99.0, 491.1, 36.0, 28.0, 17.5, KeyStyle::White, "1", Some("PAUSE"), SubAlign::Center),
-    k(172.0, 491.1, 36.0, 28.0, 17.5, KeyStyle::White, "2", Some("π"), SubAlign::Center),
-    k(245.0, 491.1, 37.0, 28.0, 17.5, KeyStyle::White, "3", Some("REG"), SubAlign::Center),
+    k("multiply",60.5,489.0,27.0,30.5,18.6,KeyStyle::Olive,"",Some("F?"),SubAlign::Center),
+    k("1",117.5,489.0,40.0,30.5,18.6,KeyStyle::White,"1",Some("PAUSE"),SubAlign::Center),
+    k("2",190.5,489.0,40.0,30.5,18.6,KeyStyle::White,"2",Some(""),SubAlign::Center),
+    k("3",263.5,489.0,40.0,30.5,18.6,KeyStyle::White,"3",Some("REG"),SubAlign::Center),
 
-    k(49.0, 543.4, 22.0, 28.0, 17.5, KeyStyle::Olive, "÷", Some("N!"), SubAlign::Center),
-    k(99.0, 543.4, 36.0, 28.0, 17.5, KeyStyle::White, "0", Some("LST x"), SubAlign::Center),
-    k(172.0, 543.4, 36.0, 28.0, 17.5, KeyStyle::White, ".", Some("H.MS+"), SubAlign::Center),
-    k(245.0, 543.4, 37.0, 28.0, 17.5, KeyStyle::White, "R/S", Some("SPACE"), SubAlign::Center),
+    k("divide",60.5,541.2,27.0,30.5,18.6,KeyStyle::Olive,"",Some("N!"),SubAlign::Center),
+    k("0",117.5,541.2,40.0,30.5,18.6,KeyStyle::White,"0",Some("LST x"),SubAlign::Center),
+    k("decimal",190.5,541.2,40.0,30.5,18.6,KeyStyle::White,".",Some("H.MS+"),SubAlign::Center),
+    k("rs",263.5,541.2,40.0,30.5,18.6,KeyStyle::White,"R/S",Some("SPACE"),SubAlign::Center),
 ];
 
 pub struct KeyDepthOverlay;
@@ -99,248 +86,147 @@ pub struct KeyDepthOverlay;
 impl KeyDepthOverlay {
     pub fn paint(p: &Painter, host: Rect) {
         let scale = (host.width() / DESIGN_W).min(host.height() / DESIGN_H);
-        if scale <= 0.0 {
-            return;
-        }
+        if scale <= 0.0 { return; }
         let size = Vec2::new(DESIGN_W * scale, DESIGN_H * scale);
-        let t = Transform {
-            origin: Pos2::new(host.center().x - size.x * 0.5, host.center().y - size.y * 0.5),
-            scale,
-        };
-        for key in KEYS {
-            draw_key(p, t, *key);
-        }
+        let t = Transform { origin: Pos2::new(host.center().x - size.x * 0.5, host.center().y - size.y * 0.5), scale };
+        p.rect_filled(t.rect(38.0, 137.0, 254.0, 449.5), 0.0, PANEL);
+        draw_legends(p, t);
+        for key in KEYS { draw_key(p, t, *key); }
     }
 }
 
 #[derive(Clone, Copy)]
-struct Transform {
-    origin: Pos2,
-    scale: f32,
-}
-
+struct Transform { origin: Pos2, scale: f32 }
 impl Transform {
     fn s(self, v: f32) -> f32 { v * self.scale }
-    fn pos(self, x: f32, y: f32) -> Pos2 {
-        Pos2::new(self.origin.x + x * self.scale, self.origin.y + y * self.scale)
-    }
-    fn rect(self, x: f32, y: f32, w: f32, h: f32) -> Rect {
-        Rect::from_min_size(self.pos(x, y), Vec2::new(self.s(w), self.s(h)))
-    }
+    fn pos(self, x: f32, y: f32) -> Pos2 { Pos2::new(self.origin.x + x*self.scale, self.origin.y + y*self.scale) }
+    fn rect(self, x:f32,y:f32,w:f32,h:f32)->Rect { Rect::from_min_size(self.pos(x,y), Vec2::new(self.s(w),self.s(h))) }
 }
 
-fn draw_key(p: &Painter, t: Transform, key: KeySpec) {
-    let (top_face, front_face, shell, main_color, sub_color) = palette(key.style);
+fn draw_key(p:&Painter,t:Transform,key:KeySpec) {
+    let (face, front, side, text, subtext) = palette(key.style);
+    let x = key.cx - key.w*0.5;
+    let skirt_top = key.y + key.top_h - 0.4;
+    let bottom = key.y + key.h;
+    p.add(Shape::convex_polygon(vec![
+        t.pos(x+2.0,key.y+2.5), t.pos(x+key.w+2.0,key.y+2.5),
+        t.pos(x+key.w-0.5,bottom+2.6), t.pos(x+1.0,bottom+2.6),
+    ], Color32::from_rgba_premultiplied(0,0,0,135), Stroke::NONE));
+    let top = t.rect(x+0.6,key.y,key.w-1.2,key.top_h);
+    p.rect_filled(top,t.s(2.1),face);
+    p.rect_stroke(top,t.s(2.1),Stroke::new(t.s(0.65),Color32::from_rgba_premultiplied(0,0,0,65)));
+    p.line_segment([t.pos(x+2.2,key.y+1.1),t.pos(x+key.w-2.2,key.y+1.1)], Stroke::new(t.s(0.95),Color32::from_rgba_premultiplied(255,255,244,150)));
+    let top_inset = 1.1;
+    let bot_inset = if key.w >= 70.0 { 5.0 } else if key.w >= 38.0 { 3.8 } else { 2.7 };
+    let tl=t.pos(x+top_inset,skirt_top); let tr=t.pos(x+key.w-top_inset,skirt_top);
+    let bl=t.pos(x+bot_inset,bottom); let br=t.pos(x+key.w-bot_inset,bottom);
+    p.add(Shape::convex_polygon(vec![tl,tr,br,bl],front,Stroke::NONE));
+    p.add(Shape::convex_polygon(vec![tl,t.pos(x+top_inset+1.7,skirt_top+0.8),t.pos(x+bot_inset+1.6,bottom-0.8),bl],side,Stroke::NONE));
+    p.add(Shape::convex_polygon(vec![t.pos(x+key.w-top_inset-1.7,skirt_top+0.8),tr,br,t.pos(x+key.w-bot_inset-1.6,bottom-0.8)],darker(side,22),Stroke::NONE));
+    p.line_segment([t.pos(x+top_inset+1.0,skirt_top+0.35),t.pos(x+key.w-top_inset-1.0,skirt_top+0.35)], Stroke::new(t.s(0.7),Color32::from_rgba_premultiplied(255,255,238,105)));
+    draw_main(p,t,key,text,key.y+key.top_h*0.47);
+    if key.sub.is_some() { draw_sub(p,t,key,subtext,skirt_top+(bottom-skirt_top)*0.56); }
+}
 
-    let erase_w = if key.w < 25.0 { 35.0 } else { key.w + 4.0 };
-    p.rect_filled(
-        t.rect(key.x - 2.0, key.y - 1.5, erase_w, key.h + 5.5),
-        0.0,
-        PANEL,
-    );
-
-    p.rect_filled(
-        t.rect(key.x - 0.7, key.y + 0.8, key.w + 1.4, key.top_h + 1.0),
-        t.s(2.3),
-        shell,
-    );
-
-    p.add(Shape::convex_polygon(
-        vec![
-            t.pos(key.x + 3.0, key.y + key.h + 0.6),
-            t.pos(key.x + key.w - 3.0, key.y + key.h + 0.6),
-            t.pos(key.x + key.w - 0.8, key.y + key.h + 3.1),
-            t.pos(key.x + 0.8, key.y + key.h + 3.1),
-        ],
-        Color32::from_rgba_premultiplied(0, 0, 0, 125),
-        Stroke::NONE,
-    ));
-
-    let top_rect = t.rect(key.x + 0.8, key.y, key.w - 1.6, key.top_h);
-    p.rect_filled(top_rect, t.s(2.2), top_face);
-    p.rect_stroke(
-        top_rect,
-        t.s(2.2),
-        Stroke::new(t.s(0.7), Color32::from_rgba_premultiplied(0, 0, 0, 55)),
-    );
-
-    let top_y = key.y + key.top_h - 0.6;
-    let skirt_inset = if key.w >= 70.0 { 5.6 } else if key.w >= 35.0 { 4.0 } else { 3.1 };
-    let left_top = key.x + 1.4;
-    let right_top = key.x + key.w - 1.4;
-    let left_bottom = key.x + skirt_inset;
-    let right_bottom = key.x + key.w - skirt_inset;
-    let bottom_y = key.y + key.h;
-
-    p.add(Shape::convex_polygon(
-        vec![
-            t.pos(left_top, top_y),
-            t.pos(right_top, top_y),
-            t.pos(right_bottom, bottom_y),
-            t.pos(left_bottom, bottom_y),
-        ],
-        front_face,
-        Stroke::NONE,
-    ));
-
-    p.add(Shape::convex_polygon(
-        vec![
-            t.pos(key.x + 0.8, key.y + 1.6),
-            t.pos(key.x + 0.8, key.y + key.top_h - 0.3),
-            t.pos(left_bottom, bottom_y),
-            t.pos(key.x + 1.2, key.y + key.h - 0.7),
-        ],
-        darker(front_face, 18),
-        Stroke::NONE,
-    ));
-    p.add(Shape::convex_polygon(
-        vec![
-            t.pos(key.x + key.w - 0.8, key.y + 1.6),
-            t.pos(key.x + key.w - 0.8, key.y + key.top_h - 0.3),
-            t.pos(right_bottom, bottom_y),
-            t.pos(key.x + key.w - 1.2, key.y + key.h - 0.7),
-        ],
-        darker(front_face, 28),
-        Stroke::NONE,
-    ));
-
-    p.line_segment(
-        [
-            t.pos(key.x + 2.6, key.y + 1.4),
-            t.pos(key.x + key.w - 2.6, key.y + 1.4),
-        ],
-        Stroke::new(t.s(0.95), Color32::from_rgba_premultiplied(255, 255, 245, 145)),
-    );
-    p.line_segment(
-        [t.pos(left_top + 0.5, top_y), t.pos(right_top - 0.5, top_y)],
-        Stroke::new(t.s(0.75), Color32::from_rgba_premultiplied(255, 255, 238, 115)),
-    );
-
-    draw_main_label(p, t, key, main_color);
-    if let Some(sub) = key.sub {
-        draw_sub_label(p, t, key, sub, sub_color, top_y, bottom_y);
+fn draw_main(p:&Painter,t:Transform,key:KeySpec,color:Color32,cy:f32) {
+    match key.id {
+        "sigma" => { sigma(p,t,key.cx-2.4,cy,9.7,color); bold_txt(p,t,key.cx+5.0,cy,10.1,color,"+"); }
+        "multiply" => cross(p,t,key.cx,cy,4.3,color),
+        "divide" => divide(p,t,key.cx,cy,4.3,color),
+        "enter" => { bold_txt(p,t,key.cx-6.0,cy,10.8,color,"ENTER"); triangle(p,t,key.cx+28.0,cy,3.1,true,color); }
+        _ => {
+            let size = match key.id {
+                "f"|"g"|"h" => 13.4,
+                "7"|"8"|"9"|"4"|"5"|"6"|"1"|"2"|"3"|"0" => 14.7,
+                "minus"|"plus" => 15.2,
+                "rs" => 11.8,
+                "a"|"b"|"c"|"d"|"e" => 11.9,
+                _ => 11.6,
+            };
+            bold_txt(p,t,key.cx,cy,size,color,key.main);
+        }
     }
 }
 
-fn draw_main_label(p: &Painter, t: Transform, key: KeySpec, color: Color32) {
-    let top_center_y = key.y + key.top_h * 0.48;
-    if key.main == "ENTER" {
-        thick_text(
-            p,
-            t.pos(key.x + key.w * 0.43, top_center_y),
-            Align2::CENTER_CENTER,
-            9.2,
-            color,
-            key.main,
-        );
-        let tri_x = key.x + key.w - 12.5;
-        let tri_y = key.y + key.top_h * 0.42;
-        p.add(Shape::convex_polygon(
-            vec![t.pos(tri_x, tri_y - 2.4), t.pos(tri_x - 2.9, tri_y + 1.8), t.pos(tri_x + 2.9, tri_y + 1.8)],
-            color,
-            Stroke::NONE,
-        ));
-        return;
+fn draw_sub(p:&Painter,t:Transform,key:KeySpec,color:Color32,cy:f32) {
+    let sub=key.sub.unwrap_or("");
+    match key.id {
+        "sigma" => { sigma(p,t,key.cx-2.1,cy,6.5,color); bold_txt(p,t,key.cx+3.9,cy,6.7,color,"−"); }
+        "indirect" => swap(p,t,key.cx,cy,"x","I",6.7,color),
+        "7" => swap(p,t,key.cx,cy,"x","y",6.9,color),
+        "8" => r_arrow(p,t,key.cx,cy,false,6.8,color),
+        "9" => r_arrow(p,t,key.cx,cy,true,6.8,color),
+        "4" => one_over_x(p,t,key.cx,cy,6.8,color),
+        "5" => power(p,t,key.cx,cy,"y","x",6.8,color,color),
+        "2" => pi(p,t,key.cx,cy,7.0,color),
+        "enter" => bold_txt_aligned(p,t,key.cx+30.0,cy,6.7,color,"DEG",Align2::RIGHT_CENTER),
+        _ => { let size=if key.w>=70.0{6.7}else if sub.len()>=5{6.0}else{6.6}; bold_txt(p,t,key.cx,cy,size,color,sub); }
     }
-
-    let size = if matches!(key.style, KeyStyle::White) {
-        if key.main.len() >= 3 { 11.4 } else { 13.0 }
-    } else if matches!(key.style, KeyStyle::Black) {
-        11.4
-    } else if key.main.len() >= 3 {
-        10.3
-    } else {
-        11.8
-    };
-
-    thick_text(
-        p,
-        t.pos(key.x + key.w * 0.5, top_center_y),
-        Align2::CENTER_CENTER,
-        size,
-        color,
-        key.main,
-    );
 }
 
-fn draw_sub_label(
-    p: &Painter,
-    t: Transform,
-    key: KeySpec,
-    sub: &str,
-    color: Color32,
-    top_y: f32,
-    bottom_y: f32,
-) {
-    let cy = top_y + (bottom_y - top_y) * 0.56;
-    let (pos, align) = match key.sub_align {
-        SubAlign::Center => (t.pos(key.x + key.w * 0.5, cy), Align2::CENTER_CENTER),
-        SubAlign::Right => (t.pos(key.x + key.w - 6.2, cy), Align2::RIGHT_CENTER),
-    };
-
-    let size = if key.w >= 70.0 {
-        5.9
-    } else if key.w >= 35.0 {
-        if sub.len() >= 5 { 5.3 } else { 6.0 }
-    } else if sub.len() >= 3 {
-        5.4
-    } else {
-        5.8
-    };
-
-    thick_text(p, pos, align, size, color, sub);
+fn draw_legends(p:&Painter,t:Transform) {
+    one_over_x(p,t,65.0,151.8,10.5,WHITE);
+    sqrt_x(p,t,116.0,151.7,10.6,WHITE);
+    power(p,t,167.0,151.7,"y","x",10.4,WHITE,WHITE);
+    r_arrow(p,t,218.0,151.7,false,10.2,WHITE);
+    swap(p,t,269.0,151.7,"x","y",10.0,WHITE);
+    for (x,s) in [(65.0,"a"),(116.0,"b"),(167.0,"c"),(218.0,"d"),(269.0,"e")] { bold_txt(p,t,x,207.1,7.9,YELLOW,s); }
+    xbar(p,t,55.0,263.0,7.4,YELLOW); bold_txt(p,t,71.7,263.0,7.8,CYAN,"s");
+    bold_txt(p,t,107.5,263.0,7.8,YELLOW,"GSB"); bold_txt(p,t,126.2,263.0,7.8,CYAN,"f");
+    bold_txt(p,t,156.0,263.0,7.8,YELLOW,"FIX"); bold_txt(p,t,179.0,263.0,7.8,CYAN,"SCI");
+    bold_txt(p,t,218.0,263.0,7.8,YELLOW,"RND"); bold_txt(p,t,258.5,263.0,7.8,YELLOW,"LBL"); bold_txt(p,t,280.0,263.0,7.8,CYAN,"f");
+    bold_txt(p,t,158.0,316.6,7.8,YELLOW,"DSZ"); bold_txt(p,t,180.7,316.6,7.8,CYAN,"(i)");
+    bold_txt(p,t,209.5,316.6,7.8,YELLOW,"ISZ"); bold_txt(p,t,232.0,316.6,7.8,CYAN,"(i)");
+    bold_txt(p,t,61.0,374.0,7.9,YELLOW,"W/DATA"); bold_txt(p,t,116.0,374.0,7.9,CYAN,"MERGE");
+    swap_two_color(p,t,167.0,374.0,"P","S",7.7,YELLOW,YELLOW);
+    bold_txt(p,t,218.0,374.0,7.9,YELLOW,"CL REG"); bold_txt(p,t,269.0,374.0,7.9,YELLOW,"CL PRGM");
+    eq_pair(p,t,60.5,424.6,false);
+    bold_txt(p,t,108.0,424.6,8.0,YELLOW,"LN"); power(p,t,128.0,424.6,"e","x",7.9,CYAN,CYAN);
+    bold_txt(p,t,181.0,424.6,8.0,YELLOW,"LOG"); power(p,t,208.0,424.6,"10","x",7.9,CYAN,CYAN);
+    sqrt_x(p,t,252.0,424.6,8.0,YELLOW); power(p,t,279.0,424.6,"x","2",7.9,CYAN,CYAN);
+    eq_pair(p,t,60.5,476.8,true);
+    inverse_trig(p,t,116.0,476.8,"SIN"); inverse_trig(p,t,190.5,476.8,"COS"); inverse_trig(p,t,263.5,476.8,"TAN");
+    relation_pair(p,t,60.5,529.0,'<',true);
+    swap_two_color(p,t,117.5,529.0,"R","P",7.7,YELLOW,CYAN);
+    swap_two_color(p,t,190.5,529.0,"D","R",7.7,YELLOW,CYAN);
+    swap_two_color(p,t,263.5,529.0,"H","H.MS",7.3,YELLOW,CYAN);
+    relation_pair(p,t,60.5,581.0,'>',false);
+    bold_txt(p,t,106.0,581.0,7.9,YELLOW,"%"); bold_txt(p,t,126.5,581.0,7.9,CYAN,"%CH");
+    bold_txt(p,t,181.0,581.0,7.9,YELLOW,"INT"); bold_txt(p,t,207.0,581.0,7.9,CYAN,"FRAC");
+    bold_txt(p,t,253.0,581.0,7.9,YELLOW,"−x−"); bold_txt(p,t,281.0,581.0,7.9,CYAN,"STK");
 }
 
-fn thick_text(p: &Painter, pos: Pos2, align: Align2, size: f32, color: Color32, text: &str) {
-    let font = FontId::new(size, FontFamily::Proportional);
-    p.text(pos, align, text, font.clone(), color);
-    p.text(Pos2::new(pos.x + 0.28, pos.y), align, text, font, color);
-}
-
-fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
+fn palette(style:KeyStyle)->(Color32,Color32,Color32,Color32,Color32){
     match style {
-        KeyStyle::Olive => (
-            Color32::from_rgb(179, 178, 106),
-            Color32::from_rgb(132, 127, 68),
-            Color32::from_rgb(26, 28, 23),
-            LIGHT_TEXT,
-            DARK_TEXT,
-        ),
-        KeyStyle::Orange => (
-            Color32::from_rgb(243, 188, 52),
-            Color32::from_rgb(194, 129, 20),
-            Color32::from_rgb(28, 24, 18),
-            DARK_TEXT,
-            DARK_TEXT,
-        ),
-        KeyStyle::Blue => (
-            Color32::from_rgb(74, 198, 227),
-            Color32::from_rgb(31, 139, 168),
-            Color32::from_rgb(19, 28, 31),
-            DARK_TEXT,
-            DARK_TEXT,
-        ),
-        KeyStyle::White => (
-            Color32::from_rgb(235, 236, 232),
-            Color32::from_rgb(188, 192, 192),
-            Color32::from_rgb(24, 27, 28),
-            DARK_TEXT,
-            DARK_TEXT,
-        ),
-        KeyStyle::Black => (
-            Color32::from_rgb(19, 20, 23),
-            Color32::from_rgb(12, 13, 15),
-            Color32::from_rgb(22, 24, 25),
-            LIGHT_TEXT,
-            LIGHT_TEXT,
-        ),
+        KeyStyle::Olive=>(Color32::from_rgb(183,181,103),Color32::from_rgb(133,126,61),Color32::from_rgb(102,95,48),WHITE,DARK),
+        KeyStyle::Orange=>(Color32::from_rgb(246,181,43),Color32::from_rgb(197,126,18),Color32::from_rgb(145,84,7),DARK,DARK),
+        KeyStyle::Blue=>(Color32::from_rgb(69,194,220),Color32::from_rgb(31,137,162),Color32::from_rgb(18,92,109),DARK,DARK),
+        KeyStyle::White=>(Color32::from_rgb(236,237,232),Color32::from_rgb(192,196,193),Color32::from_rgb(148,153,151),DARK,DARK),
+        KeyStyle::Black=>(Color32::from_rgb(22,24,25),Color32::from_rgb(10,11,12),Color32::from_rgb(4,5,5),WHITE,WHITE),
     }
 }
 
-fn darker(color: Color32, amount: u8) -> Color32 {
-    Color32::from_rgb(
-        color.r().saturating_sub(amount),
-        color.g().saturating_sub(amount),
-        color.b().saturating_sub(amount),
-    )
+fn bold_txt(p:&Painter,t:Transform,x:f32,y:f32,size:f32,color:Color32,s:&str){ bold_txt_aligned(p,t,x,y,size,color,s,Align2::CENTER_CENTER) }
+fn bold_txt_aligned(p:&Painter,t:Transform,x:f32,y:f32,size:f32,color:Color32,s:&str,align:Align2){
+    let font=FontId::new(t.s(size),FontFamily::Proportional); let pos=t.pos(x,y);
+    p.text(pos,align,s,font.clone(),color); p.text(Pos2::new(pos.x+t.s(0.28),pos.y),align,s,font,color);
 }
+fn darker(c:Color32,n:u8)->Color32{Color32::from_rgb(c.r().saturating_sub(n),c.g().saturating_sub(n),c.b().saturating_sub(n))}
+fn cross(p:&Painter,t:Transform,cx:f32,cy:f32,h:f32,c:Color32){p.line_segment([t.pos(cx-h,cy-h),t.pos(cx+h,cy+h)],Stroke::new(t.s(1.05),c));p.line_segment([t.pos(cx-h,cy+h),t.pos(cx+h,cy-h)],Stroke::new(t.s(1.05),c));}
+fn divide(p:&Painter,t:Transform,cx:f32,cy:f32,h:f32,c:Color32){p.line_segment([t.pos(cx-h,cy),t.pos(cx+h,cy)],Stroke::new(t.s(1.05),c));p.circle_filled(t.pos(cx,cy-4.1),t.s(0.9),c);p.circle_filled(t.pos(cx,cy+4.1),t.s(0.9),c);}
+fn triangle(p:&Painter,t:Transform,cx:f32,cy:f32,h:f32,up:bool,c:Color32){let d=if up{-1.0}else{1.0};p.add(Shape::convex_polygon(vec![t.pos(cx,cy+d*h),t.pos(cx-h,cy-d*h*0.72),t.pos(cx+h,cy-d*h*0.72)],c,Stroke::NONE));}
+fn sigma(p:&Painter,t:Transform,cx:f32,cy:f32,size:f32,c:Color32){let s=size/8.0;let l=cx-4.0*s;let r=cx+4.0*s;let top=cy-4.0*s;let bot=cy+4.0*s;let st=Stroke::new(t.s(0.95*s),c);p.line_segment([t.pos(l,top),t.pos(r,top)],st);p.line_segment([t.pos(l,top),t.pos(cx+0.8*s,cy)],st);p.line_segment([t.pos(cx+0.8*s,cy),t.pos(l,bot)],st);p.line_segment([t.pos(l,bot),t.pos(r,bot)],st);}
+fn pi(p:&Painter,t:Transform,cx:f32,cy:f32,size:f32,c:Color32){let s=size/7.0;let st=Stroke::new(t.s(0.8*s),c);p.line_segment([t.pos(cx-4.0*s,cy-2.7*s),t.pos(cx+4.0*s,cy-2.7*s)],st);p.line_segment([t.pos(cx-2.1*s,cy-2.7*s),t.pos(cx-2.1*s,cy+2.8*s)],st);p.line_segment([t.pos(cx+2.1*s,cy-2.7*s),t.pos(cx+2.1*s,cy+2.8*s)],st);}
+fn one_over_x(p:&Painter,t:Transform,cx:f32,cy:f32,size:f32,c:Color32){let s=size/9.0;bold_txt(p,t,cx-6.0*s,cy,size,c,"1");p.line_segment([t.pos(cx-1.6*s,cy+4.0*s),t.pos(cx+2.3*s,cy-4.0*s)],Stroke::new(t.s(0.85*s),c));bold_txt(p,t,cx+6.0*s,cy,size,c,"x");}
+fn sqrt_x(p:&Painter,t:Transform,cx:f32,cy:f32,size:f32,c:Color32){let s=size/9.0;let x0=cx-8.2*s;let st=Stroke::new(t.s(1.0*s),c);p.line_segment([t.pos(x0,cy+0.3*s),t.pos(x0+2.5*s,cy+4.0*s)],st);p.line_segment([t.pos(x0+2.5*s,cy+4.0*s),t.pos(x0+5.8*s,cy-5.0*s)],st);p.line_segment([t.pos(x0+5.8*s,cy-5.0*s),t.pos(x0+15.0*s,cy-5.0*s)],Stroke::new(t.s(0.8*s),c));bold_txt(p,t,cx+3.5*s,cy+0.4*s,size,c,"x");}
+fn power(p:&Painter,t:Transform,cx:f32,cy:f32,base:&str,exp:&str,size:f32,bc:Color32,ec:Color32){let bw=if base.len()>1{5.5}else{2.6};bold_txt(p,t,cx-bw,cy+1.0,size,bc,base);bold_txt(p,t,cx+bw+2.0,cy-size*0.42,size*0.65,ec,exp);}
+fn swap(p:&Painter,t:Transform,cx:f32,cy:f32,l:&str,r:&str,size:f32,c:Color32){swap_two_color(p,t,cx,cy,l,r,size,c,c)}
+fn swap_two_color(p:&Painter,t:Transform,cx:f32,cy:f32,l:&str,r:&str,size:f32,lc:Color32,rc:Color32){let span=if r.len()>1{11.0}else{8.5};bold_txt(p,t,cx-span,cy,size,lc,l);bold_txt(p,t,cx+span,cy,size,rc,r);let ac=if lc==rc{lc}else{CYAN};double_arrow(p,t,cx,cy,size*0.58,ac);}
+fn double_arrow(p:&Painter,t:Transform,cx:f32,cy:f32,h:f32,c:Color32){let x1=cx-h;let x2=cx+h;let yu=cy-1.35;let yd=cy+1.35;let st=Stroke::new(t.s(0.68),c);p.line_segment([t.pos(x1,yu),t.pos(x2,yu)],st);p.line_segment([t.pos(x2-2.0,yu-1.4),t.pos(x2,yu)],st);p.line_segment([t.pos(x2-2.0,yu+1.4),t.pos(x2,yu)],st);p.line_segment([t.pos(x2,yd),t.pos(x1,yd)],st);p.line_segment([t.pos(x1+2.0,yd-1.4),t.pos(x1,yd)],st);p.line_segment([t.pos(x1+2.0,yd+1.4),t.pos(x1,yd)],st);}
+fn r_arrow(p:&Painter,t:Transform,cx:f32,cy:f32,up:bool,size:f32,c:Color32){bold_txt(p,t,cx-3.3,cy,size,c,"R");triangle(p,t,cx+5.7,cy+0.2,size*0.30,up,c);}
+fn xbar(p:&Painter,t:Transform,cx:f32,cy:f32,size:f32,c:Color32){bold_txt(p,t,cx,cy+0.4,size,c,"x");p.line_segment([t.pos(cx-3.4,cy-4.3),t.pos(cx+3.4,cy-4.3)],Stroke::new(t.s(0.8),c));}
+fn inverse_trig(p:&Painter,t:Transform,cx:f32,cy:f32,name:&str){bold_txt(p,t,cx-2.0,cy,7.9,YELLOW,name);bold_txt(p,t,cx+13.0,cy-4.0,5.5,CYAN,"−1");}
+fn eq_pair(p:&Painter,t:Transform,cx:f32,cy:f32,neq:bool){bold_txt(p,t,cx-13.5,cy,7.6,YELLOW,"x");if neq{not_equal(p,t,cx-5.0,cy,YELLOW)}else{bold_txt(p,t,cx-5.0,cy,7.6,YELLOW,"=")};bold_txt(p,t,cx+1.0,cy,7.6,YELLOW,"0");bold_txt(p,t,cx+8.0,cy,7.6,CYAN,"x");if neq{not_equal(p,t,cx+16.0,cy,CYAN)}else{bold_txt(p,t,cx+16.0,cy,7.6,CYAN,"=")};bold_txt(p,t,cx+23.0,cy,7.6,CYAN,"y");}
+fn not_equal(p:&Painter,t:Transform,cx:f32,cy:f32,c:Color32){let st=Stroke::new(t.s(0.75),c);p.line_segment([t.pos(cx-2.8,cy-1.5),t.pos(cx+2.8,cy-1.5)],st);p.line_segment([t.pos(cx-2.8,cy+1.5),t.pos(cx+2.8,cy+1.5)],st);p.line_segment([t.pos(cx-2.2,cy+3.1),t.pos(cx+2.2,cy-3.1)],st);}
+fn relation_pair(p:&Painter,t:Transform,cx:f32,cy:f32,op:char,inclusive:bool){let os=if op=='<'{"<"}else{">"};bold_txt(p,t,cx-13.0,cy,7.4,YELLOW,"x");bold_txt(p,t,cx-6.5,cy,7.4,YELLOW,os);bold_txt(p,t,cx,cy,7.4,YELLOW,"0");bold_txt(p,t,cx+8.0,cy,7.4,CYAN,"x");relop(p,t,cx+15.5,cy,op,inclusive,CYAN);bold_txt(p,t,cx+23.0,cy,7.4,CYAN,"y");}
+fn relop(p:&Painter,t:Transform,cx:f32,cy:f32,op:char,inclusive:bool,c:Color32){let flip=if op=='<'{1.0}else{-1.0};let st=Stroke::new(t.s(0.75),c);p.line_segment([t.pos(cx+2.4*flip,cy-3.0),t.pos(cx-2.0*flip,cy)],st);p.line_segment([t.pos(cx-2.0*flip,cy),t.pos(cx+2.4*flip,cy+3.0)],st);if inclusive{p.line_segment([t.pos(cx-2.5,cy+4.2),t.pos(cx+2.7,cy+4.2)],st);}}
