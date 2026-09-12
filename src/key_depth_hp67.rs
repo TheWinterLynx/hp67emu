@@ -3,6 +3,7 @@ use eframe::egui::{Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Sha
 const DESIGN_W: f32 = 330.0;
 const DESIGN_H: f32 = 620.0;
 
+const PANEL: Color32 = Color32::from_rgb(45, 46, 43);
 const LIGHT_TEXT: Color32 = Color32::from_rgb(235, 236, 228);
 const DARK_TEXT: Color32 = Color32::from_rgb(31, 34, 33);
 
@@ -49,7 +50,6 @@ const fn k(
 }
 
 const KEYS: &[KeySpec] = &[
-    // Top two rows / upper block
     k(49.0, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "A", None, SubAlign::Center),
     k(99.5, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "B", None, SubAlign::Center),
     k(150.0, 170.0, 31.0, 27.5, 18.5, KeyStyle::Olive, "C", None, SubAlign::Center),
@@ -73,7 +73,6 @@ const KEYS: &[KeySpec] = &[
     k(200.5, 333.5, 31.0, 29.5, 18.0, KeyStyle::Olive, "EEX", Some("GRD"), SubAlign::Center),
     k(251.0, 333.5, 31.0, 29.5, 18.0, KeyStyle::Olive, "CLX", Some("DEL"), SubAlign::Center),
 
-    // Lower matrix: operator column narrower, numeric columns rectangular and wider.
     k(49.0, 386.5, 22.0, 28.0, 17.5, KeyStyle::Olive, "−", Some("SF"), SubAlign::Center),
     k(99.0, 386.5, 36.0, 28.0, 17.5, KeyStyle::White, "7", Some("x↔y"), SubAlign::Center),
     k(172.0, 386.5, 36.0, 28.0, 17.5, KeyStyle::White, "8", Some("R▼"), SubAlign::Center),
@@ -133,14 +132,19 @@ impl Transform {
 fn draw_key(p: &Painter, t: Transform, key: KeySpec) {
     let (top_face, front_face, shell, main_color, sub_color) = palette(key.style);
 
-    // Mask the old flat renderer completely in this footprint.
+    let erase_w = if key.w < 25.0 { 35.0 } else { key.w + 4.0 };
     p.rect_filled(
-        t.rect(key.x - 2.0, key.y - 1.0, key.w + 4.0, key.h + 5.0),
-        t.s(2.8),
+        t.rect(key.x - 2.0, key.y - 1.5, erase_w, key.h + 5.5),
+        0.0,
+        PANEL,
+    );
+
+    p.rect_filled(
+        t.rect(key.x - 0.7, key.y + 0.8, key.w + 1.4, key.top_h + 1.0),
+        t.s(2.3),
         shell,
     );
 
-    // Contact shadow under the sloping front.
     p.add(Shape::convex_polygon(
         vec![
             t.pos(key.x + 3.0, key.y + key.h + 0.6),
@@ -160,7 +164,6 @@ fn draw_key(p: &Painter, t: Transform, key: KeySpec) {
         Stroke::new(t.s(0.7), Color32::from_rgba_premultiplied(0, 0, 0, 55)),
     );
 
-    // Sloping front skirt. No lower reborde line: only the hinge/ridge at the top.
     let top_y = key.y + key.top_h - 0.6;
     let skirt_inset = if key.w >= 70.0 { 5.6 } else if key.w >= 35.0 { 4.0 } else { 3.1 };
     let left_top = key.x + 1.4;
@@ -180,7 +183,6 @@ fn draw_key(p: &Painter, t: Transform, key: KeySpec) {
         Stroke::NONE,
     ));
 
-    // Side facets to suggest perspective towards the chassis.
     p.add(Shape::convex_polygon(
         vec![
             t.pos(key.x + 0.8, key.y + 1.6),
@@ -202,7 +204,6 @@ fn draw_key(p: &Painter, t: Transform, key: KeySpec) {
         Stroke::NONE,
     ));
 
-    // Highlight on top face and ridge where the surface breaks.
     p.line_segment(
         [
             t.pos(key.x + 2.6, key.y + 1.4),
@@ -228,7 +229,7 @@ fn draw_main_label(p: &Painter, t: Transform, key: KeySpec, color: Color32) {
             p,
             t.pos(key.x + key.w * 0.43, top_center_y),
             Align2::CENTER_CENTER,
-            8.7,
+            9.2,
             color,
             key.main,
         );
@@ -243,13 +244,13 @@ fn draw_main_label(p: &Painter, t: Transform, key: KeySpec, color: Color32) {
     }
 
     let size = if matches!(key.style, KeyStyle::White) {
-        if key.main.len() >= 3 { 11.2 } else { 12.6 }
+        if key.main.len() >= 3 { 11.4 } else { 13.0 }
     } else if matches!(key.style, KeyStyle::Black) {
-        11.0
-    } else if key.main.len() >= 3 {
-        9.9
-    } else {
         11.4
+    } else if key.main.len() >= 3 {
+        10.3
+    } else {
+        11.8
     };
 
     thick_text(
@@ -274,17 +275,17 @@ fn draw_sub_label(
     let cy = top_y + (bottom_y - top_y) * 0.56;
     let (pos, align) = match key.sub_align {
         SubAlign::Center => (t.pos(key.x + key.w * 0.5, cy), Align2::CENTER_CENTER),
-        SubAlign::Right => (t.pos(key.x + key.w - 8.0, cy), Align2::RIGHT_CENTER),
+        SubAlign::Right => (t.pos(key.x + key.w - 6.2, cy), Align2::RIGHT_CENTER),
     };
 
     let size = if key.w >= 70.0 {
-        5.7
+        5.9
     } else if key.w >= 35.0 {
-        if sub.len() >= 5 { 5.1 } else { 5.8 }
+        if sub.len() >= 5 { 5.3 } else { 6.0 }
     } else if sub.len() >= 3 {
-        5.2
+        5.4
     } else {
-        5.6
+        5.8
     };
 
     thick_text(p, pos, align, size, color, sub);
@@ -293,7 +294,7 @@ fn draw_sub_label(
 fn thick_text(p: &Painter, pos: Pos2, align: Align2, size: f32, color: Color32, text: &str) {
     let font = FontId::new(size, FontFamily::Proportional);
     p.text(pos, align, text, font.clone(), color);
-    p.text(Pos2::new(pos.x + 0.22, pos.y), align, text, font, color);
+    p.text(Pos2::new(pos.x + 0.28, pos.y), align, text, font, color);
 }
 
 fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
