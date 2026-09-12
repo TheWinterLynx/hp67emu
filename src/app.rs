@@ -2,7 +2,7 @@ use eframe::egui::{self, Color32};
 
 use crate::{
     hp67::Hp67State,
-    key_depth_hp67::KeyDepthOverlay,
+    key_depth_hp67_v2::KeyDepthOverlay,
     panel::Hp67Panel,
 };
 
@@ -34,10 +34,7 @@ impl eframe::App for Hp67App {
                     self.state.handle(event);
                 }
 
-                // The physical HP-67 prints the secondary key legend on the
-                // sloping front face of the keycap.  Draw that face last so it
-                // also masks the legacy flat-face text below it.
-                KeyDepthOverlay::paint(ui.painter(), host_rect);
+                KeyDepthOverlay::paint(ui, host_rect);
             });
 
         if ctx.input(|i| i.pointer.any_down()) {
