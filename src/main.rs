@@ -2,6 +2,7 @@
 
 mod app;
 mod hp67;
+#[path = "panel_fidelity.rs"]
 mod panel;
 
 use eframe::egui;
