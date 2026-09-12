@@ -2,7 +2,7 @@
 
 mod app;
 mod hp67;
-mod key_depth;
+mod key_depth_hp67;
 #[path = "panel_fidelity.rs"]
 mod panel;
 
