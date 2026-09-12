@@ -2,6 +2,7 @@ use eframe::egui::{self, Color32};
 
 use crate::{
     hp67::Hp67State,
+    key_depth::KeyDepthOverlay,
     panel::Hp67Panel,
 };
 
@@ -27,9 +28,16 @@ impl eframe::App for Hp67App {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
             .show(ctx, |ui| {
+                // Capture the exact host rect used by the panel before it consumes
+                // the available space. The perspective overlay then shares the
+                // same resolution-independent transform as the calculator body.
+                let host_rect = ui.available_rect_before_wrap();
+
                 for event in Hp67Panel::show(ui, &self.state) {
                     self.state.handle(event);
                 }
+
+                KeyDepthOverlay::paint(ui.painter(), host_rect);
             });
 
         // Pointer interaction changes key/switch highlights immediately.
