@@ -84,7 +84,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
     surface(
         p,
         t,
-        22.0,
+        29.0,
         598.0,
         panel_left,
         panel_right,
@@ -119,10 +119,23 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
     surface(
         p,
         t,
-        20.0,
+        24.0,
         73.0,
-        |y| panel_left(y) + 1.4,
-        |y| panel_right(y) - 1.4,
+        |y| {
+            30.4 + if y < 28.0 {
+                4.0 - (16.0 - (y - 28.0).powi(2)).max(0.0).sqrt()
+            } else {
+                0.0
+            }
+        },
+        |y| {
+            299.6
+                - if y < 28.0 {
+                    4.0 - (16.0 - (y - 28.0).powi(2)).max(0.0).sqrt()
+                } else {
+                    0.0
+                }
+        },
         Color32::from_rgb(30, 16, 15),
         0.7,
         2.0,

@@ -1,5 +1,8 @@
 # Follow-up: silhouette, materials, display and resizing
 
+The exaggerated tapered outline described below was subsequently corrected.
+See [the frontal-reference correction](FRONTAL-CORRECTION.md) for current geometry.
+
 The user supplied an emulator screenshot, a lit frontal photograph (683x1059),
 another emulator reference and a large close-up (shown at 1152x2048). These were
 reviewed directly for the molded outline, key shoulders/front skirt, surface

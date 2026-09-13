@@ -53,6 +53,26 @@ mod tests {
     use eframe::egui::{self, Event, Modifiers, PointerButton, Pos2};
 
     #[test]
+    fn reciprocal_x_print_extends_below_the_one() {
+        for size in [6.8, 10.5] {
+            let placements = reciprocal_positions(size);
+            let bottom = |index: usize, ch| {
+                let (_, y, height) = placements[index];
+                let glyph = super::super::lettering_data::glyph(ch, 700);
+                y - height * 0.78 * 0.5
+                    + glyph
+                        .vertices
+                        .iter()
+                        .map(|v| v[1])
+                        .fold(f32::NEG_INFINITY, f32::max)
+                        * height
+                        * 0.78
+            };
+            assert!(bottom(1, 'x') - bottom(0, '1') > size * 0.20);
+        }
+    }
+
+    #[test]
     fn every_visible_key_including_its_outer_edge_dispatches_its_own_action() {
         assert_eq!(KEYS.len(), 35);
         for key in KEYS {
@@ -549,9 +569,20 @@ fn pi(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
         st,
     );
 }
+// Photographed reciprocal: a smaller raised 1, descending slash, lower x.
+// Shared by the white panel print and the front of the 4 key.
+fn reciprocal_positions(size: f32) -> [(f32, f32, f32); 2] {
+    let s = size / 9.0;
+    [
+        (-5.4 * s, -1.1 * s, size * 0.86),
+        (5.3 * s, 0.8 * s, size * 0.98),
+    ]
+}
 fn one_over_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     let s = size / 9.0;
-    bold_txt(p, t, cx - 6.0 * s, cy, size, c, "1");
+    for ((x, y, height), letter) in reciprocal_positions(size).into_iter().zip(["1", "x"]) {
+        bold_txt(p, t, cx + x, cy + y, height, c, letter);
+    }
     p.line_segment(
         [
             t.pos(cx - 1.6 * s, cy + 4.0 * s),
@@ -559,8 +590,8 @@ fn one_over_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32
         ],
         Stroke::new(t.s(0.85 * s), c),
     );
-    bold_txt(p, t, cx + 6.0 * s, cy, size, c, "x");
 }
+
 fn sqrt_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     let s = size / 9.0;
     let x0 = cx - 8.2 * s;
@@ -649,7 +680,7 @@ fn xbar(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
 }
 fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
     bold_txt(p, t, cx - 2.0, cy, 7.9, YELLOW, name);
-    bold_txt(p, t, cx + 13.0, cy - 4.1, 5.2, CYAN, "−1");
+    bold_txt(p, t, cx + 10.0, cy - 3.4, 5.2, CYAN, "−1");
 }
 fn eq_pair(p: &Painter, t: Transform, cx: f32, cy: f32, ne: bool) {
     bold_txt(p, t, cx - 13.0, cy, 7.5, YELLOW, "x");

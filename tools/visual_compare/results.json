@@ -52,5 +52,20 @@
       "compiler_warnings": 0
     },
     "note": "See REALISM.md. Old rectangular registration and unlit photo do not provide a fair aggregate-MAE ranking of a tapered, lit rendering."
+  },
+  "frontal_correction": {
+    "capture_sizes": [
+      "330x620",
+      "660x1240"
+    ],
+    "fixture": "0.00",
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "13 passed; capture opt-in",
+      "capture": "passed",
+      "release": "passed",
+      "compiler_warnings": 0
+    },
+    "details": "FRONTAL-CORRECTION.md"
   }
 }

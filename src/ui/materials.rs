@@ -69,32 +69,14 @@ pub fn surface(
     p.add(Shape::mesh(mesh));
 }
 
-/// Molded outline: narrow shoulders, slightly bowed sides, broad lower corners.
+/// Near-frontal outline: almost parallel ends, gently bowed long sides.
+/// The oblique photographs exaggerate convergence; do not model that perspective
+/// as a narrow top. All inset rims use the same envelope and corner construction.
 pub fn outline(p: &Painter, t: Transform, inset: f32, base: Color32) {
-    let controls = [
-        (33.0 + inset, 3.0 + inset),
-        (297.0 - inset, 3.0 + inset),
-        (310.0 - inset, 12.0 + inset),
-        (326.0 - inset, 605.0 - inset),
-        (317.0 - inset, 617.0 - inset),
-        (13.0 + inset, 617.0 - inset),
-        (4.0 + inset, 605.0 - inset),
-        (20.0 + inset, 12.0 + inset),
-    ];
-    let points: Vec<_> = controls.iter().map(|&(x, y)| t.pos(x, y)).collect();
-    let mut rounded = Vec::new();
-    for i in 0..points.len() {
-        let current = points[i];
-        let prev = points[(i + points.len() - 1) % points.len()];
-        let next = points[(i + 1) % points.len()];
-        let a = current + (prev - current).normalized() * t.s(7.4);
-        let b = current + (next - current).normalized() * t.s(7.4);
-        rounded.push(a);
-        for j in 1..=8 {
-            let f = j as f32 / 8.0;
-            rounded.push(a.lerp(current, f).lerp(current.lerp(b, f), f));
-        }
-    }
+    let rounded = outline_points(inset)
+        .into_iter()
+        .map(|(x, y)| t.pos(x, y))
+        .collect::<Vec<_>>();
     p.add(Shape::convex_polygon(rounded.clone(), base, Stroke::NONE));
     let mut mesh = Mesh::default();
     mesh.vertices.push(Vertex {
@@ -125,12 +107,73 @@ pub fn outline(p: &Painter, t: Transform, inset: f32, base: Color32) {
     p.add(Shape::mesh(mesh));
 }
 
-pub fn panel_left(y: f32) -> f32 {
-    if y < 50.0 {
-        return 49.0 - (y - 22.0) * 8.2 / 28.0;
+fn outline_points(inset: f32) -> Vec<(f32, f32)> {
+    let top = 3.0 + inset;
+    let bottom = 617.0 - inset;
+    let right = 318.0 - inset;
+    let radius = 9.0;
+    let mut points = Vec::new();
+    let mut corner = |a: (f32, f32), b: (f32, f32), c: (f32, f32)| {
+        for i in 0..=12 {
+            let f = i as f32 / 12.0;
+            points.push((
+                (1.0 - f) * (1.0 - f) * a.0 + 2.0 * f * (1.0 - f) * b.0 + f * f * c.0,
+                (1.0 - f) * (1.0 - f) * a.1 + 2.0 * f * (1.0 - f) * b.1 + f * f * c.1,
+            ));
+        }
+    };
+    corner((right - radius, top), (right, top), (right, top + radius));
+    for i in 1..=48 {
+        let f = i as f32 / 48.0;
+        points.push((
+            right + 7.0 * (std::f32::consts::PI * f).sin(),
+            top + radius + (bottom - top - 2.0 * radius) * f,
+        ));
     }
-    42.0 - 14.0 * ((y - 16.0) / 586.0).clamp(0.0, 1.0)
+    // Reflect the upper right corner downwards, then the complete right side
+    // to the left. This keeps upper/lower widths equal instead of tapering.
+    for i in 0..=12 {
+        let f = i as f32 / 12.0;
+        points.push((
+            right - radius * f * f,
+            bottom - radius * (1.0 - f) * (1.0 - f),
+        ));
+    }
+    let right_half = points.clone();
+    points.extend(right_half.into_iter().rev().map(|(x, y)| (330.0 - x, y)));
+    points
+}
+
+pub fn panel_left(y: f32) -> f32 {
+    let f = ((y - 29.0) / 562.0).clamp(0.0, 1.0);
+    29.0 - 7.0 * (std::f32::consts::PI * f).sin()
 }
 pub fn panel_right(y: f32) -> f32 {
     330.0 - panel_left(y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn shoulders_do_not_converge_into_a_trapezoid() {
+        assert!((panel_left(50.0) - panel_left(570.0)).abs() < 0.001);
+        assert!(panel_left(310.0) < panel_left(50.0));
+        for inset in [0.0, 13.0, 17.0] {
+            let points = outline_points(inset);
+            for &(x, y) in &points {
+                assert!(x >= 0.0 && x <= 330.0 && y >= 0.0 && y <= 620.0);
+            }
+            let span = |y: f32| {
+                let xs: Vec<_> = points
+                    .iter()
+                    .filter(|p| (p.1 - y).abs() < 0.001)
+                    .map(|p| p.0)
+                    .collect();
+                xs.iter().copied().fold(f32::NEG_INFINITY, f32::max)
+                    - xs.iter().copied().fold(f32::INFINITY, f32::min)
+            };
+            assert!((span(3.0 + inset) - span(617.0 - inset)).abs() < 0.001);
+        }
+    }
 }

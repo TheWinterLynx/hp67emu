@@ -59,7 +59,12 @@ This remains a first reconstruction pass; it does not claim pixel-identical
 printing or full HP-67 firmware emulation.
 
 
-The [realism follow-up](tools/visual_compare/REALISM.md) adds a tapered molded
+The [realism follow-up](tools/visual_compare/REALISM.md) adds a molded
 case, surface lighting and grain, rounded key shoulders, ribbed switches and a
 15-position display grid with its own decimal cell. Native windows resize from
 165 x 310 with no configured maximum; the calculator retains its aspect ratio.
+
+
+The [frontal-reference correction](tools/visual_compare/FRONTAL-CORRECTION.md)
+replaces the exaggerated taper with gently bowed sides, corrects the display
+window and places the reciprocal's x lower than its raised 1.
