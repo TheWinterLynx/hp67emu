@@ -81,3 +81,7 @@ and verifies vector-only rendering with higher-precision character contours.
 The [antialiasing and rim pass](tools/visual_compare/AA-RIM.md) gives the white
 rim a continuous, uniform stroke and adds edge coverage to keyboard/body
 geometry while preserving the display rendering.
+
+The [reference-led lower-case correction](tools/visual_compare/REFERENCE-NOSE.md)
+revises the rounded fall of the nose and vintage badge proportions, and checks
+the white rim's rendered coverage along both the sides and bottom.

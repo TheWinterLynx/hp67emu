@@ -8,7 +8,6 @@ const PANEL: Color32 = Color32::from_rgb(39, 40, 36);
 const PANEL_DARK: Color32 = Color32::from_rgb(25, 25, 23);
 const CASE_GREEN: Color32 = Color32::from_rgb(79, 82, 58);
 const CASE_GREEN_DARK: Color32 = Color32::from_rgb(59, 61, 44);
-const SILVER: Color32 = Color32::from_rgb(171, 172, 166);
 const SILVER_LIGHT: Color32 = Color32::from_rgb(225, 227, 221);
 const WHITE: Color32 = Color32::from_rgb(230, 233, 229);
 
@@ -77,10 +76,6 @@ fn draw_chassis(p: &Painter, t: Transform) {
         (4.0, CASE_GREEN),
         (7.5, CASE_GREEN_DARK),
         (10.0, Color32::from_rgb(27, 30, 28)),
-        (11.5, Color32::from_rgb(115, 122, 116)),
-        (13.0, Color32::from_rgb(115, 122, 116)),
-        (14.5, SILVER),
-        (16.0, Color32::from_rgb(62, 68, 64)),
         (17.0, PANEL),
     ] {
         if inset >= 10.0 {
@@ -276,47 +271,31 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
 // to the chassis; the thin printed nameplate is inset into that larger face.
 fn draw_lower_case(p: &Painter, t: Transform) {
     use crate::ui::materials::antialiased_surface as surface;
-    use eframe::egui::Shape;
-    let facet = |points: &[(f32, f32)], color| {
-        p.add(Shape::convex_polygon(
-            points.iter().map(|&(x, y)| t.pos(x, y)).collect(),
-            color,
-            Stroke::NONE,
-        ));
-    };
-    facet(
-        &[(26.0, 583.5), (28.0, 583.5), (33.0, 604.0), (24.0, 610.0)],
-        Color32::from_rgb(64, 68, 55),
-    );
-    facet(
-        &[
-            (302.0, 583.5),
-            (304.0, 583.5),
-            (306.0, 610.0),
-            (297.0, 604.0),
-        ],
-        Color32::from_rgb(35, 39, 31),
+    // Rounded roll into the lower face: near-parallel sides, no triangular
+    // inset corners. The illuminated shoulder darkens continuously underneath.
+    surface(
+        p,
+        t,
+        581.8,
+        609.0,
+        |y| 22.0 + 2.0 * ((y - 581.8) / 27.2).powi(2),
+        |y| 308.0 - 2.0 * ((y - 581.8) / 27.2).powi(2),
+        Color32::from_rgb(55, 57, 45),
+        1.2,
+        0.65,
+        |u, v| 6.0 * (1.0 - u) + 11.0 * (-((v - 0.10) / 0.10).powi(2)).exp() - 20.0 * v,
     );
     surface(
         p,
         t,
-        583.5,
-        604.0,
-        |y| 28.0 + (y - 583.5) * 5.0 / 20.5,
-        |y| 302.0 - (y - 583.5) * 5.0 / 20.5,
-        Color32::from_rgb(48, 49, 42),
+        584.0,
+        602.0,
+        |y| 28.0 + (y - 584.0) * 0.07,
+        |y| 302.0 - (y - 584.0) * 0.07,
+        Color32::from_rgb(24, 25, 23),
         0.8,
-        1.0,
-        |u, v| 9.0 * (1.0 - u) - 19.0 * v,
-    );
-    // Straight fold, diagonal continuation of the rolled rim, and lower return.
-    p.line_segment(
-        [t.pos(28.0, 583.5), t.pos(302.0, 583.5)],
-        Stroke::new(t.s(0.65), Color32::from_rgb(92, 94, 82)),
-    );
-    facet(
-        &[(31.0, 604.0), (299.0, 604.0), (306.0, 610.0), (24.0, 610.0)],
-        Color32::from_rgb(48, 51, 39),
+        0.6,
+        |_, v| 4.0 * (1.0 - v) - 8.0 * v,
     );
 }
 
@@ -334,26 +313,35 @@ fn rim_points() -> Vec<Pos2> {
             let f = (583.5 - a.1) / (b.1 - a.1);
             points.push(Pos2::new(a.0 + (b.0 - a.0) * f, 583.5));
             if a.1 <= 583.5 {
-                points.push(Pos2::new(299.0, 604.5));
-                points.push(Pos2::new(31.0, 604.5));
+                points.push(Pos2::new(303.0, 605.0));
+                points.push(Pos2::new(27.0, 605.0));
             }
         }
     }
     points
 }
 fn draw_continuous_rim(p: &Painter, t: Transform) {
-    p.add(eframe::egui::Shape::closed_line(
-        rim_points()
-            .into_iter()
-            .map(|point| t.pos(point.x, point.y))
-            .collect(),
-        Stroke::new(t.s(1.5), SILVER_LIGHT),
-    ));
+    let points: Vec<_> = rim_points()
+        .into_iter()
+        .map(|point| t.pos(point.x, point.y))
+        .collect();
+    // Identical metal cross-section on the top, sides, bend and bottom. No
+    // independently shaded inset bands to add apparent width along the sides.
+    for (width, color) in [
+        (4.4, Color32::from_rgb(69, 75, 70)),
+        (3.0, Color32::from_rgb(139, 145, 137)),
+        (1.4, SILVER_LIGHT),
+    ] {
+        p.add(eframe::egui::Shape::closed_line(
+            points.clone(),
+            Stroke::new(t.s(width), color),
+        ));
+    }
 }
 
 // Affine projection: every horizontal baseline and diagonal remains straight.
 fn nose_point(x: f32, y: f32) -> (f32, f32) {
-    (38.0 + x * 254.0 / 268.0, 585.6 + y * 0.76)
+    (38.0 + x * 254.0 / 268.0, 584.4 + y * 0.90)
 }
 
 fn draw_branding(p: &Painter, t: Transform) {
@@ -382,43 +370,61 @@ fn draw_branding(p: &Painter, t: Transform) {
         266.0,
         18.0,
         Color32::from_rgb(24, 25, 23),
-        Stroke::new(t.s(0.35), Color32::from_rgb(113, 116, 105)),
-    );
-    // Period badge: dark left field, blue right field, silver circular hp mark.
-    let ink = Color32::from_rgb(25, 31, 33);
-    let silver = Color32::from_rgb(190, 190, 175);
-    quad(10.0, 3.0, 31.0, 15.0, ink, Stroke::new(t.s(0.4), silver));
-    quad(
-        27.0,
-        3.2,
-        13.8,
-        14.6,
-        Color32::from_rgb(38, 112, 156),
         Stroke::NONE,
     );
-    let circle = (0..64)
+    // Measured reference badge: silver hairline around a black/blue rectangle;
+    // a narrow vintage hp, with curved shoulders and bowl, on a silver disc.
+    let ink = Color32::from_rgb(31, 33, 31);
+    let silver = Color32::from_rgb(185, 187, 172);
+    quad(6.0, 3.0, 31.0, 15.0, ink, Stroke::new(t.s(0.42), silver));
+    quad(
+        21.5,
+        3.25,
+        15.2,
+        14.5,
+        Color32::from_rgb(42, 109, 156),
+        Stroke::NONE,
+    );
+    let circle = (0..128)
         .map(|i| {
-            let a = i as f32 * std::f32::consts::TAU / 64.0;
-            point(23.0 + 6.9 * a.cos(), 10.5 + 6.9 * a.sin())
+            let a = i as f32 * std::f32::consts::TAU / 128.0;
+            point(20.0 + 6.25 * a.cos(), 10.5 + 7.0 * a.sin())
         })
         .collect();
     p.add(Shape::convex_polygon(circle, silver, Stroke::NONE));
-    // Parallel slanted stems and open counters of the vintage circular mark.
-    for path in [
-        vec![(22.0, 3.4), (18.3, 14.8)],
-        vec![(20.1, 9.1), (23.3, 9.1), (21.5, 14.8)],
-        vec![(22.8, 17.5), (26.3, 6.4)],
-        vec![(25.8, 8.0), (28.6, 8.0), (27.4, 11.8), (24.6, 11.8)],
-    ] {
-        p.add(Shape::line(
-            path.into_iter().map(|(x, y)| point(x, y)).collect(),
-            Stroke::new(t.s(1.12), ink),
+    // Open h shoulder and curved p counter; thinner than the modern HP mark.
+    let line = |a: (f32, f32), b: (f32, f32)| {
+        p.line_segment(
+            [point(a.0, a.1), point(b.0, b.1)],
+            Stroke::new(t.s(0.72), ink),
+        );
+    };
+    let curve = |coords: [(f32, f32); 4]| {
+        p.add(Shape::CubicBezier(
+            eframe::egui::epaint::CubicBezierShape::from_points_stroke(
+                coords.map(|(x, y)| point(x, y)),
+                false,
+                Color32::TRANSPARENT,
+                Stroke::new(t.s(0.72), ink),
+            ),
         ));
-    }
+    };
+    line((19.6, 3.7), (16.3, 14.6));
+    curve([(18.2, 8.9), (21.9, 6.2), (22.0, 7.7), (21.3, 9.6)]);
+    line((21.3, 9.6), (19.7, 14.5));
+    line((23.3, 7.8), (20.0, 18.0));
+    curve([(23.3, 7.8), (27.6, 6.7), (26.5, 12.8), (21.9, 12.4)]);
     // Explicit tracking, with the model number as one unspaced pair.
     let mut cursor = 54.0;
     for ch in "HEWLETT-PACKARD".chars() {
         let value = ch.to_string();
+        if ch == '-' {
+            // The original nameplate separates the names with a centered dot.
+            let center = cursor + glyphs::width(&value, 8.0, 400) * 0.5;
+            p.circle_filled(point(center, 10.2), t.s(0.65), silver);
+            cursor += glyphs::width(&value, 8.0, 400) + 6.1;
+            continue;
+        }
         let mut mesh = glyphs::text_mesh(
             Pos2::new(cursor, 10.2),
             8.0,

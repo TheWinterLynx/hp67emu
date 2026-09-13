@@ -108,5 +108,23 @@
       "display_pixel_comparison": "identical glass and LED crops at all three scales"
     },
     "details": "AA-RIM.md"
+  },
+  "reference_nose": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "16 passed; 1 opt-in capture ignored",
+      "release": "cargo rustc --release succeeded to hp67emu-reference.exe; standard executable locked by running app",
+      "capture": "passed 330x620,660x1240,1320x2480",
+      "display_crops": "identical at all three scales"
+    },
+    "rim_coverage_pixels_4x": {
+      "sides": [
+        5.566,
+        5.553,
+        5.513
+      ],
+      "bottom": 5.553
+    },
+    "details": "REFERENCE-NOSE.md"
   }
 }
