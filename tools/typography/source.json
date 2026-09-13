@@ -2,6 +2,7 @@
   "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/arimo/Arimo%5Bwght%5D.ttf",
   "sha256": "e43898b143ec826ac8cb4034816458a7047fbe0836558de2a1f8c6223ae3e0ca",
   "fonttools": "4.65.0",
-  "output_sha256": "369f2195ce1b3ae76b9395f298d98568c9747d6d76d29c668cf2c61fee744dc9",
-  "custom_outlines": "hp_math.py: reconstructed x, y and pi"
+  "output_sha256": "535859434f4dcb650358e041fd2d0b4b70ef56291f58314b5d9edc3fc4ef959c",
+  "custom_outlines": "hp_math.py: reconstructed x, y and pi",
+  "flattening_tolerance_font_units": 0.1
 }

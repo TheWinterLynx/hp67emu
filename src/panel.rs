@@ -16,6 +16,10 @@ pub struct Hp67Panel;
 
 impl Hp67Panel {
     pub fn show(ui: &mut Ui, state: &Hp67State) -> Vec<UiEvent> {
+        // Do not let egui replace small circular marks (division/decimal dots)
+        // with cached font-atlas discs as the window scale changes.
+        ui.ctx()
+            .tessellation_options_mut(|options| options.prerasterized_discs = false);
         let available = ui.available_size();
         let (host_rect, _) = ui.allocate_exact_size(available, Sense::hover());
         let scale = scale_for(host_rect.size());
@@ -79,13 +83,23 @@ fn draw_chassis(p: &Painter, t: Transform) {
         (16.0, Color32::from_rgb(62, 68, 64)),
         (17.0, PANEL),
     ] {
-        outline(p, t, inset, color);
+        if inset >= 10.0 {
+            // The upper rolled rim ends at the fold; the nose supplies its own
+            // sloping continuation. Do not leave a second old rim behind it.
+            let clip = eframe::egui::Rect::from_min_max(
+                p.clip_rect().min,
+                Pos2::new(p.clip_rect().max.x, t.pos(0.0, 583.5).y),
+            );
+            outline(&p.with_clip_rect(clip), t, inset, color);
+        } else {
+            outline(p, t, inset, color);
+        }
     }
     surface(
         p,
         t,
         29.0,
-        598.0,
+        583.5,
         panel_left,
         panel_right,
         PANEL,
@@ -93,6 +107,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
         1.8,
         |u, v| 3.0 * (1.0 - u) - 5.0 * v + 2.0 * (v * 8.0).sin(),
     );
+    draw_lower_case(p, t);
     // Recessed card/legend rail above the A-E row.
     surface(
         p,
@@ -256,27 +271,72 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
     }
 }
 
-// The nameplate is printed on the falling nose, below the keyboard plane.
-// One projection applies to its border, emblem and lettering alike.
-fn nose_point(x: f32, y: f32) -> (f32, f32) {
-    (30.0 + x + (134.0 - x) * y / 1800.0, 585.0 + y * 0.76)
-}
-
-fn draw_branding(p: &Painter, t: Transform) {
-    use crate::ui::{glyphs, materials::surface};
+// The keyboard deck ends at the fold. The nose, cheeks and return lip belong
+// to the chassis; the thin printed nameplate is inset into that larger face.
+fn draw_lower_case(p: &Painter, t: Transform) {
+    use crate::ui::materials::surface;
     use eframe::egui::Shape;
+    let facet = |points: &[(f32, f32)], color| {
+        p.add(Shape::convex_polygon(
+            points.iter().map(|&(x, y)| t.pos(x, y)).collect(),
+            color,
+            Stroke::NONE,
+        ));
+    };
+    facet(
+        &[(26.0, 583.5), (28.0, 583.5), (33.0, 604.0), (24.0, 610.0)],
+        Color32::from_rgb(64, 68, 55),
+    );
+    facet(
+        &[
+            (302.0, 583.5),
+            (304.0, 583.5),
+            (306.0, 610.0),
+            (297.0, 604.0),
+        ],
+        Color32::from_rgb(35, 39, 31),
+    );
     surface(
         p,
         t,
         583.5,
-        602.5,
-        |y| 28.0 + (y - 583.5) * 0.22,
-        |y| 302.0 - (y - 583.5) * 0.22,
-        Color32::from_rgb(33, 34, 31),
-        2.0,
+        604.0,
+        |y| 28.0 + (y - 583.5) * 5.0 / 20.5,
+        |y| 302.0 - (y - 583.5) * 5.0 / 20.5,
+        Color32::from_rgb(48, 49, 42),
+        0.8,
         1.0,
-        |_, v| 12.0 * (-v * 25.0).exp() - 17.0 * v,
+        |u, v| 9.0 * (1.0 - u) - 19.0 * v,
     );
+    // Straight fold, diagonal continuation of the rolled rim, and lower return.
+    p.line_segment(
+        [t.pos(28.0, 583.5), t.pos(302.0, 583.5)],
+        Stroke::new(t.s(0.65), Color32::from_rgb(92, 94, 82)),
+    );
+    for (a, b, c) in [
+        ((26.0, 583.5), (31.0, 604.5), SILVER_LIGHT),
+        ((304.0, 583.5), (299.0, 604.5), SILVER),
+    ] {
+        p.line_segment([t.pos(a.0, a.1), t.pos(b.0, b.1)], Stroke::new(t.s(1.7), c));
+    }
+    facet(
+        &[(31.0, 604.0), (299.0, 604.0), (306.0, 610.0), (24.0, 610.0)],
+        Color32::from_rgb(48, 51, 39),
+    );
+    p.line_segment(
+        [t.pos(31.0, 604.5), t.pos(299.0, 604.5)],
+        Stroke::new(t.s(1.0), SILVER),
+    );
+}
+
+// Affine projection: every horizontal baseline and diagonal remains straight.
+fn nose_point(x: f32, y: f32) -> (f32, f32) {
+    (38.0 + x * 254.0 / 268.0, 585.6 + y * 0.76)
+}
+
+fn draw_branding(p: &Painter, t: Transform) {
+    use crate::ui::glyphs;
+    use eframe::egui::Shape;
     let point = |x, y| {
         let (x, y) = nose_point(x, y);
         t.pos(x, y)
@@ -299,12 +359,8 @@ fn draw_branding(p: &Painter, t: Transform) {
         1.5,
         266.0,
         18.0,
-        Color32::from_rgb(17, 18, 18),
-        Stroke::new(t.s(0.55), Color32::from_rgb(141, 145, 137)),
-    );
-    p.line_segment(
-        [point(1.0, 21.0), point(267.0, 21.0)],
-        Stroke::new(t.s(1.1), Color32::from_rgb(9, 11, 10)),
+        Color32::from_rgb(24, 25, 23),
+        Stroke::new(t.s(0.35), Color32::from_rgb(113, 116, 105)),
     );
     // Period badge: dark left field, blue right field, silver circular hp mark.
     let ink = Color32::from_rgb(25, 31, 33);
@@ -498,6 +554,44 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complete_panel_uses_only_untextured_vector_geometry_at_large_sizes() {
+        use eframe::egui::{
+            self,
+            epaint::{Primitive, WHITE_UV},
+        };
+        for scale in [1.0, 4.0] {
+            let ctx = egui::Context::default();
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        Pos2::ZERO,
+                        Vec2::new(330.0, 620.0) * scale,
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::none())
+                        .show(ctx, |ui| {
+                            Hp67Panel::show(ui, &Hp67State::default());
+                        });
+                },
+            );
+            let primitives = ctx.tessellate(output.shapes, ctx.pixels_per_point());
+            assert!(!primitives.is_empty());
+            for primitive in primitives {
+                let Primitive::Mesh(mesh) = primitive.primitive else {
+                    panic!("non-vector callback")
+                };
+                assert!(
+                    mesh.vertices.iter().all(|v| v.uv == WHITE_UV),
+                    "raster texture used in panel"
+                );
+            }
+        }
+    }
 
     #[test]
     fn display_has_separate_decimal_sign_and_exponent_cells() {

@@ -73,3 +73,7 @@ The [glyph and lower-face audit](tools/visual_compare/GLYPH-NOSE-AUDIT.md)
 adds curved mathematical lettering, compact exchange marks and a projected
 nameplate on the falling lower face, including a vector reconstruction of the
 period HP badge.
+
+The [resolution and case-face correction](tools/visual_compare/RESOLUTION-CASE-FACE.md)
+integrates the falling nose into the chassis, keeps the nameplate edges straight,
+and verifies vector-only rendering with higher-precision character contours.

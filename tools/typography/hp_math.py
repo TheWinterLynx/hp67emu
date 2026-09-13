@@ -10,8 +10,8 @@ def curve(start, *segments):
     points = [start]
     for b, c, d in segments:
         a = points[-1]
-        for i in range(1, 25):
-            t = i / 24
+        for i in range(1, 97):
+            t = i / 96
             points.append(tuple((1-t)**3*a[k]+3*(1-t)**2*t*b[k]+3*(1-t)*t*t*c[k]+t**3*d[k] for k in (0, 1)))
     return points
 

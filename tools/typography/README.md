@@ -19,7 +19,8 @@ The input font's SHA-256 and download URL are in `source.json`. Download to the
 ignored `target/Arimo.ttf`; neither Python nor the font file is needed to build
 or run the emulator. The generated vector data and OFL notice are checked in.
 
-Quadratic contours are subdivided in font space; a scanline decomposition emits
+Quadratic and cubic font contours are adaptively subdivided to a 0.10-font-unit
+flatness tolerance; a scanline decomposition emits
 vector trapezoids while retaining counters/holes. Vertices are deduplicated.
 The original flattened contours also supply a physical-pixel coverage fringe
 at rendering time, keeping lettering smooth at small and fractional scales.
@@ -33,3 +34,8 @@ triangulation preserves solid overlaps as well as the font's counters. A Rust
 regression checks the x crossing, y descender and availability of pi.
 Compound exchange legends use actual outline advances and a mark 0.50 times
 the legend size, replacing the former 1.04 ratio and fixed letter offsets.
+
+The panel disables egui's prerasterized-disc optimization. The full-panel test
+checks that every tessellated vertex uses the solid white texel at 1x and 4x,
+so a future bitmap label, font atlas glyph or cached dot fails the test.
+Antialias coverage remains tied to physical pixels, not logical glyph size.

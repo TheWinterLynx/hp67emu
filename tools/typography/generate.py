@@ -25,16 +25,26 @@ class Contours(BasePen):
     def _closePath(self):
         self.current.append(self.current[0])
         self.paths.append(self.current)
+    def _flatten(self, points, depth=0):
+        a,b=points[0],points[-1]
+        dx,dy=b[0]-a[0],b[1]-a[1]
+        length=(dx*dx+dy*dy)**0.5
+        error=max((abs(dx*(q[1]-a[1])-dy*(q[0]-a[0]))/max(length,1e-9) for q in points[1:-1]),default=0)
+        if error <= 0.10 or depth >= 16:
+            self.current.append(b)
+            return
+        levels=[points]
+        while len(levels[-1])>1:
+            row=levels[-1]
+            levels.append([tuple((a[k]+b[k])*0.5 for k in (0,1)) for a,b in zip(row,row[1:])])
+        self._flatten([row[0] for row in levels],depth+1)
+        self._flatten([row[-1] for row in reversed(levels)],depth+1)
+
     def _qCurveToOne(self, p1, p2):
-        p0 = self.current[-1]
-        for i in range(1, 13):
-            t = i/12
-            self.current.append(tuple((1-t)**2*a+2*(1-t)*t*b+t*t*c for a,b,c in zip(p0,p1,p2)))
+        self._flatten([self.current[-1],p1,p2])
+
     def _curveToOne(self, p1, p2, p3):
-        p0 = self.current[-1]
-        for i in range(1, 17):
-            t=i/16
-            self.current.append(tuple((1-t)**3*a+3*(1-t)**2*t*b+3*(1-t)*t*t*c+t**3*d for a,b,c,d in zip(p0,p1,p2,p3)))
+        self._flatten([self.current[-1],p1,p2,p3])
 
 
 chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!%?()+-−/=<>:;'

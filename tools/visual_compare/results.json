@@ -82,5 +82,21 @@
       "compiler_warnings": 0
     },
     "details": "GLYPH-NOSE-AUDIT.md"
+  },
+  "resolution_case_face": {
+    "capture_sizes": [
+      "165x310",
+      "330x620",
+      "660x1240",
+      "1320x2480"
+    ],
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "16 passed; 1 opt-in capture ignored",
+      "capture": "passed at all four sizes",
+      "release": "passed",
+      "compiler_warnings": 0
+    },
+    "details": "RESOLUTION-CASE-FACE.md"
   }
 }
