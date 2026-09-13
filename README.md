@@ -89,3 +89,7 @@ the white rim's rendered coverage along both the sides and bottom.
 The [exchange-head and alignment correction](tools/visual_compare/HEADS-ALIGNMENT.md)
 uses shaftless exchange symbols, centers compound legends and adds a little
 height to both printed key faces.
+
+The [key legibility pass](tools/visual_compare/LEGIBILITY.md) adds further key
+height, adjusts printing sizes against reference crops and tests that every
+printed mark stays inside its own face.

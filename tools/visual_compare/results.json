@@ -140,5 +140,21 @@
       "display_crops": "unchanged"
     },
     "details": "HEADS-ALIGNMENT.md"
+  },
+  "legibility": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "18 passed; capture opt-in",
+      "release": "passed",
+      "capture_sizes": [
+        "165x310",
+        "330x620",
+        "660x1240",
+        "1320x2480"
+      ],
+      "display_crops": "unchanged at 1x,2x,4x",
+      "printed_mark_bounds": "all 35 main faces and their labeled skirts pass"
+    },
+    "details": "LEGIBILITY.md"
   }
 }

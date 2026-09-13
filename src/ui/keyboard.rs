@@ -95,6 +95,67 @@ mod tests {
     }
 
     #[test]
+    fn all_printed_key_marks_fit_inside_their_own_face() {
+        for key in KEYS {
+            let key = KeySpec {
+                cx: 0.0,
+                y: 0.0,
+                ..*key
+            };
+            let skirt = key.top_h - 0.4;
+            for front in [false, true] {
+                if front && key.sub.is_none() {
+                    continue;
+                }
+                let ctx = egui::Context::default();
+                let output = ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::splat(200.0))),
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        ctx.tessellation_options_mut(|o| o.prerasterized_discs = false);
+                        let p = ctx.layer_painter(egui::LayerId::background());
+                        let t = Transform {
+                            origin: Pos2::new(100.0, 50.0),
+                            scale: 1.0,
+                        };
+                        if front {
+                            draw_sub(&p, t, key, DARK, skirt + (key.h - skirt) * 0.5);
+                        } else {
+                            draw_main(&p, t, key, WHITE, skirt * 0.5);
+                        }
+                    },
+                );
+                let safe = Rect::from_min_max(
+                    Pos2::new(
+                        100.0 - key.w * 0.5 + 2.0,
+                        50.0 + if front { skirt + 0.25 } else { 1.0 },
+                    ),
+                    Pos2::new(
+                        100.0 + key.w * 0.5 - 2.0,
+                        50.0 + if front { key.h - 0.25 } else { skirt - 1.0 },
+                    ),
+                );
+                for primitive in ctx.tessellate(output.shapes, 1.0) {
+                    let egui::epaint::Primitive::Mesh(mesh) = primitive.primitive else {
+                        panic!()
+                    };
+                    for v in mesh.vertices.iter().filter(|v| v.color.a() >= 128) {
+                        assert!(
+                            safe.contains(v.pos),
+                            "{} front={front}: {:?} outside {:?}",
+                            key.id,
+                            v.pos,
+                            safe
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn reciprocal_x_print_extends_below_the_one() {
         for size in [6.8, 10.5] {
             let placements = reciprocal_positions(size);
@@ -337,20 +398,20 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
 fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
     match key.id {
         "sigma" => {
-            sigma(p, t, key.cx - 2.2, cy, 8.1, color);
-            bold_txt(p, t, key.cx + 4.8, cy, 11.6, color, "+");
+            sigma(p, t, key.cx - 2.2, cy, 8.7, color);
+            bold_txt(p, t, key.cx + 4.8, cy, 12.5, color, "+");
         }
         "decimal" => {
             p.circle_filled(t.pos(key.cx, cy), t.s(0.85), color);
         }
-        "multiply" => cross(p, t, key.cx, cy, 4.3, color),
-        "divide" => divide(p, t, key.cx, cy, 4.3, color),
+        "multiply" => cross(p, t, key.cx, cy, 4.7, color),
+        "divide" => divide(p, t, key.cx, cy, 4.7, color),
         "clx" => {
-            bold_txt(p, t, key.cx - 4.0, cy, 11.6, color, "CL");
-            bold_txt(p, t, key.cx + 8.0, cy - 0.9, 14.0, color, "x");
+            bold_txt(p, t, key.cx - 4.0, cy, 12.5, color, "CL");
+            bold_txt(p, t, key.cx + 8.0, cy - 0.9, 14.8, color, "x");
         }
         "enter" => {
-            let text_width = print_width("ENTER", 10.8);
+            let text_width = print_width("ENTER", 11.8);
             let arrow_width = 3.1 * 0.8 * 2.0;
             let gap = 6.0;
             bold_txt(
@@ -358,7 +419,7 @@ fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
                 t,
                 key.cx - (arrow_width + gap) * 0.5,
                 cy,
-                10.8,
+                11.8,
                 color,
                 "ENTER",
             );
@@ -374,12 +435,12 @@ fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
         }
         _ => {
             let size = match key.id {
-                "f" | "g" | "h" => 13.4,
-                "7" | "8" | "9" | "4" | "5" | "6" | "1" | "2" | "3" | "0" => 15.5,
-                "minus" | "plus" => 15.2,
-                "rs" => 11.8,
-                "a" | "b" | "c" | "d" | "e" => 11.9,
-                _ => 11.6,
+                "f" | "g" | "h" => 14.0,
+                "7" | "8" | "9" | "4" | "5" | "6" | "1" | "2" | "3" | "0" => 16.0,
+                "minus" | "plus" => 16.0,
+                "rs" => 12.7,
+                "a" | "b" | "c" | "d" | "e" => 13.0,
+                _ => 12.5,
             };
             bold_txt(p, t, key.cx, cy, size, color, key.main);
         }
@@ -387,6 +448,13 @@ fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
 }
 
 fn draw_sub(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
+    // Enlarge front printing together, preserving the original font weights
+    // and compound-symbol proportions rather than changing size categories.
+    let scale = t.scale * 1.075;
+    let t = Transform {
+        origin: t.pos(key.cx, cy) - Vec2::new(key.cx, cy) * scale,
+        scale,
+    };
     let sub = key.sub.unwrap_or("");
     match key.id {
         "sigma" => {
@@ -394,7 +462,7 @@ fn draw_sub(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
             bold_txt(p, t, key.cx + 3.9, cy, 6.7, color, "−");
         }
         "indirect" => swap(p, t, key.cx, cy, "x", "I", 6.7, color),
-        "7" => swap(p, t, key.cx, cy, "x", "y", 6.9, color),
+        "7" => swap(p, t, key.cx, cy - 0.45, "x", "y", 6.9, color),
         "8" => r_arrow(p, t, key.cx, cy, false, 6.8, color),
         "9" => r_arrow(p, t, key.cx, cy, true, 6.8, color),
         "4" => one_over_x(p, t, key.cx, cy, 6.8, color),
@@ -446,36 +514,36 @@ fn draw_legends(p: &Painter, t: Transform) {
         (220.0, "d"),
         (274.0, "e"),
     ] {
-        bold_txt(p, t, x, 214.0, 7.9, YELLOW, s);
+        bold_txt(p, t, x, 214.0, 8.8, YELLOW, s);
     }
     xbar(p, t, 50.0, 267.0, 7.4, YELLOW);
-    bold_txt(p, t, 66.0, 267.0, 7.8, CYAN, "s");
+    bold_txt(p, t, 66.0, 267.0, 8.8, CYAN, "s");
     paired_legend(p, t, 112.0, 267.0, "GSB", "f", 5.0);
     paired_legend(p, t, 166.0, 267.0, "FIX", "SCI", 5.0);
-    bold_txt(p, t, 220.0, 267.0, 7.8, YELLOW, "RND");
+    bold_txt(p, t, 220.0, 267.0, 8.8, YELLOW, "RND");
     paired_legend(p, t, 274.0, 267.0, "LBL", "f", 5.0);
     paired_legend(p, t, 166.0, 321.0, "DSZ", "(i)", 4.0);
     paired_legend(p, t, 220.0, 321.0, "ISZ", "(i)", 4.0);
-    bold_txt(p, t, 56.0, 372.0, 7.9, YELLOW, "W/DATA");
-    bold_txt(p, t, 119.0, 372.0, 7.9, CYAN, "MERGE");
-    swap_two_color(p, t, 166.0, 372.0, "P", "S", 7.7, YELLOW, YELLOW);
-    bold_txt(p, t, 220.0, 372.0, 7.9, YELLOW, "CL REG");
-    bold_txt(p, t, 274.0, 372.0, 7.9, YELLOW, "CL PRGM");
+    bold_txt(p, t, 56.0, 372.0, 8.8, YELLOW, "W/DATA");
+    bold_txt(p, t, 119.0, 372.0, 8.8, CYAN, "MERGE");
+    swap_two_color(p, t, 166.0, 372.0, "P", "S", 8.4, YELLOW, YELLOW);
+    bold_txt(p, t, 220.0, 372.0, 8.8, YELLOW, "CL REG");
+    bold_txt(p, t, 274.0, 372.0, 8.8, YELLOW, "CL PRGM");
     eq_pair(p, t, 56.0, 423.0, false);
-    bold_txt(p, t, 108.0, 423.0, 8.0, YELLOW, "LN");
-    power(p, t, 128.0, 423.0, "e", "x", 7.9, CYAN, CYAN);
-    bold_txt(p, t, 181.0, 423.0, 8.0, YELLOW, "LOG");
-    power(p, t, 208.0, 423.0, "10", "x", 7.9, CYAN, CYAN);
-    sqrt_x(p, t, 252.0, 423.0, 8.0, YELLOW);
-    power(p, t, 279.0, 423.0, "x", "2", 7.9, CYAN, CYAN);
+    bold_txt(p, t, 108.0, 423.0, 8.8, YELLOW, "LN");
+    power(p, t, 128.0, 423.0, "e", "x", 8.8, CYAN, CYAN);
+    bold_txt(p, t, 181.0, 423.0, 8.8, YELLOW, "LOG");
+    power(p, t, 208.0, 423.0, "10", "x", 8.8, CYAN, CYAN);
+    sqrt_x(p, t, 252.0, 423.0, 8.8, YELLOW);
+    power(p, t, 279.0, 423.0, "x", "2", 8.8, CYAN, CYAN);
     eq_pair(p, t, 56.0, 475.0, true);
     inverse_trig(p, t, 119.0, 475.0, "SIN");
     inverse_trig(p, t, 194.0, 475.0, "COS");
     inverse_trig(p, t, 270.0, 475.0, "TAN");
     relation_pair(p, t, 56.0, 526.0, '<', true);
-    swap_two_color(p, t, 119.0, 526.0, "R", "P", 7.7, YELLOW, CYAN);
-    swap_two_color(p, t, 194.0, 526.0, "D", "R", 7.7, YELLOW, CYAN);
-    swap_two_color(p, t, 270.0, 526.0, "H", "H.MS", 7.3, YELLOW, CYAN);
+    swap_two_color(p, t, 119.0, 526.0, "R", "P", 8.4, YELLOW, CYAN);
+    swap_two_color(p, t, 194.0, 526.0, "D", "R", 8.4, YELLOW, CYAN);
+    swap_two_color(p, t, 270.0, 526.0, "H", "H.MS", 8.0, YELLOW, CYAN);
     relation_pair(p, t, 56.0, 577.0, '>', false);
     bold_txt(p, t, 106.0, 577.0, 7.9, YELLOW, "%");
     bold_txt(p, t, 126.5, 577.0, 7.9, CYAN, "%CH");
@@ -770,21 +838,21 @@ fn xbar(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     );
 }
 fn paired_legend(p: &Painter, t: Transform, cx: f32, cy: f32, left: &str, right: &str, gap: f32) {
-    let lw = print_width(left, 7.8);
-    let rw = print_width(right, 7.8);
-    bold_txt(p, t, cx - (rw + gap) * 0.5, cy, 7.8, YELLOW, left);
-    bold_txt(p, t, cx + (lw + gap) * 0.5, cy, 7.8, CYAN, right);
+    let lw = print_width(left, 8.8);
+    let rw = print_width(right, 8.8);
+    bold_txt(p, t, cx - (rw + gap) * 0.5, cy, 8.8, YELLOW, left);
+    bold_txt(p, t, cx + (lw + gap) * 0.5, cy, 8.8, CYAN, right);
 }
 fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
-    let lw = print_width(name, 7.9);
-    let rw = print_width("\u{2212}1", 5.2);
-    bold_txt(p, t, cx - (rw + 0.3) * 0.5, cy, 7.9, YELLOW, name);
+    let lw = print_width(name, 8.8);
+    let rw = print_width("\u{2212}1", 5.8);
+    bold_txt(p, t, cx - (rw + 0.3) * 0.5, cy, 8.8, YELLOW, name);
     bold_txt(
         p,
         t,
         cx + (lw + 0.3) * 0.5,
         cy - 3.4,
-        5.2,
+        5.8,
         CYAN,
         "\u{2212}1",
     );

@@ -52,8 +52,8 @@ const fn k(
         y,
         w,
         // Slightly taller cap, with extra room on both printed faces.
-        h: h + 2.0,
-        top_h: top_h + 1.5,
+        h: h + 3.5,
+        top_h: top_h + 2.5,
         style,
         main,
         sub,
