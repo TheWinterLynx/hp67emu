@@ -211,57 +211,56 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
     let bottom = key.y + key.h;
     let skirt_h = bottom - skirt_top;
 
-    p.rect_filled(
-        kt.rect(x + 1.5, bottom + 0.35, key.w - 1.0, 2.0),
-        kt.s(0.7),
-        Color32::from_rgba_premultiplied(0, 0, 0, 105),
+    use super::materials::{shade, surface};
+    // One rounded plastic body. The shoulder highlight wraps onto the front;
+    // the skirt is a sloping surface, not a second button stacked underneath.
+    for i in (1..=3).rev() {
+        p.rect_filled(
+            kt.rect(x + i as f32 * 0.45, 1.0, key.w, key.h + 0.5),
+            kt.s(2.5),
+            Color32::from_black_alpha(18 + i * 9),
+        );
+    }
+    p.rect_filled(kt.rect(x, 0.0, key.w, key.h), kt.s(2.3), side);
+    let l = |y: f32| {
+        let r = 2.5;
+        let corner = if y < r {
+            r - (r * r - (y - r) * (y - r)).max(0.0).sqrt()
+        } else {
+            0.0
+        };
+        x + 0.6 + corner
+    };
+    let r = |y: f32| -l(y);
+    surface(p, kt, 0.0, skirt_top, l, r, face, 0.9, 1.2, |u, v| {
+        15.0 * (-v * 25.0).exp() + 25.0 * (-u * 45.0).exp()
+            - 19.0 * (-(1.0 - u) * 28.0).exp()
+            - 8.0 * (-(1.0 - v) * 14.0).exp()
+            + 3.0 * (1.0 - v)
+    });
+    surface(
+        p,
+        kt,
+        skirt_top,
+        bottom - 0.5,
+        |y| x + 1.0 + 1.3 * (y - skirt_top) / skirt_h,
+        |y| -x - 1.0 - 1.3 * (y - skirt_top) / skirt_h,
+        front,
+        1.1,
+        1.0,
+        |u, v| 12.0 * (-v * 18.0).exp() - 10.0 * v - 14.0 * (-(1.0 - u) * 20.0).exp(),
     );
-
-    p.rect_filled(
-        kt.rect(x - 0.7, key.y + 0.8, key.w + 1.4, key.top_h + 0.9),
-        kt.s(2.2),
-        darker(side, 28),
-    );
-
-    let top = kt.rect(x + 0.6, key.y, key.w - 1.2, key.top_h);
-    p.rect_filled(top, kt.s(2.0), face);
+    // Molded front recess and a narrow, curved reflection down the left shoulder.
     p.rect_stroke(
-        top,
-        kt.s(2.0),
-        Stroke::new(kt.s(0.62), Color32::from_rgba_premultiplied(0, 0, 0, 62)),
-    );
-
-    let front_rect = kt.rect(x + 0.8, skirt_top, key.w - 1.6, skirt_h);
-    p.rect_filled(front_rect, kt.s(0.8), front);
-    p.rect_filled(
-        kt.rect(x + 0.8, skirt_top + 0.5, 1.15, skirt_h - 0.7),
-        0.0,
-        side,
-    );
-    p.rect_filled(
-        kt.rect(x + key.w - 1.95, skirt_top + 0.5, 1.15, skirt_h - 0.7),
-        0.0,
-        darker(side, 22),
-    );
-
-    p.line_segment(
-        [
-            kt.pos(x + 2.3, key.y + 1.05),
-            kt.pos(x + key.w - 2.3, key.y + 1.05),
-        ],
-        Stroke::new(
-            kt.s(0.92),
-            Color32::from_rgba_premultiplied(225, 238, 222, 85),
-        ),
+        kt.rect(x + 2.2, skirt_top + 0.6, key.w - 4.4, skirt_h - 1.5),
+        kt.s(2.1),
+        Stroke::new(kt.s(0.5), shade(front, 19.0)),
     );
     p.line_segment(
-        [
-            kt.pos(x + 1.8, skirt_top + 0.35),
-            kt.pos(x + key.w - 1.8, skirt_top + 0.35),
-        ],
+        [kt.pos(x + 1.6, 3.1), kt.pos(x + 1.4, skirt_top - 2.0)],
         Stroke::new(
-            kt.s(0.66),
-            Color32::from_rgba_premultiplied(225, 238, 222, 60),
+            kt.s(0.9),
+            Color32::from_rgba_unmultiplied(255, 255, 230, 155),
         ),
     );
 
@@ -283,7 +282,7 @@ fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
         "divide" => divide(p, t, key.cx, cy, 4.3, color),
         "enter" => {
             bold_txt(p, t, key.cx - 6.0, cy, 10.8, color, "ENTER");
-            triangle(p, t, key.cx + 28.0, cy, 3.1, true, color);
+            vertical_arrow(p, t, key.cx + 28.0, cy, 3.1, true, color);
         }
         _ => {
             let size = match key.id {
@@ -406,9 +405,9 @@ fn draw_legends(p: &Painter, t: Transform) {
 fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
     match style {
         KeyStyle::Olive => (
-            Color32::from_rgb(116, 127, 85),
-            Color32::from_rgb(77, 87, 56),
-            Color32::from_rgb(52, 62, 40),
+            Color32::from_rgb(139, 143, 86),
+            Color32::from_rgb(109, 112, 64),
+            Color32::from_rgb(64, 68, 43),
             WHITE,
             DARK,
         ),
@@ -427,8 +426,8 @@ fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
             DARK,
         ),
         KeyStyle::White => (
-            Color32::from_rgb(236, 237, 232),
-            Color32::from_rgb(192, 196, 193),
+            Color32::from_rgb(234, 231, 211),
+            Color32::from_rgb(187, 186, 164),
             Color32::from_rgb(148, 153, 151),
             DARK,
             DARK,
@@ -456,14 +455,21 @@ fn bold_txt_aligned(
     s: &str,
     align: Align2,
 ) {
-    super::glyphs::text(p, t.pos(x, y), t.s(size), color, s, align);
-}
-fn darker(c: Color32, n: u8) -> Color32 {
-    Color32::from_rgb(
-        c.r().saturating_sub(n),
-        c.g().saturating_sub(n),
-        c.b().saturating_sub(n),
-    )
+    super::glyphs::text(
+        p,
+        t.pos(x, y),
+        t.s(size),
+        color,
+        s,
+        align,
+        if size < 8.1 {
+            700
+        } else if s.chars().all(|c| c.is_ascii_digit()) {
+            400
+        } else {
+            600
+        },
+    );
 }
 fn cross(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, c: Color32) {
     p.line_segment(
@@ -482,6 +488,17 @@ fn divide(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, c: Color32) {
     );
     p.circle_filled(t.pos(cx, cy - 4.1), t.s(0.9), c);
     p.circle_filled(t.pos(cx, cy + 4.1), t.s(0.9), c);
+}
+fn vertical_arrow(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, up: bool, c: Color32) {
+    let direction = if up { -1.0 } else { 1.0 };
+    p.line_segment(
+        [
+            t.pos(cx, cy - direction * h),
+            t.pos(cx, cy + direction * h * 0.3),
+        ],
+        Stroke::new(t.s(h * 0.5), c),
+    );
+    triangle(p, t, cx, cy + direction * h * 0.4, h * 0.8, up, c);
 }
 fn triangle(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, up: bool, c: Color32) {
     let d = if up { -1.0 } else { 1.0 };
@@ -585,7 +602,11 @@ fn power(
 }
 fn r_arrow(p: &Painter, t: Transform, cx: f32, cy: f32, up: bool, size: f32, c: Color32) {
     bold_txt(p, t, cx - 3.2, cy, size, c, "R");
-    triangle(p, t, cx + 5.8, cy + 0.2, size * 0.3, up, c);
+    if size > 8.0 {
+        vertical_arrow(p, t, cx + 5.8, cy + 0.2, size * 0.3, up, c);
+    } else {
+        triangle(p, t, cx + 5.8, cy + 0.2, size * 0.3, up, c);
+    }
 }
 fn swap(p: &Painter, t: Transform, cx: f32, cy: f32, l: &str, r: &str, size: f32, c: Color32) {
     swap_two_color(p, t, cx, cy, l, r, size, c, c)

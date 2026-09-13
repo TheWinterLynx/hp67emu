@@ -7,20 +7,35 @@ mod ui;
 
 use eframe::egui;
 
-fn main() -> eframe::Result<()> {
-    let options = eframe::NativeOptions {
+fn native_options() -> eframe::NativeOptions {
+    eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([528.0, 992.0])
-            .with_min_inner_size([330.0, 620.0]),
+            .with_min_inner_size([165.0, 310.0])
+            .with_resizable(true),
+        multisampling: 4,
         ..Default::default()
-    };
+    }
+}
 
+fn main() -> eframe::Result<()> {
     eframe::run_native(
         "HP-67 Emulator",
-        options,
+        native_options(),
         Box::new(|cc| Box::new(app::Hp67App::new(cc))),
     )
 }
 
 #[cfg(test)]
 mod capture;
+
+#[test]
+fn native_window_is_resizable_without_a_maximum_size() {
+    let options = native_options();
+    assert_eq!(options.viewport.resizable, Some(true));
+    assert_eq!(
+        options.viewport.min_inner_size,
+        Some(egui::vec2(165.0, 310.0))
+    );
+    assert!(options.viewport.max_inner_size.is_none());
+}

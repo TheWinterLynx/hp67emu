@@ -1,5 +1,8 @@
 # HP-67 vector fidelity pass 1
 
+This document records the initial pass. See [the realism follow-up](REALISM.md)
+for the current outline, materials, typography, display and resize behavior.
+
 ## Reference and registration
 
 No user photographs were available in this session's attachments. The analysis
@@ -91,7 +94,7 @@ travel. Topology, colors and UVs must match; coordinates may differ only by the
 expected translation (0.002 point numerical tolerance). Existing state/scaling
 tests remain. No `.github/workflows` files are used or changed.
 
-## Known differences and limits
+## Known differences and limits at the initial pass
 
 This is a measured first pass, **not a museum-grade or pixel-identical reconstruction**.
 The custom stroke alphabet is hand constructed, not a tracing of original HP

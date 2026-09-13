@@ -35,5 +35,22 @@
     "cargo test capture_panel -- --ignored": "passed at both resolutions",
     "cargo build --release": "passed",
     "rustc_warnings": 0
+  },
+  "realism_follow_up": {
+    "capture_sizes": [
+      "165x310",
+      "330x620",
+      "660x1240",
+      "1600x900"
+    ],
+    "display_fixture": "-1.234567890e67",
+    "validation": {
+      "cargo fmt --check": "passed",
+      "cargo test --all-targets": "11 passed; opt-in capture ignored",
+      "cargo test capture_panel -- --ignored": "passed at all four sizes",
+      "cargo build --release": "passed",
+      "compiler_warnings": 0
+    },
+    "note": "See REALISM.md. Old rectangular registration and unlit photo do not provide a fair aggregate-MAE ranking of a tapered, lit rendering."
   }
 }

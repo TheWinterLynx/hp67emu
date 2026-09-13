@@ -8,8 +8,21 @@ fn capture_panel() {
     let directory =
         std::env::var("HP67_CAPTURE_DIR").unwrap_or_else(|_| "target/visual/final".into());
     fs::create_dir_all(&directory).unwrap();
-    for scale in [1, 2] {
-        let (w, h) = (330 * scale, 620 * scale);
+    let sizes = std::env::var("HP67_CAPTURE_SIZES").unwrap_or_else(|_| "330x620,660x1240".into());
+    for size in sizes.split(',') {
+        let (width, height) = size.split_once('x').expect("capture size: WIDTHxHEIGHT");
+        let (w, h) = (
+            width.parse::<usize>().unwrap(),
+            height.parse::<usize>().unwrap(),
+        );
+        assert!(w > 0 && h > 0);
+        let scale = crate::ui::geometry::scale_for(Vec2::new(w as f32, h as f32));
+        let origin = (Vec2::new(w as f32, h as f32) - Vec2::new(330.0, 620.0) * scale) * 0.5;
+        let mut state = crate::hp67::Hp67State::default();
+        if let Ok(value) = std::env::var("HP67_CAPTURE_DISPLAY") {
+            state = crate::hp67::Hp67State::for_capture(&value);
+        }
+
         let ctx = egui::Context::default();
         let mut atlas = Vec::new();
         let mut aw = 0;
@@ -22,7 +35,7 @@ fn capture_panel() {
                     .iter()
                     .find(|k| k.id == id)
                     .expect("unknown capture key");
-                let pos = Pos2::new(key.cx * scale as f32, (key.y + 5.0) * scale as f32);
+                let pos = Pos2::ZERO + origin + Vec2::new(key.cx * scale, (key.y + 5.0) * scale);
                 events.push(egui::Event::PointerMoved(pos));
                 if frame == 1 {
                     events.push(egui::Event::PointerButton {
@@ -47,7 +60,7 @@ fn capture_panel() {
                     egui::CentralPanel::default()
                         .frame(egui::Frame::none())
                         .show(ctx, |ui| {
-                            crate::panel::Hp67Panel::show(ui, &crate::hp67::Hp67State::default());
+                            crate::panel::Hp67Panel::show(ui, &state);
                         });
                 },
             );

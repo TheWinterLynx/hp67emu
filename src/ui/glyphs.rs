@@ -1,112 +1,76 @@
-//! Small, deterministic stroke alphabet for printed calculator legends.
-//! Coordinates are cap-height units, independent of installed system fonts.
-use eframe::egui::{Align2, Color32, Painter, Pos2, Stroke};
+//! Portable outline lettering with per-legend optical metrics. No system-font lookup.
+//! Contours are derived from OFL Arimo; see tools/typography for provenance.
+use super::lettering_data::glyph;
+use eframe::egui::{
+    epaint::{Mesh, Vertex, WHITE_UV},
+    Align2, Color32, Painter, Pos2, Shape, Vec2,
+};
 
-fn strokes(c: char) -> &'static str {
-    match c {
-        'A' => "0,10 3,0 6,10;1,6 5,6",
-        'B' => "0,10 0,0 4,0 6,2 6,3 4,5 0,5;4,5 6,7 6,8 4,10 0,10",
-        'C' => "6,1 4,0 2,0 0,2 0,8 2,10 4,10 6,9",
-        'D' => "0,10 0,0 3,0 6,2 6,8 3,10 0,10",
-        'E' => "6,0 0,0 0,10 6,10;0,5 5,5",
-        'F' => "0,10 0,0 6,0;0,5 5,5",
-        'G' => "6,2 4,0 2,0 0,2 0,8 2,10 6,10 6,5 3,5",
-        'H' => "0,0 0,10;6,0 6,10;0,5 6,5",
-        'I' => "1,0 5,0;3,0 3,10;1,10 5,10",
-        'J' => "6,0 6,8 4,10 2,10 0,8",
-        'K' => "0,0 0,10;6,0 0,6;2,4 6,10",
-        'V' => "0,0 3,10 6,0",
-        'Q' => "3.000,0.000 3.776,0.170 4.500,0.670 5.121,1.464 5.598,2.500 5.898,3.706 6.000,5.000 5.898,6.294 5.598,7.500 5.121,8.536 4.500,9.330 3.776,9.830 3.000,10.000 2.224,9.830 1.500,9.330 0.879,8.536 0.402,7.500 0.102,6.294 0.000,5.000 0.102,3.706 0.402,2.500 0.879,1.464 1.500,0.670 2.224,0.170 3.000,0.000;3,7 7,11",
-        'L' => "0,0 0,10 6,10",
-        'M' => "0,10 0,0 3,6 6,0 6,10",
-        'N' => "0,10 0,0 6,10 6,0",
-        'O' | '0' => "2,0 4,0 6,2 6,8 4,10 2,10 0,8 0,2 2,0",
-        'P' => "0,10 0,0 4,0 6,2 6,3 4,5 0,5",
-        'R' => "0,10 0,0 4,0 6,2 6,3 4,5 0,5;3,5 6,10",
-        'S' => "6,1 4,0 2,0 0,2 0,3 2,5 4,5 6,7 6,8 4,10 2,10 0,9",
-        'T' => "0,0 6,0;3,0 3,10",
-        'U' => "0,0 0,8 2,10 4,10 6,8 6,0",
-        'W' => "0,0 1,10 3,5 5,10 6,0",
-        'X' => "0,0 6,10;6,0 0,10",
-        'Y' => "0,0 3,5 6,0;3,5 3,10",
-        'Z' => "0,0 6,0 0,10 6,10",
-        '1' => "1,2 3,0 3,10",
-        '2' => "0,2 2,0 4,0 6,2 6,3 0,10 6,10",
-        '3' => "0,1 2,0 4,0 6,2 6,3 3,5 6,7 6,8 4,10 2,10 0,9",
-        '4' => "5,10 5,0 0,7 6,7",
-        '5' => "6,0 0,0 0,5 4,5 6,7 6,8 4,10 2,10 0,9",
-        '6' => "6,1 4,0 2,0 0,3 0,8 2,10 4,10 6,8 6,6 4,5 0,5",
-        '7' => "0,0 6,0 2,10",
-        '8' => "3.000,0.000 3.673,0.085 4.300,0.335 4.838,0.732 5.252,1.250 5.511,1.853 5.600,2.500 5.511,3.147 5.252,3.750 4.838,4.268 4.300,4.665 3.673,4.915 3.000,5.000 2.327,4.915 1.700,4.665 1.162,4.268 0.748,3.750 0.489,3.147 0.400,2.500 0.489,1.853 0.748,1.250 1.162,0.732 1.700,0.335 2.327,0.085 3.000,0.000;3.000,5.000 3.776,5.085 4.500,5.335 5.121,5.732 5.598,6.250 5.898,6.853 6.000,7.500 5.898,8.147 5.598,8.750 5.121,9.268 4.500,9.665 3.776,9.915 3.000,10.000 2.224,9.915 1.500,9.665 0.879,9.268 0.402,8.750 0.102,8.147 0.000,7.500 0.102,6.853 0.402,6.250 0.879,5.732 1.500,5.335 2.224,5.085 3.000,5.000",
-        '9' => "6,5 2,5 0,3 0,2 2,0 4,0 6,2 6,7 4,10 1,10",
-        'a' => "1,4 4,4 5,5 5,10;5,6 1,6 0,8 1,10 5,10",
-        'b' => "0,0 0,10 4,10 6,8 6,6 4,4 0,4",
-        'c' => "6,5 4,4 2,4 0,6 0,8 2,10 4,10 6,9",
-        'd' => "6,0 6,10 2,10 0,8 0,6 2,4 6,4",
-        'e' => "0,7 6,7 6,6 4,4 2,4 0,6 0,8 2,10 5,10",
-        'f' => "2,10 2,2 3,0 5,0;0,4 5,4",
-        'g' => "6,4 2,4 0,6 0,8 2,10 6,10;6,4 6,12 4,14 1,14",
-        'h' => "0,0 0,10;0,5 2,4 4,4 6,6 6,10",
-        'i' => "3,4 3,10;3,1 3,1.3",
-        's' => "6,4 2,4 0,5 1,7 5,7 6,9 4,10 0,10",
-        'x' => "0,4 6,10;6,4 0,10",
-        'y' => "0,4 3,10;6,4 2,14",
-        '-' | '−' => "0,5 6,5",
-        '+' => "0,5 6,5;3,2 3,8",
-        '=' => "0,3 6,3;0,7 6,7",
-        '<' => "6,1 0,5 6,9",
-        '>' => "0,1 6,5 0,9",
-        '/' => "0,11 6,-1",
-        '(' => "4,0 2,2 1,5 2,8 4,10",
-        ')' => "2,0 4,2 5,5 4,8 2,10",
-        '.' => "3,9 3,10",
-        '!' => "3,0 3,6;3,9 3,10",
-        '?' => "0,2 2,0 4,0 6,2 6,3 3,5 3,6;3,9 3,10",
-        '%' => "0,10 6,0;0,0 2,0 2,2 0,2 0,0;4,8 6,8 6,10 4,10 4,8",
-        ' ' => "",
-        _ => panic!("missing HP-67 vector glyph: {c}"),
-    }
-}
-
-pub fn text(p: &Painter, pos: Pos2, height: f32, color: Color32, value: &str, align: Align2) {
-    // size is the old em box; physical cap height is 74% of that box.
-    let unit = height * 0.080;
-    let horizontal = 1.18;
-    let width = (value.chars().count() as f32 * 8.0 - 2.0).max(0.0) * unit * horizontal;
-    let offset = align.anchor_size(Pos2::ZERO, eframe::egui::Vec2::new(width, 10.0 * unit));
-    let origin = pos + offset.min.to_vec2();
-    let stroke = Stroke::new(unit * 1.4, color);
-    for (index, c) in value.chars().enumerate() {
-        for path in strokes(c).split(';').filter(|s| !s.is_empty()) {
-            let points: Vec<Pos2> = path
-                .split_whitespace()
-                .map(|point| {
-                    let (x, y) = point.split_once(',').unwrap();
-                    origin
-                        + eframe::egui::vec2(
-                            (index as f32 * 8.0 + x.parse::<f32>().unwrap()) * unit * horizontal,
-                            y.parse::<f32>().unwrap() * unit,
-                        )
-                })
-                .collect();
-            // Round bowl corners with quadratic geometry, retaining straight stems.
-            let points = if "BCDGOPRS0235689abcdegs".contains(c) && points.len() > 3 {
-                let mut rounded = vec![points[0]];
-                for i in 1..points.len() - 1 {
-                    let entry = points[i].lerp(points[i - 1], 0.25);
-                    let exit = points[i].lerp(points[i + 1], 0.25);
-                    rounded.push(entry);
-                    for step in 1..=4 {
-                        let f = step as f32 / 4.0;
-                        rounded.push(entry.lerp(points[i], f).lerp(points[i].lerp(exit, f), f));
-                    }
-                }
-                rounded.push(*points.last().unwrap());
-                rounded
-            } else {
-                points
-            };
-            p.add(eframe::egui::Shape::line(points, stroke));
+pub fn text(
+    p: &Painter,
+    pos: Pos2,
+    height: f32,
+    color: Color32,
+    value: &str,
+    align: Align2,
+    weight: u16,
+) {
+    let cap = height * 0.78;
+    let tracking = 0.028;
+    let width = value
+        .chars()
+        .map(|c| glyph(c, weight).advance + tracking)
+        .sum::<f32>()
+        * cap;
+    let origin = align.anchor_size(pos, Vec2::new(width, cap)).min;
+    let mut mesh = Mesh::default();
+    let mut cursor = 0.0;
+    for c in value.chars() {
+        let g = glyph(c, weight);
+        let offset = mesh.vertices.len() as u32;
+        mesh.indices.extend(g.indices.iter().map(|i| i + offset));
+        for &[x, y] in &g.vertices {
+            mesh.vertices.push(Vertex {
+                pos: origin + Vec2::new((cursor + x) * cap, y * cap),
+                uv: WHITE_UV,
+                color,
+            });
         }
+        // A subpixel coverage fringe around the true contours gives smooth
+        // boundaries at any scale, including the counters inside letters.
+        for path in &g.contours {
+            let points: Vec<_> = path
+                .iter()
+                .map(|&[x, y]| origin + Vec2::new((cursor + x) * cap, y * cap))
+                .collect();
+            let start = mesh.vertices.len() as u32;
+            for i in 0..points.len() {
+                let a = (points[i] - points[(i + points.len() - 1) % points.len()]).normalized();
+                let b = (points[(i + 1) % points.len()] - points[i]).normalized();
+                let na = Vec2::new(a.y, -a.x);
+                let nb = Vec2::new(b.y, -b.x);
+                let normal = (na + nb).normalized();
+                let outside = points[i]
+                    + normal * (0.55 / p.ctx().pixels_per_point() / normal.dot(na).max(0.25));
+                mesh.vertices.push(Vertex {
+                    pos: points[i],
+                    uv: WHITE_UV,
+                    color,
+                });
+                mesh.vertices.push(Vertex {
+                    pos: outside,
+                    uv: WHITE_UV,
+                    color: Color32::TRANSPARENT,
+                });
+            }
+            for i in 0..points.len() as u32 {
+                let a = start + i * 2;
+                let b = start + ((i + 1) % points.len() as u32) * 2;
+                mesh.indices
+                    .extend_from_slice(&[a, b, a + 1, b, b + 1, a + 1]);
+            }
+        }
+        cursor += g.advance + tracking;
     }
+    p.add(Shape::mesh(mesh));
 }

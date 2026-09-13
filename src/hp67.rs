@@ -65,6 +65,14 @@ impl Default for Hp67State {
 }
 
 impl Hp67State {
+    #[cfg(test)]
+    pub fn for_capture(display: &str) -> Self {
+        Self {
+            display: display.to_owned(),
+            ..Self::default()
+        }
+    }
+
     pub fn display_text(&self) -> &str {
         if self.power_on {
             &self.display

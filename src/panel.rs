@@ -4,10 +4,10 @@ use crate::hp67::{Hp67State, RunMode, UiEvent};
 
 use crate::ui::geometry::{scale_for, Transform, DESIGN_H, DESIGN_W};
 
-const PANEL: Color32 = Color32::from_rgb(33, 43, 53);
+const PANEL: Color32 = Color32::from_rgb(39, 40, 36);
 const PANEL_DARK: Color32 = Color32::from_rgb(25, 25, 23);
-const CASE_GREEN: Color32 = Color32::from_rgb(48, 58, 46);
-const CASE_GREEN_DARK: Color32 = Color32::from_rgb(55, 61, 43);
+const CASE_GREEN: Color32 = Color32::from_rgb(79, 82, 58);
+const CASE_GREEN_DARK: Color32 = Color32::from_rgb(59, 61, 44);
 const SILVER: Color32 = Color32::from_rgb(171, 172, 166);
 const SILVER_LIGHT: Color32 = Color32::from_rgb(225, 227, 221);
 const WHITE: Color32 = Color32::from_rgb(230, 233, 229);
@@ -64,119 +64,183 @@ impl Hp67Panel {
 }
 
 fn draw_chassis(p: &Painter, t: Transform) {
-    p.rect_filled(
-        t.rect(4.0, 3.0, 322.0, 614.0),
-        t.s(19.0),
-        Color32::from_rgb(15, 16, 13),
+    use crate::ui::materials::{outline, panel_left, panel_right, surface};
+    // Molded case and rolled metal rim share a tapered, nonrectangular perimeter.
+    for (inset, color) in [
+        (0.0, Color32::from_rgb(27, 28, 22)),
+        (1.0, Color32::from_rgb(116, 116, 92)),
+        (2.4, Color32::from_rgb(81, 83, 64)),
+        (4.0, CASE_GREEN),
+        (7.5, CASE_GREEN_DARK),
+        (10.0, Color32::from_rgb(27, 30, 28)),
+        (11.5, Color32::from_rgb(115, 122, 116)),
+        (13.0, SILVER_LIGHT),
+        (14.5, SILVER),
+        (16.0, Color32::from_rgb(62, 68, 64)),
+        (17.0, PANEL),
+    ] {
+        outline(p, t, inset, color);
+    }
+    surface(
+        p,
+        t,
+        22.0,
+        598.0,
+        panel_left,
+        panel_right,
+        PANEL,
+        3.5,
+        1.8,
+        |u, v| 3.0 * (1.0 - u) - 5.0 * v + 2.0 * (v * 8.0).sin(),
     );
-    p.rect_filled(t.rect(7.0, 1.0, 316.0, 615.0), t.s(18.0), CASE_GREEN_DARK);
-    p.rect_filled(t.rect(11.0, 2.0, 308.0, 612.0), t.s(15.0), CASE_GREEN);
-    p.rect_filled(
-        t.rect(23.0, 5.0, 284.0, 609.0),
-        t.s(11.0),
-        Color32::from_rgb(108, 108, 100),
+    // Recessed card/legend rail above the A-E row.
+    surface(
+        p,
+        t,
+        118.0,
+        166.0,
+        panel_left,
+        panel_right,
+        Color32::from_rgb(42, 43, 39),
+        5.0,
+        2.0,
+        |_, v| 9.0 * (-v * 12.0).exp() - 5.0 * (-(1.0 - v) * 18.0).exp(),
     );
-    p.rect_filled(t.rect(26.0, 7.0, 278.0, 605.0), t.s(9.0), SILVER_LIGHT);
-    p.rect_filled(t.rect(30.0, 11.0, 270.0, 596.0), t.s(7.0), PANEL);
-    p.rect_stroke(
-        t.rect(28.0, 8.5, 274.0, 601.0),
-        t.s(8.0),
-        Stroke::new(t.s(1.2), SILVER),
-    );
-    p.line_segment(
-        [t.pos(31.0, 166.0), t.pos(299.0, 166.0)],
-        Stroke::new(t.s(2.0), PANEL_DARK),
-    );
-}
-
-fn draw_display(p: &Painter, t: Transform, text_value: &str) {
-    // The glass runs into the inner perimeter; there is no separate silver box.
-    p.rect_filled(
-        t.rect(31.0, 12.0, 268.0, 64.0),
-        t.s(3.0),
-        Color32::from_rgb(19, 20, 26),
-    );
-    p.line_segment(
-        [t.pos(32.0, 76.0), t.pos(298.0, 76.0)],
-        Stroke::new(t.s(1.0), PANEL_DARK),
-    );
-    p.rect_filled(
-        t.rect(31.0, 87.0, 268.0, 24.0),
-        0.0,
-        Color32::from_rgb(35, 45, 48),
-    );
-    p.rect_filled(t.rect(31.0, 113.0, 268.0, 6.0), 0.0, PANEL_DARK);
-    if !text_value.is_empty() {
-        draw_segment_string(p, t, text_value, 43.0, 31.0, 240.0);
+    for y in [119.0, 139.0, 165.5] {
+        p.line_segment(
+            [t.pos(panel_left(y), y), t.pos(panel_right(y), y)],
+            Stroke::new(t.s(0.65), PANEL_DARK),
+        );
     }
 }
 
-fn draw_power_switch(p: &Painter, t: Transform, on: bool, hovered: bool) {
-    label(p, t, 42.0, 101.0, Align2::LEFT_CENTER, 7.4, WHITE, "OFF");
-    label(p, t, 127.0, 101.0, Align2::RIGHT_CENTER, 7.4, WHITE, "ON");
-    draw_slider(p, t, 68.0, 96.0, 40.0, on, hovered);
-}
-
-fn draw_mode_switch(p: &Painter, t: Transform, mode: RunMode, hovered: bool) {
-    label(
+fn draw_display(p: &Painter, t: Transform, text_value: &str) {
+    use crate::ui::materials::{panel_left, panel_right, surface};
+    surface(
         p,
         t,
-        166.0,
-        101.0,
-        Align2::LEFT_CENTER,
-        7.2,
-        WHITE,
-        "W/PRGM",
+        20.0,
+        73.0,
+        |y| panel_left(y) + 1.4,
+        |y| panel_right(y) - 1.4,
+        Color32::from_rgb(30, 16, 15),
+        0.7,
+        2.0,
+        |u, v| 3.0 * (1.0 - v) + 2.0 * (1.0 - u),
     );
-    label(p, t, 286.0, 101.0, Align2::RIGHT_CENTER, 7.2, WHITE, "RUN");
+    surface(
+        p,
+        t,
+        73.0,
+        84.0,
+        panel_left,
+        panel_right,
+        Color32::from_rgb(47, 46, 41),
+        5.0,
+        1.4,
+        |_, v| 9.0 * (1.0 - v) - 6.0 * v,
+    );
+    surface(
+        p,
+        t,
+        87.0,
+        110.0,
+        panel_left,
+        panel_right,
+        Color32::from_rgb(47, 49, 43),
+        5.0,
+        1.4,
+        |_, v| 5.0 * (1.0 - v) - 5.0 * v,
+    );
+    surface(
+        p,
+        t,
+        110.0,
+        117.0,
+        panel_left,
+        panel_right,
+        Color32::from_rgb(18, 19, 16),
+        2.0,
+        2.0,
+        |_, v| -5.0 * (1.0 - v),
+    );
+    // Die positions remain fixed regardless of the length of the number.
+    draw_segment_string(p, t, text_value, 49.0, 40.0, 232.0);
+}
+
+fn draw_power_switch(p: &Painter, t: Transform, on: bool, hovered: bool) {
+    switch_label(p, t, 48.0, 99.0, "OFF");
+    switch_label(p, t, 115.0, 99.0, "ON");
+    draw_slider(p, t, 70.0, 98.0, 39.0, on, hovered);
+}
+fn draw_mode_switch(p: &Painter, t: Transform, mode: RunMode, hovered: bool) {
+    switch_label(p, t, 167.0, 99.0, "W/PRGM");
+    switch_label(p, t, 268.0, 99.0, "RUN");
     draw_slider(
         p,
         t,
-        225.0,
-        96.0,
+        223.0,
+        98.0,
         39.0,
         matches!(mode, RunMode::Run),
         hovered,
     );
 }
-
-fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, hovered: bool) {
-    let track = t.rect(x, y, w, 8.0);
-    p.rect_filled(track, t.s(1.0), Color32::from_rgb(7, 8, 8));
-    p.rect_stroke(
-        track,
-        t.s(1.0),
-        Stroke::new(
-            t.s(if hovered { 1.0 } else { 0.7 }),
-            if hovered {
-                Color32::from_rgb(156, 158, 151)
-            } else {
-                Color32::from_rgb(69, 70, 66)
-            },
-        ),
+fn switch_label(p: &Painter, t: Transform, x: f32, y: f32, value: &str) {
+    crate::ui::glyphs::text(
+        p,
+        t.pos(x, y),
+        t.s(8.6),
+        WHITE,
+        value,
+        Align2::LEFT_CENTER,
+        700,
     );
-    for i in 0..10 {
-        let xx = x + 2.0 + i as f32 * (w - 4.0) / 9.0;
+}
+fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, hovered: bool) {
+    use crate::ui::materials::surface;
+    p.rect_filled(t.rect(x, y, w, 5.2), t.s(0.6), Color32::from_rgb(8, 9, 7));
+    p.line_segment(
+        [t.pos(x, y + 5.3), t.pos(x + w, y + 5.3)],
+        Stroke::new(t.s(0.5), Color32::from_rgb(80, 79, 63)),
+    );
+    let knob_x = if right { x + w - 14.0 } else { x + 1.0 };
+    p.rect_filled(
+        t.rect(knob_x - 0.6, y - 3.1, 13.8, 9.0),
+        t.s(1.1),
+        Color32::from_rgb(16, 19, 18),
+    );
+    surface(
+        p,
+        t,
+        y - 3.0,
+        y + 3.7,
+        |_| knob_x,
+        |_| knob_x + 12.4,
+        Color32::from_rgb(33, 39, 39),
+        0.0,
+        1.0,
+        |_, v| 29.0 * (1.0 - v) - 8.0 * v,
+    );
+    // Ribs are on the moving black cursor, not across the empty slot.
+    for i in 0..7 {
+        let xx = knob_x + 0.9 + i as f32 * 1.7;
         p.line_segment(
-            [t.pos(xx, y + 1.2), t.pos(xx, y + 6.8)],
-            Stroke::new(t.s(0.45), Color32::from_rgb(52, 53, 50)),
+            [t.pos(xx, y - 2.6), t.pos(xx - 0.5, y + 2.0)],
+            Stroke::new(t.s(0.55), Color32::from_rgb(110, 117, 110)),
+        );
+        p.line_segment(
+            [t.pos(xx + 0.6, y - 2.1), t.pos(xx + 0.1, y + 2.2)],
+            Stroke::new(t.s(0.5), Color32::from_rgb(12, 15, 15)),
         );
     }
-    let knob_x = if right { x + w - 13.0 } else { x + 2.0 };
-    p.rect_filled(
-        t.rect(knob_x + 0.8, y + 0.4, 11.0, 10.0),
-        t.s(1.3),
-        Color32::from_rgb(19, 20, 19),
-    );
-    p.rect_filled(
-        t.rect(knob_x, y - 1.0, 11.0, 10.0),
-        t.s(1.3),
-        Color32::from_rgb(102, 104, 99),
-    );
-    p.line_segment(
-        [t.pos(knob_x + 1.5, y), t.pos(knob_x + 9.5, y)],
-        Stroke::new(t.s(0.75), Color32::from_rgb(160, 161, 155)),
-    );
+    if hovered {
+        p.rect_stroke(
+            t.rect(x - 0.8, y - 3.8, w + 1.6, 10.0),
+            t.s(1.0),
+            Stroke::new(t.s(0.4), Color32::from_gray(96)),
+        );
+    }
 }
 
 fn draw_branding(p: &Painter, t: Transform) {
@@ -276,26 +340,52 @@ fn segment_mask(ch: char) -> u8 {
     }
 }
 
+fn display_cells(value: &str) -> [char; 15] {
+    let mut cells = [' '; 15];
+    if value.is_empty() {
+        return cells;
+    }
+    let (mantissa, exponent) = value.split_once(['e', 'E']).unwrap_or((value, ""));
+    cells[0] = if mantissa.starts_with('-') { '-' } else { ' ' };
+    let magnitude = mantissa.trim_start_matches(['-', '+']);
+    for (slot, ch) in cells[1..12].iter_mut().zip(magnitude.chars()) {
+        *slot = ch;
+    }
+    if !magnitude.contains('.') && magnitude.len() < 11 {
+        cells[1 + magnitude.len()] = '.';
+    }
+    if !exponent.is_empty() {
+        cells[12] = if exponent.starts_with('-') { '-' } else { ' ' };
+        let digits: Vec<_> = exponent
+            .trim_start_matches(['-', '+'])
+            .chars()
+            .rev()
+            .take(2)
+            .collect();
+        for (i, ch) in digits.into_iter().enumerate() {
+            cells[14 - i] = ch;
+        }
+    }
+    cells
+}
 fn draw_segment_string(p: &Painter, t: Transform, value: &str, x: f32, y: f32, width: f32) {
-    let cell_w = 17.0;
-    let visible_cells = value.chars().filter(|&c| c != '.').count().min(12);
-    let total_w = visible_cells as f32 * cell_w;
-    let mut cursor_x = x + (width - total_w).max(0.0);
-    let mut last_digit_x: Option<f32> = None;
-    for ch in value.chars().take(16) {
+    let cells = display_cells(value);
+    for (index, ch) in cells.into_iter().enumerate() {
+        let tx = x + index as f32 * width / 15.0;
+        let die = Transform {
+            origin: t.pos(tx, y),
+            scale: t.scale * 0.68,
+        };
+        draw_segment_digit(p, die, 0.0, 0.0, ch);
         if ch == '.' {
-            if let Some(dx) = last_digit_x {
+            for (radius, alpha) in [(1.9, 15), (1.2, 45), (0.65, 255)] {
                 p.circle_filled(
-                    t.pos(dx + 11.5, y + 19.5),
-                    t.s(0.85),
-                    Color32::from_rgb(248, 72, 57),
+                    t.pos(tx + 3.2, y + 12.6),
+                    t.s(radius),
+                    Color32::from_rgba_unmultiplied(255, 58, 29, alpha),
                 );
             }
-            continue;
         }
-        draw_segment_digit(p, t, cursor_x, y, ch);
-        last_digit_x = Some(cursor_x);
-        cursor_x += cell_w;
     }
 }
 
@@ -342,7 +432,7 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
             if on {
                 Color32::from_rgb(249, 65, 39)
             } else {
-                Color32::from_rgb(38, 23, 28)
+                Color32::from_rgb(33, 18, 17)
             },
             Stroke::NONE,
         ));
@@ -352,6 +442,33 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_has_separate_decimal_sign_and_exponent_cells() {
+        assert_eq!(
+            display_cells("-1.234567890e-67"),
+            ['-', '1', '.', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '6', '7']
+        );
+        assert_eq!(&display_cells("3.14")[..5], &[' ', '3', '.', '1', '4']);
+        assert_eq!(&display_cells("0")[..3], &[' ', '0', '.']);
+        assert_eq!(display_cells(""), [' '; 15]);
+    }
+
+    #[test]
+    fn resizing_has_no_upper_scale_limit_and_keeps_the_panel_inside_host() {
+        for available in [
+            Vec2::new(165.0, 310.0),
+            Vec2::new(330.0, 2000.0),
+            Vec2::new(3840.0, 2160.0),
+            Vec2::new(3300.0, 6200.0),
+        ] {
+            let scale = scale_for(available);
+            let size = Vec2::new(DESIGN_W, DESIGN_H) * scale;
+            assert!(size.x <= available.x + 0.001 && size.y <= available.y + 0.001);
+            assert!((size.x / size.y - DESIGN_W / DESIGN_H).abs() < 0.00001);
+        }
+        assert_eq!(scale_for(Vec2::new(3300.0, 6200.0)), 10.0);
+    }
 
     #[test]
     fn aspect_ratio_scaling_is_uniform() {
