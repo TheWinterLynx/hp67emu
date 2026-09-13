@@ -32,6 +32,41 @@ pub fn surface(
     step: f32,
     light: impl Fn(f32, f32) -> f32,
 ) {
+    surface_impl(
+        p, t, top, bottom, left, right, base, grain, step, light, false,
+    );
+}
+
+pub fn antialiased_surface(
+    p: &Painter,
+    t: Transform,
+    top: f32,
+    bottom: f32,
+    left: impl Fn(f32) -> f32,
+    right: impl Fn(f32) -> f32,
+    base: Color32,
+    grain: f32,
+    step: f32,
+    light: impl Fn(f32, f32) -> f32,
+) {
+    surface_impl(
+        p, t, top, bottom, left, right, base, grain, step, light, true,
+    );
+}
+
+fn surface_impl(
+    p: &Painter,
+    t: Transform,
+    top: f32,
+    bottom: f32,
+    left: impl Fn(f32) -> f32,
+    right: impl Fn(f32) -> f32,
+    base: Color32,
+    grain: f32,
+    step: f32,
+    light: impl Fn(f32, f32) -> f32,
+    edge_aa: bool,
+) {
     let rows = ((bottom - top) / step).ceil().max(1.0) as usize;
     let cols = ((right(top) - left(top)).max(right(bottom) - left(bottom)) / step)
         .ceil()
@@ -43,7 +78,14 @@ pub fn surface(
         for col in 0..=cols {
             let u = col as f32 / cols as f32;
             mesh.vertices.push(Vertex {
-                pos: t.pos(left(y) + (right(y) - left(y)) * u, y),
+                pos: if edge_aa {
+                    eframe::egui::Pos2::new(
+                        (left(y) + (right(y) - left(y)) * u) * t.scale,
+                        y * t.scale,
+                    )
+                } else {
+                    t.pos(left(y) + (right(y) - left(y)) * u, y)
+                },
                 uv: WHITE_UV,
                 color: shade(
                     base,
@@ -66,7 +108,53 @@ pub fn surface(
             ]);
         }
     }
+    let stride = cols + 1;
+    let boundary: Vec<_> = (0..=cols)
+        .chain((1..=rows).map(|row| row * stride + cols))
+        .chain((0..cols).rev().map(|col| rows * stride + col))
+        .chain((1..rows).rev().map(|row| row * stride))
+        .collect();
+    if edge_aa {
+        feather_boundary(&mut mesh, &boundary, p.ctx().pixels_per_point());
+        for vertex in &mut mesh.vertices {
+            vertex.pos += t.origin.to_vec2();
+        }
+    }
     p.add(Shape::mesh(mesh));
+}
+
+/// One physical-pixel coverage ramp on exposed surface edges. The LED renderer
+/// does not use this mesh helper, so display geometry/coverage stays unchanged.
+fn feather_boundary(mesh: &mut Mesh, boundary: &[usize], ppp: f32) {
+    let start = mesh.vertices.len() as u32;
+    for (i, &index) in boundary.iter().enumerate() {
+        let v = mesh.vertices[index];
+        let prev = mesh.vertices[boundary[(i + boundary.len() - 1) % boundary.len()]].pos;
+        let next = mesh.vertices[boundary[(i + 1) % boundary.len()]].pos;
+        let a = (v.pos - prev).normalized();
+        let b = (next - v.pos).normalized();
+        let na = eframe::egui::vec2(a.y, -a.x);
+        let nb = eframe::egui::vec2(b.y, -b.x);
+        let normal = (na + nb).normalized();
+        mesh.vertices.push(Vertex {
+            pos: v.pos + normal / (ppp * normal.dot(na).max(0.5)),
+            color: Color32::TRANSPARENT,
+            ..v
+        });
+    }
+    for i in 0..boundary.len() {
+        let j = (i + 1) % boundary.len();
+        let a = boundary[i] as u32;
+        let b = boundary[j] as u32;
+        mesh.indices.extend_from_slice(&[
+            a,
+            b,
+            start + i as u32,
+            b,
+            start + j as u32,
+            start + i as u32,
+        ]);
+    }
 }
 
 /// Near-frontal outline: almost parallel ends, gently bowed long sides.
@@ -107,7 +195,7 @@ pub fn outline(p: &Painter, t: Transform, inset: f32, base: Color32) {
     p.add(Shape::mesh(mesh));
 }
 
-fn outline_points(inset: f32) -> Vec<(f32, f32)> {
+pub(crate) fn outline_points(inset: f32) -> Vec<(f32, f32)> {
     let top = 3.0 + inset;
     let bottom = 617.0 - inset;
     let right = 318.0 - inset;

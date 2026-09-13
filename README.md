@@ -77,3 +77,7 @@ period HP badge.
 The [resolution and case-face correction](tools/visual_compare/RESOLUTION-CASE-FACE.md)
 integrates the falling nose into the chassis, keeps the nameplate edges straight,
 and verifies vector-only rendering with higher-precision character contours.
+
+The [antialiasing and rim pass](tools/visual_compare/AA-RIM.md) gives the white
+rim a continuous, uniform stroke and adds edge coverage to keyboard/body
+geometry while preserving the display rendering.

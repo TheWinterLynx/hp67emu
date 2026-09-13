@@ -98,5 +98,15 @@
       "compiler_warnings": 0
     },
     "details": "RESOLUTION-CASE-FACE.md"
+  },
+  "aa_rim": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "16 passed; 1 opt-in capture ignored",
+      "release": "passed",
+      "capture": "330x620,660x1240,1320x2480",
+      "display_pixel_comparison": "identical glass and LED crops at all three scales"
+    },
+    "details": "AA-RIM.md"
   }
 }

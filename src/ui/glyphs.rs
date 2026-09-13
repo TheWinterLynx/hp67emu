@@ -62,7 +62,7 @@ pub fn text_mesh(
                 color,
             });
         }
-        // A subpixel coverage fringe around the true contours gives smooth
+        // A full physical-pixel coverage ramp around the true contours gives smooth
         // boundaries at any scale, including the counters inside letters.
         for path in &g.contours {
             let points: Vec<_> = path
@@ -71,13 +71,16 @@ pub fn text_mesh(
                 .collect();
             let start = mesh.vertices.len() as u32;
             for i in 0..points.len() {
-                let a = (points[i] - points[(i + points.len() - 1) % points.len()]).normalized();
-                let b = (points[(i + 1) % points.len()] - points[i]).normalized();
+                // Compute normals before screen translation; subpixel travel must
+                // not perturb short contour edges through float cancellation.
+                let local = |index: usize| Vec2::new(path[index][0], path[index][1]);
+                let a = (local(i) - local((i + path.len() - 1) % path.len())).normalized();
+                let b = (local((i + 1) % path.len()) - local(i)).normalized();
                 let na = Vec2::new(a.y, -a.x);
                 let nb = Vec2::new(b.y, -b.x);
                 let normal = (na + nb).normalized();
                 let outside =
-                    points[i] + normal * (0.55 / pixels_per_point / normal.dot(na).max(0.25));
+                    points[i] + normal * (1.0 / pixels_per_point / normal.dot(na).max(0.25));
                 mesh.vertices.push(Vertex {
                     pos: points[i],
                     uv: WHITE_UV,

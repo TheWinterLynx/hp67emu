@@ -244,7 +244,7 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
     let bottom = key.y + key.h;
     let skirt_h = bottom - skirt_top;
 
-    use super::materials::{shade, surface};
+    use super::materials::{antialiased_surface as surface, shade};
     // One rounded plastic body. The shoulder highlight wraps onto the front;
     // the skirt is a sloping surface, not a second button stacked underneath.
     for i in (1..=3).rev() {

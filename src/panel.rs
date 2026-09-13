@@ -68,7 +68,7 @@ impl Hp67Panel {
 }
 
 fn draw_chassis(p: &Painter, t: Transform) {
-    use crate::ui::materials::{outline, panel_left, panel_right, surface};
+    use crate::ui::materials::{antialiased_surface as surface, outline, panel_left, panel_right};
     // Molded case and rolled metal rim share a tapered, nonrectangular perimeter.
     for (inset, color) in [
         (0.0, Color32::from_rgb(27, 28, 22)),
@@ -78,7 +78,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
         (7.5, CASE_GREEN_DARK),
         (10.0, Color32::from_rgb(27, 30, 28)),
         (11.5, Color32::from_rgb(115, 122, 116)),
-        (13.0, SILVER_LIGHT),
+        (13.0, Color32::from_rgb(115, 122, 116)),
         (14.5, SILVER),
         (16.0, Color32::from_rgb(62, 68, 64)),
         (17.0, PANEL),
@@ -108,6 +108,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
         |u, v| 3.0 * (1.0 - u) - 5.0 * v + 2.0 * (v * 8.0).sin(),
     );
     draw_lower_case(p, t);
+    draw_continuous_rim(p, t);
     // Recessed card/legend rail above the A-E row.
     surface(
         p,
@@ -226,7 +227,7 @@ fn switch_label(p: &Painter, t: Transform, x: f32, y: f32, value: &str) {
     );
 }
 fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, hovered: bool) {
-    use crate::ui::materials::surface;
+    use crate::ui::materials::antialiased_surface as surface;
     p.rect_filled(t.rect(x, y, w, 5.2), t.s(0.6), Color32::from_rgb(8, 9, 7));
     p.line_segment(
         [t.pos(x, y + 5.3), t.pos(x + w, y + 5.3)],
@@ -274,7 +275,7 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
 // The keyboard deck ends at the fold. The nose, cheeks and return lip belong
 // to the chassis; the thin printed nameplate is inset into that larger face.
 fn draw_lower_case(p: &Painter, t: Transform) {
-    use crate::ui::materials::surface;
+    use crate::ui::materials::antialiased_surface as surface;
     use eframe::egui::Shape;
     let facet = |points: &[(f32, f32)], color| {
         p.add(Shape::convex_polygon(
@@ -313,20 +314,41 @@ fn draw_lower_case(p: &Painter, t: Transform) {
         [t.pos(28.0, 583.5), t.pos(302.0, 583.5)],
         Stroke::new(t.s(0.65), Color32::from_rgb(92, 94, 82)),
     );
-    for (a, b, c) in [
-        ((26.0, 583.5), (31.0, 604.5), SILVER_LIGHT),
-        ((304.0, 583.5), (299.0, 604.5), SILVER),
-    ] {
-        p.line_segment([t.pos(a.0, a.1), t.pos(b.0, b.1)], Stroke::new(t.s(1.7), c));
-    }
     facet(
         &[(31.0, 604.0), (299.0, 604.0), (306.0, 610.0), (24.0, 610.0)],
         Color32::from_rgb(48, 51, 39),
     );
-    p.line_segment(
-        [t.pos(31.0, 604.5), t.pos(299.0, 604.5)],
-        Stroke::new(t.s(1.0), SILVER),
-    );
+}
+
+// One path, one stroke width and one brightness through the folded corners.
+fn rim_points() -> Vec<Pos2> {
+    let outline = crate::ui::materials::outline_points(13.75);
+    let mut points = Vec::new();
+    for i in 0..outline.len() {
+        let a = outline[i];
+        let b = outline[(i + 1) % outline.len()];
+        if a.1 <= 583.5 {
+            points.push(Pos2::new(a.0, a.1));
+        }
+        if (a.1 <= 583.5) != (b.1 <= 583.5) {
+            let f = (583.5 - a.1) / (b.1 - a.1);
+            points.push(Pos2::new(a.0 + (b.0 - a.0) * f, 583.5));
+            if a.1 <= 583.5 {
+                points.push(Pos2::new(299.0, 604.5));
+                points.push(Pos2::new(31.0, 604.5));
+            }
+        }
+    }
+    points
+}
+fn draw_continuous_rim(p: &Painter, t: Transform) {
+    p.add(eframe::egui::Shape::closed_line(
+        rim_points()
+            .into_iter()
+            .map(|point| t.pos(point.x, point.y))
+            .collect(),
+        Stroke::new(t.s(1.5), SILVER_LIGHT),
+    ));
 }
 
 // Affine projection: every horizontal baseline and diagonal remains straight.
