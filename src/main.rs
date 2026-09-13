@@ -2,9 +2,8 @@
 
 mod app;
 mod hp67;
-mod key_depth_hp67_v3;
-#[path = "panel_fidelity.rs"]
 mod panel;
+mod ui;
 
 use eframe::egui;
 
@@ -22,3 +21,6 @@ fn main() -> eframe::Result<()> {
         Box::new(|cc| Box::new(app::Hp67App::new(cc))),
     )
 }
+
+#[cfg(test)]
+mod capture;

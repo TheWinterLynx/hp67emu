@@ -1,0 +1,39 @@
+{
+  "baseline": {
+    "330x620": {
+      "rgb_mae": 45.756138807429124,
+      "edge_mae": 43.729408602150535
+    },
+    "660x1240": {
+      "rgb_mae": 45.953883186705774,
+      "edge_mae": 25.605972629521016
+    }
+  },
+  "pass1": {
+    "330x620": {
+      "rgb_mae": 35.425174323884,
+      "edge_mae": 38.82626099706745
+    },
+    "660x1240": {
+      "rgb_mae": 35.93312683284457,
+      "edge_mae": 23.660273704789834
+    }
+  },
+  "pass2": {
+    "330x620": {
+      "rgb_mae": 35.300475724991855,
+      "edge_mae": 39.181363636363635
+    },
+    "660x1240": {
+      "rgb_mae": 35.8840843923102,
+      "edge_mae": 24.385503421309874
+    }
+  },
+  "validation": {
+    "cargo fmt --check": "passed",
+    "cargo test --all-targets": "8 passed; 1 opt-in capture ignored",
+    "cargo test capture_panel -- --ignored": "passed at both resolutions",
+    "cargo build --release": "passed",
+    "rustc_warnings": 0
+  }
+}

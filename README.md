@@ -44,3 +44,16 @@ scale = min(available_width / 330, available_height / 620)
 ```
 
 The panel is then centered in the available window, so it can be rendered at any DPI or window size without stretching.
+
+
+## Visual fidelity workflow
+
+The renderer now has one measured keyboard matrix in `src/ui/geometry.rs`,
+one keycap-local artwork path in `src/ui/keyboard.rs`, and a custom vector
+legend alphabet in `src/ui/glyphs.rs`. Key travel is rigid and snapped to physical
+pixels, including on high-DPI displays.
+
+See [the comparison workflow](tools/visual_compare/README.md) for the reference,
+measurements, two-pass results, reproducible headless captures and known limits.
+This remains a first reconstruction pass; it does not claim pixel-identical
+printing or full HP-67 firmware emulation.

@@ -1,0 +1,117 @@
+{
+  "source": "https://commons.wikimedia.org/wiki/File:Hp-67_front.jpg",
+  "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/df/Hp-67_front.jpg",
+  "panel_photo": [
+    [
+      190,
+      72
+    ],
+    [
+      610,
+      74
+    ],
+    [
+      649,
+      1078
+    ],
+    [
+      139,
+      1078
+    ]
+  ],
+  "panel_logical": [
+    [
+      30,
+      11
+    ],
+    [
+      300,
+      11
+    ],
+    [
+      300,
+      607
+    ],
+    [
+      30,
+      607
+    ]
+  ],
+  "row_tops": [
+    169,
+    223,
+    277,
+    331,
+    383,
+    435,
+    487,
+    538
+  ],
+  "function_centers": [
+    58,
+    112,
+    166,
+    220,
+    274
+  ],
+  "numeric_centers": [
+    119,
+    194,
+    270
+  ],
+  "note": "Manually selected panel corners and rectified key edges, approximately +/-1.5 logical px; perspective corrected on panel plane, no lens calibration. Raised key faces have residual parallax. Colors are photographic estimates, not calibrated reflectance.",
+  "sha256": "ac8fe1d544efa3b1172594a596c51aa8c516296e240a9241a4eb8223bb6d44ab",
+  "anchors": {
+    "outer_case": [
+      4,
+      0,
+      322,
+      618
+    ],
+    "silver_inner_edge": [
+      30,
+      11,
+      270,
+      596
+    ],
+    "display_opening": [
+      31,
+      12,
+      268,
+      64
+    ],
+    "switch_rail": [
+      31,
+      87,
+      268,
+      32
+    ],
+    "keyboard_bounds": [
+      40.5,
+      169,
+      251,
+      398
+    ],
+    "enter": [
+      45,
+      331,
+      84,
+      29
+    ],
+    "operator_centers": [
+      56,
+      56,
+      56,
+      56
+    ],
+    "operator_width": 27,
+    "numeric_width": 36,
+    "function_width": 35,
+    "branding": [
+      31,
+      586,
+      268,
+      17
+    ]
+  }
+}

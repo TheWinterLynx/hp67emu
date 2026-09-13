@@ -1,10 +1,6 @@
 use eframe::egui::{self, Color32};
 
-use crate::{
-    hp67::Hp67State,
-    key_depth_hp67_v3::KeyDepthOverlay,
-    panel::Hp67Panel,
-};
+use crate::{hp67::Hp67State, panel::Hp67Panel};
 
 pub struct Hp67App {
     state: Hp67State,
@@ -28,16 +24,9 @@ impl eframe::App for Hp67App {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
             .show(ctx, |ui| {
-                let host_rect = ui.available_rect_before_wrap();
-
                 for event in Hp67Panel::show(ui, &self.state) {
                     self.state.handle(event);
                 }
-
-                // One renderer owns both released and pressed states.  A press is
-                // only a rigid, pixel-snapped translation of the same keycap and
-                // the same legend geometry.
-                KeyDepthOverlay::paint(ui, host_rect);
             });
 
         if ctx.input(|i| i.pointer.any_down()) {
