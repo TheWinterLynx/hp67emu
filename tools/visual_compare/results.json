@@ -126,5 +126,19 @@
       "bottom": 5.553
     },
     "details": "REFERENCE-NOSE.md"
+  },
+  "heads_alignment": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "17 passed; capture opt-in",
+      "release": "passed",
+      "captures": [
+        "330x620",
+        "660x1240",
+        "1320x2480"
+      ],
+      "display_crops": "unchanged"
+    },
+    "details": "HEADS-ALIGNMENT.md"
   }
 }

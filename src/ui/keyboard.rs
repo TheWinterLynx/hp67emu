@@ -66,6 +66,35 @@ mod tests {
     }
 
     #[test]
+    fn exchange_mark_has_two_filled_heads_and_no_shafts() {
+        let ctx = egui::Context::default();
+        let output = ctx.run(egui::RawInput::default(), |ctx| {
+            exchange_heads(
+                &ctx.layer_painter(egui::LayerId::background()),
+                Transform {
+                    origin: Pos2::ZERO,
+                    scale: 1.0,
+                },
+                20.0,
+                20.0,
+                10.0,
+                WHITE,
+                WHITE,
+            );
+        });
+        assert_eq!(output.shapes.len(), 2);
+        for shape in output.shapes {
+            let Shape::Path(path) = shape.shape else {
+                panic!("exchange shaft or unexpected shape")
+            };
+            assert_eq!(path.points.len(), 3);
+            assert!(path.closed);
+            assert_eq!(path.stroke, Stroke::NONE);
+            assert_eq!(path.fill, WHITE);
+        }
+    }
+
+    #[test]
     fn reciprocal_x_print_extends_below_the_one() {
         for size in [6.8, 10.5] {
             let placements = reciprocal_positions(size);
@@ -299,9 +328,9 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
 
     // Crucially, the exact same label renderer is used in both states.  The
     // translated transform moves every vector/text element as one rigid object.
-    draw_main(p, kt, key, text, key.y + key.top_h * 0.47);
+    draw_main(p, kt, key, text, key.y + (key.top_h - 0.4) * 0.5);
     if key.sub.is_some() {
-        draw_sub(p, kt, key, subtext, skirt_top + skirt_h * 0.55);
+        draw_sub(p, kt, key, subtext, skirt_top + skirt_h * 0.5);
     }
 }
 
@@ -311,6 +340,9 @@ fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
             sigma(p, t, key.cx - 2.2, cy, 8.1, color);
             bold_txt(p, t, key.cx + 4.8, cy, 11.6, color, "+");
         }
+        "decimal" => {
+            p.circle_filled(t.pos(key.cx, cy), t.s(0.85), color);
+        }
         "multiply" => cross(p, t, key.cx, cy, 4.3, color),
         "divide" => divide(p, t, key.cx, cy, 4.3, color),
         "clx" => {
@@ -318,8 +350,27 @@ fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
             bold_txt(p, t, key.cx + 8.0, cy - 0.9, 14.0, color, "x");
         }
         "enter" => {
-            bold_txt(p, t, key.cx - 6.0, cy, 10.8, color, "ENTER");
-            vertical_arrow(p, t, key.cx + 28.0, cy, 3.1, true, color);
+            let text_width = print_width("ENTER", 10.8);
+            let arrow_width = 3.1 * 0.8 * 2.0;
+            let gap = 6.0;
+            bold_txt(
+                p,
+                t,
+                key.cx - (arrow_width + gap) * 0.5,
+                cy,
+                10.8,
+                color,
+                "ENTER",
+            );
+            vertical_arrow(
+                p,
+                t,
+                key.cx + (text_width + gap) * 0.5,
+                cy,
+                3.1,
+                true,
+                color,
+            );
         }
         _ => {
             let size = match key.id {
@@ -397,21 +448,16 @@ fn draw_legends(p: &Painter, t: Transform) {
     ] {
         bold_txt(p, t, x, 214.0, 7.9, YELLOW, s);
     }
-    xbar(p, t, 55.0, 267.0, 7.4, YELLOW);
-    bold_txt(p, t, 71.7, 267.0, 7.8, CYAN, "s");
-    bold_txt(p, t, 107.5, 267.0, 7.8, YELLOW, "GSB");
-    bold_txt(p, t, 126.2, 267.0, 7.8, CYAN, "f");
-    bold_txt(p, t, 156.0, 267.0, 7.8, YELLOW, "FIX");
-    bold_txt(p, t, 179.0, 267.0, 7.8, CYAN, "SCI");
+    xbar(p, t, 50.0, 267.0, 7.4, YELLOW);
+    bold_txt(p, t, 66.0, 267.0, 7.8, CYAN, "s");
+    paired_legend(p, t, 112.0, 267.0, "GSB", "f", 5.0);
+    paired_legend(p, t, 166.0, 267.0, "FIX", "SCI", 5.0);
     bold_txt(p, t, 220.0, 267.0, 7.8, YELLOW, "RND");
-    bold_txt(p, t, 258.5, 267.0, 7.8, YELLOW, "LBL");
-    bold_txt(p, t, 280.0, 267.0, 7.8, CYAN, "f");
-    bold_txt(p, t, 158.0, 321.0, 7.8, YELLOW, "DSZ");
-    bold_txt(p, t, 180.7, 321.0, 7.8, CYAN, "(i)");
-    bold_txt(p, t, 209.5, 321.0, 7.8, YELLOW, "ISZ");
-    bold_txt(p, t, 232.0, 321.0, 7.8, CYAN, "(i)");
-    bold_txt(p, t, 61.0, 372.0, 7.9, YELLOW, "W/DATA");
-    bold_txt(p, t, 112.0, 372.0, 7.9, CYAN, "MERGE");
+    paired_legend(p, t, 274.0, 267.0, "LBL", "f", 5.0);
+    paired_legend(p, t, 166.0, 321.0, "DSZ", "(i)", 4.0);
+    paired_legend(p, t, 220.0, 321.0, "ISZ", "(i)", 4.0);
+    bold_txt(p, t, 56.0, 372.0, 7.9, YELLOW, "W/DATA");
+    bold_txt(p, t, 119.0, 372.0, 7.9, CYAN, "MERGE");
     swap_two_color(p, t, 166.0, 372.0, "P", "S", 7.7, YELLOW, YELLOW);
     bold_txt(p, t, 220.0, 372.0, 7.9, YELLOW, "CL REG");
     bold_txt(p, t, 274.0, 372.0, 7.9, YELLOW, "CL PRGM");
@@ -423,7 +469,7 @@ fn draw_legends(p: &Painter, t: Transform) {
     sqrt_x(p, t, 252.0, 423.0, 8.0, YELLOW);
     power(p, t, 279.0, 423.0, "x", "2", 7.9, CYAN, CYAN);
     eq_pair(p, t, 56.0, 475.0, true);
-    inverse_trig(p, t, 112.0, 475.0, "SIN");
+    inverse_trig(p, t, 119.0, 475.0, "SIN");
     inverse_trig(p, t, 194.0, 475.0, "COS");
     inverse_trig(p, t, 270.0, 475.0, "TAN");
     relation_pair(p, t, 56.0, 526.0, '<', true);
@@ -645,11 +691,15 @@ fn power(
     );
 }
 fn r_arrow(p: &Painter, t: Transform, cx: f32, cy: f32, up: bool, size: f32, c: Color32) {
-    bold_txt(p, t, cx - 3.2, cy, size, c, "R");
+    let height = size * 0.3;
+    let arrow_width = height * if size > 8.0 { 1.6 } else { 2.0 };
+    let gap = size * 0.10;
+    bold_txt(p, t, cx - (arrow_width + gap) * 0.5, cy, size, c, "R");
+    let arrow_x = cx + (print_width("R", size) + gap) * 0.5;
     if size > 8.0 {
-        vertical_arrow(p, t, cx + 5.8, cy + 0.2, size * 0.3, up, c);
+        vertical_arrow(p, t, arrow_x, cy + 0.2, height, up, c);
     } else {
-        triangle(p, t, cx + 5.8, cy + 0.2, size * 0.3, up, c);
+        triangle(p, t, arrow_x, cy + 0.2, height, up, c);
     }
 }
 fn swap(p: &Painter, t: Transform, cx: f32, cy: f32, l: &str, r: &str, size: f32, c: Color32) {
@@ -669,7 +719,7 @@ fn swap_two_color(
     let (left, right, arrow) = exchange_positions(l, r, size);
     bold_txt(p, t, cx + left, cy, size, lc, l);
     bold_txt(p, t, cx + right, cy, size, rc, r);
-    double_arrow(p, t, cx + arrow, cy, size, lc, rc);
+    exchange_heads(p, t, cx + arrow, cy, size, lc, rc);
 }
 
 // Width ratios from the supplied close-up: mark ~0.14 key widths, complete
@@ -686,7 +736,7 @@ fn exchange_positions(l: &str, r: &str, size: f32) -> (f32, f32, f32) {
         start + lw + gap + arrow * 0.5,
     )
 }
-fn double_arrow(
+fn exchange_heads(
     p: &Painter,
     t: Transform,
     cx: f32,
@@ -696,18 +746,11 @@ fn double_arrow(
     lower: Color32,
 ) {
     let half = size * 0.25;
-    let head = size * 0.17;
-    let dy = size * 0.12;
-    let arm = size * 0.13;
+    let head = size * 0.30;
+    let dy = size * 0.17;
+    let arm = size * 0.17;
     for (sign, y, color) in [(1.0, cy - dy, upper), (-1.0, cy + dy, lower)] {
         let tip = cx + sign * half;
-        p.line_segment(
-            [
-                t.pos(cx - sign * half, y),
-                t.pos(tip - sign * head * 0.6, y),
-            ],
-            Stroke::new(t.s(size * 0.095), color),
-        );
         p.add(Shape::convex_polygon(
             vec![
                 t.pos(tip, y),
@@ -726,9 +769,25 @@ fn xbar(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
         Stroke::new(t.s(0.8), c),
     );
 }
+fn paired_legend(p: &Painter, t: Transform, cx: f32, cy: f32, left: &str, right: &str, gap: f32) {
+    let lw = print_width(left, 7.8);
+    let rw = print_width(right, 7.8);
+    bold_txt(p, t, cx - (rw + gap) * 0.5, cy, 7.8, YELLOW, left);
+    bold_txt(p, t, cx + (lw + gap) * 0.5, cy, 7.8, CYAN, right);
+}
 fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
-    bold_txt(p, t, cx - 2.0, cy, 7.9, YELLOW, name);
-    bold_txt(p, t, cx + 10.0, cy - 3.4, 5.2, CYAN, "−1");
+    let lw = print_width(name, 7.9);
+    let rw = print_width("\u{2212}1", 5.2);
+    bold_txt(p, t, cx - (rw + 0.3) * 0.5, cy, 7.9, YELLOW, name);
+    bold_txt(
+        p,
+        t,
+        cx + (lw + 0.3) * 0.5,
+        cy - 3.4,
+        5.2,
+        CYAN,
+        "\u{2212}1",
+    );
 }
 fn eq_pair(p: &Painter, t: Transform, cx: f32, cy: f32, ne: bool) {
     bold_txt(p, t, cx - 14.0, cy, 7.5, YELLOW, "x");

@@ -85,3 +85,7 @@ geometry while preserving the display rendering.
 The [reference-led lower-case correction](tools/visual_compare/REFERENCE-NOSE.md)
 revises the rounded fall of the nose and vintage badge proportions, and checks
 the white rim's rendered coverage along both the sides and bottom.
+
+The [exchange-head and alignment correction](tools/visual_compare/HEADS-ALIGNMENT.md)
+uses shaftless exchange symbols, centers compound legends and adds a little
+height to both printed key faces.
