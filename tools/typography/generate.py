@@ -6,6 +6,7 @@ Contours are flattened in font space and scan-converted into vector trapezoids,
 including counters/holes. No pixels, texture atlas or system font at runtime.
 """
 import sys, struct
+from hp_math import glyph as math_glyph
 from pathlib import Path
 sys.path.insert(0, str(Path('target/fonttools').resolve()))
 from fontTools.ttLib import TTFont
@@ -37,6 +38,7 @@ class Contours(BasePen):
 
 
 chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!%?()+-−/=<>:;'
+chars += 'π'
 binary=bytearray()
 for weight in [400, 600, 700]:
     font = instantiateVariableFont(TTFont(sys.argv[1]), {'wght':weight})
@@ -47,6 +49,11 @@ for weight in [400, 600, 700]:
         glyph = gs[cmap[ord(ch)]]
         pen = Contours(gs)
         glyph.draw(pen)
+        advance=glyph.width/cap
+        custom=math_glyph(ch,weight)
+        if custom:
+            advance,paths=custom
+            pen.paths=[[(x*cap,(1-y)*cap) for x,y in path] for path in paths]
         edges = [(a,b) for path in pen.paths for a,b in zip(path,path[1:]) if abs(a[1]-b[1])>1e-6]
         levels = sorted(set(round(p[1],5) for path in pen.paths for p in path))
         triangles = []
@@ -59,7 +66,15 @@ for weight in [400, 600, 700]:
                 return a[0]+(y-a[1])*(b[0]-a[0])/(b[1]-a[1])
             crossing.sort(key=lambda e:x(e,mid))
             assert len(crossing)%2==0
-            for left,right in zip(crossing[::2],crossing[1::2]):
+            winding=0
+            spans=[]
+            previous=None
+            for edge in crossing:
+                if winding and previous is not None: spans.append((previous,edge))
+                winding += 1 if edge[1][1]>edge[0][1] else -1
+                previous=edge
+            assert winding==0
+            for left,right in spans:
                 a=(x(left,lo)/cap,1-lo/cap); b=(x(right,lo)/cap,1-lo/cap)
                 c=(x(left,hi)/cap,1-hi/cap); d=(x(right,hi)/cap,1-hi/cap)
                 triangles.extend([a,b,c,b,d,c])
@@ -69,7 +84,7 @@ for weight in [400, 600, 700]:
             if xy not in seen:
                 seen[xy]=len(vertices); vertices.append(xy)
             indices.append(seen[xy])
-        binary.extend(struct.pack('<HIfII',weight,ord(ch),glyph.width/cap,len(vertices),len(indices)))
+        binary.extend(struct.pack('<HIfII',weight,ord(ch),advance,len(vertices),len(indices)))
         for xy in vertices: binary.extend(struct.pack('<ff',*xy))
         for i in indices: binary.extend(struct.pack('<H',i))
         binary.extend(struct.pack('<H',len(pen.paths)))

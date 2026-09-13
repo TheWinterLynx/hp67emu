@@ -1,4 +1,4 @@
-use eframe::egui::{Align2, Color32, FontId, Painter, Pos2, Sense, Stroke, Ui, Vec2};
+use eframe::egui::{Align2, Color32, Painter, Pos2, Sense, Stroke, Ui, Vec2};
 
 use crate::hp67::{Hp67State, RunMode, UiEvent};
 
@@ -256,76 +256,119 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
     }
 }
 
+// The nameplate is printed on the falling nose, below the keyboard plane.
+// One projection applies to its border, emblem and lettering alike.
+fn nose_point(x: f32, y: f32) -> (f32, f32) {
+    (30.0 + x + (134.0 - x) * y / 1800.0, 585.0 + y * 0.76)
+}
+
 fn draw_branding(p: &Painter, t: Transform) {
-    p.rect_filled(
-        t.rect(31.0, 586.0, 268.0, 17.0),
-        0.0,
-        Color32::from_rgb(16, 20, 22),
-    );
-    p.rect_stroke(
-        t.rect(31.0, 586.0, 268.0, 17.0),
-        0.0,
-        Stroke::new(t.s(0.65), Color32::from_rgb(189, 191, 185)),
-    );
-    p.rect_filled(
-        t.rect(43.0, 588.0, 31.0, 11.0),
-        0.0,
-        Color32::from_rgb(47, 91, 128),
-    );
-    p.circle_filled(
-        t.pos(55.5, 593.5),
-        t.s(5.1),
-        Color32::from_rgb(176, 169, 144),
-    );
-    // Slanted connected h/p mark, expressed in the same logical coordinates.
-    for path in [
-        vec![(51.5, 597.0), (54.2, 589.0)],
-        vec![(52.8, 593.0), (56.0, 593.0), (54.6, 597.0)],
-        vec![
-            (56.0, 599.0),
-            (59.2, 589.5),
-            (61.0, 589.5),
-            (59.8, 593.4),
-            (57.8, 593.4),
-        ],
-    ] {
-        p.add(eframe::egui::Shape::line(
-            path.into_iter().map(|(x, y)| t.pos(x, y)).collect(),
-            Stroke::new(t.s(1.0), Color32::from_rgb(30, 37, 45)),
-        ));
-    }
-    centered(
+    use crate::ui::{glyphs, materials::surface};
+    use eframe::egui::Shape;
+    surface(
         p,
         t,
-        178.0,
-        594.0,
-        7.3,
-        Color32::from_rgb(205, 209, 205),
-        "H E W L E T T - P A C K A R D   6 7",
+        583.5,
+        602.5,
+        |y| 28.0 + (y - 583.5) * 0.22,
+        |y| 302.0 - (y - 583.5) * 0.22,
+        Color32::from_rgb(33, 34, 31),
+        2.0,
+        1.0,
+        |_, v| 12.0 * (-v * 25.0).exp() - 17.0 * v,
     );
-}
-
-fn centered(p: &Painter, t: Transform, x: f32, y: f32, size: f32, color: Color32, value: &str) {
-    label(p, t, x, y, Align2::CENTER_CENTER, size, color, value);
-}
-
-fn label(
-    p: &Painter,
-    t: Transform,
-    x: f32,
-    y: f32,
-    align: Align2,
-    size: f32,
-    color: Color32,
-    value: &str,
-) {
-    p.text(
-        t.pos(x, y),
-        align,
-        value,
-        FontId::proportional(t.s(size)),
-        color,
+    let point = |x, y| {
+        let (x, y) = nose_point(x, y);
+        t.pos(x, y)
+    };
+    let quad = |x: f32, y: f32, w: f32, h: f32, color, stroke| {
+        p.add(Shape::convex_polygon(
+            vec![
+                point(x, y),
+                point(x + w, y),
+                point(x + w, y + h),
+                point(x, y + h),
+            ],
+            color,
+            stroke,
+        ));
+    };
+    // A fine aluminum outline inset into the dark sloping face.
+    quad(
+        1.0,
+        1.5,
+        266.0,
+        18.0,
+        Color32::from_rgb(17, 18, 18),
+        Stroke::new(t.s(0.55), Color32::from_rgb(141, 145, 137)),
     );
+    p.line_segment(
+        [point(1.0, 21.0), point(267.0, 21.0)],
+        Stroke::new(t.s(1.1), Color32::from_rgb(9, 11, 10)),
+    );
+    // Period badge: dark left field, blue right field, silver circular hp mark.
+    let ink = Color32::from_rgb(25, 31, 33);
+    let silver = Color32::from_rgb(190, 190, 175);
+    quad(10.0, 3.0, 31.0, 15.0, ink, Stroke::new(t.s(0.4), silver));
+    quad(
+        27.0,
+        3.2,
+        13.8,
+        14.6,
+        Color32::from_rgb(38, 112, 156),
+        Stroke::NONE,
+    );
+    let circle = (0..64)
+        .map(|i| {
+            let a = i as f32 * std::f32::consts::TAU / 64.0;
+            point(23.0 + 6.9 * a.cos(), 10.5 + 6.9 * a.sin())
+        })
+        .collect();
+    p.add(Shape::convex_polygon(circle, silver, Stroke::NONE));
+    // Parallel slanted stems and open counters of the vintage circular mark.
+    for path in [
+        vec![(22.0, 3.4), (18.3, 14.8)],
+        vec![(20.1, 9.1), (23.3, 9.1), (21.5, 14.8)],
+        vec![(22.8, 17.5), (26.3, 6.4)],
+        vec![(25.8, 8.0), (28.6, 8.0), (27.4, 11.8), (24.6, 11.8)],
+    ] {
+        p.add(Shape::line(
+            path.into_iter().map(|(x, y)| point(x, y)).collect(),
+            Stroke::new(t.s(1.12), ink),
+        ));
+    }
+    // Explicit tracking, with the model number as one unspaced pair.
+    let mut cursor = 54.0;
+    for ch in "HEWLETT-PACKARD".chars() {
+        let value = ch.to_string();
+        let mut mesh = glyphs::text_mesh(
+            Pos2::new(cursor, 10.2),
+            8.0,
+            silver,
+            &value,
+            Align2::LEFT_CENTER,
+            400,
+            p.ctx().pixels_per_point() * t.scale,
+        );
+        for vertex in &mut mesh.vertices {
+            vertex.pos = point(vertex.pos.x, vertex.pos.y);
+        }
+        p.add(Shape::mesh(mesh));
+        cursor += glyphs::width(&value, 8.0, 400) + 6.1;
+    }
+    let mut mesh = glyphs::text_mesh(
+        Pos2::new(246.0, 10.2),
+        10.0,
+        silver,
+        "67",
+        Align2::CENTER_CENTER,
+        400,
+        p.ctx().pixels_per_point() * t.scale,
+    );
+    for vertex in &mut mesh.vertices {
+        vertex.pos = point(vertex.pos.x, vertex.pos.y);
+    }
+    p.add(Shape::mesh(mesh));
 }
 
 const SEG_A: u8 = 1 << 0;

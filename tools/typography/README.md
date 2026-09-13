@@ -25,3 +25,11 @@ The original flattened contours also supply a physical-pixel coverage fringe
 at rendering time, keeping lettering smooth at small and fractional scales.
 This fringe uses the same path for resting and translated keycaps. Positions
 are not rounded independently per letter.
+
+The glyph audit adds hand-shaped cubic outlines for mathematical x, y and pi
+in `hp_math.py`. They replace those three Arimo contours at generation time.
+The x has curved crossing arms; y retains its hooked descender. Nonzero winding
+triangulation preserves solid overlaps as well as the font's counters. A Rust
+regression checks the x crossing, y descender and availability of pi.
+Compound exchange legends use actual outline advances and a mark 0.50 times
+the legend size, replacing the former 1.04 ratio and fixed letter offsets.

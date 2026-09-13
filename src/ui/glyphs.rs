@@ -1,10 +1,19 @@
 //! Portable outline lettering with per-legend optical metrics. No system-font lookup.
-//! Contours are derived from OFL Arimo; see tools/typography for provenance.
+//! Arimo lettering plus reconstructed math contours; tools/typography records provenance.
 use super::lettering_data::glyph;
 use eframe::egui::{
     epaint::{Mesh, Vertex, WHITE_UV},
     Align2, Color32, Painter, Pos2, Shape, Vec2,
 };
+
+/// Advance of the exact outline run, used to place compact compound legends.
+pub fn width(value: &str, height: f32, weight: u16) -> f32 {
+    let count = value.chars().count();
+    (value.chars().map(|c| glyph(c, weight).advance).sum::<f32>()
+        + count.saturating_sub(1) as f32 * 0.028)
+        * height
+        * 0.78
+}
 
 pub fn text(
     p: &Painter,
@@ -15,13 +24,30 @@ pub fn text(
     align: Align2,
     weight: u16,
 ) {
+    p.add(Shape::mesh(text_mesh(
+        pos,
+        height,
+        color,
+        value,
+        align,
+        weight,
+        p.ctx().pixels_per_point(),
+    )));
+}
+
+/// Outline mesh for lettering painted on a projected physical face.
+pub fn text_mesh(
+    pos: Pos2,
+    height: f32,
+    color: Color32,
+    value: &str,
+    align: Align2,
+    weight: u16,
+    pixels_per_point: f32,
+) -> Mesh {
     let cap = height * 0.78;
     let tracking = 0.028;
-    let width = value
-        .chars()
-        .map(|c| glyph(c, weight).advance + tracking)
-        .sum::<f32>()
-        * cap;
+    let width = width(value, height, weight);
     let origin = align.anchor_size(pos, Vec2::new(width, cap)).min;
     let mut mesh = Mesh::default();
     let mut cursor = 0.0;
@@ -50,8 +76,8 @@ pub fn text(
                 let na = Vec2::new(a.y, -a.x);
                 let nb = Vec2::new(b.y, -b.x);
                 let normal = (na + nb).normalized();
-                let outside = points[i]
-                    + normal * (0.55 / p.ctx().pixels_per_point() / normal.dot(na).max(0.25));
+                let outside =
+                    points[i] + normal * (0.55 / pixels_per_point / normal.dot(na).max(0.25));
                 mesh.vertices.push(Vertex {
                     pos: points[i],
                     uv: WHITE_UV,
@@ -72,5 +98,5 @@ pub fn text(
         }
         cursor += g.advance + tracking;
     }
-    p.add(Shape::mesh(mesh));
+    mesh
 }

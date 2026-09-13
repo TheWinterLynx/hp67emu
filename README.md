@@ -68,3 +68,8 @@ case, surface lighting and grain, rounded key shoulders, ribbed switches and a
 The [frontal-reference correction](tools/visual_compare/FRONTAL-CORRECTION.md)
 replaces the exaggerated taper with gently bowed sides, corrects the display
 window and places the reciprocal's x lower than its raised 1.
+
+The [glyph and lower-face audit](tools/visual_compare/GLYPH-NOSE-AUDIT.md)
+adds curved mathematical lettering, compact exchange marks and a projected
+nameplate on the falling lower face, including a vector reconstruction of the
+period HP badge.

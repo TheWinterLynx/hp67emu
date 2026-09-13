@@ -53,6 +53,19 @@ mod tests {
     use eframe::egui::{self, Event, Modifiers, PointerButton, Pos2};
 
     #[test]
+    fn exchange_spacing_tracks_the_printed_letters_at_both_legend_sizes() {
+        for size in [6.7, 6.9, 7.7, 10.0] {
+            let (left, right, arrow) = exchange_positions("x", "y", size);
+            let left_edge = left - print_width("x", size) * 0.5;
+            let right_edge = right + print_width("y", size) * 0.5;
+            assert!((left_edge + right_edge).abs() < 0.00001);
+            assert!(right_edge - left_edge < size * 1.85);
+            assert!(arrow - size * 0.25 > left + print_width("x", size) * 0.5);
+            assert!(arrow + size * 0.25 < right - print_width("y", size) * 0.5);
+        }
+    }
+
+    #[test]
     fn reciprocal_x_print_extends_below_the_one() {
         for size in [6.8, 10.5] {
             let placements = reciprocal_positions(size);
@@ -295,11 +308,15 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
 fn draw_main(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
     match key.id {
         "sigma" => {
-            sigma(p, t, key.cx - 2.4, cy, 9.7, color);
-            bold_txt(p, t, key.cx + 5.0, cy, 10.1, color, "+");
+            sigma(p, t, key.cx - 2.2, cy, 8.1, color);
+            bold_txt(p, t, key.cx + 4.8, cy, 11.6, color, "+");
         }
         "multiply" => cross(p, t, key.cx, cy, 4.3, color),
         "divide" => divide(p, t, key.cx, cy, 4.3, color),
+        "clx" => {
+            bold_txt(p, t, key.cx - 4.0, cy, 11.6, color, "CL");
+            bold_txt(p, t, key.cx + 8.0, cy - 0.9, 14.0, color, "x");
+        }
         "enter" => {
             bold_txt(p, t, key.cx - 6.0, cy, 10.8, color, "ENTER");
             vertical_arrow(p, t, key.cx + 28.0, cy, 3.1, true, color);
@@ -330,7 +347,7 @@ fn draw_sub(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
         "8" => r_arrow(p, t, key.cx, cy, false, 6.8, color),
         "9" => r_arrow(p, t, key.cx, cy, true, 6.8, color),
         "4" => one_over_x(p, t, key.cx, cy, 6.8, color),
-        "5" => power(p, t, key.cx, cy, "y", "x", 6.8, color, color),
+        "5" => power(p, t, key.cx, cy - 0.8, "y", "x", 6.8, color, color),
         "2" => pi(p, t, key.cx, cy, 7.0, color),
         "enter" => {
             let x = match key.sub_align {
@@ -482,14 +499,20 @@ fn bold_txt_aligned(
         color,
         s,
         align,
-        if size < 8.1 {
-            700
-        } else if s.chars().all(|c| c.is_ascii_digit()) {
-            400
-        } else {
-            600
-        },
+        printed_weight(size, s),
     );
+}
+fn printed_weight(size: f32, value: &str) -> u16 {
+    if matches!(value, "x" | "y" | "π") {
+        600
+    } else if size <= 7.1 {
+        700
+    } else {
+        400
+    }
+}
+fn print_width(value: &str, size: f32) -> f32 {
+    super::glyphs::width(value, size, printed_weight(size, value))
 }
 fn cross(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, c: Color32) {
     p.line_segment(
@@ -545,29 +568,7 @@ fn sigma(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     p.line_segment([t.pos(l, bot), t.pos(r, bot)], st);
 }
 fn pi(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
-    let s = size / 7.0;
-    let st = Stroke::new(t.s(0.8 * s), c);
-    p.line_segment(
-        [
-            t.pos(cx - 4.0 * s, cy - 2.7 * s),
-            t.pos(cx + 4.0 * s, cy - 2.7 * s),
-        ],
-        st,
-    );
-    p.line_segment(
-        [
-            t.pos(cx - 2.1 * s, cy - 2.7 * s),
-            t.pos(cx - 2.1 * s, cy + 2.8 * s),
-        ],
-        st,
-    );
-    p.line_segment(
-        [
-            t.pos(cx + 2.1 * s, cy - 2.7 * s),
-            t.pos(cx + 2.1 * s, cy + 2.8 * s),
-        ],
-        st,
-    );
+    bold_txt(p, t, cx, cy, size, c, "π");
 }
 // Photographed reciprocal: a smaller raised 1, descending slash, lower x.
 // Shared by the white panel print and the front of the 4 key.
@@ -595,25 +596,17 @@ fn one_over_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32
 fn sqrt_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     let s = size / 9.0;
     let x0 = cx - 8.2 * s;
-    let st = Stroke::new(t.s(1.0 * s), c);
-    p.line_segment(
-        [t.pos(x0, cy + 0.3 * s), t.pos(x0 + 2.5 * s, cy + 4.0 * s)],
-        st,
-    );
-    p.line_segment(
-        [
-            t.pos(x0 + 2.5 * s, cy + 4.0 * s),
-            t.pos(x0 + 5.8 * s, cy - 5.0 * s),
+    let st = Stroke::new(t.s(1.05 * s), c);
+    p.add(Shape::line(
+        vec![
+            t.pos(x0, cy + 0.4 * s),
+            t.pos(x0 + 1.3 * s, cy - 0.1 * s),
+            t.pos(x0 + 3.0 * s, cy + 3.8 * s),
+            t.pos(x0 + 6.0 * s, cy - 4.1 * s),
+            t.pos(x0 + 15.0 * s, cy - 4.1 * s),
         ],
         st,
-    );
-    p.line_segment(
-        [
-            t.pos(x0 + 5.8 * s, cy - 5.0 * s),
-            t.pos(x0 + 15.0 * s, cy - 5.0 * s),
-        ],
-        Stroke::new(t.s(0.8 * s), c),
-    );
+    ));
     bold_txt(p, t, cx + 3.5 * s, cy + 0.4 * s, size, c, "x");
 }
 fn power(
@@ -627,9 +620,29 @@ fn power(
     bc: Color32,
     ec: Color32,
 ) {
-    let bw = if base.len() > 1 { 5.5 } else { 2.6 };
-    bold_txt(p, t, cx - bw, cy + 1.0, size, bc, base);
-    bold_txt(p, t, cx + bw + 2.4, cy - size * 0.42, size * 0.65, ec, exp);
+    let exp_size = size * 0.78;
+    let base_width = print_width(base, size);
+    let exp_width = print_width(exp, exp_size);
+    let gap = size * 0.025;
+    let left = cx - (base_width + gap + exp_width) * 0.5;
+    bold_txt(
+        p,
+        t,
+        left + base_width * 0.5,
+        cy + size * 0.07,
+        size,
+        bc,
+        base,
+    );
+    bold_txt(
+        p,
+        t,
+        left + base_width + gap + exp_width * 0.5,
+        cy - size * 0.30,
+        exp_size,
+        ec,
+        exp,
+    );
 }
 fn r_arrow(p: &Painter, t: Transform, cx: f32, cy: f32, up: bool, size: f32, c: Color32) {
     bold_txt(p, t, cx - 3.2, cy, size, c, "R");
@@ -653,23 +666,58 @@ fn swap_two_color(
     lc: Color32,
     rc: Color32,
 ) {
-    let span = if r.len() > 1 { 11.0 } else { 8.0 };
-    bold_txt(p, t, cx - span, cy, size, lc, l);
-    bold_txt(p, t, cx + span, cy, size, rc, r);
-    double_arrow(p, t, cx, cy, size * 0.52, if lc == rc { lc } else { CYAN });
+    let (left, right, arrow) = exchange_positions(l, r, size);
+    bold_txt(p, t, cx + left, cy, size, lc, l);
+    bold_txt(p, t, cx + right, cy, size, rc, r);
+    double_arrow(p, t, cx + arrow, cy, size, lc, rc);
 }
-fn double_arrow(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, c: Color32) {
-    let x1 = cx - h;
-    let x2 = cx + h;
-    let yu = cy - 1.35;
-    let yd = cy + 1.35;
-    let st = Stroke::new(t.s(0.7), c);
-    p.line_segment([t.pos(x1, yu), t.pos(x2, yu)], st);
-    p.line_segment([t.pos(x2 - 2.0, yu - 1.4), t.pos(x2, yu)], st);
-    p.line_segment([t.pos(x2 - 2.0, yu + 1.4), t.pos(x2, yu)], st);
-    p.line_segment([t.pos(x2, yd), t.pos(x1, yd)], st);
-    p.line_segment([t.pos(x1 + 2.0, yd - 1.4), t.pos(x1, yd)], st);
-    p.line_segment([t.pos(x1 + 2.0, yd + 1.4), t.pos(x1, yd)], st);
+
+// Width ratios from the supplied close-up: mark ~0.14 key widths, complete
+// x/exchange/y group ~0.52 key widths. No fixed eight-unit letter offsets.
+fn exchange_positions(l: &str, r: &str, size: f32) -> (f32, f32, f32) {
+    let lw = print_width(l, size);
+    let rw = print_width(r, size);
+    let arrow = size * 0.50;
+    let gap = size * 0.035;
+    let start = -(lw + rw + arrow + 2.0 * gap) * 0.5;
+    (
+        start + lw * 0.5,
+        start + lw + 2.0 * gap + arrow + rw * 0.5,
+        start + lw + gap + arrow * 0.5,
+    )
+}
+fn double_arrow(
+    p: &Painter,
+    t: Transform,
+    cx: f32,
+    cy: f32,
+    size: f32,
+    upper: Color32,
+    lower: Color32,
+) {
+    let half = size * 0.25;
+    let head = size * 0.17;
+    let dy = size * 0.12;
+    let arm = size * 0.13;
+    for (sign, y, color) in [(1.0, cy - dy, upper), (-1.0, cy + dy, lower)] {
+        let tip = cx + sign * half;
+        p.line_segment(
+            [
+                t.pos(cx - sign * half, y),
+                t.pos(tip - sign * head * 0.6, y),
+            ],
+            Stroke::new(t.s(size * 0.095), color),
+        );
+        p.add(Shape::convex_polygon(
+            vec![
+                t.pos(tip, y),
+                t.pos(tip - sign * head, y - arm),
+                t.pos(tip - sign * head, y + arm),
+            ],
+            color,
+            Stroke::NONE,
+        ));
+    }
 }
 fn xbar(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     bold_txt(p, t, cx, cy + 0.4, size, c, "x");
@@ -683,18 +731,18 @@ fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
     bold_txt(p, t, cx + 10.0, cy - 3.4, 5.2, CYAN, "−1");
 }
 fn eq_pair(p: &Painter, t: Transform, cx: f32, cy: f32, ne: bool) {
-    bold_txt(p, t, cx - 13.0, cy, 7.5, YELLOW, "x");
+    bold_txt(p, t, cx - 14.0, cy, 7.5, YELLOW, "x");
     if ne {
-        not_eq(p, t, cx - 5.0, cy, YELLOW)
+        not_eq(p, t, cx - 8.0, cy, YELLOW)
     } else {
-        bold_txt(p, t, cx - 5.0, cy, 7.5, YELLOW, "=")
+        bold_txt(p, t, cx - 8.0, cy, 7.5, YELLOW, "=")
     };
-    bold_txt(p, t, cx + 1.0, cy, 7.5, YELLOW, "0");
-    bold_txt(p, t, cx + 7.0, cy, 7.5, CYAN, "x");
+    bold_txt(p, t, cx - 2.0, cy, 7.5, YELLOW, "0");
+    bold_txt(p, t, cx + 10.0, cy, 7.5, CYAN, "x");
     if ne {
-        not_eq(p, t, cx + 15.0, cy, CYAN)
+        not_eq(p, t, cx + 16.0, cy, CYAN)
     } else {
-        bold_txt(p, t, cx + 15.0, cy, 7.5, CYAN, "=")
+        bold_txt(p, t, cx + 16.0, cy, 7.5, CYAN, "=")
     };
     bold_txt(p, t, cx + 22.0, cy, 7.5, CYAN, "y");
 }
@@ -706,12 +754,12 @@ fn not_eq(p: &Painter, t: Transform, cx: f32, cy: f32, c: Color32) {
 }
 fn relation_pair(p: &Painter, t: Transform, cx: f32, cy: f32, op: char, incl: bool) {
     let os = if op == '<' { "<" } else { ">" };
-    bold_txt(p, t, cx - 13.0, cy, 7.4, YELLOW, "x");
-    bold_txt(p, t, cx - 6.4, cy, 7.4, YELLOW, os);
-    bold_txt(p, t, cx, cy, 7.4, YELLOW, "0");
-    bold_txt(p, t, cx + 7.0, cy, 7.4, CYAN, "x");
-    relop(p, t, cx + 15.0, cy, op, incl, CYAN);
-    bold_txt(p, t, cx + 23.0, cy, 7.4, CYAN, "y");
+    bold_txt(p, t, cx - 14.0, cy, 7.4, YELLOW, "x");
+    bold_txt(p, t, cx - 8.0, cy, 7.4, YELLOW, os);
+    bold_txt(p, t, cx - 2.0, cy, 7.4, YELLOW, "0");
+    bold_txt(p, t, cx + 10.0, cy, 7.4, CYAN, "x");
+    relop(p, t, cx + 16.0, cy, op, incl, CYAN);
+    bold_txt(p, t, cx + 22.0, cy, 7.4, CYAN, "y");
 }
 fn relop(p: &Painter, t: Transform, cx: f32, cy: f32, op: char, incl: bool, c: Color32) {
     let f = if op == '<' { 1.0 } else { -1.0 };
