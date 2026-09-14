@@ -18,9 +18,10 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Remove stale vector-rendering comparison tooling.
 - [ ] Normalize inherited photographic UI files with rustfmt, then add `cargo fmt --check` to the local regression command.
 
-## Nonpareil-guided reference model
+## Semantic/reference implementations
 
 - [x] Analyse Nonpareil's Woodstock CPU, HP-67 calc definition, ROM disassembly, display scan and CRC model; see `docs/NONPAREIL_ANALYSIS.md`.
+- [x] Analyse x11-calc's HP-67 implementation and record exactly what it can and cannot establish; see `docs/X11_CALC_ANALYSIS.md`.
 - [x] Add a UI-independent Rust `reference::woodstock` namespace.
 - [x] Encode the 14-digit architectural state and 10-bit four-way opcode classification in Rust.
 - [x] Add regression tests covering the complete 1024-word opcode classification and field ranges.
@@ -33,8 +34,9 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Connect the differential harness to the real electrical ACT once that device exposes instruction-boundary state.
 - [x] Port the *behaviour* needed from Nonpareil's CRC model into an independently structured Rust reference peripheral.
 - [x] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
+- [ ] Add an HP-67 P-wrap/label-search regression that must agree with both Nonpareil and x11-calc without PC-specific hacks in the electrical ACT.
 - [ ] Reconcile the ACT part/revision identifiers in Nonpareil's HP-67 metadata with physical HP-67 sources before freezing chip identity.
-- [ ] Do not copy GPL-covered Nonpareil source line-for-line unless the project deliberately makes a compatible licensing decision.
+- [ ] Do not copy GPL-covered Nonpareil or x11-calc source line-for-line unless the project deliberately makes a compatible licensing decision.
 
 ## Next: evidence and timing
 
@@ -53,10 +55,12 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 - [x] Identify the Teenix physical ROM-reader archive as the preferred first HP-67 dump source; see `docs/MICROCODE_PROVENANCE.md`.
 - [x] Identify Nonpareil's `67.asm`, `6797.asm`, `67b1.asm` and card-reader disassembly as symbolic cross-checks.
+- [x] Identify x11-calc's built-in 8192-entry `i_rom[]` image as a third HP-67 ROM corpus for comparison.
 - [ ] Download and inspect the HP-67 ROM files from the Teenix ROM-reader archive locally.
 - [ ] Record chip-to-image mapping and SHA-256 for every ROM image.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
 - [ ] Cross-check Teenix raw words against the Nonpareil disassembly/object layout.
+- [ ] Compare the complete logical HP-67 ROM image against x11-calc and record every bank/page/address mismatch.
 - [ ] Build opcode conformance fixtures from the reference model plus trusted Woodstock/HP-67 microcode analysis.
 
 ## Scheduler
@@ -64,7 +68,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Implement resolve -> snapshot -> evaluate -> commit loop.
 - [ ] Add scheduled transitions/propagation slots if traces prove they are required.
 - [x] Make bus contention fail tests with stable driver names and tick number.
-- [ ] Add trace probes with deterministic ordering.
+- [x] Add trace probes with deterministic ordering.
 - [x] Verify with regression tests that device container iteration order cannot change propagation results.
 
 ## ACT 1820-2530 / HP-67 ACT revision
@@ -95,7 +99,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Implement 1820-1749 cathode driver.
 - [ ] Implement RCD reset and STR stepping electrically.
 - [ ] Verify 15-position/sign-routing topology for HP-67.
-- [ ] Use Nonpareil's HP-67 character-generator/sign rules as semantic cross-checks, not as timing implementation.
+- [ ] Use Nonpareil and x11-calc HP-67 display semantics as cross-checks, never as timing implementation.
 - [ ] Integrate segment on-time over real scan timing.
 - [ ] Feed physical segment intensity into `classic_display.rs`.
 - [ ] Delete text-to-segment formatting from the fidelity path.
@@ -104,7 +108,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## Keyboard and switches
 
 - [ ] Transcribe the real HP-67 key contact matrix.
-- [ ] Cross-check all 35 resulting hardware key codes against Nonpareil's `67.ncd.tmpl` mapping.
+- [ ] Cross-check all 35 resulting hardware key codes against both Nonpareil `67.ncd.tmpl` and x11-calc `x11-calc-67.c`.
 - [ ] Replace semantic key events with contact closures in cycle-accurate mode.
 - [ ] Implement KC1-KC5 and related key-scan path.
 - [ ] Route RUN/W/PRGM through the correct hardware-visible CRC flag/input; Nonpareil identifies CRC flag 1 as the semantic switch state.
@@ -119,6 +123,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Model card-presence switches and transport timing.
 - [ ] Model sense-amplifier digital output boundary.
 - [ ] Separate host card-file representation from electrical CRC model.
+- [ ] Use x11-calc's HP-67 diagnostic A/C card programs as external end-to-end acceptance tests after redistribution/licensing review.
 - [ ] Add known-card read/write regressions.
 
 ## UI debt to remove
