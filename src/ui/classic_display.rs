@@ -1,10 +1,13 @@
 //! Authentic HP-67 Classic-series LED emission for the photographed display.
 //!
 //! The physical HP-67 display is a 15-position assembly made from three
-//! end-stackable five-character HP 5082-7405-style modules.  Character pitch is
-//! 3.81 mm (.150 in), magnified character height is 2.794 mm (.110 in), and the
-//! centered decimal occupies its own character position.  Each logical segment
-//! is formed by three narrow emitting bars; the decimal die uses two bars.
+//! end-stackable five-character HP 1990-0335 modules.  The documented
+//! 5082-7405 is a drop-in equivalent and supplies the dimensional reference:
+//! 3.81 mm (.150 in) character pitch and 2.794 mm (.110 in) magnified height.
+//! Contemporary Classic-display documentation gives a nominal .062 in digit
+//! width.  The centered decimal occupies its own character position.  Each
+//! logical segment is formed by three narrow emitting bars; the decimal die
+//! uses two bars.
 //!
 //! In the photorealistic renderer the photograph already provides the red
 //! contrast filter, bezel, reflections, module/lens structure and black level.
@@ -17,6 +20,7 @@ const MODULE_COUNT: usize = 3;
 const CHARACTERS_PER_MODULE: usize = 5;
 const CHARACTER_PITCH_MM: f32 = 3.81;
 const CHARACTER_HEIGHT_MM: f32 = 2.794;
+const CHARACTER_WIDTH_MM: f32 = 1.5748; // .062 in
 
 // The measured vector reconstruction uses 614 logical units for HP's published
 // 152.4 mm case length and a 282 x 57 display opening.  Keeping those reference
@@ -27,6 +31,7 @@ const REFERENCE_DISPLAY_WIDTH: f32 = 282.0;
 const REFERENCE_DISPLAY_HEIGHT: f32 = 57.0;
 const CHARACTER_PITCH: f32 = CHARACTER_PITCH_MM * REFERENCE_UNITS_PER_MM;
 const CHARACTER_HEIGHT: f32 = CHARACTER_HEIGHT_MM * REFERENCE_UNITS_PER_MM;
+const CHARACTER_WIDTH: f32 = CHARACTER_WIDTH_MM * REFERENCE_UNITS_PER_MM;
 const MODULE_WIDTH: f32 = CHARACTER_PITCH * CHARACTERS_PER_MODULE as f32;
 const ASSEMBLY_WIDTH: f32 = MODULE_WIDTH * MODULE_COUNT as f32;
 
@@ -118,7 +123,7 @@ fn draw_digit(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, ch: char) {
     }
 
     let h = CHARACTER_HEIGHT;
-    let w = h * 0.59;
+    let w = CHARACTER_WIDTH;
     let x = w * 0.43;
     let upper_y = h * 0.245;
     let lower_y = h * 0.245;
@@ -153,11 +158,11 @@ fn draw_monolithic_segment(
     // when enlarged, as on the real monolithic HP LED die.
     let offsets = [-0.22_f32, 0.0, 0.22];
     let inks = [
-        Color32::from_rgb(244, 38, 22),
-        Color32::from_rgb(255, 49, 25),
-        Color32::from_rgb(235, 31, 18),
+        Color32::from_rgb(242, 13, 51),
+        Color32::from_rgb(255, 21, 56),
+        Color32::from_rgb(220, 9, 44),
     ];
-    let glow = Color32::from_rgba_unmultiplied(255, 32, 18, 27);
+    let glow = Color32::from_rgba_unmultiplied(255, 0, 42, 25);
 
     let (glow_from, glow_to) = if horizontal {
         (t.pos(cx - half_len, cy), t.pos(cx + half_len, cy))
@@ -199,14 +204,14 @@ fn draw_center_decimal(p: &Painter, t: DisplayTransform, cx: f32, cy: f32) {
     // 5082-7405 center-decimal die: two short horizontal emitting bars in its
     // own character position, not a dot attached to the previous numeral.
     let half = 0.72;
-    let glow = Color32::from_rgba_unmultiplied(255, 32, 18, 25);
+    let glow = Color32::from_rgba_unmultiplied(255, 0, 42, 23);
     p.line_segment(
         [t.pos(cx - half, cy), t.pos(cx + half, cy)],
         Stroke::new(t.stroke(0.85, 0.72), glow),
     );
     for (dy, color) in [
-        (-0.17, Color32::from_rgb(255, 49, 25)),
-        (0.17, Color32::from_rgb(235, 31, 18)),
+        (-0.17, Color32::from_rgb(255, 21, 56)),
+        (0.17, Color32::from_rgb(220, 9, 44)),
     ] {
         p.line_segment(
             [t.pos(cx - half, cy + dy), t.pos(cx + half, cy + dy)],
@@ -284,9 +289,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hardware_dimensions_follow_hp_5082_7405_datasheet() {
+    fn hardware_dimensions_follow_original_classic_display() {
         assert!((CHARACTER_PITCH / REFERENCE_UNITS_PER_MM - 3.81).abs() < 0.0001);
         assert!((CHARACTER_HEIGHT / REFERENCE_UNITS_PER_MM - 2.794).abs() < 0.0001);
+        assert!((CHARACTER_WIDTH / REFERENCE_UNITS_PER_MM - 1.5748).abs() < 0.0001);
         assert!((ASSEMBLY_WIDTH / REFERENCE_UNITS_PER_MM - 57.15).abs() < 0.001);
         assert_eq!(CHARACTER_COUNT, 15);
         assert_eq!(MODULE_COUNT * CHARACTERS_PER_MODULE, CHARACTER_COUNT);
