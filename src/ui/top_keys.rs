@@ -21,7 +21,6 @@ impl PxRect {
 struct TopKey {
     id: &'static str,
     hit: PxRect,
-    restore: PxRect,
     cap: PxRect,
 }
 
@@ -29,41 +28,36 @@ const TOP_KEYS: &[TopKey] = &[
     TopKey {
         id: "a",
         hit: PxRect::new(166.0, 467.0, 256.0, 550.0),
-        restore: PxRect::new(162.0, 464.0, 260.0, 556.0),
         cap: PxRect::new(171.0, 472.0, 251.0, 545.0),
     },
     TopKey {
         id: "b",
         hit: PxRect::new(293.0, 467.0, 383.0, 550.0),
-        restore: PxRect::new(289.0, 464.0, 387.0, 556.0),
         cap: PxRect::new(298.0, 472.0, 378.0, 545.0),
     },
     TopKey {
         id: "c",
         hit: PxRect::new(420.0, 467.0, 510.0, 550.0),
-        restore: PxRect::new(416.0, 464.0, 514.0, 556.0),
         cap: PxRect::new(425.0, 472.0, 505.0, 545.0),
     },
     TopKey {
         id: "d",
         hit: PxRect::new(547.0, 467.0, 637.0, 550.0),
-        restore: PxRect::new(543.0, 464.0, 641.0, 556.0),
         cap: PxRect::new(552.0, 472.0, 632.0, 545.0),
     },
     TopKey {
         id: "e",
         hit: PxRect::new(674.0, 467.0, 764.0, 550.0),
-        restore: PxRect::new(670.0, 464.0, 768.0, 556.0),
         cap: PxRect::new(679.0, 472.0, 759.0, 545.0),
     },
 ];
 
-/// Corrects only the photographed A-E wells after the generic key pass.
-///
-/// The generic crop contains part of the unusually deep black well around these
-/// five keys. Moving that whole crop makes the well move with the cap. Restore the
-/// original well, then move only the olive cap using the same travel and timings
-/// as every other photographic key.
+/// Correct only the exposed strip above A-E while leaving the generic key
+/// animation completely intact. The previous correction restored the original
+/// photographed key before drawing the moved cap, so an olive strip from the
+/// unpressed key remained visible above it. Here the A-E row keeps exactly the
+/// same 3.8 px travel, timing, shading and shadow as every other key; we only
+/// replace the newly exposed strip with pixels from the real black key well.
 pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
     if host.width() <= 0.0 || host.height() <= 0.0 {
         return;
@@ -87,34 +81,23 @@ pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
             continue;
         }
 
-        // Remove the generic animation, including its moving well/shadow.
-        let restore = source_to_screen(photo_rect, key.restore);
-        painter.image(photo.id(), restore, source_uv(key.restore), Color32::WHITE);
-
-        let cap = source_to_screen(photo_rect, key.cap);
         let scale = photo_rect.height() / PHOTO_H;
         let travel = 3.8 * scale * press;
-        let moved = cap.translate(vec2(0.0, travel));
-        let shade = (255.0 - 7.0 * press).round() as u8;
-        painter.image(
-            photo.id(),
-            moved,
-            source_uv(key.cap),
-            Color32::from_rgb(shade, shade, shade),
-        );
+        let cap = source_to_screen(photo_rect, key.cap);
 
-        // Match the lower contact shadow used by the generic key animation.
-        let shadow_alpha = (30.0 + 34.0 * press).round() as u8;
-        painter.line_segment(
-            [
-                pos2(moved.left() + scale * 6.0, moved.bottom()),
-                pos2(moved.right() - scale * 6.0, moved.bottom()),
-            ],
-            eframe::egui::Stroke::new(
-                (1.0 * scale).max(0.6),
-                Color32::from_rgba_unmultiplied(0, 0, 0, shadow_alpha),
-            ),
+        // Sample only the dark recess immediately above the olive cap. This is
+        // the actual well texture from hp67.png, not a flat procedural fill.
+        let recess_src = PxRect::new(
+            key.cap.x0,
+            (key.cap.y0 - 10.0).max(0.0),
+            key.cap.x1,
+            (key.cap.y0 - 4.0).max(0.0),
         );
+        let gap = Rect::from_min_max(
+            cap.min,
+            pos2(cap.right(), (cap.top() + travel + 0.35 * scale).min(cap.bottom())),
+        );
+        painter.image(photo.id(), gap, source_uv(recess_src), Color32::WHITE);
     }
 }
 
