@@ -13,8 +13,8 @@ const PANEL: Color32 = Color32::from_rgb(43, 45, 43);
 const PANEL_DARK: Color32 = Color32::from_rgb(25, 25, 23);
 const CASE_GREEN: Color32 = Color32::from_rgb(66, 70, 55);
 const CASE_GREEN_DARK: Color32 = Color32::from_rgb(48, 52, 42);
-const SILVER_LIGHT: Color32 = Color32::from_rgb(181, 185, 181);
-const WHITE: Color32 = Color32::from_rgb(230, 233, 229);
+const SILVER_LIGHT: Color32 = Color32::from_rgb(164, 167, 163);
+const WHITE: Color32 = Color32::from_rgb(218, 221, 215);
 
 pub struct Hp67Panel;
 
@@ -76,8 +76,8 @@ fn draw_chassis(p: &Painter, t: Transform) {
     // Molded case and rolled metal rim share the existing bowed perimeter.
     for (inset, color) in [
         (0.0, Color32::from_rgb(27, 28, 22)),
-        (1.0, Color32::from_rgb(82, 87, 72)),
-        (2.4, Color32::from_rgb(70, 75, 60)),
+        (1.0, Color32::from_rgb(78, 82, 69)),
+        (2.4, Color32::from_rgb(67, 72, 58)),
         (4.0, CASE_GREEN),
         (7.5, CASE_GREEN_DARK),
         (10.0, Color32::from_rgb(27, 30, 28)),
@@ -162,13 +162,16 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
                     0.0
                 }
         },
-        Color32::from_rgb(39, 23, 19),
+        Color32::from_rgb(34, 18, 16),
         0.0,
         2.0,
         |u, v| {
-            let vignette = 5.0 * (2.0 * u - 1.0).powi(4) + 3.5 * (2.0 * v - 1.0).powi(4);
-            let reflection = 4.5 * (1.0 - u) * (-((v - 0.09) / 0.10).powi(2)).exp();
-            soft_light(u, v) * 0.45 + reflection - vignette
+            let vignette = 5.8 * (2.0 * u - 1.0).powi(4) + 4.2 * (2.0 * v - 1.0).powi(4);
+            let reflection_shape = 0.84 + 0.16 * (u * std::f32::consts::TAU * 1.35).sin();
+            let reflection =
+                3.5 * (1.0 - u * 0.55) * reflection_shape * (-((v - 0.085) / 0.105).powi(2)).exp();
+            let lower_absorption = 1.4 * v;
+            soft_light(u, v) * 0.30 + reflection - vignette - lower_absorption
         },
     );
     surface(
@@ -179,10 +182,10 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
         SWITCH_CENTER_Y - 12.0,
         panel_left,
         panel_right,
-        Color32::from_rgb(47, 46, 41),
+        Color32::from_rgb(45, 44, 40),
         2.0,
         1.4,
-        |u, v| soft_light(u, v) + 4.0 * (1.0 - v) - 4.0 * v,
+        |u, v| soft_light(u, v) + 3.0 * (1.0 - v) - 3.5 * v,
     );
     surface(
         p,
@@ -192,10 +195,10 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
         SWITCH_CENTER_Y + 11.0,
         panel_left,
         panel_right,
-        Color32::from_rgb(47, 49, 43),
+        Color32::from_rgb(44, 46, 41),
         2.0,
         1.4,
-        |u, v| soft_light(u, v) + 2.0 * (1.0 - v) - 3.0 * v,
+        |u, v| soft_light(u, v) + 1.7 * (1.0 - v) - 2.6 * v,
     );
     surface(
         p,
@@ -243,11 +246,11 @@ fn switch_label(p: &Painter, t: Transform, x: f32, y: f32, value: &str) {
     crate::ui::glyphs::text(
         p,
         t.pos(x, y),
-        t.s(8.6),
+        t.s(8.0),
         WHITE,
         value,
         Align2::LEFT_CENTER,
-        700,
+        600,
     );
 }
 fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, hovered: bool) {
@@ -255,7 +258,7 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
     p.rect_filled(t.rect(x, y, w, 5.2), t.s(0.6), Color32::from_rgb(8, 9, 7));
     p.line_segment(
         [t.pos(x, y + 5.3), t.pos(x + w, y + 5.3)],
-        Stroke::new(t.s(0.5), Color32::from_rgb(80, 79, 63)),
+        Stroke::new(t.s(0.5), Color32::from_rgb(69, 69, 57)),
     );
     let knob_x = if right { x + w - 14.0 } else { x + 1.0 };
     p.rect_filled(
@@ -271,17 +274,17 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
         y + 3.7,
         |_| knob_x,
         |_| knob_x + 12.4,
-        Color32::from_rgb(33, 39, 39),
+        Color32::from_rgb(31, 36, 36),
         0.0,
         1.0,
-        |u, v| soft_light(u, v) + 24.0 * (1.0 - v) - 8.0 * v,
+        |u, v| soft_light(u, v) + 17.0 * (1.0 - v) - 6.0 * v,
     );
     // Ribs are on the moving black cursor, not across the empty slot.
     for i in 0..7 {
         let xx = knob_x + 0.9 + i as f32 * 1.7;
         p.line_segment(
             [t.pos(xx, y - 2.6), t.pos(xx - 0.5, y + 2.0)],
-            Stroke::new(t.s(0.55), Color32::from_rgb(110, 117, 110)),
+            Stroke::new(t.s(0.55), Color32::from_rgb(92, 98, 92)),
         );
         p.line_segment(
             [t.pos(xx + 0.6, y - 2.1), t.pos(xx + 0.1, y + 2.2)],
@@ -292,7 +295,7 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
         p.rect_stroke(
             t.rect(x - 0.8, y - 3.8, w + 1.6, 10.0),
             t.s(1.0),
-            Stroke::new(t.s(0.4), Color32::from_gray(96)),
+            Stroke::new(t.s(0.4), Color32::from_gray(82)),
         );
     }
 }
@@ -311,10 +314,10 @@ fn draw_lower_case(p: &Painter, t: Transform) {
         609.0,
         |y| 22.0 - CASE_SIDE_EXPANSION + 2.0 * ((y - 585.5) / 23.5).powi(2),
         |y| 308.0 + CASE_SIDE_EXPANSION - 2.0 * ((y - 585.5) / 23.5).powi(2),
-        Color32::from_rgb(43, 46, 39),
+        Color32::from_rgb(41, 44, 38),
         1.2,
         0.65,
-        |u, v| soft_light(u, v) + 2.5 * (-((v - 0.10) / 0.14).powi(2)).exp() - 9.0 * v,
+        |u, v| soft_light(u, v) + 1.9 * (-((v - 0.10) / 0.14).powi(2)).exp() - 9.5 * v,
     );
     surface(
         p,
@@ -324,16 +327,16 @@ fn draw_lower_case(p: &Painter, t: Transform) {
         602.0,
         |y| 28.0 - CASE_SIDE_EXPANSION + (y - 588.0) * 0.07,
         |y| 302.0 + CASE_SIDE_EXPANSION - (y - 588.0) * 0.07,
-        Color32::from_rgb(24, 25, 23),
+        Color32::from_rgb(23, 24, 22),
         0.8,
         0.6,
-        |_, v| 4.0 * (1.0 - v) - 8.0 * v,
+        |_, v| 3.0 * (1.0 - v) - 8.0 * v,
     );
     // Shallow deck recess, not a bright dividing rule. The lower printing starts
     // farther below the fixed last-row legends, without moving any key artwork.
     for (y, width, color) in [
-        (585.5, 0.45, Color32::from_rgb(25, 28, 25)),
-        (586.15, 0.30, Color32::from_rgb(49, 52, 44)),
+        (585.5, 0.45, Color32::from_rgb(24, 27, 24)),
+        (586.15, 0.30, Color32::from_rgb(43, 46, 40)),
     ] {
         aligned_horizontal(
             p,
@@ -401,8 +404,8 @@ fn draw_branding(p: &Painter, t: Transform) {
     };
     // Small period black/blue badge printed directly on the recessed strip.
     // No surrounding raised grey tile; retain only its faint printed hairline.
-    let ink = Color32::from_rgb(31, 33, 31);
-    let silver = Color32::from_rgb(165, 168, 157);
+    let ink = Color32::from_rgb(29, 31, 29);
+    let silver = Color32::from_rgb(151, 154, 145);
     let badge_point = |x, y| point(21.5 + (x - 21.5) * 0.78, 10.5 + (y - 10.5) * 0.90);
     quad(
         9.41,
@@ -410,14 +413,14 @@ fn draw_branding(p: &Painter, t: Transform) {
         24.18,
         13.5,
         Color32::TRANSPARENT,
-        Stroke::new(t.s(0.18), Color32::from_gray(98)),
+        Stroke::new(t.s(0.18), Color32::from_gray(82)),
     );
     quad(
         21.5,
         3.975,
         11.856,
         13.05,
-        Color32::from_rgb(37, 91, 126),
+        Color32::from_rgb(32, 73, 96),
         Stroke::NONE,
     );
     let circle = (0..128)
@@ -456,13 +459,13 @@ fn draw_branding(p: &Painter, t: Transform) {
         if ch == '-' {
             // The original nameplate separates the names with a centered dot.
             let center = cursor + glyphs::width(&value, 7.6, 400) * 0.5;
-            p.circle_filled(point(center, 10.2), t.s(0.40), silver);
+            p.circle_filled(point(center, 10.2), t.s(0.36), silver);
             cursor += glyphs::width(&value, 7.6, 400) + 6.6;
             continue;
         }
         let mut mesh = glyphs::text_mesh(
             Pos2::new(cursor, 10.2),
-            7.6,
+            7.45,
             silver,
             &value,
             Align2::LEFT_CENTER,
@@ -473,11 +476,11 @@ fn draw_branding(p: &Painter, t: Transform) {
             vertex.pos = point(vertex.pos.x, vertex.pos.y);
         }
         p.add(Shape::mesh(mesh));
-        cursor += glyphs::width(&value, 7.6, 400) + 6.6;
+        cursor += glyphs::width(&value, 7.45, 400) + 6.6;
     }
     let mut mesh = glyphs::text_mesh(
         Pos2::new(246.0, 10.2),
-        7.6,
+        7.3,
         silver,
         "67",
         Align2::CENTER_CENTER,
@@ -553,11 +556,11 @@ fn draw_segment_string(p: &Painter, t: Transform, value: &str, x: f32, y: f32, w
         };
         draw_segment_digit(p, die, 0.0, 0.0, ch);
         if ch == '.' {
-            for (radius, alpha) in [(1.9, 5), (1.2, 18), (0.65, 255)] {
+            for (radius, alpha) in [(1.75, 3), (1.10, 12), (0.65, 255)] {
                 p.circle_filled(
                     t.pos(tx + 3.2, y + 12.6),
                     t.s(radius),
-                    Color32::from_rgba_unmultiplied(250, 57, 35, alpha),
+                    Color32::from_rgba_unmultiplied(242, 52, 34, alpha),
                 );
             }
         }
@@ -566,8 +569,7 @@ fn draw_segment_string(p: &Painter, t: Transform, value: &str, x: f32, y: f32, w
 
 fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
     let mask = segment_mask(ch);
-    // Tapered dies: 16% more cross-section around the same centerlines, with
-    // only a narrow dim diffusion fringe under the tinted filter.
+    // Tapered dies with a narrow diffusion fringe under the tinted filter.
     for (bit, sx, sy, vertical) in [
         (SEG_A, 1.4, 0.0, false),
         (SEG_B, 8.0, 1.5, true),
@@ -600,15 +602,15 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
             p.add(eframe::egui::Shape::convex_polygon(
                 points.clone(),
                 Color32::TRANSPARENT,
-                Stroke::new(t.s(0.65), Color32::from_rgba_unmultiplied(175, 20, 12, 28)),
+                Stroke::new(t.s(0.60), Color32::from_rgba_unmultiplied(160, 18, 11, 20)),
             ));
         }
         p.add(eframe::egui::Shape::convex_polygon(
             points,
             if on {
-                Color32::from_rgb(250, 57, 35)
+                Color32::from_rgb(242, 52, 34)
             } else {
-                Color32::from_rgb(45, 25, 21)
+                Color32::from_rgb(35, 18, 16)
             },
             Stroke::NONE,
         ));
