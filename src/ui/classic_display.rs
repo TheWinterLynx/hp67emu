@@ -78,7 +78,8 @@ pub(crate) fn paint(painter: &Painter, display_rect: Rect, value: &str) {
     let cells = display_cells(value);
     let center_x = REFERENCE_DISPLAY_WIDTH * 0.5;
     let center_y = REFERENCE_DISPLAY_HEIGHT * 0.5;
-    let first_center = center_x - CHARACTER_PITCH * 7.0;
+    let assembly_left = center_x - ASSEMBLY_WIDTH * 0.5;
+    let first_center = assembly_left + CHARACTER_PITCH * 0.5;
 
     for (index, ch) in cells.into_iter().enumerate() {
         if ch == ' ' {
