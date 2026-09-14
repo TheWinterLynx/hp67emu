@@ -8,7 +8,7 @@ repository = "https://github.com/TheWinterLynx/hp67emu"
 publish = false
 
 [dependencies]
-eframe = "=0.27.2"
+eframe = { version = "=0.27.2", features = ["wgpu"] }
 
 [profile.release]
 lto = "thin"

@@ -13,9 +13,10 @@ fn native_options() -> eframe::NativeOptions {
             .with_inner_size([528.0, 992.0])
             .with_min_inner_size([165.0, 310.0])
             .with_resizable(true),
-        // eframe 0.27.2 NativeOptions::multisampling (u16), used by Glow's
-        // GL config and WGPU sample_count. Retain four samples plus egui's AA.
+        // Keep the existing 4x MSAA, now on the WGPU renderer so the
+        // experimental offscreen optical pass can share the main render pass.
         multisampling: 4,
+        renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     }
 }
