@@ -61,6 +61,7 @@ fn architecture_documents_are_present() {
         "docs/HARDWARE_SOURCES.md",
         "docs/DOCUMENTATION_POLICY.md",
         "docs/ASSETS.md",
+        "docs/CI.md",
         "TODO.md",
     ] {
         assert!(root.join(relative).is_file(), "missing required {relative}");
