@@ -76,8 +76,10 @@ pub const CELLS: &[Cell] = &[
 // Spacing is expressed in visible-ink units, not font side bearings.
 pub const TERM_GAP: f32 = 1.15;
 pub const COMPARISON_GAP: f32 = 9.0;
-pub const EXCHANGE_WIDTH: f32 = 0.66;
-pub const EXCHANGE_GAP: f32 = 0.12;
+// HP-67 exchange mark: two opposed filled arrowheads only, with no shafts.
+// 0.72 makes each tip-to-base triangle meet cleanly at the visual center.
+pub const EXCHANGE_WIDTH: f32 = 0.72;
+pub const EXCHANGE_GAP: f32 = 0.11;
 pub const LETTER_TRACKING: f32 = 0.070;
 pub const POWER_GAP: f32 = 0.18;
 pub const RADICAL_PAIR_GAP: f32 = 12.25;
