@@ -47,6 +47,13 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - Nonpareil's HP-67 definition names the older 1820-1596/MK6216N ACT while its Woodstock variant table assigns the same unusual P-wrap behaviour to both 1820-1596 and 1820-2530. Combined with HP's replacement note above, we treat 1820-1596 semantic behaviour as a valid compatibility reference while targeting 1820-2530 as the physical ACT revision in this emulator.
 - It does not by itself prove an HP-67-specific pin timing or opcode variant.
 
+**x11-calc HP-67 emulator**
+
+- https://github.com/mike632t/x11-calc
+- `src/x11-calc-cpu.c` explicitly executes one complete instruction per `v_processor_tick()`, so this is not a PHI/bit-cycle electrical timing reference.
+- It is still valuable as a second semantic implementation: it records HP-67-specific P-pointer behaviour, implicit bank-0 selection in the low ROM region, HP-67 CRC/card operations, the complete 35-key mapping, an embedded 8192-entry ROM corpus and diagnostic-card programs.
+- Use for behavioural and ROM corpus cross-checks only. See `docs/X11_CALC_ANALYSIS.md`.
+
 **Sydney Smith HP-67 / Woodstock microcode articles**
 
 - https://www.sydneysmith.com/wordpress/articles/
