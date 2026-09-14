@@ -5,7 +5,19 @@ use std::{fs, path::Path};
 #[test]
 fn reusable_core_has_no_gui_or_image_dependencies() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let forbidden = ["eframe", "egui", "image::", "crate::app", "crate::panel", "crate::ui"];
+    // Match dependency-shaped tokens rather than bare words so explanatory
+    // comments may legitimately say "egui" or "image" without tripping the
+    // architecture gate.
+    let forbidden = [
+        "use eframe",
+        "use egui",
+        "eframe::",
+        "egui::",
+        "image::",
+        "crate::app",
+        "crate::panel",
+        "crate::ui",
+    ];
 
     for directory in [root.join("src/emulation"), root.join("src/machines")] {
         visit_rs(&directory, &mut |path, text| {
