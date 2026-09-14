@@ -4,11 +4,11 @@
 //! supplied by the developer and emits a stable hp67emu TSV representation that
 //! can be compared at bank/page/address granularity.
 
-use std::{env, error::Error, fs, path::Path, process};
+use std::{env, error::Error, fs, io, path::Path, process};
 
 use hp67emu::research::rom_corpus::{
     compare, parse_address_opcode_pairs, parse_x11_hp67_c, NumberRadix, RomCorpus, RomDifference,
-    ROM_BANKS, ROM_PAGES,
+    ROM_BANKS, ROM_PAGES, WORDS_PER_BANK,
 };
 
 const MAX_PRINTED_DIFFERENCES: usize = 128;
@@ -57,6 +57,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             );
             Ok(0)
         }
+        "merge" if args.len() >= 5 => merge_files(&args[2], &args[3..]),
         "compare" if args.len() == 4 => compare_files(&args[2], &args[3]),
         "inspect" if args.len() == 3 => {
             inspect_binary(Path::new(&args[2]))?;
@@ -67,6 +68,43 @@ fn run() -> Result<i32, Box<dyn Error>> {
             Ok(2)
         }
     }
+}
+
+fn merge_files(output_path: &str, input_paths: &[String]) -> Result<i32, Box<dyn Error>> {
+    let mut merged = RomCorpus::default();
+    for input_path in input_paths {
+        let incoming = RomCorpus::from_normalized_tsv(&fs::read_to_string(input_path)?)?;
+        for bank in 0..ROM_BANKS {
+            for pc in 0..WORDS_PER_BANK {
+                let Some(word) = incoming.get(bank, pc)? else {
+                    continue;
+                };
+                match merged.get(bank, pc)? {
+                    None => merged.set(bank, pc, word)?,
+                    Some(existing) if existing == word => {}
+                    Some(existing) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "conflicting ROM word at bank {bank}, PC 0x{pc:03x}: existing 0x{existing:03x}, {} has 0x{word:03x}",
+                                input_path
+                            ),
+                        )
+                        .into());
+                    }
+                }
+            }
+        }
+    }
+
+    fs::write(output_path, merged.to_normalized_tsv())?;
+    println!(
+        "merged {} non-conflicting ROM words from {} corpora -> {}",
+        merged.populated_words(),
+        input_paths.len(),
+        output_path
+    );
+    Ok(0)
 }
 
 fn compare_files(left_path: &str, right_path: &str) -> Result<i32, Box<dyn Error>> {
@@ -156,6 +194,7 @@ fn print_usage() {
         "Usage:\n  \
 rom_compare extract-x11 <x11-calc-67.c> <out.tsv>\n  \
 rom_compare import-pairs <input.txt> <out.tsv> <bank> <auto|8|10|16>\n  \
+rom_compare merge <out.tsv> <input1.tsv> <input2.tsv> [more.tsv ...]\n  \
 rom_compare compare <left.tsv> <right.tsv>\n  \
 rom_compare inspect <binary-file>"
     );
