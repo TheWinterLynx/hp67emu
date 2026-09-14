@@ -4,9 +4,12 @@
 //! drives are buffered and committed only after all devices have evaluated, so
 //! Rust iteration order cannot accidentally become hardware propagation delay.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use super::{Bias, Drive, DriveSink, DriverId, ElectricalDevice, LogicLevel, Net, NetReader, Tick};
+use super::{
+    Bias, Drive, DriveSink, DriverId, ElectricalDevice, LogicLevel, Net, NetReader, Tick, Trace,
+    TraceSample,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchedulerError<N> {
@@ -70,6 +73,8 @@ where
     tick: Tick,
     nets: BTreeMap<N, Net>,
     devices: Vec<Box<dyn ElectricalDevice<N>>>,
+    trace_probes: BTreeSet<N>,
+    trace: Trace<N>,
 }
 
 impl<N> Default for ElectricalScheduler<N>
@@ -81,6 +86,8 @@ where
             tick: Tick::ZERO,
             nets: BTreeMap::new(),
             devices: Vec::new(),
+            trace_probes: BTreeSet::new(),
+            trace: Trace::default(),
         }
     }
 }
@@ -113,6 +120,27 @@ where
             .get(&id)
             .expect("requested net is not installed in the scheduler")
             .level()
+    }
+
+    /// Record this resolved net after every successfully committed tick.
+    pub fn add_trace_probe(&mut self, net: N) {
+        assert!(
+            self.nets.contains_key(&net),
+            "trace probe net is not installed in the scheduler"
+        );
+        self.trace_probes.insert(net);
+    }
+
+    pub fn remove_trace_probe(&mut self, net: N) {
+        self.trace_probes.remove(&net);
+    }
+
+    pub fn trace(&self) -> &Trace<N> {
+        &self.trace
+    }
+
+    pub fn clear_trace(&mut self) {
+        self.trace.clear();
     }
 
     /// Apply a host/external drive such as a switch contact or temporary test
@@ -154,6 +182,7 @@ where
 
         self.tick = next_tick;
         self.ensure_no_contention(next_tick)?;
+        self.capture_trace(next_tick);
         Ok(next_tick)
     }
 
@@ -178,6 +207,20 @@ where
             }
         }
         Ok(())
+    }
+
+    fn capture_trace(&mut self, tick: Tick) {
+        for net in self.trace_probes.iter().copied() {
+            self.trace.push(TraceSample {
+                tick,
+                net,
+                level: self
+                    .nets
+                    .get(&net)
+                    .expect("trace probe net disappeared from scheduler")
+                    .level(),
+            });
+        }
     }
 }
 
@@ -305,6 +348,30 @@ mod tests {
     }
 
     #[test]
+    fn trace_probes_are_sampled_after_commit_in_stable_net_order() {
+        let mut scheduler = propagation_scheduler(false);
+        scheduler.add_trace_probe(TestNet::Output);
+        scheduler.add_trace_probe(TestNet::Input);
+
+        scheduler.step().expect("tick must resolve");
+        assert_eq!(
+            scheduler.trace().samples(),
+            &[
+                TraceSample {
+                    tick: Tick::new(1),
+                    net: TestNet::Input,
+                    level: LogicLevel::High,
+                },
+                TraceSample {
+                    tick: Tick::new(1),
+                    net: TestNet::Output,
+                    level: LogicLevel::Floating,
+                },
+            ]
+        );
+    }
+
+    #[test]
     fn contention_fails_with_tick_net_and_stable_driver_names() {
         let mut scheduler = ElectricalScheduler::new();
         scheduler.install_net(TestNet::Output, Bias::Floating);
@@ -329,6 +396,7 @@ mod tests {
                 drivers: vec![A, B],
             })
         );
+        assert!(scheduler.trace().samples().is_empty());
     }
 
     #[test]
