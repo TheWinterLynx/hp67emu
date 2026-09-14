@@ -100,10 +100,9 @@ impl Default for CrcReference {
 
 impl CrcReference {
     pub fn reset(&mut self) {
+        // The CRC reset clears its internal flags but does not eject a card,
+        // clear the externally driven switch inputs, or rewind the transport.
         self.flags = [false; CRC_FLAG_COUNT];
-        self.card = None;
-        self.completed_card = None;
-        self.head_position = 0;
     }
 
     pub fn flag(&self, flag: usize) -> Option<bool> {
@@ -239,9 +238,9 @@ impl CrcReference {
             self.flags[FLAG_CARD_INSERTED] = false;
             self.completed_card = self.card.take();
             self.head_position = 0;
-            // Keep BUFFER_READY as calculated above until the firmware tests
-            // and clears it, matching the final-ready semantic used by the
-            // instruction-level reference behaviour.
+            // Keep BUFFER_READY as calculated above until firmware tests and
+            // clears it. This preserves the final-ready behaviour of the
+            // instruction-level reference implementation.
         }
     }
 }
@@ -303,8 +302,12 @@ mod tests {
             Ok(Some(CrcInstruction::SetFlag { flag: 8 }))
         );
         assert_eq!(
-            decode_crc_opcode(0o760),
+            decode_crc_opcode(0o660),
             Ok(Some(CrcInstruction::SetFlag { flag: 11 }))
+        );
+        assert_eq!(
+            decode_crc_opcode(0o760),
+            Ok(Some(CrcInstruction::TestFlagAndClear { flag: 11 }))
         );
     }
 
@@ -326,7 +329,7 @@ mod tests {
             .expect("card insertion must succeed");
         assert_eq!(crc.flag(FLAG_BUFFER_READY), Some(false));
 
-        crc.execute_opcode(0o460)
+        crc.execute_opcode(0o260)
             .expect("motor-enable flag must set");
         assert_eq!(crc.flag(FLAG_MOTOR_ENABLE), Some(true));
         assert_eq!(crc.flag(FLAG_BUFFER_READY), Some(true));
@@ -338,7 +341,7 @@ mod tests {
         side.set_word(0, 0x0765_4321);
         let mut crc = CrcReference::default();
         crc.insert_card(side).expect("card must insert");
-        crc.execute_opcode(0o460).expect("motor must start");
+        crc.execute_opcode(0o260).expect("motor must start");
 
         let mut c = Register::zero();
         crc.read_into_c(&mut c).expect("card word must read");
@@ -351,7 +354,7 @@ mod tests {
         let mut crc = CrcReference::default();
         crc.insert_card(CardSide::default())
             .expect("card must insert");
-        crc.execute_opcode(0o460).expect("motor must start");
+        crc.execute_opcode(0o260).expect("motor must start");
         crc.execute_opcode(0o660)
             .expect("write-mode flag must set");
 
@@ -361,13 +364,13 @@ mod tests {
         }
         crc.write_from_c(&c).expect("card word must write");
 
-        let mut completed = None;
         for _ in 1..CRC_CARD_WORDS {
             crc.write_from_c(&Register::zero())
                 .expect("remaining card words must write");
         }
-        completed = completed.or_else(|| crc.take_completed_card());
-        let completed = completed.expect("card must complete after 34 words");
+        let completed = crc
+            .take_completed_card()
+            .expect("card must complete after 34 words");
         assert!(completed.dirty);
         assert_eq!(completed.word(0), Some(0x0765_4321));
     }
@@ -381,10 +384,23 @@ mod tests {
         side.set_word(0, 0x1234);
         let mut crc = CrcReference::default();
         crc.insert_card(side).expect("card must insert");
-        crc.execute_opcode(0o460).expect("motor must start");
+        crc.execute_opcode(0o260).expect("motor must start");
         crc.execute_opcode(0o660)
             .expect("write-mode flag must set");
 
         assert_eq!(crc.write_from_c(&Register::zero()), Err(CrcError::WriteProtected));
+    }
+
+    #[test]
+    fn reset_preserves_inserted_card_and_external_switch_inputs() {
+        let mut crc = CrcReference::default();
+        crc.set_external_flag(FLAG_PROGRAM_MODE as u8, true)
+            .expect("flag must exist");
+        crc.insert_card(CardSide::default()).expect("card must insert");
+        crc.reset();
+
+        assert!(crc.card_inserted());
+        assert_eq!(crc.external_flag(FLAG_PROGRAM_MODE), Some(true));
+        assert_eq!(crc.flag(FLAG_CARD_INSERTED), Some(false));
     }
 }
