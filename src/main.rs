@@ -13,6 +13,8 @@ fn native_options() -> eframe::NativeOptions {
             .with_inner_size([528.0, 992.0])
             .with_min_inner_size([165.0, 310.0])
             .with_resizable(true),
+        // eframe 0.27.2 NativeOptions::multisampling (u16), used by Glow's
+        // GL config and WGPU sample_count. Retain four samples plus egui's AA.
         multisampling: 4,
         ..Default::default()
     }
@@ -38,4 +40,5 @@ fn native_window_is_resizable_without_a_maximum_size() {
         Some(egui::vec2(165.0, 310.0))
     );
     assert!(options.viewport.max_inner_size.is_none());
+    assert_eq!(options.multisampling, 4);
 }

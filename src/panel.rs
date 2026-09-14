@@ -7,7 +7,9 @@ use crate::ui::geometry::{
     DISPLAY_BOUNDS, SWITCH_CENTER_Y,
 };
 
-const PANEL: Color32 = Color32::from_rgb(39, 40, 36);
+use crate::ui::materials::{soft_light, Material};
+
+const PANEL: Color32 = Color32::from_rgb(35, 37, 35);
 const PANEL_DARK: Color32 = Color32::from_rgb(25, 25, 23);
 const CASE_GREEN: Color32 = Color32::from_rgb(79, 82, 58);
 const CASE_GREEN_DARK: Color32 = Color32::from_rgb(59, 61, 44);
@@ -71,10 +73,10 @@ impl Hp67Panel {
 
 fn draw_chassis(p: &Painter, t: Transform) {
     use crate::ui::materials::{antialiased_surface as surface, outline, panel_left, panel_right};
-    // Molded case and rolled metal rim share a tapered, nonrectangular perimeter.
+    // Molded case and rolled metal rim share the existing bowed perimeter.
     for (inset, color) in [
         (0.0, Color32::from_rgb(27, 28, 22)),
-        (1.0, Color32::from_rgb(116, 116, 92)),
+        (1.0, Color32::from_rgb(102, 104, 83)),
         (2.4, Color32::from_rgb(81, 83, 64)),
         (4.0, CASE_GREEN),
         (7.5, CASE_GREEN_DARK),
@@ -96,14 +98,15 @@ fn draw_chassis(p: &Painter, t: Transform) {
     surface(
         p,
         t,
+        Material::Panel,
         29.0,
         583.5,
         panel_left,
         panel_right,
         PANEL,
-        3.5,
-        1.8,
-        |u, v| 3.0 * (1.0 - u) - 5.0 * v + 2.0 * (v * 8.0).sin(),
+        2.2,
+        2.4,
+        |u, v| soft_light(u, v) - 2.0 * (2.0 * u - 1.0).powi(4),
     );
     draw_lower_case(p, t);
     draw_continuous_rim(p, t);
@@ -111,19 +114,25 @@ fn draw_chassis(p: &Painter, t: Transform) {
     surface(
         p,
         t,
+        Material::CardRail,
         CARD_RAIL_TOP,
         CARD_RAIL_BOTTOM,
         panel_left,
         panel_right,
-        Color32::from_rgb(42, 43, 39),
-        5.0,
+        Color32::from_rgb(38, 40, 37),
         2.0,
-        |_, v| 9.0 * (-v * 12.0).exp() - 5.0 * (-(1.0 - v) * 18.0).exp(),
+        2.0,
+        |u, v| soft_light(u, v) + 4.0 * (-v * 12.0).exp() - 4.0 * (-(1.0 - v) * 18.0).exp(),
     );
     for y in [CARD_RAIL_TOP + 1.0, 151.0, CARD_RAIL_BOTTOM - 0.5] {
-        p.line_segment(
-            [t.pos(panel_left(y), y), t.pos(panel_right(y), y)],
-            Stroke::new(t.s(0.65), PANEL_DARK),
+        crate::ui::materials::aligned_horizontal(
+            p,
+            t,
+            panel_left(y),
+            panel_right(y),
+            y,
+            0.65,
+            PANEL_DARK,
         );
     }
 }
@@ -135,6 +144,7 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
     surface(
         p,
         t,
+        Material::Glass,
         top,
         bottom,
         |y| {
@@ -152,38 +162,45 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
                     0.0
                 }
         },
-        Color32::from_rgb(30, 16, 15),
-        0.7,
+        Color32::from_rgb(29, 15, 13),
+        0.0,
         2.0,
-        |u, v| 3.0 * (1.0 - v) + 2.0 * (1.0 - u),
+        |u, v| {
+            let vignette = 5.0 * (2.0 * u - 1.0).powi(4) + 3.5 * (2.0 * v - 1.0).powi(4);
+            let reflection = 4.5 * (1.0 - u) * (-((v - 0.09) / 0.10).powi(2)).exp();
+            soft_light(u, v) * 0.45 + reflection - vignette
+        },
     );
     surface(
         p,
         t,
+        Material::DisplayLip,
         bottom,
         SWITCH_CENTER_Y - 12.0,
         panel_left,
         panel_right,
         Color32::from_rgb(47, 46, 41),
-        5.0,
+        2.0,
         1.4,
-        |_, v| 9.0 * (1.0 - v) - 6.0 * v,
+        |u, v| soft_light(u, v) + 4.0 * (1.0 - v) - 4.0 * v,
     );
     surface(
         p,
         t,
+        Material::SwitchRail,
         SWITCH_CENTER_Y - 10.0,
         SWITCH_CENTER_Y + 11.0,
         panel_left,
         panel_right,
         Color32::from_rgb(47, 49, 43),
-        5.0,
+        2.0,
         1.4,
-        |_, v| 5.0 * (1.0 - v) - 5.0 * v,
+        |u, v| soft_light(u, v) + 2.0 * (1.0 - v) - 3.0 * v,
     );
     surface(
         p,
         t,
+        Material::SwitchFoot,
         SWITCH_CENTER_Y + 11.0,
         CARD_RAIL_TOP,
         panel_left,
@@ -249,6 +266,7 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
     surface(
         p,
         t,
+        Material::Slider,
         y - 3.0,
         y + 3.7,
         |_| knob_x,
@@ -256,7 +274,7 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
         Color32::from_rgb(33, 39, 39),
         0.0,
         1.0,
-        |_, v| 29.0 * (1.0 - v) - 8.0 * v,
+        |u, v| soft_light(u, v) + 24.0 * (1.0 - v) - 8.0 * v,
     );
     // Ribs are on the moving black cursor, not across the empty slot.
     for i in 0..7 {
@@ -288,6 +306,7 @@ fn draw_lower_case(p: &Painter, t: Transform) {
     surface(
         p,
         t,
+        Material::Nose,
         581.8,
         609.0,
         |y| 22.0 - CASE_SIDE_EXPANSION + 2.0 * ((y - 581.8) / 27.2).powi(2),
@@ -300,6 +319,7 @@ fn draw_lower_case(p: &Painter, t: Transform) {
     surface(
         p,
         t,
+        Material::NoseInset,
         584.0,
         602.0,
         |y| 28.0 - CASE_SIDE_EXPANSION + (y - 584.0) * 0.07,
@@ -311,7 +331,7 @@ fn draw_lower_case(p: &Painter, t: Transform) {
     );
 }
 
-// One path, one stroke width and one brightness through the folded corners.
+// One existing centerline and cross-section through the folded corners.
 fn rim_points() -> Vec<Pos2> {
     let outline = crate::ui::materials::outline_points(13.75);
     let mut points = Vec::new();
@@ -333,22 +353,10 @@ fn rim_points() -> Vec<Pos2> {
     points
 }
 fn draw_continuous_rim(p: &Painter, t: Transform) {
-    let points: Vec<_> = rim_points()
-        .into_iter()
-        .map(|point| t.pos(point.x, point.y))
-        .collect();
-    // Identical metal cross-section on the top, sides, bend and bottom. No
-    // independently shaded inset bands to add apparent width along the sides.
-    for (width, color) in [
-        (4.4, Color32::from_rgb(69, 75, 70)),
-        (3.0, Color32::from_rgb(139, 145, 137)),
-        (1.4, SILVER_LIGHT),
-    ] {
-        p.add(eframe::egui::Shape::closed_line(
-            points.clone(),
-            Stroke::new(t.s(width), color),
-        ));
-    }
+    use crate::ui::materials::{metal_rim, paint_material, MaterialMesh};
+    static RIM: std::sync::OnceLock<MaterialMesh> = std::sync::OnceLock::new();
+    let material = RIM.get_or_init(|| metal_rim(&rim_points(), SILVER_LIGHT));
+    paint_material(p, t, material, true);
 }
 
 // Affine projection: every horizontal baseline and diagonal remains straight.
@@ -530,11 +538,11 @@ fn draw_segment_string(p: &Painter, t: Transform, value: &str, x: f32, y: f32, w
         };
         draw_segment_digit(p, die, 0.0, 0.0, ch);
         if ch == '.' {
-            for (radius, alpha) in [(1.9, 15), (1.2, 45), (0.65, 255)] {
+            for (radius, alpha) in [(1.9, 5), (1.2, 18), (0.65, 255)] {
                 p.circle_filled(
                     t.pos(tx + 3.2, y + 12.6),
                     t.s(radius),
-                    Color32::from_rgba_unmultiplied(255, 58, 29, alpha),
+                    Color32::from_rgba_unmultiplied(250, 57, 35, alpha),
                 );
             }
         }
@@ -575,16 +583,16 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
         if on {
             p.add(eframe::egui::Shape::convex_polygon(
                 points.clone(),
-                Color32::from_rgb(91, 24, 24),
-                Stroke::new(t.s(1.1), Color32::from_rgba_premultiplied(56, 5, 3, 70)),
+                Color32::TRANSPARENT,
+                Stroke::new(t.s(0.65), Color32::from_rgba_unmultiplied(175, 20, 12, 28)),
             ));
         }
         p.add(eframe::egui::Shape::convex_polygon(
             points,
             if on {
-                Color32::from_rgb(249, 65, 39)
+                Color32::from_rgb(250, 57, 35)
             } else {
-                Color32::from_rgb(33, 18, 17)
+                Color32::from_rgb(31, 15, 13)
             },
             Stroke::NONE,
         ));

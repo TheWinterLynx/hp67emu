@@ -621,14 +621,26 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
     let bottom = key.y + key.h;
     let skirt_h = bottom - skirt_top;
 
-    use super::materials::{antialiased_surface as surface, shade};
+    use super::materials::{antialiased_surface as surface, shade, soft_light, Material};
     // One rounded plastic body. The shoulder highlight wraps onto the front;
     // the skirt is a sloping surface, not a second button stacked underneath.
-    for i in (1..=3).rev() {
+    // Broad low-opacity contact falloff, biased away from the upper-left light.
+    // These layers move with the cap; its silhouette and socket are unchanged.
+    for (spread, dx, dy, alpha) in [
+        (1.5, 1.1, 1.2, 8),
+        (1.0, 0.9, 1.0, 13),
+        (0.45, 0.6, 0.8, 22),
+        (0.0, 0.45, 0.5, 36),
+    ] {
         p.rect_filled(
-            kt.rect(x + i as f32 * 0.45, 1.0, key.w, key.h + 0.5),
-            kt.s(2.5),
-            Color32::from_black_alpha(18 + i * 9),
+            kt.rect(
+                x + dx - spread,
+                dy - spread,
+                key.w + spread * 2.0,
+                key.h + spread * 2.0,
+            ),
+            kt.s(2.3 + spread),
+            Color32::from_black_alpha(alpha),
         );
     }
     p.rect_filled(kt.rect(x, 0.0, key.w, key.h), kt.s(2.3), side);
@@ -642,15 +654,27 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
         x + 0.6 + corner
     };
     let r = |y: f32| -l(y);
-    surface(p, kt, 0.0, skirt_top, l, r, face, 0.9, 1.2, |u, v| {
-        15.0 * (-v * 25.0).exp() + 25.0 * (-u * 45.0).exp()
-            - 19.0 * (-(1.0 - u) * 28.0).exp()
-            - 8.0 * (-(1.0 - v) * 14.0).exp()
-            + 3.0 * (1.0 - v)
-    });
     surface(
         p,
         kt,
+        Material::KeyFace,
+        0.0,
+        skirt_top,
+        l,
+        r,
+        face,
+        0.9,
+        1.2,
+        |u, v| {
+            soft_light(u, v) + 11.0 * (-v * 22.0).exp() + 13.0 * (-u * 32.0).exp()
+                - 18.0 * (-(1.0 - u) * 24.0).exp()
+                - 9.0 * (-(1.0 - v) * 14.0).exp()
+        },
+    );
+    surface(
+        p,
+        kt,
+        Material::KeyFront,
         skirt_top,
         bottom - 0.5,
         |y| x + 1.0 + 1.3 * (y - skirt_top) / skirt_h,
@@ -658,20 +682,36 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
         front,
         1.1,
         1.0,
-        |u, v| 12.0 * (-v * 18.0).exp() - 10.0 * v - 14.0 * (-(1.0 - u) * 20.0).exp(),
+        |u, v| {
+            soft_light(u, v) + 7.0 * (-v * 18.0).exp() - 10.0 * v - 14.0 * (-(1.0 - u) * 20.0).exp()
+        },
     );
     // Molded front recess and a narrow, curved reflection down the left shoulder.
     p.rect_stroke(
         kt.rect(x + 2.2, skirt_top + 0.6, key.w - 4.4, skirt_h - 1.5),
         kt.s(2.1),
-        Stroke::new(kt.s(0.5), shade(front, 19.0)),
+        Stroke::new(kt.s(0.35), shade(front, 8.0)),
     );
     p.line_segment(
         [kt.pos(x + 1.6, 3.1), kt.pos(x + 1.4, skirt_top - 2.0)],
         Stroke::new(
-            kt.s(0.9),
-            Color32::from_rgba_unmultiplied(255, 255, 230, 155),
+            kt.s(0.6),
+            Color32::from_rgba_unmultiplied(245, 245, 224, 75),
         ),
+    );
+    p.line_segment(
+        [kt.pos(x + 3.0, 1.0), kt.pos(-x - 3.0, 1.0)],
+        Stroke::new(
+            kt.s(0.45),
+            Color32::from_rgba_unmultiplied(245, 245, 224, 70),
+        ),
+    );
+    p.line_segment(
+        [
+            kt.pos(x + 3.0, bottom - 0.8),
+            kt.pos(-x - 2.7, bottom - 0.8),
+        ],
+        Stroke::new(kt.s(0.45), shade(front, -24.0)),
     );
 
     // Crucially, the exact same label renderer is used in both states.  The
