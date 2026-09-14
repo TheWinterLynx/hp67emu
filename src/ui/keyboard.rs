@@ -354,16 +354,23 @@ mod tests {
         let directory = std::env::var("HP67_CAPTURE_DIR")
             .unwrap_or_else(|_| "target/visual/layout-matrix".into());
         fs::create_dir_all(&directory).unwrap();
-        let mut csv = String::from("row,center_x,center_y,width,mark\n");
+        let mut csv = String::from(
+            "row,center_x,center_y,width,mark,ink_left,ink_top,ink_right,ink_bottom\n",
+        );
         for cell in legend_layout::CELLS {
+            let ink = legend_ink_bounds(*cell);
             writeln!(
                 csv,
-                "{},{},{},{},\"{}\"",
+                "{},{},{},{},\"{}\",{},{},{},{}",
                 cell.row,
                 cell.x,
                 legend_layout::ROW_Y[cell.row],
                 cell.width,
-                format!("{:?}", cell.mark).replace('"', "\"\"")
+                format!("{:?}", cell.mark).replace('"', "\"\""),
+                ink.left(),
+                ink.top(),
+                ink.right(),
+                ink.bottom()
             )
             .unwrap();
         }
@@ -385,6 +392,54 @@ mod tests {
             .unwrap();
         }
         fs::write(format!("{directory}/keys.csv"), csv).unwrap();
+        use super::super::geometry::{
+            CASE_BOTTOM, CASE_MAX_WIDTH, CASE_TOP, DISPLAY_BOUNDS, SWITCH_CENTER_Y,
+        };
+        fs::write(format!("{directory}/profile.json"),format!("{{\"case_width\":{CASE_MAX_WIDTH},\"case_height\":{},\"display\":{DISPLAY_BOUNDS:?},\"switch_y\":{SWITCH_CENTER_Y}}}",CASE_BOTTOM-CASE_TOP)).unwrap();
+    }
+
+    fn legend_ink_bounds(cell: legend_layout::Cell) -> Rect {
+        let ctx = egui::Context::default();
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(330.0, 620.0))),
+                ..Default::default()
+            },
+            |ctx| {
+                draw_legend_cell(
+                    &ctx.layer_painter(egui::LayerId::background()),
+                    Transform {
+                        origin: Pos2::ZERO,
+                        scale: 1.0,
+                    },
+                    cell,
+                );
+            },
+        );
+        let mut bounds = Rect::NOTHING;
+        for item in ctx.tessellate(output.shapes, 1.0) {
+            let egui::epaint::Primitive::Mesh(mesh) = item.primitive else {
+                panic!()
+            };
+            for v in mesh.vertices.iter().filter(|v| v.color.a() >= 128) {
+                bounds.extend_with(v.pos);
+            }
+        }
+        bounds
+    }
+
+    #[test]
+    fn last_row_leaves_room_for_legends_even_with_keys_held_down() {
+        let last_top = KEYS.iter().map(|k| k.y).fold(0.0, f32::max);
+        for (key, cell) in KEYS
+            .iter()
+            .filter(|k| k.y == last_top)
+            .zip(legend_layout::CELLS.iter().filter(|c| c.row == 8))
+        {
+            let gap = legend_ink_bounds(*cell).top() - (key.y + key.h);
+            assert!(gap >= 6.0, "{} clearance {gap}", key.id);
+            assert!(gap - 2.8 >= 3.2, "{} held clearance", key.id);
+        }
     }
 
     #[test]

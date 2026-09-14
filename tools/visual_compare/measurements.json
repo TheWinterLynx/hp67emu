@@ -21,97 +21,97 @@
   ],
   "panel_logical": [
     [
-      30,
-      11
+      26,
+      20
     ],
     [
-      300,
-      11
+      304,
+      20
     ],
     [
-      300,
-      607
+      304,
+      605
     ],
     [
-      30,
-      607
+      26,
+      605
     ]
   ],
   "row_tops": [
-    169,
-    223,
-    277,
-    331,
-    383,
-    435,
-    487,
-    538
+    175,
+    228.5,
+    281,
+    333,
+    384,
+    435.5,
+    486.5,
+    536.5
   ],
   "function_centers": [
-    58,
-    112,
+    54.5,
+    110.5,
     166,
-    220,
-    274
+    221.5,
+    277
   ],
   "numeric_centers": [
-    119,
-    194,
-    270
+    118.5,
+    195.5,
+    274
   ],
-  "note": "Manually selected panel corners and rectified key edges, approximately +/-1.5 logical px; perspective corrected on panel plane, no lens calibration. Raised key faces have residual parallax. Colors are photographic estimates, not calibrated reflectance.",
+  "note": "Current production anchors, remeasured in the frontal plane. See proportion_reference.json for raw photo edges, perspective correspondences and HP physical dimensions. Approximately +/-2 photo px and residual raised-key parallax; no lens calibration.",
   "sha256": "ac8fe1d544efa3b1172594a596c51aa8c516296e240a9241a4eb8223bb6d44ab",
   "anchors": {
     "outer_case": [
-      4,
-      0,
-      322,
-      618
+      1.8307,
+      3,
+      326.3386,
+      614
     ],
     "silver_inner_edge": [
-      30,
-      11,
-      270,
-      596
+      15.58,
+      16.75,
+      298.84,
+      588.25
     ],
     "display_opening": [
-      31,
-      12,
-      268,
-      64
+      24,
+      22.5,
+      282,
+      57
     ],
     "switch_rail": [
-      31,
-      87,
-      268,
-      32
+      24,
+      99,
+      282,
+      21
     ],
     "keyboard_bounds": [
-      40.5,
-      169,
-      251,
-      398
+      36.5,
+      175,
+      258.5,
+      391
     ],
     "enter": [
-      45,
-      331,
-      84,
-      29
+      38.5,
+      333,
+      92,
+      31
     ],
     "operator_centers": [
-      56,
-      56,
-      56,
-      56
+      53.5,
+      53.5,
+      53.5,
+      53.5
     ],
-    "operator_width": 27,
-    "numeric_width": 36,
-    "function_width": 35,
+    "operator_width": 28,
+    "numeric_width": 42,
+    "function_width": 36,
     "branding": [
-      31,
-      586,
-      268,
-      17
+      38.95,
+      585.75,
+      252.1,
+      16.2
     ]
   }
 }

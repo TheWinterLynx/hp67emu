@@ -105,3 +105,7 @@ for a reproducible alignment overlay and measurements table.
 The [individual symbol and spacing audit](tools/visual_compare/SPACING-SYMBOLS.md)
 measures paired-function gaps, opens exponent spacing and distinguishes compact
 exchange heads from the full colored arrows used for conversions.
+
+The [whole-calculator proportion audit](tools/visual_compare/PROPORTIONS.md)
+anchors the case to HP's published dimensions, remeasures each key family and
+the display, and verifies clearance below the final row from rendered contours.

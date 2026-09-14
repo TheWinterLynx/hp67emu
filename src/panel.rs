@@ -2,7 +2,10 @@ use eframe::egui::{Align2, Color32, Painter, Pos2, Sense, Stroke, Ui, Vec2};
 
 use crate::hp67::{Hp67State, RunMode, UiEvent};
 
-use crate::ui::geometry::{scale_for, Transform, DESIGN_H, DESIGN_W};
+use crate::ui::geometry::{
+    scale_for, Transform, CARD_RAIL_BOTTOM, CARD_RAIL_TOP, CASE_SIDE_EXPANSION, DESIGN_H, DESIGN_W,
+    DISPLAY_BOUNDS, SWITCH_CENTER_Y,
+};
 
 const PANEL: Color32 = Color32::from_rgb(39, 40, 36);
 const PANEL_DARK: Color32 = Color32::from_rgb(25, 25, 23);
@@ -41,7 +44,7 @@ impl Hp67Panel {
         draw_display(&painter, t, state.display_text());
 
         let power_response = ui.interact(
-            t.rect(44.0, 92.0, 91.0, 28.0),
+            t.rect(44.0, SWITCH_CENTER_Y - 10.0, 91.0, 28.0),
             ui.make_persistent_id("hp67-power-switch"),
             Sense::click(),
         );
@@ -51,7 +54,7 @@ impl Hp67Panel {
         draw_power_switch(&painter, t, state.power_on, power_response.hovered());
 
         let mode_response = ui.interact(
-            t.rect(166.0, 92.0, 121.0, 28.0),
+            t.rect(166.0, SWITCH_CENTER_Y - 10.0, 121.0, 28.0),
             ui.make_persistent_id("hp67-mode-switch"),
             Sense::click(),
         );
@@ -108,8 +111,8 @@ fn draw_chassis(p: &Painter, t: Transform) {
     surface(
         p,
         t,
-        118.0,
-        166.0,
+        CARD_RAIL_TOP,
+        CARD_RAIL_BOTTOM,
         panel_left,
         panel_right,
         Color32::from_rgb(42, 43, 39),
@@ -117,7 +120,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
         2.0,
         |_, v| 9.0 * (-v * 12.0).exp() - 5.0 * (-(1.0 - v) * 18.0).exp(),
     );
-    for y in [119.0, 139.0, 165.5] {
+    for y in [CARD_RAIL_TOP + 1.0, 151.0, CARD_RAIL_BOTTOM - 0.5] {
         p.line_segment(
             [t.pos(panel_left(y), y), t.pos(panel_right(y), y)],
             Stroke::new(t.s(0.65), PANEL_DARK),
@@ -127,22 +130,24 @@ fn draw_chassis(p: &Painter, t: Transform) {
 
 fn draw_display(p: &Painter, t: Transform, text_value: &str) {
     use crate::ui::materials::{panel_left, panel_right, surface};
+    let [left, top, width, height] = DISPLAY_BOUNDS;
+    let bottom = top + height;
     surface(
         p,
         t,
-        24.0,
-        73.0,
+        top,
+        bottom,
         |y| {
-            30.4 + if y < 28.0 {
-                4.0 - (16.0 - (y - 28.0).powi(2)).max(0.0).sqrt()
+            left + if y < top + 4.0 {
+                4.0 - (16.0 - (y - top - 4.0).powi(2)).max(0.0).sqrt()
             } else {
                 0.0
             }
         },
         |y| {
-            299.6
-                - if y < 28.0 {
-                    4.0 - (16.0 - (y - 28.0).powi(2)).max(0.0).sqrt()
+            left + width
+                - if y < top + 4.0 {
+                    4.0 - (16.0 - (y - top - 4.0).powi(2)).max(0.0).sqrt()
                 } else {
                     0.0
                 }
@@ -155,8 +160,8 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
     surface(
         p,
         t,
-        73.0,
-        84.0,
+        bottom,
+        SWITCH_CENTER_Y - 12.0,
         panel_left,
         panel_right,
         Color32::from_rgb(47, 46, 41),
@@ -167,8 +172,8 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
     surface(
         p,
         t,
-        87.0,
-        110.0,
+        SWITCH_CENTER_Y - 10.0,
+        SWITCH_CENTER_Y + 11.0,
         panel_left,
         panel_right,
         Color32::from_rgb(47, 49, 43),
@@ -179,8 +184,8 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
     surface(
         p,
         t,
-        110.0,
-        117.0,
+        SWITCH_CENTER_Y + 11.0,
+        CARD_RAIL_TOP,
         panel_left,
         panel_right,
         Color32::from_rgb(18, 19, 16),
@@ -189,22 +194,29 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
         |_, v| -5.0 * (1.0 - v),
     );
     // Die positions remain fixed regardless of the length of the number.
-    draw_segment_string(p, t, text_value, 49.0, 40.0, 232.0);
+    draw_segment_string(
+        p,
+        t,
+        text_value,
+        left + 18.6,
+        top + (height - 13.6) * 0.5,
+        width - 37.2,
+    );
 }
 
 fn draw_power_switch(p: &Painter, t: Transform, on: bool, hovered: bool) {
-    switch_label(p, t, 48.0, 99.0, "OFF");
-    switch_label(p, t, 115.0, 99.0, "ON");
-    draw_slider(p, t, 70.0, 98.0, 39.0, on, hovered);
+    switch_label(p, t, 40.0, SWITCH_CENTER_Y, "OFF");
+    switch_label(p, t, 109.0, SWITCH_CENTER_Y, "ON");
+    draw_slider(p, t, 65.0, SWITCH_CENTER_Y - 1.0, 39.0, on, hovered);
 }
 fn draw_mode_switch(p: &Painter, t: Transform, mode: RunMode, hovered: bool) {
-    switch_label(p, t, 167.0, 99.0, "W/PRGM");
-    switch_label(p, t, 268.0, 99.0, "RUN");
+    switch_label(p, t, 172.0, SWITCH_CENTER_Y, "W/PRGM");
+    switch_label(p, t, 277.0, SWITCH_CENTER_Y, "RUN");
     draw_slider(
         p,
         t,
         223.0,
-        98.0,
+        SWITCH_CENTER_Y - 1.0,
         39.0,
         matches!(mode, RunMode::Run),
         hovered,
@@ -278,8 +290,8 @@ fn draw_lower_case(p: &Painter, t: Transform) {
         t,
         581.8,
         609.0,
-        |y| 22.0 + 2.0 * ((y - 581.8) / 27.2).powi(2),
-        |y| 308.0 - 2.0 * ((y - 581.8) / 27.2).powi(2),
+        |y| 22.0 - CASE_SIDE_EXPANSION + 2.0 * ((y - 581.8) / 27.2).powi(2),
+        |y| 308.0 + CASE_SIDE_EXPANSION - 2.0 * ((y - 581.8) / 27.2).powi(2),
         Color32::from_rgb(55, 57, 45),
         1.2,
         0.65,
@@ -290,8 +302,8 @@ fn draw_lower_case(p: &Painter, t: Transform) {
         t,
         584.0,
         602.0,
-        |y| 28.0 + (y - 584.0) * 0.07,
-        |y| 302.0 - (y - 584.0) * 0.07,
+        |y| 28.0 - CASE_SIDE_EXPANSION + (y - 584.0) * 0.07,
+        |y| 302.0 + CASE_SIDE_EXPANSION - (y - 584.0) * 0.07,
         Color32::from_rgb(24, 25, 23),
         0.8,
         0.6,
@@ -313,8 +325,8 @@ fn rim_points() -> Vec<Pos2> {
             let f = (583.5 - a.1) / (b.1 - a.1);
             points.push(Pos2::new(a.0 + (b.0 - a.0) * f, 583.5));
             if a.1 <= 583.5 {
-                points.push(Pos2::new(303.0, 605.0));
-                points.push(Pos2::new(27.0, 605.0));
+                points.push(Pos2::new(303.0 + CASE_SIDE_EXPANSION, 605.0));
+                points.push(Pos2::new(27.0 - CASE_SIDE_EXPANSION, 605.0));
             }
         }
     }

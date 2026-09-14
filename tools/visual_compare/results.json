@@ -204,5 +204,30 @@
       "keys": 35
     },
     "details": "SPACING-SYMBOLS.md"
+  },
+  "whole_proportions": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "25 passed; 2 opt-in exporters",
+      "release": "passed",
+      "capture_sizes": [
+        "165x310",
+        "330x620",
+        "660x1240",
+        "1320x2480"
+      ],
+      "case_plan_ratio": 1.8814814814814815,
+      "last_row_rest_clearance": 6.97,
+      "last_row_held_clearance": 4.17,
+      "numeric_key_dimensions": [
+        42,
+        29.5
+      ],
+      "display_dimensions": [
+        282,
+        57
+      ]
+    },
+    "details": "PROPORTIONS.md"
   }
 }

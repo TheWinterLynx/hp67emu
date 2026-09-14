@@ -196,9 +196,10 @@ pub fn outline(p: &Painter, t: Transform, inset: f32, base: Color32) {
 }
 
 pub(crate) fn outline_points(inset: f32) -> Vec<(f32, f32)> {
-    let top = 3.0 + inset;
-    let bottom = 617.0 - inset;
-    let right = 318.0 - inset;
+    use super::geometry::{CASE_BOTTOM, CASE_SIDE_EXPANSION, CASE_TOP};
+    let top = CASE_TOP + inset;
+    let bottom = CASE_BOTTOM - inset;
+    let right = 318.0 + CASE_SIDE_EXPANSION - inset;
     let radius = 9.0;
     let mut points = Vec::new();
     let mut corner = |a: (f32, f32), b: (f32, f32), c: (f32, f32)| {
@@ -234,7 +235,7 @@ pub(crate) fn outline_points(inset: f32) -> Vec<(f32, f32)> {
 
 pub fn panel_left(y: f32) -> f32 {
     let f = ((y - 29.0) / 562.0).clamp(0.0, 1.0);
-    29.0 - 7.0 * (std::f32::consts::PI * f).sin()
+    29.0 - super::geometry::CASE_SIDE_EXPANSION - 7.0 * (std::f32::consts::PI * f).sin()
 }
 pub fn panel_right(y: f32) -> f32 {
     330.0 - panel_left(y)
@@ -243,6 +244,22 @@ pub fn panel_right(y: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn actual_case_outline_keeps_the_published_plan_ratio() {
+        let bounds =
+            outline_points(0.0)
+                .into_iter()
+                .fold(eframe::egui::Rect::NOTHING, |mut r, (x, y)| {
+                    r.extend_with(eframe::egui::pos2(x, y));
+                    r
+                });
+        assert!(
+            (bounds.height() / bounds.width()
+                - super::super::geometry::CASE_LENGTH_MM / super::super::geometry::CASE_WIDTH_MM)
+                .abs()
+                < 0.00001
+        );
+    }
     #[test]
     fn shoulders_do_not_converge_into_a_trapezoid() {
         assert!((panel_left(50.0) - panel_left(570.0)).abs() < 0.001);
