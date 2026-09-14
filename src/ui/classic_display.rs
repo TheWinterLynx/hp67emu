@@ -1,17 +1,15 @@
 //! Authentic HP-67 Classic-series LED emission for the photographed display.
 //!
-//! The physical HP-67 display is a 15-position assembly made from three
-//! end-stackable five-character HP 1990-0335 modules.  The documented
-//! 5082-7405 is a drop-in equivalent and supplies the dimensional reference:
-//! 3.81 mm (.150 in) character pitch and 2.794 mm (.110 in) magnified height.
-//! Contemporary Classic-display documentation gives a nominal .062 in digit
-//! width.  The centered decimal occupies its own character position.  Each
-//! logical segment is formed by three narrow emitting bars; the decimal die
-//! uses two bars.
+//! The HP-67 uses three end-stackable five-character HP 1990-0335 modules.
+//! HP 5082-7405 is a documented drop-in equivalent: 3.81 mm character pitch,
+//! 2.794 mm magnified height and a centrally located decimal that consumes its
+//! own character position. "Centered" describes the decimal's horizontal
+//! placement in that position; photographs of the real HP-67 show the dot below
+//! the digit midline. Each logical segment is formed by three emitting bars and
+//! the decimal by two bars.
 //!
-//! In the photorealistic renderer the photograph already provides the red
-//! contrast filter, bezel, reflections, module/lens structure and black level.
-//! This module therefore adds only the light emitted by the real LED geometry.
+//! The photograph supplies the red filter, bezel, reflections and black level;
+//! this module paints only LED emission.
 
 use eframe::egui::{pos2, Color32, Painter, Pos2, Rect, Stroke};
 
@@ -22,10 +20,6 @@ const CHARACTER_PITCH_MM: f32 = 3.81;
 const CHARACTER_HEIGHT_MM: f32 = 2.794;
 const CHARACTER_WIDTH_MM: f32 = 1.5748; // .062 in
 
-// The measured vector reconstruction uses 614 logical units for HP's published
-// 152.4 mm case length and a 282 x 57 display opening.  Keeping those reference
-// dimensions here preserves the physical LED-to-glass ratio while the final
-// mapping is made directly into the photographed display rectangle.
 const REFERENCE_UNITS_PER_MM: f32 = 614.0 / 152.4;
 const REFERENCE_DISPLAY_WIDTH: f32 = 282.0;
 const REFERENCE_DISPLAY_HEIGHT: f32 = 57.0;
@@ -72,7 +66,6 @@ impl DisplayTransform {
     }
 }
 
-/// Paint only authentic LED emission into the already-photographed glass.
 pub(crate) fn paint(painter: &Painter, display_rect: Rect, value: &str) {
     if value.is_empty() || display_rect.width() <= 0.0 || display_rect.height() <= 0.0 {
         return;
@@ -154,8 +147,6 @@ fn draw_monolithic_segment(
     half_len: f32,
     serif: bool,
 ) {
-    // The three bars should merge optically at ordinary size but remain visible
-    // when enlarged, as on the real monolithic HP LED die.
     let offsets = [-0.22_f32, 0.0, 0.22];
     let inks = [
         Color32::from_rgb(242, 13, 51),
@@ -201,12 +192,15 @@ fn draw_monolithic_segment(
 }
 
 fn draw_center_decimal(p: &Painter, t: DisplayTransform, cx: f32, cy: f32) {
-    // 5082-7405 center-decimal die: two short horizontal emitting bars in its
-    // own character position, not a dot attached to the previous numeral.
+    // HP calls this a center-decimal display because the point owns a complete
+    // character position. On the real HP-67 it sits visibly below the digit
+    // midline; the supplied reference photo puts its optical center about 16%
+    // of a digit height below center.
+    let decimal_y = cy + CHARACTER_HEIGHT * 0.16;
     let half = 0.72;
     let glow = Color32::from_rgba_unmultiplied(255, 0, 42, 23);
     p.line_segment(
-        [t.pos(cx - half, cy), t.pos(cx + half, cy)],
+        [t.pos(cx - half, decimal_y), t.pos(cx + half, decimal_y)],
         Stroke::new(t.stroke(0.85, 0.72), glow),
     );
     for (dy, color) in [
@@ -214,7 +208,10 @@ fn draw_center_decimal(p: &Painter, t: DisplayTransform, cx: f32, cy: f32) {
         (0.17, Color32::from_rgb(220, 9, 44)),
     ] {
         p.line_segment(
-            [t.pos(cx - half, cy + dy), t.pos(cx + half, cy + dy)],
+            [
+                t.pos(cx - half, decimal_y + dy),
+                t.pos(cx + half, decimal_y + dy),
+            ],
             Stroke::new(t.stroke(0.18, 0.36), color),
         );
     }
@@ -226,8 +223,9 @@ fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
         return cells;
     }
 
-    // A future calculator core may supply an already-spaced hardware field.
-    // Preserve such fields verbatim rather than reformatting them.
+    // When the calculator core supplies an already-spaced 15-position field,
+    // preserve it verbatim. Eventually the renderer should be fed directly by
+    // the emulated display scan state rather than by formatted text.
     if value.contains(' ') && !value.contains(['e', 'E']) {
         for (cell, ch) in cells.iter_mut().zip(value.chars()) {
             *cell = ch;
@@ -254,8 +252,6 @@ fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
         }
     }
 
-    // The temporary UI model can emit operator characters even though the real
-    // HP-67 display cannot.  Do not invent non-hardware glyphs for those cases.
     if digits == 0 {
         return cells;
     }
@@ -317,7 +313,7 @@ mod tests {
             display_cells("1.234567890e12"),
             [' ', '1', '.', '2', '3', '4', '5', '6', '7', '8', '9', '0', ' ', '1', '2']
         );
-        assert_eq!(&display_cells("0")[..3], &[' ', '0', '.']);
+        assert_eq!(&display_cells("0.00")[..5], &[' ', '0', '.', '0', '0']);
         assert_eq!(display_cells("+"), [' '; CHARACTER_COUNT]);
         assert_eq!(display_cells(""), [' '; CHARACTER_COUNT]);
     }
