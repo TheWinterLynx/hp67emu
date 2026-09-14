@@ -29,7 +29,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Implement semantic JSB/GOTO/THEN-GOTO state transitions and two-level return stack.
 - [x] Add a semantic ROM/bank loader independent of host file I/O.
 - [x] Add instruction-boundary snapshots and a readable state-diff formatter.
-- [ ] Build a differential harness: semantic reference vs electrical ACT at every completed microinstruction.
+- [x] Build a reusable differential harness that waits for the timed target's next completed microinstruction and compares architectural snapshots.
+- [ ] Connect the differential harness to the real electrical ACT once that device exposes instruction-boundary state.
 - [x] Port the *behaviour* needed from Nonpareil's CRC model into an independently structured Rust reference peripheral.
 - [x] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
 - [ ] Reconcile the ACT part/revision identifiers in Nonpareil's HP-67 metadata with physical HP-67 sources before freezing chip identity.
@@ -60,11 +61,11 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 ## Scheduler
 
-- [ ] Implement resolve -> snapshot -> evaluate -> commit loop.
+- [x] Implement resolve -> snapshot -> evaluate -> commit loop.
 - [ ] Add scheduled transitions/propagation slots if traces prove they are required.
-- [ ] Make bus contention fail tests with driver names and tick number.
+- [x] Make bus contention fail tests with stable driver names and tick number.
 - [ ] Add trace probes with deterministic ordering.
-- [ ] Verify that device container iteration order cannot change results.
+- [x] Verify with regression tests that device container iteration order cannot change propagation results.
 
 ## ACT 1820-2530 / HP-67 ACT revision
 
