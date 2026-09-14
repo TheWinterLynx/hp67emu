@@ -1,17 +1,10 @@
-use eframe::egui::{self, Color32};
+use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
-use crate::{
-    hp67::Hp67State,
-    panel::Hp67Panel,
-    ui::{
-        classic_display,
-        geometry::{DESIGN_H, DESIGN_W},
-        photo_fx,
-    },
-};
+use crate::{hp67::Hp67State, panel::Hp67Panel};
 
 pub struct Hp67App {
     state: Hp67State,
+    photo: TextureHandle,
 }
 
 impl Hp67App {
@@ -21,10 +14,21 @@ impl Hp67App {
         visuals.window_fill = Color32::from_rgb(17, 18, 16);
         cc.egui_ctx.set_visuals(visuals);
 
-        photo_fx::install(cc);
+        let decoded = image::load_from_memory_with_format(
+            include_bytes!("../hp67.png"),
+            image::ImageFormat::Png,
+        )
+        .expect("embedded hp67.png must be a valid PNG")
+        .to_rgba8();
+        let size = [decoded.width() as usize, decoded.height() as usize];
+        let color = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
+        let photo = cc
+            .egui_ctx
+            .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
 
         Self {
             state: Hp67State::default(),
+            photo,
         }
     }
 }
@@ -34,28 +38,14 @@ impl eframe::App for Hp67App {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
             .show(ctx, |ui| {
-                let host = ui.available_rect_before_wrap();
-                let scale = (host.width() / DESIGN_W).min(host.height() / DESIGN_H);
-                let panel_rect = egui::Rect::from_center_size(
-                    host.center(),
-                    egui::vec2(DESIGN_W * scale, DESIGN_H * scale),
-                );
-
-                for event in Hp67Panel::show(ui, &self.state) {
+                for event in Hp67Panel::show(ui, &self.state, &self.photo) {
                     self.state.handle(event);
                 }
-
-                // Replace only the legacy generic LED artwork with a calibrated
-                // Classic-series hardware model.  It intentionally runs before
-                // the photo pass so the glass Fresnel/reflection treatment lands
-                // on top of the LEDs exactly as it would on the physical unit.
-                classic_display::paint(ui, panel_rect, self.state.display_text());
-
-                // Paint last: the GPU layer is an optical/material treatment over
-                // the existing vector panel, never a replacement for its geometry.
-                photo_fx::paint(ui, panel_rect);
             });
 
+        // Keep mouse-down motion responsive even on platforms that throttle
+        // otherwise-idle windows. egui's animation system schedules the release
+        // frames after the pointer comes up.
         if ctx.input(|i| i.pointer.any_down()) {
             ctx.request_repaint();
         }
