@@ -11,9 +11,17 @@ pub struct TraceSample<N> {
 }
 
 /// Append-only trace used to compare emulator waveforms with golden captures.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Trace<N> {
     samples: Vec<TraceSample<N>>,
+}
+
+impl<N> Default for Trace<N> {
+    fn default() -> Self {
+        Self {
+            samples: Vec::new(),
+        }
+    }
 }
 
 impl<N> Trace<N> {
