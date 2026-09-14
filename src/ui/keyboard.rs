@@ -6,6 +6,8 @@ use crate::hp67::UiEvent;
 const WHITE: Color32 = Color32::from_rgb(218, 228, 215);
 const YELLOW: Color32 = Color32::from_rgb(185, 183, 75);
 const CYAN: Color32 = Color32::from_rgb(74, 174, 220);
+const LEGEND_SIZE: f32 = 8.8;
+const TOP_LEGEND_SIZE: f32 = 10.5;
 const DARK: Color32 = Color32::from_rgb(27, 29, 28);
 
 pub fn show(ui: &Ui, host: Rect) -> Vec<UiEvent> {
@@ -152,6 +154,41 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn panel_math_ink_matches_the_shared_legend_cap_height() {
+        for letter in ["x", "y", "e"] {
+            let ctx = egui::Context::default();
+            let output = ctx.run(egui::RawInput::default(), |ctx| {
+                matched_math_text(
+                    &ctx.layer_painter(egui::LayerId::background()),
+                    Transform {
+                        origin: Pos2::ZERO,
+                        scale: 1.0,
+                    },
+                    50.0,
+                    50.0,
+                    LEGEND_SIZE,
+                    WHITE,
+                    letter,
+                    Align2::CENTER_CENTER,
+                );
+            });
+            let mut lo = f32::INFINITY;
+            let mut hi = f32::NEG_INFINITY;
+            for shape in output.shapes {
+                let Shape::Mesh(mesh) = shape.shape else {
+                    panic!()
+                };
+                for vertex in mesh.vertices.iter().filter(|v| v.color.a() == 255) {
+                    lo = lo.min(vertex.pos.y);
+                    hi = hi.max(vertex.pos.y);
+                }
+            }
+            assert!((hi - lo - LEGEND_SIZE * 0.78).abs() < 0.001, "{letter}");
+            assert!(((hi + lo) * 0.5 - 50.0).abs() < 0.001);
         }
     }
 
@@ -466,7 +503,7 @@ fn draw_sub(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
         "8" => r_arrow(p, t, key.cx, cy, false, 6.8, color),
         "9" => r_arrow(p, t, key.cx, cy, true, 6.8, color),
         "4" => one_over_x(p, t, key.cx, cy, 6.8, color),
-        "5" => power(p, t, key.cx, cy - 0.8, "y", "x", 6.8, color, color),
+        "5" => power(p, t, key.cx, cy + 0.3, "y", "x", 6.8, color, color),
         "2" => pi(p, t, key.cx, cy, 7.0, color),
         "enter" => {
             let x = match key.sub_align {
@@ -502,11 +539,11 @@ fn draw_sub(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
 }
 
 fn draw_legends(p: &Painter, t: Transform) {
-    one_over_x(p, t, 58.0, 151.8, 10.5, WHITE);
-    sqrt_x(p, t, 112.0, 151.7, 10.6, WHITE);
-    power(p, t, 166.0, 151.7, "y", "x", 10.4, WHITE, WHITE);
-    r_arrow(p, t, 220.0, 151.7, false, 10.2, WHITE);
-    swap(p, t, 274.0, 151.7, "x", "y", 10.0, WHITE);
+    one_over_x(p, t, 58.0, 151.8, TOP_LEGEND_SIZE, WHITE);
+    sqrt_x(p, t, 112.0, 151.7, TOP_LEGEND_SIZE, WHITE);
+    power(p, t, 166.0, 151.7, "y", "x", TOP_LEGEND_SIZE, WHITE, WHITE);
+    r_arrow(p, t, 220.0, 151.7, false, TOP_LEGEND_SIZE, WHITE);
+    swap(p, t, 274.0, 151.7, "x", "y", TOP_LEGEND_SIZE, WHITE);
     for (x, s) in [
         (58.0, "a"),
         (112.0, "b"),
@@ -514,43 +551,45 @@ fn draw_legends(p: &Painter, t: Transform) {
         (220.0, "d"),
         (274.0, "e"),
     ] {
-        bold_txt(p, t, x, 214.0, 8.8, YELLOW, s);
+        bold_txt(p, t, x, 214.0, LEGEND_SIZE, YELLOW, s);
     }
-    xbar(p, t, 50.0, 267.0, 7.4, YELLOW);
-    bold_txt(p, t, 66.0, 267.0, 8.8, CYAN, "s");
+    xbar(p, t, 50.0, 267.0, LEGEND_SIZE, YELLOW);
+    bold_txt(p, t, 66.0, 267.0, LEGEND_SIZE, CYAN, "s");
     paired_legend(p, t, 112.0, 267.0, "GSB", "f", 5.0);
     paired_legend(p, t, 166.0, 267.0, "FIX", "SCI", 5.0);
-    bold_txt(p, t, 220.0, 267.0, 8.8, YELLOW, "RND");
+    bold_txt(p, t, 220.0, 267.0, LEGEND_SIZE, YELLOW, "RND");
     paired_legend(p, t, 274.0, 267.0, "LBL", "f", 5.0);
     paired_legend(p, t, 166.0, 321.0, "DSZ", "(i)", 4.0);
     paired_legend(p, t, 220.0, 321.0, "ISZ", "(i)", 4.0);
-    bold_txt(p, t, 56.0, 372.0, 8.8, YELLOW, "W/DATA");
-    bold_txt(p, t, 119.0, 372.0, 8.8, CYAN, "MERGE");
-    swap_two_color(p, t, 166.0, 372.0, "P", "S", 8.4, YELLOW, YELLOW);
-    bold_txt(p, t, 220.0, 372.0, 8.8, YELLOW, "CL REG");
-    bold_txt(p, t, 274.0, 372.0, 8.8, YELLOW, "CL PRGM");
+    bold_txt(p, t, 56.0, 372.0, LEGEND_SIZE, YELLOW, "W/DATA");
+    bold_txt(p, t, 119.0, 372.0, LEGEND_SIZE, CYAN, "MERGE");
+    swap_two_color(p, t, 166.0, 372.0, "P", "S", LEGEND_SIZE, YELLOW, YELLOW);
+    bold_txt(p, t, 220.0, 372.0, LEGEND_SIZE, YELLOW, "CL REG");
+    bold_txt(p, t, 274.0, 372.0, LEGEND_SIZE, YELLOW, "CL PRGM");
     eq_pair(p, t, 56.0, 423.0, false);
-    bold_txt(p, t, 108.0, 423.0, 8.8, YELLOW, "LN");
-    power(p, t, 128.0, 423.0, "e", "x", 8.8, CYAN, CYAN);
-    bold_txt(p, t, 181.0, 423.0, 8.8, YELLOW, "LOG");
-    power(p, t, 208.0, 423.0, "10", "x", 8.8, CYAN, CYAN);
-    sqrt_x(p, t, 252.0, 423.0, 8.8, YELLOW);
-    power(p, t, 279.0, 423.0, "x", "2", 8.8, CYAN, CYAN);
+    bold_txt(p, t, 108.0, 423.0, LEGEND_SIZE, YELLOW, "LN");
+    power(p, t, 128.0, 423.0, "e", "x", LEGEND_SIZE, CYAN, CYAN);
+    bold_txt(p, t, 181.0, 423.0, LEGEND_SIZE, YELLOW, "LOG");
+    power(p, t, 208.0, 423.0, "10", "x", LEGEND_SIZE, CYAN, CYAN);
+    sqrt_x(p, t, 252.0, 423.0, LEGEND_SIZE, YELLOW);
+    power(p, t, 279.0, 423.0, "x", "2", LEGEND_SIZE, CYAN, CYAN);
     eq_pair(p, t, 56.0, 475.0, true);
     inverse_trig(p, t, 119.0, 475.0, "SIN");
     inverse_trig(p, t, 194.0, 475.0, "COS");
     inverse_trig(p, t, 270.0, 475.0, "TAN");
     relation_pair(p, t, 56.0, 526.0, '<', true);
-    swap_two_color(p, t, 119.0, 526.0, "R", "P", 8.4, YELLOW, CYAN);
-    swap_two_color(p, t, 194.0, 526.0, "D", "R", 8.4, YELLOW, CYAN);
-    swap_two_color(p, t, 270.0, 526.0, "H", "H.MS", 8.0, YELLOW, CYAN);
+    swap_two_color(p, t, 119.0, 526.0, "R", "P", LEGEND_SIZE, YELLOW, CYAN);
+    swap_two_color(p, t, 194.0, 526.0, "D", "R", LEGEND_SIZE, YELLOW, CYAN);
+    swap_two_color(p, t, 270.0, 526.0, "H", "H.MS", LEGEND_SIZE, YELLOW, CYAN);
     relation_pair(p, t, 56.0, 577.0, '>', false);
-    bold_txt(p, t, 106.0, 577.0, 7.9, YELLOW, "%");
-    bold_txt(p, t, 126.5, 577.0, 7.9, CYAN, "%CH");
-    bold_txt(p, t, 181.0, 577.0, 7.9, YELLOW, "INT");
-    bold_txt(p, t, 207.0, 577.0, 7.9, CYAN, "FRAC");
-    bold_txt(p, t, 253.0, 577.0, 7.9, YELLOW, "−x−");
-    bold_txt(p, t, 281.0, 577.0, 7.9, CYAN, "STK");
+    bold_txt(p, t, 106.0, 577.0, LEGEND_SIZE, YELLOW, "%");
+    bold_txt(p, t, 126.5, 577.0, LEGEND_SIZE, CYAN, "%CH");
+    bold_txt(p, t, 181.0, 577.0, LEGEND_SIZE, YELLOW, "INT");
+    bold_txt(p, t, 207.0, 577.0, LEGEND_SIZE, CYAN, "FRAC");
+    bold_txt(p, t, 247.0, 577.0, LEGEND_SIZE, YELLOW, "\u{2212}");
+    bold_txt(p, t, 253.0, 577.0, LEGEND_SIZE, YELLOW, "x");
+    bold_txt(p, t, 259.0, 577.0, LEGEND_SIZE, YELLOW, "\u{2212}");
+    bold_txt(p, t, 281.0, 577.0, LEGEND_SIZE, CYAN, "STK");
 }
 
 fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
@@ -606,6 +645,12 @@ fn bold_txt_aligned(
     s: &str,
     align: Align2,
 ) {
+    if (size == LEGEND_SIZE || size == TOP_LEGEND_SIZE || size <= 7.1)
+        && matches!(s, "x" | "y" | "\u{03c0}")
+    {
+        matched_math_text(p, t, x, y, size, color, s, align);
+        return;
+    }
     super::glyphs::text(
         p,
         t.pos(x, y),
@@ -616,6 +661,48 @@ fn bold_txt_aligned(
         printed_weight(size, s),
     );
 }
+// Matching nominal font sizes is insufficient: the custom math letters have
+// smaller ink bounds. Normalize their visible height to the row's cap height.
+fn matched_math_text(
+    p: &Painter,
+    t: Transform,
+    x: f32,
+    y: f32,
+    size: f32,
+    color: Color32,
+    value: &str,
+    align: Align2,
+) {
+    let weight = printed_weight(size, value);
+    let g = super::lettering_data::glyph(value.chars().next().unwrap(), weight);
+    let lo = g
+        .vertices
+        .iter()
+        .map(|v| v[1])
+        .fold(f32::INFINITY, f32::min);
+    let hi = g
+        .vertices
+        .iter()
+        .map(|v| v[1])
+        .fold(f32::NEG_INFINITY, f32::max);
+    let cap = t.s(size) * 0.78;
+    let center = t.pos(x, y);
+    let mut mesh = super::glyphs::text_mesh(
+        center,
+        t.s(size),
+        color,
+        value,
+        align,
+        weight,
+        p.ctx().pixels_per_point(),
+    );
+    let old_mid = center.y - cap * 0.5 + (lo + hi) * cap * 0.5;
+    for v in &mut mesh.vertices {
+        v.pos.y = center.y + (v.pos.y - old_mid) / (hi - lo);
+    }
+    p.add(Shape::mesh(mesh));
+}
+
 fn printed_weight(size: f32, value: &str) -> u16 {
     if matches!(value, "x" | "y" | "π") {
         600
@@ -739,15 +826,20 @@ fn power(
     let exp_width = print_width(exp, exp_size);
     let gap = size * 0.025;
     let left = cx - (base_width + gap + exp_width) * 0.5;
-    bold_txt(
-        p,
-        t,
-        left + base_width * 0.5,
-        cy + size * 0.07,
-        size,
-        bc,
-        base,
-    );
+    if size == LEGEND_SIZE && base == "e" {
+        matched_math_text(
+            p,
+            t,
+            left + base_width * 0.5,
+            cy,
+            size,
+            bc,
+            base,
+            Align2::CENTER_CENTER,
+        );
+    } else {
+        bold_txt(p, t, left + base_width * 0.5, cy, size, bc, base);
+    }
     bold_txt(
         p,
         t,
@@ -838,15 +930,15 @@ fn xbar(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     );
 }
 fn paired_legend(p: &Painter, t: Transform, cx: f32, cy: f32, left: &str, right: &str, gap: f32) {
-    let lw = print_width(left, 8.8);
-    let rw = print_width(right, 8.8);
-    bold_txt(p, t, cx - (rw + gap) * 0.5, cy, 8.8, YELLOW, left);
-    bold_txt(p, t, cx + (lw + gap) * 0.5, cy, 8.8, CYAN, right);
+    let lw = print_width(left, LEGEND_SIZE);
+    let rw = print_width(right, LEGEND_SIZE);
+    bold_txt(p, t, cx - (rw + gap) * 0.5, cy, LEGEND_SIZE, YELLOW, left);
+    bold_txt(p, t, cx + (lw + gap) * 0.5, cy, LEGEND_SIZE, CYAN, right);
 }
 fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
-    let lw = print_width(name, 8.8);
+    let lw = print_width(name, LEGEND_SIZE);
     let rw = print_width("\u{2212}1", 5.8);
-    bold_txt(p, t, cx - (rw + 0.3) * 0.5, cy, 8.8, YELLOW, name);
+    bold_txt(p, t, cx - (rw + 0.3) * 0.5, cy, LEGEND_SIZE, YELLOW, name);
     bold_txt(
         p,
         t,
@@ -858,20 +950,20 @@ fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
     );
 }
 fn eq_pair(p: &Painter, t: Transform, cx: f32, cy: f32, ne: bool) {
-    bold_txt(p, t, cx - 14.0, cy, 7.5, YELLOW, "x");
+    bold_txt(p, t, cx - 14.0, cy, LEGEND_SIZE, YELLOW, "x");
     if ne {
         not_eq(p, t, cx - 8.0, cy, YELLOW)
     } else {
-        bold_txt(p, t, cx - 8.0, cy, 7.5, YELLOW, "=")
+        bold_txt(p, t, cx - 8.0, cy, LEGEND_SIZE, YELLOW, "=")
     };
-    bold_txt(p, t, cx - 2.0, cy, 7.5, YELLOW, "0");
-    bold_txt(p, t, cx + 10.0, cy, 7.5, CYAN, "x");
+    bold_txt(p, t, cx - 2.0, cy, LEGEND_SIZE, YELLOW, "0");
+    bold_txt(p, t, cx + 10.0, cy, LEGEND_SIZE, CYAN, "x");
     if ne {
         not_eq(p, t, cx + 16.0, cy, CYAN)
     } else {
-        bold_txt(p, t, cx + 16.0, cy, 7.5, CYAN, "=")
+        bold_txt(p, t, cx + 16.0, cy, LEGEND_SIZE, CYAN, "=")
     };
-    bold_txt(p, t, cx + 22.0, cy, 7.5, CYAN, "y");
+    bold_txt(p, t, cx + 22.0, cy, LEGEND_SIZE, CYAN, "y");
 }
 fn not_eq(p: &Painter, t: Transform, cx: f32, cy: f32, c: Color32) {
     let st = Stroke::new(t.s(0.75), c);
@@ -881,12 +973,12 @@ fn not_eq(p: &Painter, t: Transform, cx: f32, cy: f32, c: Color32) {
 }
 fn relation_pair(p: &Painter, t: Transform, cx: f32, cy: f32, op: char, incl: bool) {
     let os = if op == '<' { "<" } else { ">" };
-    bold_txt(p, t, cx - 14.0, cy, 7.4, YELLOW, "x");
-    bold_txt(p, t, cx - 8.0, cy, 7.4, YELLOW, os);
-    bold_txt(p, t, cx - 2.0, cy, 7.4, YELLOW, "0");
-    bold_txt(p, t, cx + 10.0, cy, 7.4, CYAN, "x");
+    bold_txt(p, t, cx - 14.0, cy, LEGEND_SIZE, YELLOW, "x");
+    bold_txt(p, t, cx - 8.0, cy, LEGEND_SIZE, YELLOW, os);
+    bold_txt(p, t, cx - 2.0, cy, LEGEND_SIZE, YELLOW, "0");
+    bold_txt(p, t, cx + 10.0, cy, LEGEND_SIZE, CYAN, "x");
     relop(p, t, cx + 16.0, cy, op, incl, CYAN);
-    bold_txt(p, t, cx + 22.0, cy, 7.4, CYAN, "y");
+    bold_txt(p, t, cx + 22.0, cy, LEGEND_SIZE, CYAN, "y");
 }
 fn relop(p: &Painter, t: Transform, cx: f32, cy: f32, op: char, incl: bool, c: Color32) {
     let f = if op == '<' { 1.0 } else { -1.0 };

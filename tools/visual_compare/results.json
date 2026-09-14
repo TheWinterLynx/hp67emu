@@ -156,5 +156,20 @@
       "printed_mark_bounds": "all 35 main faces and their labeled skirts pass"
     },
     "details": "LEGIBILITY.md"
+  },
+  "uniform_legends": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "19 passed; capture opt-in",
+      "release": "hp67emu-uniform.exe built; standard executable locked",
+      "capture_sizes": [
+        "330x620",
+        "660x1240",
+        "1320x2480"
+      ],
+      "display_crops": "unchanged",
+      "math_ink_height": "matches row cap height"
+    },
+    "details": "UNIFORM-LEGENDS.md"
   }
 }

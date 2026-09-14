@@ -93,3 +93,7 @@ height to both printed key faces.
 The [key legibility pass](tools/visual_compare/LEGIBILITY.md) adds further key
 height, adjusts printing sizes against reference crops and tests that every
 printed mark stays inside its own face.
+
+The [uniform-legend correction](tools/visual_compare/UNIFORM-LEGENDS.md) shares
+sizes across each legend row and matches mathematical ink height to normal
+lettering rather than relying on nominal font size alone.
