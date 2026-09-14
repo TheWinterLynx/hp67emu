@@ -5,13 +5,12 @@
 //! 2.794 mm magnified height and a centrally located decimal that consumes its
 //! own character position. "Centered" describes the decimal's horizontal
 //! placement in that position; photographs of the real HP-67 show the dot below
-//! the digit midline. Each logical segment is formed by three emitting bars and
-//! the decimal by two bars.
+//! the digit midline. Each logical segment is formed by three emitting bars.
 //!
 //! The photograph supplies the red filter, bezel, reflections and black level;
 //! this module paints only LED emission.
 
-use eframe::egui::{pos2, Color32, Painter, Pos2, Rect, Stroke};
+use eframe::egui::{pos2, Color32, Painter, Pos2, Rect, Shape, Stroke};
 
 pub(crate) const CHARACTER_COUNT: usize = 15;
 const MODULE_COUNT: usize = 3;
@@ -19,6 +18,7 @@ const CHARACTERS_PER_MODULE: usize = 5;
 const CHARACTER_PITCH_MM: f32 = 3.81;
 const CHARACTER_HEIGHT_MM: f32 = 2.794;
 const CHARACTER_WIDTH_MM: f32 = 1.5748; // .062 in
+const DECIMAL_DIAMETER_MM: f32 = 0.5334; // .021 in, 5082-7400 family font drawing
 
 const REFERENCE_UNITS_PER_MM: f32 = 614.0 / 152.4;
 const REFERENCE_DISPLAY_WIDTH: f32 = 282.0;
@@ -26,6 +26,7 @@ const REFERENCE_DISPLAY_HEIGHT: f32 = 57.0;
 const CHARACTER_PITCH: f32 = CHARACTER_PITCH_MM * REFERENCE_UNITS_PER_MM;
 const CHARACTER_HEIGHT: f32 = CHARACTER_HEIGHT_MM * REFERENCE_UNITS_PER_MM;
 const CHARACTER_WIDTH: f32 = CHARACTER_WIDTH_MM * REFERENCE_UNITS_PER_MM;
+const DECIMAL_DIAMETER: f32 = DECIMAL_DIAMETER_MM * REFERENCE_UNITS_PER_MM;
 const MODULE_WIDTH: f32 = CHARACTER_PITCH * CHARACTERS_PER_MODULE as f32;
 const ASSEMBLY_WIDTH: f32 = MODULE_WIDTH * MODULE_COUNT as f32;
 
@@ -192,29 +193,51 @@ fn draw_monolithic_segment(
 }
 
 fn draw_center_decimal(p: &Painter, t: DisplayTransform, cx: f32, cy: f32) {
-    // HP calls this a center-decimal display because the point owns a complete
-    // character position. On the real HP-67 it sits visibly below the digit
-    // midline; the supplied reference photo puts its optical center about 16%
-    // of a digit height below center.
+    // Measurement from the supplied real HP-67 photograph: compared with the
+    // adjacent zero, the decimal's optical center is ~0.16 character heights
+    // below the digit center.  The 5082-7400 family drawing gives a ~.021 in
+    // decimal element, which also matches the photographed dot-to-digit ratio.
     let decimal_y = cy + CHARACTER_HEIGHT * 0.16;
-    let half = 0.72;
-    let glow = Color32::from_rgba_unmultiplied(255, 0, 42, 23);
-    p.line_segment(
-        [t.pos(cx - half, decimal_y), t.pos(cx + half, decimal_y)],
-        Stroke::new(t.stroke(0.85, 0.72), glow),
+    let radius = DECIMAL_DIAMETER * 0.5;
+
+    // The real point reads as a compact luminous dot, not as a miniature dash.
+    // Draw a restrained larger glow first, then the measured emitting element.
+    ellipse(
+        p,
+        t,
+        cx,
+        decimal_y,
+        radius * 1.65,
+        radius * 1.65,
+        Color32::from_rgba_unmultiplied(255, 0, 42, 24),
     );
-    for (dy, color) in [
-        (-0.17, Color32::from_rgb(255, 21, 56)),
-        (0.17, Color32::from_rgb(220, 9, 44)),
-    ] {
-        p.line_segment(
-            [
-                t.pos(cx - half, decimal_y + dy),
-                t.pos(cx + half, decimal_y + dy),
-            ],
-            Stroke::new(t.stroke(0.18, 0.36), color),
-        );
-    }
+    ellipse(
+        p,
+        t,
+        cx,
+        decimal_y,
+        radius,
+        radius,
+        Color32::from_rgb(252, 18, 54),
+    );
+}
+
+fn ellipse(
+    p: &Painter,
+    t: DisplayTransform,
+    cx: f32,
+    cy: f32,
+    rx: f32,
+    ry: f32,
+    color: Color32,
+) {
+    let points = (0..24)
+        .map(|i| {
+            let angle = i as f32 * std::f32::consts::TAU / 24.0;
+            t.pos(cx + rx * angle.cos(), cy + ry * angle.sin())
+        })
+        .collect();
+    p.add(Shape::convex_polygon(points, color, Stroke::NONE));
 }
 
 fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
@@ -289,6 +312,7 @@ mod tests {
         assert!((CHARACTER_PITCH / REFERENCE_UNITS_PER_MM - 3.81).abs() < 0.0001);
         assert!((CHARACTER_HEIGHT / REFERENCE_UNITS_PER_MM - 2.794).abs() < 0.0001);
         assert!((CHARACTER_WIDTH / REFERENCE_UNITS_PER_MM - 1.5748).abs() < 0.0001);
+        assert!((DECIMAL_DIAMETER / REFERENCE_UNITS_PER_MM - 0.5334).abs() < 0.0001);
         assert!((ASSEMBLY_WIDTH / REFERENCE_UNITS_PER_MM - 57.15).abs() < 0.001);
         assert_eq!(CHARACTER_COUNT, 15);
         assert_eq!(MODULE_COUNT * CHARACTERS_PER_MODULE, CHARACTER_COUNT);
