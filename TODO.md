@@ -27,11 +27,11 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Implement the 32 arithmetic/register operations in the semantic reference model.
 - [x] Implement special instructions used by the HP-67 ROM: status/P, constants, ROM selection, delayed ROM selection, RAM/register access, display control, key dispatch, return and bank switch.
 - [x] Implement semantic JSB/GOTO/THEN-GOTO state transitions and two-level return stack.
-- [ ] Add a semantic ROM/bank loader independent of host file I/O.
-- [ ] Add instruction-boundary snapshots and a readable state-diff formatter.
+- [x] Add a semantic ROM/bank loader independent of host file I/O.
+- [x] Add instruction-boundary snapshots and a readable state-diff formatter.
 - [ ] Build a differential harness: semantic reference vs electrical ACT at every completed microinstruction.
-- [ ] Port the *behaviour* needed from Nonpareil's CRC model into an independently structured Rust reference peripheral.
-- [ ] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
+- [x] Port the *behaviour* needed from Nonpareil's CRC model into an independently structured Rust reference peripheral.
+- [x] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
 - [ ] Reconcile the ACT part/revision identifiers in Nonpareil's HP-67 metadata with physical HP-67 sources before freezing chip identity.
 - [ ] Do not copy GPL-covered Nonpareil source line-for-line unless the project deliberately makes a compatible licensing decision.
 
@@ -114,7 +114,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 - [ ] Document CRC 1820-1751 pins/protocol from HP-67/97 evidence.
 - [ ] Implement the CRC electrical instruction/status/data behaviour.
-- [ ] Use the independent Rust CRC semantic reference for instruction-boundary comparisons.
+- [x] Use the independent Rust CRC semantic reference for instruction-boundary comparisons.
 - [ ] Model card-presence switches and transport timing.
 - [ ] Model sense-amplifier digital output boundary.
 - [ ] Separate host card-file representation from electrical CRC model.
