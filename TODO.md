@@ -35,7 +35,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Port the *behaviour* needed from Nonpareil's CRC model into an independently structured Rust reference peripheral.
 - [x] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
 - [ ] Add an HP-67 P-wrap/label-search regression that must agree with both Nonpareil and x11-calc without PC-specific hacks in the electrical ACT.
-- [ ] Reconcile the ACT part/revision identifiers in Nonpareil's HP-67 metadata with physical HP-67 sources before freezing chip identity.
+- [x] Reconcile the 1820-1596/1820-2530 compatibility evidence sufficiently to target 1820-2530 while retaining 1820-1596 as a semantic compatibility reference; keep revision-dependent electrical differences open if later evidence appears.
 - [ ] Do not copy GPL-covered Nonpareil or x11-calc source line-for-line unless the project deliberately makes a compatible licensing decision.
 
 ## Next: evidence and timing
@@ -56,11 +56,22 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Identify the Teenix physical ROM-reader archive as the preferred first HP-67 dump source; see `docs/MICROCODE_PROVENANCE.md`.
 - [x] Identify Nonpareil's `67.asm`, `6797.asm`, `67b1.asm` and card-reader disassembly as symbolic cross-checks.
 - [x] Identify x11-calc's built-in 8192-entry `i_rom[]` image as a third HP-67 ROM corpus for comparison.
-- [ ] Download and inspect the HP-67 ROM files from the Teenix ROM-reader archive locally.
-- [ ] Record chip-to-image mapping and SHA-256 for every ROM image.
+- [x] Add a local x11-calc `i_rom[]` extractor that requires exactly 8192 valid 10-bit words.
+- [x] Define a normalized sparse `(bank, pc, word)` TSV corpus format.
+- [x] Add explicit-radix address/opcode import for assembled/listed corpora.
+- [x] Add conflict-safe merging of sparse bank/page corpora.
+- [x] Add exact bank/page/PC corpus comparison with non-zero mismatch exit status.
+- [x] Add fact-only binary inspection for unknown firmware containers; do not guess `.pfl` structure.
+- [x] Document the complete local three-way comparison workflow in `docs/ROM_CORPUS_WORKFLOW.md`.
+- [ ] Inspect the locally downloaded Teenix HP-67 files and record archive/file SHA-256 values.
+- [ ] Prove the binary structure of `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` from Teenix source/documentation or an independent decoder.
+- [ ] Add a tested Teenix `.pfl` normalizer only after its format is proven.
+- [ ] Record chip-to-image mapping for every Teenix ROM image.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
-- [ ] Cross-check Teenix raw words against the Nonpareil disassembly/object layout.
-- [ ] Compare the complete logical HP-67 ROM image against x11-calc and record every bank/page/address mismatch.
+- [ ] Assemble/export Nonpareil's HP-67 sources to address/opcode listings and normalize both banks.
+- [ ] Run x11-calc ↔ Nonpareil comparison and preserve the report/hashes.
+- [ ] Run Teenix ↔ x11-calc and Teenix ↔ Nonpareil comparisons and explain every mismatch.
+- [ ] Cross-check the shared HP-67/97 ROM region against an independently obtained HP-97 dump.
 - [ ] Build opcode conformance fixtures from the reference model plus trusted Woodstock/HP-67 microcode analysis.
 
 ## Scheduler
