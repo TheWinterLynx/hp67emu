@@ -1,6 +1,6 @@
 //! Pin-level digital net resolution with high-impedance and contention states.
 //!
-//! The goal is not a SPICE solver.  It is an explicit electrical boundary where
+//! The goal is not a SPICE solver. It is an explicit electrical boundary where
 //! multiple emulated IC pins can drive or release a shared wire and where bus
 //! conflicts become observable instead of being hidden by call ordering.
 
@@ -68,7 +68,7 @@ impl Net {
         self.bias = bias;
     }
 
-    /// Drive a net or release it.  High-Z drivers are removed from the active map.
+    /// Drive a net or release it. High-Z drivers are removed from the active map.
     pub fn set_drive(&mut self, driver: DriverId, drive: Drive) {
         if drive == Drive::HighZ {
             self.drives.remove(&driver);
@@ -83,6 +83,11 @@ impl Net {
 
     pub fn active_driver_count(&self) -> usize {
         self.drives.len()
+    }
+
+    /// Active drivers in deterministic `DriverId` order.
+    pub fn active_drives(&self) -> impl Iterator<Item = (DriverId, Drive)> + '_ {
+        self.drives.iter().map(|(driver, drive)| (*driver, *drive))
     }
 
     pub fn level(&self) -> LogicLevel {
@@ -140,5 +145,14 @@ mod tests {
         net.set_drive(A, Drive::High);
         net.set_drive(B, Drive::Low);
         assert_eq!(net.level(), LogicLevel::Contention);
+    }
+
+    #[test]
+    fn active_driver_diagnostics_are_stably_sorted() {
+        let mut net = Net::new(Bias::Floating);
+        net.set_drive(B, Drive::Low);
+        net.set_drive(A, Drive::High);
+        let observed: Vec<_> = net.active_drives().collect();
+        assert_eq!(observed, vec![(A, Drive::High), (B, Drive::Low)]);
     }
 }
