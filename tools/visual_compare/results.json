@@ -171,5 +171,21 @@
       "math_ink_height": "matches row cap height"
     },
     "details": "UNIFORM-LEGENDS.md"
+  },
+  "layout_matrix": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "21 passed; capture and export opt-in",
+      "release": "passed",
+      "capture_sizes": [
+        "330x620",
+        "660x1240",
+        "1320x2480"
+      ],
+      "display_crops": "unchanged",
+      "legend_cells": 38,
+      "key_faces": "35 keys audited"
+    },
+    "details": "LAYOUT-MATRIX.md"
   }
 }

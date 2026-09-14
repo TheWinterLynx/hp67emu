@@ -15,6 +15,25 @@ pub fn width(value: &str, height: f32, weight: u16) -> f32 {
         * 0.78
 }
 
+/// Visible horizontal bounds, excluding side bearings and antialias fringe.
+pub fn ink_bounds(value: &str, height: f32, weight: u16) -> (f32, f32) {
+    let mut cursor = 0.0;
+    let mut lo = f32::INFINITY;
+    let mut hi = f32::NEG_INFINITY;
+    for ch in value.chars() {
+        let g = glyph(ch, weight);
+        for v in &g.vertices {
+            lo = lo.min(cursor + v[0]);
+            hi = hi.max(cursor + v[0]);
+        }
+        cursor += g.advance + 0.028;
+    }
+    if !lo.is_finite() {
+        return (0.0, 0.0);
+    }
+    (lo * height * 0.78, hi * height * 0.78)
+}
+
 pub fn text(
     p: &Painter,
     pos: Pos2,

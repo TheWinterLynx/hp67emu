@@ -97,3 +97,7 @@ printed mark stays inside its own face.
 The [uniform-legend correction](tools/visual_compare/UNIFORM-LEGENDS.md) shares
 sizes across each legend row and matches mathematical ink height to normal
 lettering rather than relying on nominal font size alone.
+
+The [production layout matrix](tools/visual_compare/LAYOUT-MATRIX.md) controls
+all panel legend cells and exports their anchors alongside the 35-key geometry
+for a reproducible alignment overlay and measurements table.
