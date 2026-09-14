@@ -5,4 +5,5 @@
 //! implementation can be checked at well-defined architectural boundaries.
 
 pub mod rom;
+pub mod snapshot;
 pub mod woodstock;
