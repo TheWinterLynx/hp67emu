@@ -297,89 +297,44 @@ impl ArchitecturalState {
         let first = *range.start();
         let last = *range.end();
         let base = self.arithmetic_base();
+        let a = self.a;
+        let b = self.b;
+        let c = self.c;
 
         match operation {
             0x00 => zero_range(&mut self.a, first, last),
             0x01 => zero_range(&mut self.b, first, last),
             0x02 => exchange_range(&mut self.a, &mut self.b, first, last),
-            0x03 => copy_range(&mut self.b, self.a, first, last),
+            0x03 => copy_range(&mut self.b, a, first, last),
             0x04 => exchange_range(&mut self.a, &mut self.c, first, last),
-            0x05 => copy_range(&mut self.a, self.c, first, last),
-            0x06 => copy_range(&mut self.c, self.b, first, last),
+            0x05 => copy_range(&mut self.a, c, first, last),
+            0x06 => copy_range(&mut self.c, b, first, last),
             0x07 => exchange_range(&mut self.b, &mut self.c, first, last),
             0x08 => zero_range(&mut self.c, first, last),
             0x09 => {
-                self.carry = add_range(
-                    &mut self.a,
-                    self.a,
-                    Some(self.b),
-                    first,
-                    last,
-                    false,
-                    base,
-                );
+                self.carry = add_range(&mut self.a, a, Some(b), first, last, false, base);
             }
             0x0a => {
-                self.carry = add_range(
-                    &mut self.a,
-                    self.a,
-                    Some(self.c),
-                    first,
-                    last,
-                    false,
-                    base,
-                );
+                self.carry = add_range(&mut self.a, a, Some(c), first, last, false, base);
             }
             0x0b => {
-                self.carry = add_range(
-                    &mut self.c,
-                    self.c,
-                    Some(self.c),
-                    first,
-                    last,
-                    false,
-                    base,
-                );
+                self.carry = add_range(&mut self.c, c, Some(c), first, last, false, base);
             }
             0x0c => {
-                self.carry = add_range(
-                    &mut self.c,
-                    self.a,
-                    Some(self.c),
-                    first,
-                    last,
-                    false,
-                    base,
-                );
+                self.carry = add_range(&mut self.c, a, Some(c), first, last, false, base);
             }
             0x0d => {
-                self.carry = add_range(
-                    &mut self.a,
-                    self.a,
-                    None,
-                    first,
-                    last,
-                    true,
-                    base,
-                );
+                self.carry = add_range(&mut self.a, a, None, first, last, true, base);
             }
             0x0e => shift_left_range(&mut self.a, first, last),
             0x0f => {
-                self.carry = add_range(
-                    &mut self.c,
-                    self.c,
-                    None,
-                    first,
-                    last,
-                    true,
-                    base,
-                );
+                self.carry = add_range(&mut self.c, c, None, first, last, true, base);
             }
             0x10 => {
                 self.carry = sub_range(
                     Some(&mut self.a),
-                    Some(self.a),
-                    Some(self.b),
+                    Some(a),
+                    Some(b),
                     first,
                     last,
                     false,
@@ -389,8 +344,8 @@ impl ArchitecturalState {
             0x11 => {
                 self.carry = sub_range(
                     Some(&mut self.c),
-                    Some(self.a),
-                    Some(self.c),
+                    Some(a),
+                    Some(c),
                     first,
                     last,
                     false,
@@ -400,7 +355,7 @@ impl ArchitecturalState {
             0x12 => {
                 self.carry = sub_range(
                     Some(&mut self.a),
-                    Some(self.a),
+                    Some(a),
                     None,
                     first,
                     last,
@@ -411,7 +366,7 @@ impl ArchitecturalState {
             0x13 => {
                 self.carry = sub_range(
                     Some(&mut self.c),
-                    Some(self.c),
+                    Some(c),
                     None,
                     first,
                     last,
@@ -423,7 +378,7 @@ impl ArchitecturalState {
                 self.carry = sub_range(
                     Some(&mut self.c),
                     None,
-                    Some(self.c),
+                    Some(c),
                     first,
                     last,
                     false,
@@ -434,7 +389,7 @@ impl ArchitecturalState {
                 self.carry = sub_range(
                     Some(&mut self.c),
                     None,
-                    Some(self.c),
+                    Some(c),
                     first,
                     last,
                     true,
@@ -443,18 +398,18 @@ impl ArchitecturalState {
             }
             0x16 => {
                 self.instruction_state = InstructionState::ThenGoto;
-                self.carry = any_nonzero(self.b, first, last);
+                self.carry = any_nonzero(b, first, last);
             }
             0x17 => {
                 self.instruction_state = InstructionState::ThenGoto;
-                self.carry = any_nonzero(self.c, first, last);
+                self.carry = any_nonzero(c, first, last);
             }
             0x18 => {
                 self.instruction_state = InstructionState::ThenGoto;
                 self.carry = sub_range(
                     None,
-                    Some(self.a),
-                    Some(self.c),
+                    Some(a),
+                    Some(c),
                     first,
                     last,
                     false,
@@ -465,8 +420,8 @@ impl ArchitecturalState {
                 self.instruction_state = InstructionState::ThenGoto;
                 self.carry = sub_range(
                     None,
-                    Some(self.a),
-                    Some(self.b),
+                    Some(a),
+                    Some(b),
                     first,
                     last,
                     false,
@@ -475,17 +430,17 @@ impl ArchitecturalState {
             }
             0x1a => {
                 self.instruction_state = InstructionState::ThenGoto;
-                self.carry = all_zero(self.a, first, last);
+                self.carry = all_zero(a, first, last);
             }
             0x1b => {
                 self.instruction_state = InstructionState::ThenGoto;
-                self.carry = all_zero(self.c, first, last);
+                self.carry = all_zero(c, first, last);
             }
             0x1c => {
                 self.carry = sub_range(
                     Some(&mut self.a),
-                    Some(self.a),
-                    Some(self.c),
+                    Some(a),
+                    Some(c),
                     first,
                     last,
                     false,
@@ -612,7 +567,7 @@ mod tests {
     use super::*;
 
     fn arithmetic_word(operation: u8, field: Field) -> u16 {
-        let encoded_field = match field {
+        let encoded_field: u16 = match field {
             Field::P => 0,
             Field::Wp => 1,
             Field::Xs => 2,
@@ -699,6 +654,20 @@ mod tests {
             .expect("arithmetic word must execute");
 
         assert_eq!(state.a[0], 0);
+        assert!(state.carry);
+    }
+
+    #[test]
+    fn decimal_subtraction_reports_borrow() {
+        let mut state = ArchitecturalState::default();
+        state.a[0] = 3;
+        state.b[0] = 5;
+
+        state
+            .step_word(arithmetic_word(0x10, Field::P))
+            .expect("subtraction must execute");
+
+        assert_eq!(state.a[0], 8);
         assert!(state.carry);
     }
 
