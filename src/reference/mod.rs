@@ -4,6 +4,7 @@
 //! complete microinstruction atomically so that the much lower-level electrical
 //! implementation can be checked at well-defined architectural boundaries.
 
+pub mod crc;
 pub mod rom;
 pub mod snapshot;
 pub mod woodstock;
