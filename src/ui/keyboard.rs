@@ -2,7 +2,7 @@ use eframe::egui::{Align2, Color32, Painter, Rect, Shape, Stroke, Ui, Vec2};
 
 use super::geometry::{KeySpec, KeyStyle, SubAlign, Transform, DESIGN_H, DESIGN_W, KEYS};
 
-use super::legend_layout::{self, Mark};
+use super::legend_layout::{self, ExchangeForm, Mark};
 use crate::hp67::UiEvent;
 const WHITE: Color32 = Color32::from_rgb(218, 228, 215);
 const YELLOW: Color32 = Color32::from_rgb(185, 183, 75);
@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn exchange_spacing_tracks_the_printed_letters_at_both_legend_sizes() {
         for size in [6.7, 6.9, 7.7, 10.0] {
-            let (left, right, arrow) = exchange_positions("x", "y", size);
+            let (left, right, arrow) = exchange_positions("x", "y", size, ExchangeForm::Heads);
             let left_edge = left - print_width("x", size) * 0.5;
             let right_edge = right + print_width("y", size) * 0.5;
             assert!((left_edge + right_edge).abs() < 0.00001);
@@ -100,6 +100,96 @@ mod tests {
             assert!(path.closed);
             assert_eq!(path.stroke, Stroke::NONE);
             assert_eq!(path.fill, WHITE);
+        }
+    }
+
+    #[test]
+    fn conversion_marks_have_colored_shafts_and_opposing_heads() {
+        let ctx = egui::Context::default();
+        let output = ctx.run(egui::RawInput::default(), |ctx| {
+            draw_legend_cell(
+                &ctx.layer_painter(egui::LayerId::background()),
+                Transform {
+                    origin: Pos2::ZERO,
+                    scale: 1.0,
+                },
+                legend_layout::Cell {
+                    row: 7,
+                    x: 119.0,
+                    width: 62.0,
+                    mark: Mark::Conversion("R", "P"),
+                },
+            );
+        });
+        let shafts: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                Shape::LineSegment { points, stroke } => Some((points, stroke)),
+                _ => None,
+            })
+            .collect();
+        let heads: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                Shape::Path(path) => Some(path),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(shafts.len(), 2);
+        assert_eq!(heads.len(), 2);
+        assert_eq!(shafts[0].1.color, CYAN);
+        assert_eq!(shafts[1].1.color, YELLOW);
+        assert!(shafts[0].0[0].y < shafts[1].0[0].y);
+        assert!(shafts[0].0[1].x - shafts[0].0[0].x > 6.0);
+        assert!(shafts[1].0[0].x - shafts[1].0[1].x > 6.0);
+        assert!(heads[0].points[0].x > heads[0].points[1].x);
+        assert!(heads[1].points[0].x < heads[1].points[1].x);
+    }
+
+    #[test]
+    fn powers_keep_clear_ink_gaps_and_consistent_exponent_height() {
+        for size in [6.8, LEGEND_SIZE, TOP_LEGEND_SIZE] {
+            for base in ["e", "y", "10"] {
+                let ctx = egui::Context::default();
+                let output = ctx.run(egui::RawInput::default(), |ctx| {
+                    power(
+                        &ctx.layer_painter(egui::LayerId::background()),
+                        Transform {
+                            origin: Pos2::ZERO,
+                            scale: 1.0,
+                        },
+                        50.0,
+                        50.0,
+                        base,
+                        "x",
+                        size,
+                        WHITE,
+                        CYAN,
+                    );
+                });
+                let mut base_bounds = Rect::NOTHING;
+                let mut exp_bounds = Rect::NOTHING;
+                for s in output.shapes {
+                    let Shape::Mesh(mesh) = s.shape else { panic!() };
+                    for v in &mesh.vertices {
+                        if v.color == WHITE {
+                            base_bounds.extend_with(v.pos);
+                        }
+                        if v.color == CYAN {
+                            exp_bounds.extend_with(v.pos);
+                        }
+                    }
+                }
+                assert!(
+                    exp_bounds.left() - base_bounds.right() >= size * 0.15,
+                    "{base} at {size}"
+                );
+                assert!(((base_bounds.left() + exp_bounds.right()) * 0.5 - 50.0).abs() < 0.001);
+                assert!((exp_bounds.height() - size * 0.78 * 0.78).abs() < 0.001);
+                assert!(exp_bounds.center().y < base_bounds.center().y - size * 0.25);
+            }
         }
     }
 
@@ -605,8 +695,8 @@ fn draw_sub(p: &Painter, t: Transform, key: KeySpec, color: Color32, cy: f32) {
         }
         "indirect" => swap(p, t, key.cx, cy, "x", "I", 6.7, color),
         "7" => swap(p, t, key.cx, cy, "x", "y", 6.9, color),
-        "8" => r_arrow(p, t, key.cx, cy, false, 6.8, color),
-        "9" => r_arrow(p, t, key.cx, cy, true, 6.8, color),
+        "8" => r_arrow(p, t, key.cx, cy, false, RollForm::Triangle, 6.8, color),
+        "9" => r_arrow(p, t, key.cx, cy, true, RollForm::Triangle, 6.8, color),
         "4" => one_over_x(p, t, key.cx, cy, 6.8, color),
         "5" => power(p, t, key.cx, cy + 0.73, "y", "x", 6.8, color, color),
         "2" => pi(p, t, key.cx, cy, 7.0, color),
@@ -660,7 +750,7 @@ fn draw_legend_cell(p: &Painter, t: Transform, cell: legend_layout::Cell) {
         Mark::Top(0) => one_over_x(p, t, cx, cy, TOP_LEGEND_SIZE, WHITE),
         Mark::Top(1) => sqrt_x(p, t, cx, cy, TOP_LEGEND_SIZE, WHITE),
         Mark::Top(2) => power(p, t, cx, cy, "y", "x", TOP_LEGEND_SIZE, WHITE, WHITE),
-        Mark::Top(3) => r_arrow(p, t, cx, cy, false, TOP_LEGEND_SIZE, WHITE),
+        Mark::Top(3) => r_arrow(p, t, cx, cy, false, RollForm::Arrow, TOP_LEGEND_SIZE, WHITE),
         Mark::Top(_) => swap(p, t, cx, cy, "x", "y", TOP_LEGEND_SIZE, WHITE),
         Mark::Text(text, blue) => bold_txt(
             p,
@@ -671,28 +761,18 @@ fn draw_legend_cell(p: &Painter, t: Transform, cell: legend_layout::Cell) {
             if blue { CYAN } else { YELLOW },
             text,
         ),
-        Mark::Pair(left, right) => paired_legend(p, t, cx, cy, left, right, 5.0),
+        Mark::Pair(left, right, gap) => paired_legend(p, t, cx, cy, left, right, gap),
         Mark::Xbar => {
             xbar(p, t, cx - 7.5, cy, LEGEND_SIZE, YELLOW);
             bold_txt(p, t, cx + 7.5, cy, LEGEND_SIZE, CYAN, "s");
         }
-        Mark::Exchange(left, right, blue) => swap_two_color(
-            p,
-            t,
-            cx,
-            cy,
-            left,
-            right,
-            LEGEND_SIZE,
-            YELLOW,
-            if blue { CYAN } else { YELLOW },
-        ),
+        Mark::Exchange(left, right) => swap(p, t, cx, cy, left, right, LEGEND_SIZE, YELLOW),
+        Mark::Conversion(left, right) => conversion(p, t, cx, cy, left, right),
         Mark::Compare(op, extra) => comparison_pair(p, t, cx, cy, op, extra),
         Mark::Inverse(name) => inverse_trig(p, t, cx, cy, name),
-        Mark::TextPower(text, base) => {
+        Mark::TextPower(text, base, gap) => {
             let lw = print_width(text, LEGEND_SIZE);
             let rw = power_width(base, "x", LEGEND_SIZE);
-            let gap = 5.0;
             bold_txt(p, t, cx - (rw + gap) * 0.5, cy, LEGEND_SIZE, YELLOW, text);
             power(
                 p,
@@ -707,9 +787,9 @@ fn draw_legend_cell(p: &Painter, t: Transform, cell: legend_layout::Cell) {
             );
         }
         Mark::RadicalPower => {
-            let lw = 16.0 * LEGEND_SIZE / 9.0;
+            let lw = 16.05 * LEGEND_SIZE / 9.0;
             let rw = power_width("x", "2", LEGEND_SIZE);
-            let gap = 7.0;
+            let gap = legend_layout::RADICAL_PAIR_GAP;
             sqrt_x(p, t, cx - (rw + gap) * 0.5, cy, LEGEND_SIZE, YELLOW);
             power(
                 p,
@@ -725,12 +805,12 @@ fn draw_legend_cell(p: &Painter, t: Transform, cell: legend_layout::Cell) {
         }
         Mark::UnaryStack => {
             let lw =
-                print_width("x", LEGEND_SIZE) + 2.0 * print_width("\u{2212}", LEGEND_SIZE) + 2.0;
+                print_width("x", LEGEND_SIZE) + 2.0 * print_width("\u{2212}", LEGEND_SIZE) + 5.0;
             let rw = print_width("STK", LEGEND_SIZE);
-            let gap = 6.0;
+            let gap = 10.5;
             let left = cx - (rw + gap) * 0.5;
             let dx =
-                (print_width("x", LEGEND_SIZE) + print_width("\u{2212}", LEGEND_SIZE)) * 0.5 + 1.0;
+                (print_width("x", LEGEND_SIZE) + print_width("\u{2212}", LEGEND_SIZE)) * 0.5 + 2.5;
             bold_txt(p, t, left - dx, cy, LEGEND_SIZE, YELLOW, "\u{2212}");
             bold_txt(p, t, left, cy, LEGEND_SIZE, YELLOW, "x");
             bold_txt(p, t, left + dx, cy, LEGEND_SIZE, YELLOW, "\u{2212}");
@@ -739,7 +819,9 @@ fn draw_legend_cell(p: &Painter, t: Transform, cell: legend_layout::Cell) {
     }
 }
 fn power_width(base: &str, exp: &str, size: f32) -> f32 {
-    print_width(base, size) + size * 0.025 + print_width(exp, size * 0.78)
+    power_letter_width(base, size)
+        + size * legend_layout::POWER_GAP
+        + power_letter_width(exp, size * 0.78)
 }
 
 fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
@@ -795,9 +877,9 @@ fn bold_txt_aligned(
     s: &str,
     align: Align2,
 ) {
-    let (lo, hi) = super::glyphs::ink_bounds(s, size, printed_weight(size, s));
+    let (lo, hi) = print_bounds(s, size);
     let correction = if align == Align2::CENTER_CENTER {
-        (lo + hi - super::glyphs::width(s, size, printed_weight(size, s))) * 0.5
+        (lo + hi - print_advance(s, size)) * 0.5
     } else {
         0.0
     };
@@ -808,15 +890,16 @@ fn bold_txt_aligned(
         matched_math_text(p, t, x + correction, y, size, color, s, align);
         return;
     }
-    super::glyphs::text(
-        p,
+    p.add(Shape::mesh(super::glyphs::text_mesh_spaced(
         t.pos(x, y),
         t.s(size),
         color,
         s,
         align,
         printed_weight(size, s),
-    );
+        p.ctx().pixels_per_point(),
+        legend_layout::LETTER_TRACKING,
+    )));
 }
 // Matching nominal font sizes is insufficient: the custom math letters have
 // smaller ink bounds. Normalize their visible height to the row's cap height.
@@ -843,14 +926,14 @@ fn matched_math_text(
         .map(|v| v[1])
         .fold(f32::NEG_INFINITY, f32::max);
     let cap = t.s(size) * 0.78;
-    let (left, right) = super::glyphs::ink_bounds(value, size, weight);
+    let (left, right) = print_bounds(value, size);
     let offset = if align == Align2::CENTER_CENTER {
-        (left + right - super::glyphs::width(value, size, weight)) * 0.5
+        (left + right - print_advance(value, size)) * 0.5
     } else {
         0.0
     };
     let center = t.pos(x - offset, y);
-    let mut mesh = super::glyphs::text_mesh(
+    let mut mesh = super::glyphs::text_mesh_spaced(
         center,
         t.s(size),
         color,
@@ -858,10 +941,27 @@ fn matched_math_text(
         align,
         weight,
         p.ctx().pixels_per_point(),
+        legend_layout::LETTER_TRACKING,
     );
     let old_mid = center.y - cap * 0.5 + (lo + hi) * cap * 0.5;
     for v in &mut mesh.vertices {
         v.pos.y = center.y + (v.pos.y - old_mid) / (hi - lo);
+        if value == "e" {
+            v.pos.x += 0.20 * (center.y - v.pos.y);
+        }
+    }
+    if value == "e" {
+        let (lo, hi) = mesh
+            .vertices
+            .iter()
+            .filter(|v| v.color == color)
+            .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| {
+                (lo.min(v.pos.x), hi.max(v.pos.x))
+            });
+        let correction = t.pos(x, y).x - (lo + hi) * 0.5;
+        for v in &mut mesh.vertices {
+            v.pos.x += correction;
+        }
     }
     p.add(Shape::mesh(mesh));
 }
@@ -876,8 +976,24 @@ fn printed_weight(size: f32, value: &str) -> u16 {
     }
 }
 fn print_width(value: &str, size: f32) -> f32 {
-    let (lo, hi) = super::glyphs::ink_bounds(value, size, printed_weight(size, value));
+    let (lo, hi) = print_bounds(value, size);
     hi - lo
+}
+fn print_bounds(value: &str, size: f32) -> (f32, f32) {
+    super::glyphs::ink_bounds_spaced(
+        value,
+        size,
+        printed_weight(size, value),
+        legend_layout::LETTER_TRACKING,
+    )
+}
+fn print_advance(value: &str, size: f32) -> f32 {
+    super::glyphs::width_spaced(
+        value,
+        size,
+        printed_weight(size, value),
+        legend_layout::LETTER_TRACKING,
+    )
 }
 fn cross(p: &Painter, t: Transform, cx: f32, cy: f32, h: f32, c: Color32) {
     p.line_segment(
@@ -960,7 +1076,8 @@ fn one_over_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32
 
 fn sqrt_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
     let s = size / 9.0;
-    let x0 = cx - 8.2 * s;
+    // Center the visible radical, including its stroke, before spacing the pair.
+    let x0 = cx - 7.5 * s;
     let st = Stroke::new(t.s(1.05 * s), c);
     p.add(Shape::line(
         vec![
@@ -972,7 +1089,7 @@ fn sqrt_x(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32, c: Color32) {
         ],
         st,
     ));
-    bold_txt(p, t, cx + 3.5 * s, cy + 0.4 * s, size, c, "x");
+    bold_txt(p, t, cx + 4.2 * s, cy + 0.4 * s, size, c, "x");
 }
 fn power(
     p: &Painter,
@@ -986,25 +1103,12 @@ fn power(
     ec: Color32,
 ) {
     let exp_size = size * 0.78;
-    let base_width = print_width(base, size);
-    let exp_width = print_width(exp, exp_size);
-    let gap = size * 0.025;
+    let base_width = power_letter_width(base, size);
+    let exp_width = power_letter_width(exp, exp_size);
+    let gap = size * legend_layout::POWER_GAP;
     let left = cx - (base_width + gap + exp_width) * 0.5;
-    if size == LEGEND_SIZE && base == "e" {
-        matched_math_text(
-            p,
-            t,
-            left + base_width * 0.5,
-            cy,
-            size,
-            bc,
-            base,
-            Align2::CENTER_CENTER,
-        );
-    } else {
-        bold_txt(p, t, left + base_width * 0.5, cy, size, bc, base);
-    }
-    bold_txt(
+    power_letter(p, t, left + base_width * 0.5, cy, size, bc, base);
+    power_letter(
         p,
         t,
         left + base_width + gap + exp_width * 0.5,
@@ -1014,51 +1118,120 @@ fn power(
         exp,
     );
 }
-fn r_arrow(p: &Painter, t: Transform, cx: f32, cy: f32, up: bool, size: f32, c: Color32) {
+// Mathematical letters retain a common cap-height model even when the exponent
+// size falls between the panel/key font categories. The photographed e is sloped.
+fn power_letter(p: &Painter, t: Transform, x: f32, y: f32, size: f32, c: Color32, value: &str) {
+    if matches!(value, "x" | "y" | "e") {
+        matched_math_text(p, t, x, y, size, c, value, Align2::CENTER_CENTER);
+    } else {
+        bold_txt(p, t, x, y, size, c, value);
+    }
+}
+fn power_letter_width(value: &str, size: f32) -> f32 {
+    if value != "e" {
+        return print_width(value, size);
+    }
+    let g = super::lettering_data::glyph('e', printed_weight(size, value));
+    let (top, bottom) = g
+        .vertices
+        .iter()
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v[1]), hi.max(v[1]))
+        });
+    let (lo, hi) = g
+        .vertices
+        .iter()
+        .map(|v| v[0] + 0.20 * ((top + bottom) * 0.5 - v[1]) / (bottom - top))
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), x| {
+            (lo.min(x), hi.max(x))
+        });
+    (hi - lo) * size * 0.78
+}
+#[derive(Clone, Copy)]
+enum RollForm {
+    Arrow,
+    Triangle,
+}
+fn r_arrow(
+    p: &Painter,
+    t: Transform,
+    cx: f32,
+    cy: f32,
+    up: bool,
+    form: RollForm,
+    size: f32,
+    c: Color32,
+) {
     let height = size * 0.3;
-    let arrow_width = height * if size > 8.0 { 1.6 } else { 2.0 };
-    let gap = size * 0.10;
+    let arrow_width = height
+        * if matches!(form, RollForm::Arrow) {
+            1.6
+        } else {
+            2.0
+        };
+    let gap = size
+        * if matches!(form, RollForm::Arrow) {
+            0.10
+        } else {
+            0.28
+        };
     bold_txt(p, t, cx - (arrow_width + gap) * 0.5, cy, size, c, "R");
     let arrow_x = cx + (print_width("R", size) + gap) * 0.5;
-    if size > 8.0 {
+    if matches!(form, RollForm::Arrow) {
         vertical_arrow(p, t, arrow_x, cy + 0.2, height, up, c);
     } else {
         triangle(p, t, arrow_x, cy + 0.2, height, up, c);
     }
 }
 fn swap(p: &Painter, t: Transform, cx: f32, cy: f32, l: &str, r: &str, size: f32, c: Color32) {
-    swap_two_color(p, t, cx, cy, l, r, size, c, c)
-}
-fn swap_two_color(
-    p: &Painter,
-    t: Transform,
-    cx: f32,
-    cy: f32,
-    l: &str,
-    r: &str,
-    size: f32,
-    lc: Color32,
-    rc: Color32,
-) {
-    let (left, right, arrow) = exchange_positions(l, r, size);
-    bold_txt(p, t, cx + left, cy, size, lc, l);
-    bold_txt(p, t, cx + right, cy, size, rc, r);
-    exchange_heads(p, t, cx + arrow, cy, size, lc, rc);
+    let (left, right, arrow) = exchange_positions(l, r, size, ExchangeForm::Heads);
+    bold_txt(p, t, cx + left, cy, size, c, l);
+    bold_txt(p, t, cx + right, cy, size, c, r);
+    exchange_heads(p, t, cx + arrow, cy, size, c, c);
 }
 
-// Width ratios from the supplied close-up: mark ~0.14 key widths, complete
-// x/exchange/y group ~0.52 key widths. No fixed eight-unit letter offsets.
-fn exchange_positions(l: &str, r: &str, size: f32) -> (f32, f32, f32) {
+// Compact exchange heads and directional conversion arrows are different print.
+fn exchange_positions(l: &str, r: &str, size: f32, form: ExchangeForm) -> (f32, f32, f32) {
     let lw = print_width(l, size);
     let rw = print_width(r, size);
-    let arrow = size * legend_layout::EXCHANGE_WIDTH;
-    let gap = size * legend_layout::EXCHANGE_GAP;
+    let arrow = form.width(size);
+    let gap = form.gap(size);
     let start = -(lw + rw + arrow + 2.0 * gap) * 0.5;
     (
         start + lw * 0.5,
         start + lw + 2.0 * gap + arrow + rw * 0.5,
         start + lw + gap + arrow * 0.5,
     )
+}
+fn conversion(p: &Painter, t: Transform, cx: f32, cy: f32, l: &str, r: &str) {
+    let (left, right, arrow) = exchange_positions(l, r, LEGEND_SIZE, ExchangeForm::Conversion);
+    bold_txt(p, t, cx + left, cy, LEGEND_SIZE, YELLOW, l);
+    bold_txt(p, t, cx + right, cy, LEGEND_SIZE, CYAN, r);
+    conversion_arrows(p, t, cx + arrow, cy, LEGEND_SIZE);
+}
+fn conversion_arrows(p: &Painter, t: Transform, cx: f32, cy: f32, size: f32) {
+    let half = ExchangeForm::Conversion.width(size) * 0.5;
+    // Cyan: upper/right. Yellow: lower/left. Each head has its own full shaft.
+    for (sign, y, color) in [
+        (1.0, cy - size * 0.20, CYAN),
+        (-1.0, cy + size * 0.20, YELLOW),
+    ] {
+        let tip = cx + sign * half;
+        let shoulder = tip - sign * size * 0.34;
+        p.line_segment(
+            [t.pos(cx - sign * half, y), t.pos(shoulder, y)],
+            Stroke::new(t.s(size * 0.105), color),
+        );
+        p.add(Shape::convex_polygon(
+            vec![
+                t.pos(tip, y),
+                t.pos(shoulder, y - size * 0.18),
+                t.pos(shoulder, y + size * 0.18),
+            ],
+            color,
+            Stroke::NONE,
+        ));
+    }
 }
 fn exchange_heads(
     p: &Painter,
@@ -1102,11 +1275,19 @@ fn paired_legend(p: &Painter, t: Transform, cx: f32, cy: f32, left: &str, right:
 fn inverse_trig(p: &Painter, t: Transform, cx: f32, cy: f32, name: &str) {
     let lw = print_width(name, LEGEND_SIZE);
     let rw = print_width("\u{2212}1", 5.8);
-    bold_txt(p, t, cx - (rw + 0.3) * 0.5, cy, LEGEND_SIZE, YELLOW, name);
     bold_txt(
         p,
         t,
-        cx + (lw + 0.3) * 0.5,
+        cx - (rw + legend_layout::INVERSE_GAP) * 0.5,
+        cy,
+        LEGEND_SIZE,
+        YELLOW,
+        name,
+    );
+    bold_txt(
+        p,
+        t,
+        cx + (lw + legend_layout::INVERSE_GAP) * 0.5,
         cy - 3.4,
         5.8,
         CYAN,

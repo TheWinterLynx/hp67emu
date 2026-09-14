@@ -187,5 +187,22 @@
       "key_faces": "35 keys audited"
     },
     "details": "LAYOUT-MATRIX.md"
+  },
+  "spacing_symbols": {
+    "validation": {
+      "fmt": "passed",
+      "all_targets": "23 passed; 2 opt-in exporters",
+      "release": "passed",
+      "capture_sizes": [
+        "330x620",
+        "660x1240",
+        "1320x2480"
+      ],
+      "display_crops": "unchanged",
+      "pair_gap_raster_check": "5 groups within 1 logical unit of measured photo targets",
+      "legend_groups": 38,
+      "keys": 35
+    },
+    "details": "SPACING-SYMBOLS.md"
   }
 }

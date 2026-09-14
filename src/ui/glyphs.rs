@@ -8,15 +8,19 @@ use eframe::egui::{
 
 /// Advance of the exact outline run, used to place compact compound legends.
 pub fn width(value: &str, height: f32, weight: u16) -> f32 {
+    width_spaced(value, height, weight, 0.028)
+}
+
+pub fn width_spaced(value: &str, height: f32, weight: u16, tracking: f32) -> f32 {
     let count = value.chars().count();
     (value.chars().map(|c| glyph(c, weight).advance).sum::<f32>()
-        + count.saturating_sub(1) as f32 * 0.028)
+        + count.saturating_sub(1) as f32 * tracking)
         * height
         * 0.78
 }
 
 /// Visible horizontal bounds, excluding side bearings and antialias fringe.
-pub fn ink_bounds(value: &str, height: f32, weight: u16) -> (f32, f32) {
+pub fn ink_bounds_spaced(value: &str, height: f32, weight: u16, tracking: f32) -> (f32, f32) {
     let mut cursor = 0.0;
     let mut lo = f32::INFINITY;
     let mut hi = f32::NEG_INFINITY;
@@ -26,7 +30,7 @@ pub fn ink_bounds(value: &str, height: f32, weight: u16) -> (f32, f32) {
             lo = lo.min(cursor + v[0]);
             hi = hi.max(cursor + v[0]);
         }
-        cursor += g.advance + 0.028;
+        cursor += g.advance + tracking;
     }
     if !lo.is_finite() {
         return (0.0, 0.0);
@@ -64,9 +68,30 @@ pub fn text_mesh(
     weight: u16,
     pixels_per_point: f32,
 ) -> Mesh {
+    text_mesh_spaced(
+        pos,
+        height,
+        color,
+        value,
+        align,
+        weight,
+        pixels_per_point,
+        0.028,
+    )
+}
+
+pub fn text_mesh_spaced(
+    pos: Pos2,
+    height: f32,
+    color: Color32,
+    value: &str,
+    align: Align2,
+    weight: u16,
+    pixels_per_point: f32,
+    tracking: f32,
+) -> Mesh {
     let cap = height * 0.78;
-    let tracking = 0.028;
-    let width = width(value, height, weight);
+    let width = width_spaced(value, height, weight, tracking);
     let origin = align.anchor_size(pos, Vec2::new(width, cap)).min;
     let mut mesh = Mesh::default();
     let mut cursor = 0.0;

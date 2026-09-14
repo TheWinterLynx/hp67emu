@@ -101,3 +101,7 @@ lettering rather than relying on nominal font size alone.
 The [production layout matrix](tools/visual_compare/LAYOUT-MATRIX.md) controls
 all panel legend cells and exports their anchors alongside the 35-key geometry
 for a reproducible alignment overlay and measurements table.
+
+The [individual symbol and spacing audit](tools/visual_compare/SPACING-SYMBOLS.md)
+measures paired-function gaps, opens exponent spacing and distinguishes compact
+exchange heads from the full colored arrows used for conversions.

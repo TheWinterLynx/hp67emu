@@ -32,8 +32,12 @@ in `hp_math.py`. They replace those three Arimo contours at generation time.
 The x has curved crossing arms; y retains its hooked descender. Nonzero winding
 triangulation preserves solid overlaps as well as the font's counters. A Rust
 regression checks the x crossing, y descender and availability of pi.
-Compound exchange legends use actual outline advances and a mark 0.50 times
-the legend size, replacing the former 1.04 ratio and fixed letter offsets.
+Compound legends use visible outline bounds. Compact exchanges have a
+0.66-size head envelope; conversion pairs have full 1.1-size arrows with their
+own letter gaps. Keyboard tracking and pair/exponent gaps are recorded in
+`src/ui/legend_layout.rs`. Mathematical e is sloped in vector space, and every
+power uses the same exponent-height rule. See the individual symbol/spacing
+audit under `tools/visual_compare/SPACING-SYMBOLS.md`.
 
 The panel disables egui's prerasterized-disc optimization. The full-panel test
 checks that every tessellated vertex uses the solid white texel at 1x and 4x,
