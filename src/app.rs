@@ -1,6 +1,10 @@
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
-use crate::{hp67::Hp67State, panel::Hp67Panel, ui::sliders};
+use crate::{
+    hp67::Hp67State,
+    panel::Hp67Panel,
+    ui::{sliders, top_keys},
+};
 
 pub struct Hp67App {
     state: Hp67State,
@@ -42,6 +46,10 @@ impl eframe::App for Hp67App {
                 for event in Hp67Panel::show(ui, &self.state, &self.photo) {
                     self.state.handle(event);
                 }
+                // The photographed A-E wells are deeper than the other key rows.
+                // Correct only those five keys after the generic key pass, leaving
+                // the already-good animation of every other key untouched.
+                top_keys::paint(ui, host, &self.photo);
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
