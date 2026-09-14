@@ -24,27 +24,31 @@ struct PhotoSlider {
     id: &'static str,
     clip: PxRect,
     right_knob: PxRect,
+    erase_right: PxRect,
     empty_track: PxRect,
     travel_px: f32,
 }
 
 // hp67.png was photographed with both switches in their right-hand positions
-// (ON and RUN).  We keep that untouched image as the canonical right endpoint.
-// For the left endpoint we cover only the original knob footprint with a sample
-// of the real empty recess, then move the photographed knob itself across it.
+// (ON and RUN). The moving part is the ribbed actuator. For the left endpoint we
+// must erase not only the actuator pixels themselves, but also their small edge
+// highlights and contact shadow; otherwise fragments of the photographed right
+// position remain visible after the knob has moved away.
 const POWER: PhotoSlider = PhotoSlider {
     id: "power",
-    clip: PxRect::new(226.0, 289.0, 332.0, 317.0),
+    clip: PxRect::new(224.0, 286.0, 336.0, 321.0),
     right_knob: PxRect::new(284.0, 290.0, 327.0, 316.0),
-    empty_track: PxRect::new(235.0, 290.0, 278.0, 316.0),
+    erase_right: PxRect::new(277.0, 286.0, 335.0, 321.0),
+    empty_track: PxRect::new(225.0, 286.0, 283.0, 321.0),
     travel_px: 52.0,
 };
 
 const MODE: PhotoSlider = PhotoSlider {
     id: "mode",
-    clip: PxRect::new(597.0, 289.0, 704.0, 317.0),
+    clip: PxRect::new(595.0, 286.0, 707.0, 321.0),
     right_knob: PxRect::new(655.0, 290.0, 698.0, 316.0),
-    empty_track: PxRect::new(606.0, 290.0, 649.0, 316.0),
+    erase_right: PxRect::new(648.0, 286.0, 706.0, 321.0),
+    empty_track: PxRect::new(596.0, 286.0, 654.0, 321.0),
     travel_px: 52.0,
 };
 
@@ -101,26 +105,28 @@ fn paint_slider(
     rightness: f32,
 ) {
     // At the photographed endpoint there is nothing to synthesize: leaving the
-    // base image alone gives us exact pixels and avoids a double-drawn knob.
+    // base image alone gives exact original ON/RUN pixels.
     if rightness >= 0.9995 {
         return;
     }
 
     let clip = source_to_screen(photo_rect, slider.clip);
     let p = painter.with_clip_rect(clip);
-    let original_knob = source_to_screen(photo_rect, slider.right_knob);
 
-    // Remove the knob at its photographed right endpoint using a same-sized
-    // sample of the genuine empty recess.  Because the moving knob covers this
-    // sample for most of the transition, no procedural black rectangle is ever
-    // exposed and the texture continues to look photographic.
+    // Restore the complete area that belongs to the actuator at the photographed
+    // right endpoint, including the few pixels of highlight/shadow around it.
+    // The texture comes from the real empty half of the same switch, so the
+    // vacated side has the same photographic recess appearance as the ON/RUN
+    // image instead of leaving pieces of the original knob behind.
+    let erase = source_to_screen(photo_rect, slider.erase_right);
     p.image(
         photo.id(),
-        original_knob,
+        erase,
         source_uv(slider.empty_track),
         Color32::WHITE,
     );
 
+    let original_knob = source_to_screen(photo_rect, slider.right_knob);
     let scale = photo_rect.width() / PHOTO_W;
     let shift = slider.travel_px * scale * (1.0 - rightness.clamp(0.0, 1.0));
     let moved = original_knob.translate(vec2(-shift, 0.0));
@@ -145,6 +151,16 @@ mod tests {
             assert!(right <= slider.clip.x1);
             assert!(slider.right_knob.x0 >= slider.clip.x0);
             assert!(slider.right_knob.x1 <= slider.clip.x1);
+            assert!(slider.erase_right.x0 <= slider.right_knob.x0);
+            assert!(slider.erase_right.x1 >= slider.right_knob.x1);
+            assert_eq!(
+                (slider.erase_right.x1 - slider.erase_right.x0) as i32,
+                (slider.empty_track.x1 - slider.empty_track.x0) as i32
+            );
+            assert_eq!(
+                (slider.erase_right.y1 - slider.erase_right.y0) as i32,
+                (slider.empty_track.y1 - slider.empty_track.y0) as i32
+            );
         }
     }
 }
