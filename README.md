@@ -1,47 +1,52 @@
 # hp67emu
 
-Rust/egui HP-67 emulator project focused on hardware fidelity.
+A Rust HP-67 emulator project whose target is **cycle-accurate, pin-level electrical emulation executing the calculator's real microcode**.
 
-## Current front panel
+The production front panel is photorealistic. `assets/hp67.png` is compiled into the executable with `include_bytes!`, so the built program has no runtime dependency on an external image file.
 
-The production UI is photorealistic rather than vector-drawn:
+## Project direction
 
-- `assets/hp67.png` is the calculator body/front-panel source image.
-- The image is compiled into the executable with `include_bytes!`, so the built EXE does not require an external PNG at runtime.
-- Keys use photographed keycaps with animated mechanical travel.
-- OFF/ON and W/PRGM/RUN use animated photographed slide switches.
-- The LED display is rendered over the photographed glass using the measured HP Classic-series 15-position display geometry.
-- The old full vector chassis/keyboard/material renderer and its lettering-generation assets have been removed.
+The project is being split into two deliberate layers:
 
-The calculator execution core is still a temporary UI-facing model. The intended next step is to replace formatted display text and logical key events with the real HP-67/Woodstock execution and electrical scan state.
+- **Reusable emulation library** (`src/lib.rs`, `src/emulation/`, `src/machines/`) — deterministic timing, electrical nets, chip models and calculator compositions. It must stay independent of egui and image rendering.
+- **HP-67 desktop front end** (`src/main.rs`, `src/app.rs`, `src/panel.rs`, `src/ui/`) — photographed body, input hit regions, key/switch animation and LED optics.
 
-## Build
+The current `src/hp67.rs` remains a temporary UI smoke-test state. It is explicitly not the future calculator core and will be removed once the electrical machine can boot real microcode and drive the panel.
 
-Install the stable Rust toolchain and run:
+## Architecture and plan
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Current TODO](TODO.md)
+- [Hardware evidence and source policy](docs/HARDWARE_SOURCES.md)
+- [Documentation contract](docs/DOCUMENTATION_POLICY.md)
+- [Embedded assets](docs/ASSETS.md)
+- [Per-file documentation index](docs/FILES.md)
+
+Every Rust source file must have a companion Markdown document under `docs/files/`. `cargo test` contains a regression that fails when a source file is added without its documentation or when required documentation sections are missing.
+
+## Build and regression suite
 
 ```powershell
 cargo test; cargo run --release
 ```
 
-## Asset embedding
+The regression suite currently checks, among other things:
 
-The front-panel image lives at:
+- the non-overlapping two-phase timing scaffold;
+- electrical net floating/pull/drive/contention resolution;
+- the HP-67 hardware inventory and core named nets;
+- separation between the reusable emulation core and GUI/image dependencies;
+- the per-file Markdown documentation contract.
 
-```text
-assets/hp67.png
-```
+## Branch discipline
 
-`src/app.rs` embeds it at compile time:
+`main` is the stable integration branch. Emulator work is developed in focused branches created from the current `main`; after a milestone is validated and merged, the next branch starts from the new `main`. This keeps timing, ACT, ROM/RAM, display, keyboard and card-reader work reviewable in isolation.
 
-```rust
-include_bytes!("../assets/hp67.png")
-```
+## Current front panel
 
-Changing the PNG therefore requires recompiling, but distributing the resulting executable does not require shipping the image separately.
-
-## Current controls
-
-- Click OFF/ON to toggle calculator power.
-- Click W/PRGM/RUN to toggle the current mode stub.
-- Click the photographed keys to exercise the current UI state model.
-- The display currently starts at `0.00` as a temporary stand-in for the power-on state; once the calculator core is implemented, display state should come from emulated hardware signals rather than UI formatting.
+- `assets/hp67.png` is embedded into the EXE.
+- Keys use photographed keycaps with animated travel.
+- OFF/ON and W/PRGM/RUN use animated photographed sliders.
+- The LED renderer uses measured HP Classic-style geometry over the photographed glass.
+- The visible `0.00` at startup is still a temporary UI placeholder. In the final emulator the display will be an electrical consequence of ACT/ROM/display-driver activity, not formatted UI text.
