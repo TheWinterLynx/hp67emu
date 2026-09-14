@@ -1,6 +1,6 @@
 # HP-67 microcode provenance and verification
 
-Research snapshot: 2026-09-14.
+Research snapshot: 2026-09-15.
 
 ## Preferred source
 
@@ -18,10 +18,14 @@ The exact filenames, encoding, chip mapping and SHA-256 values inside the archiv
 Use at least two independent references before accepting our interpretation of a raw word or opcode family:
 
 - Teenix HP-67 emulator module: https://www.teenix.org/HP67.zip
+- Nonpareil HP-67 disassembly and machine definition: https://github.com/brouhaha/nonpareil
+- x11-calc HP-67 implementation and embedded ROM corpus: https://github.com/mike632t/x11-calc
 - Panamatik HP-67 emulator, documented as running original HP-67 microcode: https://www.panamatik.de/html/hp-67.html
 - Sydney Smith HP67u/HP67w microcode emulators and address-level analyses: https://www.sydneysmith.com/wordpress/hp67-main/
 - Sydney Smith article index: https://www.sydneysmith.com/wordpress/articles/
 - Tony Nixon, *Notes on HP's Classic Calculators*: https://literature.hpcalc.org/community/classic-notes.pdf
+
+x11-calc is especially useful as a third ROM corpus because `src/x11-calc-67.c` embeds an 8192-entry HP-67 ROM array. Its first words, octal `00000, 01743`, agree with Nonpareil's symbolic reset entry (`nop`, `go to reset0`). This is a useful sanity check, but x11-calc does not document physical-reader provenance for that array, so it remains a cross-check rather than the canonical source.
 
 Reference emulators are not sources of electrical truth. They are useful for detecting our own decoding mistakes and for finding interesting execution paths to verify against raw ROM and hardware traces.
 
@@ -47,9 +51,11 @@ When the ROM-reader archive has been downloaded locally:
 6. Map images to physical HP part numbers and logical banks/address ranges.
 7. Check total implemented address space against the HP-67 ROM map.
 8. Compare the `$400-$FFF` region against an independently obtained HP-97 dump where formats permit.
-9. Decode known startup locations and compare with published execution traces.
-10. Run our decoder against Sydney Smith and Teenix/Panamatik address-level observations.
-11. Store the verified hashes and mapping in the repository, but not necessarily the copyrighted ROM payload itself.
+9. Compare every available HP-67 address against Nonpareil's disassembly/object mapping.
+10. Compare the resulting logical 8192-entry banked image against x11-calc's embedded `i_rom[]` corpus and report every disagreement by bank/page/address.
+11. Decode known startup locations and compare with published execution traces.
+12. Run our decoder against Sydney Smith and Teenix/Panamatik address-level observations.
+13. Store the verified hashes and mapping in the repository, but not necessarily the copyrighted ROM payload itself.
 
 ## Repository policy
 
