@@ -14,9 +14,9 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add HP-67 electrical backplane shell.
 - [x] Add GUI/core architecture regression.
 - [x] Add per-source documentation regression.
-- [x] Add CI regression with compiler warnings denied.
+- [x] Define the local regression command with compiler warnings denied.
 - [x] Remove stale vector-rendering comparison tooling.
-- [ ] Normalize inherited photographic UI files with rustfmt, then enable `cargo fmt --check` in CI.
+- [ ] Normalize inherited photographic UI files with rustfmt, then add `cargo fmt --check` to the local regression command.
 
 ## Next: evidence and timing
 
@@ -33,7 +33,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 ## ROM/microcode corpus
 
-- [ ] Obtain known-good HP-67 ROM dumps from a source we are allowed to use for development.
+- [x] Identify the Teenix physical ROM-reader archive as the preferred first HP-67 dump source; see `docs/MICROCODE_PROVENANCE.md`.
+- [ ] Download and inspect the HP-67 ROM files from the Teenix ROM-reader archive locally.
 - [ ] Record chip-to-image mapping and SHA-256 for every ROM image.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
 - [ ] Build a ROM loader that can use external development images without coupling the core to file I/O.
