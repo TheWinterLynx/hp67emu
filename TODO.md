@@ -24,9 +24,9 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add a UI-independent Rust `reference::woodstock` namespace.
 - [x] Encode the 14-digit architectural state and 10-bit four-way opcode classification in Rust.
 - [x] Add regression tests covering the complete 1024-word opcode classification and field ranges.
-- [ ] Implement the 32 arithmetic/register operations in the semantic reference model.
-- [ ] Implement special instructions used by the HP-67 ROM: status/P, constants, ROM selection, delayed ROM selection, RAM/register access, display control, key dispatch, return and bank switch.
-- [ ] Implement semantic JSB/GOTO/THEN-GOTO state transitions and two-level return stack.
+- [x] Implement the 32 arithmetic/register operations in the semantic reference model.
+- [x] Implement special instructions used by the HP-67 ROM: status/P, constants, ROM selection, delayed ROM selection, RAM/register access, display control, key dispatch, return and bank switch.
+- [x] Implement semantic JSB/GOTO/THEN-GOTO state transitions and two-level return stack.
 - [ ] Add a semantic ROM/bank loader independent of host file I/O.
 - [ ] Add instruction-boundary snapshots and a readable state-diff formatter.
 - [ ] Build a differential harness: semantic reference vs electrical ACT at every completed microinstruction.
