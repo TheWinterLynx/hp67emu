@@ -1,111 +1,47 @@
 # hp67emu
 
-A Rust-based Hewlett-Packard 67 emulator project.
+Rust/egui HP-67 emulator project focused on hardware fidelity.
 
-This first milestone provides a fully vector-drawn, resolution-independent HP-67 front panel using `eframe`/`egui`. The calculator keeps its aspect ratio while the window is resized, and keys/switches are interactive.
+## Current front panel
 
-## Current scope
+The production UI is photorealistic rather than vector-drawn:
 
-- Vector chassis, bezel, display, switches and keyboard
-- Logical 330 × 620 coordinate system
-- Aspect-ratio-preserving resize
-- Vector seven-segment LED display
-- Clickable keys with a small demo input model
-- Power and RUN/W/PRGM switches
-- Unit tests for layout scaling and display segment mapping
+- `assets/hp67.png` is the calculator body/front-panel source image.
+- The image is compiled into the executable with `include_bytes!`, so the built EXE does not require an external PNG at runtime.
+- Keys use photographed keycaps with animated mechanical travel.
+- OFF/ON and W/PRGM/RUN use animated photographed slide switches.
+- The LED display is rendered over the photographed glass using the measured HP Classic-series 15-position display geometry.
+- The old full vector chassis/keyboard/material renderer and its lettering-generation assets have been removed.
 
-The calculator execution core is intentionally separated from the UI work and can be added behind the key events/state model without changing the vector renderer.
+The calculator execution core is still a temporary UI-facing model. The intended next step is to replace formatted display text and logical key events with the real HP-67/Woodstock execution and electrical scan state.
 
 ## Build
 
-Install the current stable Rust toolchain from <https://rustup.rs/> and then:
+Install the stable Rust toolchain and run:
 
 ```powershell
-git clone https://github.com/TheWinterLynx/hp67emu.git
-Set-Location hp67emu
-cargo test
-cargo run --release
+cargo test; cargo run --release
 ```
 
-## Controls
+## Asset embedding
 
-- Click the left top switch area to toggle power.
-- Click the right top switch area to toggle RUN/W/PRGM.
-- Numeric keys enter a demo value so the vector LED display can be exercised.
-- `CLx` clears the demo display.
-- `CHS` changes its sign.
-
-## Design
-
-The reference design space is fixed at 330 × 620 logical units. Rendering uses one uniform scale:
+The front-panel image lives at:
 
 ```text
-scale = min(available_width / 330, available_height / 620)
+assets/hp67.png
 ```
 
-The panel is then centered in the available window, so it can be rendered at any DPI or window size without stretching.
+`src/app.rs` embeds it at compile time:
 
+```rust
+include_bytes!("../assets/hp67.png")
+```
 
-## Visual fidelity workflow
+Changing the PNG therefore requires recompiling, but distributing the resulting executable does not require shipping the image separately.
 
-The renderer now has one measured keyboard matrix in `src/ui/geometry.rs`,
-one keycap-local artwork path in `src/ui/keyboard.rs`, and portable vector
-legend contours in `src/ui/glyphs.rs`. Key travel is rigid and snapped to physical
-pixels, including on high-DPI displays.
+## Current controls
 
-See [the comparison workflow](tools/visual_compare/README.md) for the reference,
-measurements, two-pass results, reproducible headless captures and known limits.
-This remains a first reconstruction pass; it does not claim pixel-identical
-printing or full HP-67 firmware emulation.
-
-
-The [realism follow-up](tools/visual_compare/REALISM.md) adds a molded
-case, surface lighting and grain, rounded key shoulders, ribbed switches and a
-15-position display grid with its own decimal cell. Native windows resize from
-165 x 310 with no configured maximum; the calculator retains its aspect ratio.
-
-
-The [frontal-reference correction](tools/visual_compare/FRONTAL-CORRECTION.md)
-replaces the exaggerated taper with gently bowed sides, corrects the display
-window and places the reciprocal's x lower than its raised 1.
-
-The [glyph and lower-face audit](tools/visual_compare/GLYPH-NOSE-AUDIT.md)
-adds curved mathematical lettering, compact exchange marks and a projected
-nameplate on the falling lower face, including a vector reconstruction of the
-period HP badge.
-
-The [resolution and case-face correction](tools/visual_compare/RESOLUTION-CASE-FACE.md)
-integrates the falling nose into the chassis, keeps the nameplate edges straight,
-and verifies vector-only rendering with higher-precision character contours.
-
-The [antialiasing and rim pass](tools/visual_compare/AA-RIM.md) gives the white
-rim a continuous, uniform stroke and adds edge coverage to keyboard/body
-geometry while preserving the display rendering.
-
-The [reference-led lower-case correction](tools/visual_compare/REFERENCE-NOSE.md)
-revises the rounded fall of the nose and vintage badge proportions, and checks
-the white rim's rendered coverage along both the sides and bottom.
-
-The [exchange-head and alignment correction](tools/visual_compare/HEADS-ALIGNMENT.md)
-uses shaftless exchange symbols, centers compound legends and adds a little
-height to both printed key faces.
-
-The [key legibility pass](tools/visual_compare/LEGIBILITY.md) adds further key
-height, adjusts printing sizes against reference crops and tests that every
-printed mark stays inside its own face.
-
-The [uniform-legend correction](tools/visual_compare/UNIFORM-LEGENDS.md) shares
-sizes across each legend row and matches mathematical ink height to normal
-lettering rather than relying on nominal font size alone.
-
-The [production layout matrix](tools/visual_compare/LAYOUT-MATRIX.md) controls
-all panel legend cells and exports their anchors alongside the 35-key geometry
-for a reproducible alignment overlay and measurements table.
-
-The [individual symbol and spacing audit](tools/visual_compare/SPACING-SYMBOLS.md)
-measures paired-function gaps, opens exponent spacing and distinguishes compact
-exchange heads from the full colored arrows used for conversions.
-
-The [whole-calculator proportion audit](tools/visual_compare/PROPORTIONS.md)
-anchors the case to HP's published dimensions, remeasures each key family and
-the display, and verifies clearance below the final row from rendered contours.
+- Click OFF/ON to toggle calculator power.
+- Click W/PRGM/RUN to toggle the current mode stub.
+- Click the photographed keys to exercise the current UI state model.
+- The display currently starts at `0.00` as a temporary stand-in for the power-on state; once the calculator core is implemented, display state should come from emulated hardware signals rather than UI formatting.
