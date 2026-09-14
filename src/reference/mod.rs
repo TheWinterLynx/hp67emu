@@ -5,6 +5,7 @@
 //! implementation can be checked at well-defined architectural boundaries.
 
 pub mod crc;
+pub mod differential;
 pub mod hp67;
 pub mod rom;
 pub mod snapshot;
