@@ -172,7 +172,7 @@ impl Hp67Panel {
             let press = ui.ctx().animate_bool_with_time(
                 response.id.with("travel"),
                 down,
-                if down { 0.042 } else { 0.082 },
+                if down { 0.040 } else { 0.075 },
             );
             if press > 0.001 {
                 paint_pressed_key(&painter, photo, photo_rect, key.src, press);
@@ -215,27 +215,39 @@ fn paint_pressed_key(
     let original = source_to_screen(photo_rect, src);
     let scale = photo_rect.height() / PHOTO_H;
 
-    // About seven source pixels of physical travel: clearly visible at 1x,
-    // restrained enough to read as the short, firm travel of a Classic-series
-    // HP key rather than a modern GUI button.
-    let travel = 7.0 * scale * press;
+    // Classic-series keys have short, firm travel.  Keep the movement visible
+    // without opening the exaggerated rectangular cavity of the first pass.
+    let travel = 3.8 * scale * press;
 
-    // Hide only the narrow strip vacated by the keycap.  The original photo
-    // remains untouched everywhere else, preserving its texture and lighting.
+    // Reconstruct the newly exposed strip from the photographed panel directly
+    // above the key.  This preserves the real texture and lighting instead of
+    // inventing a flat black slot, which looked artificial in motion.
+    let gap_h = travel + 0.35 * scale;
     let gap = Rect::from_min_max(
         original.min,
-        pos2(original.max.x, (original.min.y + travel + scale * 1.5).min(original.max.y)),
+        pos2(original.max.x, (original.min.y + gap_h).min(original.max.y)),
     );
-    p.rect_filled(gap, 0.0, Color32::from_rgb(24, 25, 22));
+    let recess_src = PxRect::new(src.x0, (src.y0 - 4.0).max(0.0), src.x1, src.y0);
+    let recess_shade = (248.0 - 8.0 * press).round() as u8;
+    p.image(
+        photo.id(),
+        gap,
+        source_uv(recess_src),
+        Color32::from_rgb(recess_shade, recess_shade, recess_shade),
+    );
 
-    // The dark line in the newly exposed recess is the strongest depth cue.
+    // Only a restrained contact/occlusion cue is needed at the top edge.
+    let edge_y = original.top() + travel;
     p.line_segment(
-        [gap.left_bottom(), gap.right_bottom()],
-        Stroke::new((1.2 * scale).max(0.7), Color32::from_rgba_unmultiplied(0, 0, 0, 190)),
+        [pos2(original.left() + scale * 3.0, edge_y), pos2(original.right() - scale * 3.0, edge_y)],
+        Stroke::new(
+            (0.75 * scale).max(0.45),
+            Color32::from_rgba_unmultiplied(0, 0, 0, (42.0 + 34.0 * press).round() as u8),
+        ),
     );
 
     let moved = original.translate(vec2(0.0, travel));
-    let shade = (255.0 - 14.0 * press).round() as u8;
+    let shade = (255.0 - 7.0 * press).round() as u8;
     p.image(
         photo.id(),
         moved,
@@ -243,16 +255,15 @@ fn paint_pressed_key(
         Color32::from_rgb(shade, shade, shade),
     );
 
-    // A very small lower contact shadow makes the photographed key feel seated
-    // in the panel when it reaches the bottom of its travel.
-    let shadow_alpha = (42.0 + 55.0 * press).round() as u8;
+    // A soft lower contact shadow gives depth without making the key look cut out.
+    let shadow_alpha = (30.0 + 34.0 * press).round() as u8;
     p.line_segment(
         [
-            pos2(moved.left() + scale * 5.0, moved.bottom()),
-            pos2(moved.right() - scale * 5.0, moved.bottom()),
+            pos2(moved.left() + scale * 6.0, moved.bottom()),
+            pos2(moved.right() - scale * 6.0, moved.bottom()),
         ],
         Stroke::new(
-            (1.5 * scale).max(0.8),
+            (1.0 * scale).max(0.6),
             Color32::from_rgba_unmultiplied(0, 0, 0, shadow_alpha),
         ),
     );
