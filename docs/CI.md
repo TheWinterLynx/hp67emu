@@ -1,15 +1,23 @@
-# Continuous regression checks
+# Local regression checks
 
-The repository has one regression workflow at `.github/workflows/regression.yml`.
+GitHub Actions is intentionally not configured for this project unless the repository owner explicitly authorizes it.
 
-It runs on every push and pull request and executes:
+Validation is performed locally after pulling a branch. The current regression command is:
 
 ```text
 RUSTFLAGS=-D warnings cargo test --all-targets
 ```
 
-This makes compiler warnings regressions rather than informational output. It also runs the source-documentation and architecture-boundary tests automatically whenever GitHub Actions executes for the branch or pull request.
+This treats compiler warnings as regressions and runs the source-documentation and architecture-boundary tests together with the emulator tests.
 
-`cargo fmt --check` is intentionally **not** a gate yet because the existing photographic UI files predate this foundation and are not fully rustfmt-clean. Formatting cleanup is tracked separately; enabling a formatting gate before normalizing that inherited baseline would make an unrelated historical style issue block emulator work.
+`cargo fmt --check` is intentionally **not** a gate yet because the existing photographic UI files predate the cycle-accurate foundation and are not fully rustfmt-clean. Formatting cleanup is tracked separately; enabling a formatting gate before normalizing that inherited baseline would make an unrelated historical style issue block emulator work.
 
-Once the existing UI is normalized, the workflow should add `cargo fmt --all -- --check` as a required step. Clippy can be promoted later after a clean baseline is established.
+Once the inherited UI baseline has been normalized, local validation should also run:
+
+```text
+cargo fmt --all -- --check
+```
+
+Clippy can be promoted to the local regression command after the repository has a clean warning baseline.
+
+No workflow under `.github/workflows/` should be added or enabled without explicit permission from the repository owner.
