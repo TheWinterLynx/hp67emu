@@ -11,7 +11,7 @@ The current preferred starting point for the original HP-67 microcode is Tony Ni
 
 In that discussion Nixon states that the archive contains ROM files for both HP-97 and HP-67 produced by his physical ROM-reader project. That makes it more valuable to this project than a listing transcribed from an emulator or reconstructed from program behaviour.
 
-The exact filenames, encoding, chip mapping and SHA-256 values inside the archive are deliberately **not** asserted here until we inspect the downloaded archive locally. We will not invent those details.
+The locally observed HP-67 Teenix files `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` are binary. Their internal record/word layout is not yet proven, so the project deliberately does not guess endian, packing, addresses or bank assignment.
 
 ## Independent cross-checks
 
@@ -28,6 +28,14 @@ Use at least two independent references before accepting our interpretation of a
 x11-calc is especially useful as a third ROM corpus because `src/x11-calc-67.c` embeds an 8192-entry HP-67 ROM array. Its first words, octal `00000, 01743`, agree with Nonpareil's symbolic reset entry (`nop`, `go to reset0`). This is a useful sanity check, but x11-calc does not document physical-reader provenance for that array, so it remains a cross-check rather than the canonical source.
 
 Reference emulators are not sources of electrical truth. They are useful for detecting our own decoding mistakes and for finding interesting execution paths to verify against raw ROM and hardware traces.
+
+## Normalized corpus format and tooling
+
+The repository now contains a local, firmware-free comparison path in `src/research/rom_corpus.rs` and `src/bin/rom_compare.rs`. All sources are normalized to explicit `(bank, pc, 10-bit word)` coordinates before comparison.
+
+The x11-calc extractor requires all 8192 words and maps its flat image into two 4096-word banks. Address/opcode pair listings can be imported with an explicit radix, sparse bank/page files can be merged only when overlaps agree, and the comparator reports every mismatch or missing location by bank/page/PC. Binary `inspect` mode intentionally reports only factual properties and does not infer the unknown Teenix `.pfl` format.
+
+The complete reproducible procedure and command examples are in `docs/ROM_CORPUS_WORKFLOW.md`.
 
 ## HP-67 / HP-97 relationship
 
@@ -47,15 +55,16 @@ When the ROM-reader archive has been downloaded locally:
 2. Record archive SHA-256 and source URL/date.
 3. Extract to a non-repository research directory.
 4. Record every HP-67 file name, size and SHA-256.
-5. Determine the word encoding without modifying the source image.
+5. Determine the `.pfl`/reader word encoding from Teenix source/documentation or another independently verified decoder; do not infer it from desired output.
 6. Map images to physical HP part numbers and logical banks/address ranges.
-7. Check total implemented address space against the HP-67 ROM map.
-8. Compare the `$400-$FFF` region against an independently obtained HP-97 dump where formats permit.
-9. Compare every available HP-67 address against Nonpareil's disassembly/object mapping.
-10. Compare the resulting logical 8192-entry banked image against x11-calc's embedded `i_rom[]` corpus and report every disagreement by bank/page/address.
-11. Decode known startup locations and compare with published execution traces.
-12. Run our decoder against Sydney Smith and Teenix/Panamatik address-level observations.
-13. Store the verified hashes and mapping in the repository, but not necessarily the copyrighted ROM payload itself.
+7. Normalize the Teenix corpus with a tested parser.
+8. Extract x11-calc with `rom_compare extract-x11`.
+9. Assemble/export Nonpareil's HP-67 sources to address/opcode pairs and normalize each bank with `rom_compare import-pairs`; merge them with conflict checking.
+10. Compare Teenix ↔ Nonpareil, Teenix ↔ x11-calc and Nonpareil ↔ x11-calc, recording every disagreement by bank/page/address.
+11. Compare the `$400-$FFF` region against an independently obtained HP-97 dump where formats permit.
+12. Decode known startup locations and compare with published execution traces.
+13. Run our decoder against Sydney Smith and Teenix/Panamatik address-level observations.
+14. Store verified hashes, mapping and comparison reports in the repository, but not necessarily the copyrighted ROM payload itself.
 
 ## Repository policy
 
