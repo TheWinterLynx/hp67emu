@@ -25,30 +25,31 @@ struct PhotoSlider {
     clip: PxRect,
     right_knob: PxRect,
     erase_right: PxRect,
-    empty_track: PxRect,
+    clean_track_sample: PxRect,
     travel_px: f32,
 }
 
 // hp67.png was photographed with both switches in their right-hand positions
-// (ON and RUN). The moving part is the ribbed actuator. For the left endpoint we
-// must erase not only the actuator pixels themselves, but also their small edge
-// highlights and contact shadow; otherwise fragments of the photographed right
-// position remain visible after the knob has moved away.
+// (ON and RUN). Only the ribbed actuator moves. The vacated right side is rebuilt
+// from a narrow, clean piece of the real empty slot and stretched horizontally;
+// this avoids copying the small molded/reflection feature that previously looked
+// like a plastic tab next to the moving actuator.
 const POWER: PhotoSlider = PhotoSlider {
     id: "power",
-    clip: PxRect::new(224.0, 286.0, 336.0, 321.0),
+    clip: PxRect::new(222.0, 286.0, 330.0, 321.0),
     right_knob: PxRect::new(284.0, 290.0, 327.0, 316.0),
-    erase_right: PxRect::new(277.0, 286.0, 335.0, 321.0),
-    empty_track: PxRect::new(225.0, 286.0, 283.0, 321.0),
+    erase_right: PxRect::new(274.0, 286.0, 329.0, 321.0),
+    clean_track_sample: PxRect::new(225.0, 286.0, 235.0, 321.0),
     travel_px: 52.0,
 };
 
 const MODE: PhotoSlider = PhotoSlider {
     id: "mode",
-    clip: PxRect::new(595.0, 286.0, 707.0, 321.0),
+    // Stop before the RUN legend: the previous 706px erase reached into the R.
+    clip: PxRect::new(593.0, 286.0, 702.0, 321.0),
     right_knob: PxRect::new(655.0, 290.0, 698.0, 316.0),
-    erase_right: PxRect::new(648.0, 286.0, 706.0, 321.0),
-    empty_track: PxRect::new(596.0, 286.0, 654.0, 321.0),
+    erase_right: PxRect::new(645.0, 286.0, 700.0, 321.0),
+    clean_track_sample: PxRect::new(596.0, 286.0, 606.0, 321.0),
     travel_px: 52.0,
 };
 
@@ -113,16 +114,15 @@ fn paint_slider(
     let clip = source_to_screen(photo_rect, slider.clip);
     let p = painter.with_clip_rect(clip);
 
-    // Restore the complete area that belongs to the actuator at the photographed
-    // right endpoint, including the few pixels of highlight/shadow around it.
-    // The texture comes from the real empty half of the same switch, so the
-    // vacated side has the same photographic recess appearance as the ON/RUN
-    // image instead of leaving pieces of the original knob behind.
+    // Completely remove the photographed right-position actuator and its contact
+    // highlight/shadow, but never touch the OFF/ON/W/PRGM/RUN lettering. A clean
+    // vertical slice of the genuine empty recess is stretched across the vacated
+    // area, so there is no copied molded bump or leftover plastic fragment.
     let erase = source_to_screen(photo_rect, slider.erase_right);
     p.image(
         photo.id(),
         erase,
-        source_uv(slider.empty_track),
+        source_uv(slider.clean_track_sample),
         Color32::WHITE,
     );
 
@@ -143,7 +143,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn slider_endpoints_stay_inside_their_tracks() {
+    fn slider_endpoints_and_cleanup_stay_inside_the_tracks() {
         for slider in [POWER, MODE] {
             let left = slider.right_knob.x0 - slider.travel_px;
             let right = slider.right_knob.x1 - slider.travel_px;
@@ -153,14 +153,9 @@ mod tests {
             assert!(slider.right_knob.x1 <= slider.clip.x1);
             assert!(slider.erase_right.x0 <= slider.right_knob.x0);
             assert!(slider.erase_right.x1 >= slider.right_knob.x1);
-            assert_eq!(
-                (slider.erase_right.x1 - slider.erase_right.x0) as i32,
-                (slider.empty_track.x1 - slider.empty_track.x0) as i32
-            );
-            assert_eq!(
-                (slider.erase_right.y1 - slider.erase_right.y0) as i32,
-                (slider.empty_track.y1 - slider.empty_track.y0) as i32
-            );
+            assert!(slider.erase_right.x0 >= slider.clip.x0);
+            assert!(slider.erase_right.x1 <= slider.clip.x1);
+            assert!(slider.clean_track_sample.x1 < slider.erase_right.x0);
         }
     }
 }
