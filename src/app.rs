@@ -4,6 +4,7 @@ use crate::{
     hp67::Hp67State,
     panel::Hp67Panel,
     ui::{
+        classic_display,
         geometry::{DESIGN_H, DESIGN_W},
         photo_fx,
     },
@@ -43,6 +44,12 @@ impl eframe::App for Hp67App {
                 for event in Hp67Panel::show(ui, &self.state) {
                     self.state.handle(event);
                 }
+
+                // Replace only the legacy generic LED artwork with a calibrated
+                // Classic-series hardware model.  It intentionally runs before
+                // the photo pass so the glass Fresnel/reflection treatment lands
+                // on top of the LEDs exactly as it would on the physical unit.
+                classic_display::paint(ui, panel_rect, self.state.display_text());
 
                 // Paint last: the GPU layer is an optical/material treatment over
                 // the existing vector panel, never a replacement for its geometry.

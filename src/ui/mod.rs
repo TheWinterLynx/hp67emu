@@ -1,3 +1,4 @@
+pub mod classic_display;
 pub mod geometry;
 pub mod glyphs;
 pub mod keyboard;
