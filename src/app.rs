@@ -1,6 +1,6 @@
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
-use crate::{hp67::Hp67State, panel::Hp67Panel};
+use crate::{hp67::Hp67State, panel::Hp67Panel, ui::sliders};
 
 pub struct Hp67App {
     state: Hp67State,
@@ -38,9 +38,11 @@ impl eframe::App for Hp67App {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
             .show(ctx, |ui| {
+                let host = ui.available_rect_before_wrap();
                 for event in Hp67Panel::show(ui, &self.state, &self.photo) {
                     self.state.handle(event);
                 }
+                sliders::paint(ui, host, &self.photo, &self.state);
             });
 
         // Keep mouse-down motion responsive even on platforms that throttle
