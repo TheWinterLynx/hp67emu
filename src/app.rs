@@ -19,10 +19,10 @@ impl Hp67App {
         cc.egui_ctx.set_visuals(visuals);
 
         let decoded = image::load_from_memory_with_format(
-            include_bytes!("../hp67.png"),
+            include_bytes!("../assets/hp67.png"),
             image::ImageFormat::Png,
         )
-        .expect("embedded hp67.png must be a valid PNG")
+        .expect("embedded assets/hp67.png must be a valid PNG")
         .to_rgba8();
         let size = [decoded.width() as usize, decoded.height() as usize];
         let color = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
@@ -46,16 +46,10 @@ impl eframe::App for Hp67App {
                 for event in Hp67Panel::show(ui, &self.state, &self.photo) {
                     self.state.handle(event);
                 }
-                // The photographed A-E wells are deeper than the other key rows.
-                // Correct only those five keys after the generic key pass, leaving
-                // the already-good animation of every other key untouched.
                 top_keys::paint(ui, host, &self.photo);
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
-        // Keep mouse-down motion responsive even on platforms that throttle
-        // otherwise-idle windows. egui's animation system schedules the release
-        // frames after the pointer comes up.
         if ctx.input(|i| i.pointer.any_down()) {
             ctx.request_repaint();
         }
