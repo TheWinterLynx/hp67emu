@@ -1,4 +1,4 @@
-//! Regression contract that keeps the reusable emulation core independent of UI.
+//! Regression contract that keeps reusable emulation/reference code independent of UI.
 
 use std::{fs, path::Path};
 
@@ -6,7 +6,7 @@ use std::{fs, path::Path};
 fn reusable_core_has_no_gui_or_image_dependencies() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     // Match dependency-shaped tokens rather than bare words so explanatory
-    // comments may legitimately say "egui" or "image" without tripping the
+    // comments may legitimately mention UI technologies without tripping the
     // architecture gate.
     let forbidden = [
         "use eframe",
@@ -19,7 +19,11 @@ fn reusable_core_has_no_gui_or_image_dependencies() {
         "crate::ui",
     ];
 
-    for directory in [root.join("src/emulation"), root.join("src/machines")] {
+    for directory in [
+        root.join("src/emulation"),
+        root.join("src/machines"),
+        root.join("src/reference"),
+    ] {
         visit_rs(&directory, &mut |path, text| {
             for token in forbidden {
                 assert!(
