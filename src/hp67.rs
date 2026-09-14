@@ -40,11 +40,12 @@ pub enum UiEvent {
     ToggleMode,
 }
 
-/// Small UI-facing state model.
+/// Temporary UI-facing state model.
 ///
-/// This is deliberately not the final HP-67 execution core. It exists so the
-/// vector front panel can be exercised immediately. A real calculator core can
-/// later consume the same `KeyAction` events without changing the renderer.
+/// This is not the final HP-67 execution core. Once the ACT/ROM/display scan is
+/// emulated, the visible field must come from that machine state rather than
+/// from this string model. Until then, its reset appearance mirrors a real
+/// powered-on HP-67 closely enough to exercise the renderer.
 #[derive(Debug, Clone)]
 pub struct Hp67State {
     pub power_on: bool,
@@ -58,7 +59,7 @@ impl Default for Hp67State {
         Self {
             power_on: true,
             mode: RunMode::Run,
-            display: "0".to_owned(),
+            display: "0.00".to_owned(),
             entering: false,
         }
     }
@@ -87,7 +88,7 @@ impl Hp67State {
                 self.power_on = !self.power_on;
                 self.entering = false;
                 if self.power_on && self.display.is_empty() {
-                    self.display = "0".to_owned();
+                    self.display = "0.00".to_owned();
                 }
             }
             UiEvent::ToggleMode => {
@@ -108,7 +109,7 @@ impl Hp67State {
             KeyAction::ChangeSign => self.change_sign(),
             KeyAction::ClearX => {
                 self.display.clear();
-                self.display.push('0');
+                self.display.push_str("0.00");
                 self.entering = false;
             }
             KeyAction::Enter => self.entering = false,
@@ -117,14 +118,9 @@ impl Hp67State {
             KeyAction::Multiply => self.show_operator('x'),
             KeyAction::Divide => self.show_operator('/'),
             KeyAction::RunStop => {
-                // Keep a visible confirmation that the UI event path works.
-                // The real calculator core will implement R/S semantics.
                 self.entering = false;
             }
-            _ => {
-                // The remaining keys are already represented as typed events.
-                // They intentionally do not fake calculator behaviour here.
-            }
+            _ => {}
         }
     }
 
@@ -133,7 +129,7 @@ impl Hp67State {
             return;
         }
 
-        if !self.entering || self.display == "0" {
+        if !self.entering || self.display == "0" || self.display == "0.00" {
             self.display.clear();
             self.entering = true;
         }
@@ -159,14 +155,14 @@ impl Hp67State {
     fn change_sign(&mut self) {
         if self.display.starts_with('-') {
             self.display.remove(0);
-        } else if self.display != "0" {
+        } else if self.display != "0" && self.display != "0.00" {
             self.display.insert(0, '-');
         }
     }
 
     fn show_operator(&mut self, op: char) {
-        // This is only a visual smoke-test for input. The final RPN core will
-        // replace this with actual stack arithmetic.
+        // Visual smoke-test only. The real RPN core will own arithmetic and the
+        // physical display scan state.
         self.display.clear();
         self.display.push(op);
         self.entering = false;
@@ -178,6 +174,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn power_on_placeholder_matches_real_hp67() {
+        let hp = Hp67State::default();
+        assert_eq!(hp.display_text(), "0.00");
+    }
+
+    #[test]
     fn demo_entry_handles_digits_decimal_and_sign() {
         let mut hp = Hp67State::default();
         hp.handle(UiEvent::Key(KeyAction::Digit(1)));
@@ -186,6 +188,14 @@ mod tests {
         hp.handle(UiEvent::Key(KeyAction::Digit(5)));
         hp.handle(UiEvent::Key(KeyAction::ChangeSign));
         assert_eq!(hp.display_text(), "-12.5");
+    }
+
+    #[test]
+    fn clear_x_returns_to_power_on_placeholder() {
+        let mut hp = Hp67State::default();
+        hp.handle(UiEvent::Key(KeyAction::Digit(7)));
+        hp.handle(UiEvent::Key(KeyAction::ClearX));
+        assert_eq!(hp.display_text(), "0.00");
     }
 
     #[test]
