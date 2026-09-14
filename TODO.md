@@ -14,7 +14,9 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add HP-67 electrical backplane shell.
 - [x] Add GUI/core architecture regression.
 - [x] Add per-source documentation regression.
+- [x] Add CI regression with compiler warnings denied.
 - [x] Remove stale vector-rendering comparison tooling.
+- [ ] Normalize inherited photographic UI files with rustfmt, then enable `cargo fmt --check` in CI.
 
 ## Next: evidence and timing
 

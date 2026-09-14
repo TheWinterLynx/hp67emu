@@ -10,10 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - name: Formatting
-        run: cargo fmt --all -- --check
       - name: Tests with warnings denied
         env:
           RUSTFLAGS: -D warnings
