@@ -18,6 +18,23 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Remove stale vector-rendering comparison tooling.
 - [ ] Normalize inherited photographic UI files with rustfmt, then add `cargo fmt --check` to the local regression command.
 
+## Nonpareil-guided reference model
+
+- [x] Analyse Nonpareil's Woodstock CPU, HP-67 calc definition, ROM disassembly, display scan and CRC model; see `docs/NONPAREIL_ANALYSIS.md`.
+- [x] Add a UI-independent Rust `reference::woodstock` namespace.
+- [x] Encode the 14-digit architectural state and 10-bit four-way opcode classification in Rust.
+- [x] Add regression tests covering the complete 1024-word opcode classification and field ranges.
+- [ ] Implement the 32 arithmetic/register operations in the semantic reference model.
+- [ ] Implement special instructions used by the HP-67 ROM: status/P, constants, ROM selection, delayed ROM selection, RAM/register access, display control, key dispatch, return and bank switch.
+- [ ] Implement semantic JSB/GOTO/THEN-GOTO state transitions and two-level return stack.
+- [ ] Add a semantic ROM/bank loader independent of host file I/O.
+- [ ] Add instruction-boundary snapshots and a readable state-diff formatter.
+- [ ] Build a differential harness: semantic reference vs electrical ACT at every completed microinstruction.
+- [ ] Port the *behaviour* needed from Nonpareil's CRC model into an independently structured Rust reference peripheral.
+- [ ] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
+- [ ] Reconcile the ACT part/revision identifiers in Nonpareil's HP-67 metadata with physical HP-67 sources before freezing chip identity.
+- [ ] Do not copy GPL-covered Nonpareil source line-for-line unless the project deliberately makes a compatible licensing decision.
+
 ## Next: evidence and timing
 
 - [ ] Transcribe the HP-67 schematic into a reviewed pin/net table.
@@ -34,12 +51,12 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## ROM/microcode corpus
 
 - [x] Identify the Teenix physical ROM-reader archive as the preferred first HP-67 dump source; see `docs/MICROCODE_PROVENANCE.md`.
+- [x] Identify Nonpareil's `67.asm`, `6797.asm`, `67b1.asm` and card-reader disassembly as symbolic cross-checks.
 - [ ] Download and inspect the HP-67 ROM files from the Teenix ROM-reader archive locally.
 - [ ] Record chip-to-image mapping and SHA-256 for every ROM image.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
-- [ ] Build a ROM loader that can use external development images without coupling the core to file I/O.
-- [ ] Cross-reference available disassembly/listings with raw words.
-- [ ] Build opcode conformance fixtures from trusted Woodstock/HP-67 microcode analysis.
+- [ ] Cross-check Teenix raw words against the Nonpareil disassembly/object layout.
+- [ ] Build opcode conformance fixtures from the reference model plus trusted Woodstock/HP-67 microcode analysis.
 
 ## Scheduler
 
@@ -49,9 +66,9 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Add trace probes with deterministic ordering.
 - [ ] Verify that device container iteration order cannot change results.
 
-## ACT 1820-2530
+## ACT 1820-2530 / HP-67 ACT revision
 
-- [ ] Inventory every architecturally visible register and width.
+- [ ] Inventory every architecturally visible register and width, using the Rust reference state as the instruction-boundary contract.
 - [ ] Implement 12-bit PC and verified return-stack behavior.
 - [ ] Implement status bits, pointer and format state.
 - [ ] Implement instruction fetch timing on ISA/IS.
@@ -61,6 +78,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Implement SYNC and RCD outputs.
 - [ ] Implement DATA and ISA bus drive/release timing.
 - [ ] Add unknown-opcode hard failure with PC/word/tick context.
+- [ ] At each instruction boundary compare against `reference::woodstock` rather than hand-authored expected states where possible.
 
 ## ROM/RAM devices
 
@@ -76,6 +94,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Implement 1820-1749 cathode driver.
 - [ ] Implement RCD reset and STR stepping electrically.
 - [ ] Verify 15-position/sign-routing topology for HP-67.
+- [ ] Use Nonpareil's HP-67 character-generator/sign rules as semantic cross-checks, not as timing implementation.
 - [ ] Integrate segment on-time over real scan timing.
 - [ ] Feed physical segment intensity into `classic_display.rs`.
 - [ ] Delete text-to-segment formatting from the fidelity path.
@@ -84,16 +103,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## Keyboard and switches
 
 - [ ] Transcribe the real HP-67 key contact matrix.
+- [ ] Cross-check all 35 resulting hardware key codes against Nonpareil's `67.ncd.tmpl` mapping.
 - [ ] Replace semantic key events with contact closures in cycle-accurate mode.
 - [ ] Implement KC1-KC5 and related key-scan path.
-- [ ] Route RUN/W/PRGM through the correct hardware-visible flag.
+- [ ] Route RUN/W/PRGM through the correct hardware-visible CRC flag/input; Nonpareil identifies CRC flag 1 as the semantic switch state.
 - [ ] Route OFF/ON through machine power/reset rather than UI state.
 - [ ] Add bounce only if measured behavior matters to firmware-visible timing.
 
 ## Card reader
 
 - [ ] Document CRC 1820-1751 pins/protocol from HP-67/97 evidence.
-- [ ] Implement CRC instruction/status/data behavior.
+- [ ] Implement the CRC electrical instruction/status/data behaviour.
+- [ ] Use the independent Rust CRC semantic reference for instruction-boundary comparisons.
 - [ ] Model card-presence switches and transport timing.
 - [ ] Model sense-amplifier digital output boundary.
 - [ ] Separate host card-file representation from electrical CRC model.
@@ -110,5 +131,6 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## Generalization
 
 - [ ] Do not move HP-67 code into shared chip families until a second calculator needs it.
+- [ ] Keep the semantic reference layer separate from the production electrical scheduler so either can be reused independently.
 - [ ] When a second Woodstock calculator is added, extract only behavior proven identical by sources/tests.
 - [ ] Keep calculator wiring/configuration separate from reusable chip implementations.
