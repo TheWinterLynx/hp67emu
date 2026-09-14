@@ -296,7 +296,14 @@ pub fn outline(p: &Painter, t: Transform, inset: f32, base: Color32) {
         for fraction in [0.96, 1.0] {
             for (i, point) in rounded.iter().enumerate() {
                 let point = eframe::egui::pos2(165.0, 310.0).lerp(*point, fraction);
-                let amount = soft_light(point.x / 330.0, point.y / 620.0) * 1.4
+                // The lower return belongs to the molded shell itself, so its
+                // shadow flows through the existing case rings without a tile.
+                let return_shade = if inset < 10.0 {
+                    6.0 * ((point.y - 605.0) / 12.0).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let amount = soft_light(point.x / 330.0, point.y / 620.0) * 1.4 - return_shade
                     + 2.5 * (1.0 - fraction)
                     - 2.0 * fraction.powi(8)
                     + 1.6 * noise(i as u32, (fraction * 100.0) as u32);
@@ -340,7 +347,7 @@ fn subdivided(points: &[eframe::egui::Pos2]) -> Vec<eframe::egui::Pos2> {
     out
 }
 
-/// Satin metal on the existing centerline and 4.4-unit cross-section.
+/// Satin metal follows the existing centerline, narrowing over the lower fold.
 pub fn metal_rim(points: &[eframe::egui::Pos2], silver: Color32) -> MaterialMesh {
     let points = subdivided(points);
     let mut mesh = Mesh::default();
@@ -352,26 +359,29 @@ pub fn metal_rim(points: &[eframe::egui::Pos2], silver: Color32) -> MaterialMesh
         let nb = eframe::egui::vec2(b.y, -b.x);
         let normal = (na + nb).normalized();
         let miter = normal / normal.dot(na).max(0.5);
+        let fold = ((point.y - 585.5) / 19.5).clamp(0.0, 1.0);
+        let width = 1.0 - 0.36 * fold;
         for (band, (offset, delta)) in [
-            (-2.2, -166.0),
-            (-1.5, -108.0),
-            (-0.7, -26.0),
-            (0.0, -5.0),
-            (0.7, -17.0),
-            (1.5, -75.0),
-            (2.2, -118.0),
+            (-2.2, -128.0),
+            (-1.5, -80.0),
+            (-0.7, -29.0),
+            (0.0, -15.0),
+            (0.7, -23.0),
+            (1.5, -54.0),
+            (2.2, -88.0),
         ]
         .into_iter()
         .enumerate()
         {
-            let direction = normal.dot(eframe::egui::vec2(-0.6, -0.8)) * 4.0;
+            let direction = normal.dot(eframe::egui::vec2(-0.6, -0.8)) * 2.5;
             let brush = noise((i / 5) as u32, band as u32) * 1.4 + noise(i as u32, 0) * 0.4;
             mesh.vertices.push(Vertex {
-                pos: *point + miter * offset,
+                pos: *point + miter * offset * width,
                 uv: WHITE_UV,
                 color: shade(
                     silver,
-                    delta + direction + soft_light(point.x / 330.0, point.y / 620.0) + brush,
+                    delta + direction + soft_light(point.x / 330.0, point.y / 620.0) + brush
+                        - 19.0 * fold,
                 ),
             });
         }
@@ -399,6 +409,9 @@ pub(crate) fn outline_points(inset: f32) -> Vec<(f32, f32)> {
     let bottom = CASE_BOTTOM - inset;
     let right = 318.0 + CASE_SIDE_EXPANSION - inset;
     let radius = 9.0;
+    // Flatten only the molded lower corner's vertical roll. Overall bounds,
+    // long-side width and the metal's upper corners keep their existing anchors.
+    let lower_radius = if inset < 10.0 { 5.0 } else { radius };
     let mut points = Vec::new();
     let mut corner = |a: (f32, f32), b: (f32, f32), c: (f32, f32)| {
         for i in 0..=12 {
@@ -414,16 +427,15 @@ pub(crate) fn outline_points(inset: f32) -> Vec<(f32, f32)> {
         let f = i as f32 / 48.0;
         points.push((
             right + 7.0 * (std::f32::consts::PI * f).sin(),
-            top + radius + (bottom - top - 2.0 * radius) * f,
+            top + radius + (bottom - top - radius - lower_radius) * f,
         ));
     }
-    // Reflect the upper right corner downwards, then the complete right side
-    // to the left. This keeps upper/lower widths equal instead of tapering.
+    // The shorter lower roll keeps equal end widths without a rounded UI corner.
     for i in 0..=12 {
         let f = i as f32 / 12.0;
         points.push((
             right - radius * f * f,
-            bottom - radius * (1.0 - f) * (1.0 - f),
+            bottom - lower_radius * (1.0 - f) * (1.0 - f),
         ));
     }
     let right_half = points.clone();

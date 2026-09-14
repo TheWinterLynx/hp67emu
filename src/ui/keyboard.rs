@@ -624,13 +624,13 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
     use super::materials::{antialiased_surface as surface, shade, soft_light, Material};
     // One rounded plastic body. The shoulder highlight wraps onto the front;
     // the skirt is a sloping surface, not a second button stacked underneath.
-    // Broad low-opacity contact falloff, biased away from the upper-left light.
+    // Short contact falloff, biased away from the upper-left light.
     // These layers move with the cap; its silhouette and socket are unchanged.
     for (spread, dx, dy, alpha) in [
-        (1.5, 1.1, 1.2, 8),
-        (1.0, 0.9, 1.0, 13),
-        (0.45, 0.6, 0.8, 22),
-        (0.0, 0.45, 0.5, 36),
+        (0.85, 0.55, 0.65, 6),
+        (0.55, 0.45, 0.50, 10),
+        (0.25, 0.30, 0.40, 18),
+        (0.0, 0.25, 0.30, 30),
     ] {
         p.rect_filled(
             kt.rect(
@@ -666,9 +666,9 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
         0.9,
         1.2,
         |u, v| {
-            soft_light(u, v) + 11.0 * (-v * 22.0).exp() + 13.0 * (-u * 32.0).exp()
-                - 18.0 * (-(1.0 - u) * 24.0).exp()
-                - 9.0 * (-(1.0 - v) * 14.0).exp()
+            soft_light(u, v) + 6.6 * (-v * 22.0).exp() + 7.8 * (-u * 32.0).exp()
+                - 10.8 * (-(1.0 - u) * 24.0).exp()
+                - 5.4 * (-(1.0 - v) * 14.0).exp()
         },
     );
     surface(
@@ -683,27 +683,27 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
         1.1,
         1.0,
         |u, v| {
-            soft_light(u, v) + 7.0 * (-v * 18.0).exp() - 10.0 * v - 14.0 * (-(1.0 - u) * 20.0).exp()
+            soft_light(u, v) + 4.2 * (-v * 18.0).exp() - 6.0 * v - 8.4 * (-(1.0 - u) * 20.0).exp()
         },
     );
     // Molded front recess and a narrow, curved reflection down the left shoulder.
     p.rect_stroke(
         kt.rect(x + 2.2, skirt_top + 0.6, key.w - 4.4, skirt_h - 1.5),
         kt.s(2.1),
-        Stroke::new(kt.s(0.35), shade(front, 8.0)),
+        Stroke::new(kt.s(0.35), shade(front, 4.8)),
     );
     p.line_segment(
         [kt.pos(x + 1.6, 3.1), kt.pos(x + 1.4, skirt_top - 2.0)],
         Stroke::new(
             kt.s(0.6),
-            Color32::from_rgba_unmultiplied(245, 245, 224, 75),
+            Color32::from_rgba_unmultiplied(245, 245, 224, 45),
         ),
     );
     p.line_segment(
         [kt.pos(x + 3.0, 1.0), kt.pos(-x - 3.0, 1.0)],
         Stroke::new(
             kt.s(0.45),
-            Color32::from_rgba_unmultiplied(245, 245, 224, 70),
+            Color32::from_rgba_unmultiplied(245, 245, 224, 42),
         ),
     );
     p.line_segment(
@@ -711,7 +711,7 @@ fn draw_artwork(p: &Painter, kt: Transform, key: KeySpec) {
             kt.pos(x + 3.0, bottom - 0.8),
             kt.pos(-x - 2.7, bottom - 0.8),
         ],
-        Stroke::new(kt.s(0.45), shade(front, -24.0)),
+        Stroke::new(kt.s(0.45), shade(front, -14.4)),
     );
 
     // Crucially, the exact same label renderer is used in both states.  The
@@ -922,9 +922,9 @@ fn power_width(base: &str, exp: &str, size: f32) -> f32 {
 fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
     match style {
         KeyStyle::Olive => (
-            Color32::from_rgb(139, 143, 86),
-            Color32::from_rgb(109, 112, 64),
-            Color32::from_rgb(64, 68, 43),
+            Color32::from_rgb(128, 132, 94),
+            Color32::from_rgb(108, 112, 78),
+            Color32::from_rgb(65, 69, 51),
             WHITE,
             DARK,
         ),
@@ -943,9 +943,9 @@ fn palette(style: KeyStyle) -> (Color32, Color32, Color32, Color32, Color32) {
             DARK,
         ),
         KeyStyle::White => (
-            Color32::from_rgb(234, 231, 211),
-            Color32::from_rgb(187, 186, 164),
-            Color32::from_rgb(148, 153, 151),
+            Color32::from_rgb(223, 216, 192),
+            Color32::from_rgb(188, 182, 160),
+            Color32::from_rgb(145, 145, 132),
             DARK,
             DARK,
         ),

@@ -9,11 +9,11 @@ use crate::ui::geometry::{
 
 use crate::ui::materials::{soft_light, Material};
 
-const PANEL: Color32 = Color32::from_rgb(35, 37, 35);
+const PANEL: Color32 = Color32::from_rgb(43, 45, 43);
 const PANEL_DARK: Color32 = Color32::from_rgb(25, 25, 23);
-const CASE_GREEN: Color32 = Color32::from_rgb(79, 82, 58);
-const CASE_GREEN_DARK: Color32 = Color32::from_rgb(59, 61, 44);
-const SILVER_LIGHT: Color32 = Color32::from_rgb(225, 227, 221);
+const CASE_GREEN: Color32 = Color32::from_rgb(66, 70, 55);
+const CASE_GREEN_DARK: Color32 = Color32::from_rgb(48, 52, 42);
+const SILVER_LIGHT: Color32 = Color32::from_rgb(181, 185, 181);
 const WHITE: Color32 = Color32::from_rgb(230, 233, 229);
 
 pub struct Hp67Panel;
@@ -76,8 +76,8 @@ fn draw_chassis(p: &Painter, t: Transform) {
     // Molded case and rolled metal rim share the existing bowed perimeter.
     for (inset, color) in [
         (0.0, Color32::from_rgb(27, 28, 22)),
-        (1.0, Color32::from_rgb(102, 104, 83)),
-        (2.4, Color32::from_rgb(81, 83, 64)),
+        (1.0, Color32::from_rgb(82, 87, 72)),
+        (2.4, Color32::from_rgb(70, 75, 60)),
         (4.0, CASE_GREEN),
         (7.5, CASE_GREEN_DARK),
         (10.0, Color32::from_rgb(27, 30, 28)),
@@ -88,7 +88,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
             // sloping continuation. Do not leave a second old rim behind it.
             let clip = eframe::egui::Rect::from_min_max(
                 p.clip_rect().min,
-                Pos2::new(p.clip_rect().max.x, t.pos(0.0, 583.5).y),
+                Pos2::new(p.clip_rect().max.x, t.pos(0.0, 585.5).y),
             );
             outline(&p.with_clip_rect(clip), t, inset, color);
         } else {
@@ -100,7 +100,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
         t,
         Material::Panel,
         29.0,
-        583.5,
+        585.5,
         panel_left,
         panel_right,
         PANEL,
@@ -119,7 +119,7 @@ fn draw_chassis(p: &Painter, t: Transform) {
         CARD_RAIL_BOTTOM,
         panel_left,
         panel_right,
-        Color32::from_rgb(38, 40, 37),
+        Color32::from_rgb(44, 46, 43),
         2.0,
         2.0,
         |u, v| soft_light(u, v) + 4.0 * (-v * 12.0).exp() - 4.0 * (-(1.0 - v) * 18.0).exp(),
@@ -162,7 +162,7 @@ fn draw_display(p: &Painter, t: Transform, text_value: &str) {
                     0.0
                 }
         },
-        Color32::from_rgb(29, 15, 13),
+        Color32::from_rgb(39, 23, 19),
         0.0,
         2.0,
         |u, v| {
@@ -300,35 +300,51 @@ fn draw_slider(p: &Painter, t: Transform, x: f32, y: f32, w: f32, right: bool, h
 // The keyboard deck ends at the fold. The nose, cheeks and return lip belong
 // to the chassis; the thin printed nameplate is inset into that larger face.
 fn draw_lower_case(p: &Painter, t: Transform) {
-    use crate::ui::materials::antialiased_surface as surface;
+    use crate::ui::materials::{aligned_horizontal, antialiased_surface as surface};
     // Rounded roll into the lower face: near-parallel sides, no triangular
     // inset corners. The illuminated shoulder darkens continuously underneath.
     surface(
         p,
         t,
         Material::Nose,
-        581.8,
+        585.5,
         609.0,
-        |y| 22.0 - CASE_SIDE_EXPANSION + 2.0 * ((y - 581.8) / 27.2).powi(2),
-        |y| 308.0 + CASE_SIDE_EXPANSION - 2.0 * ((y - 581.8) / 27.2).powi(2),
-        Color32::from_rgb(55, 57, 45),
+        |y| 22.0 - CASE_SIDE_EXPANSION + 2.0 * ((y - 585.5) / 23.5).powi(2),
+        |y| 308.0 + CASE_SIDE_EXPANSION - 2.0 * ((y - 585.5) / 23.5).powi(2),
+        Color32::from_rgb(43, 46, 39),
         1.2,
         0.65,
-        |u, v| 6.0 * (1.0 - u) + 11.0 * (-((v - 0.10) / 0.10).powi(2)).exp() - 20.0 * v,
+        |u, v| soft_light(u, v) + 2.5 * (-((v - 0.10) / 0.14).powi(2)).exp() - 9.0 * v,
     );
     surface(
         p,
         t,
         Material::NoseInset,
-        584.0,
+        588.0,
         602.0,
-        |y| 28.0 - CASE_SIDE_EXPANSION + (y - 584.0) * 0.07,
-        |y| 302.0 + CASE_SIDE_EXPANSION - (y - 584.0) * 0.07,
+        |y| 28.0 - CASE_SIDE_EXPANSION + (y - 588.0) * 0.07,
+        |y| 302.0 + CASE_SIDE_EXPANSION - (y - 588.0) * 0.07,
         Color32::from_rgb(24, 25, 23),
         0.8,
         0.6,
         |_, v| 4.0 * (1.0 - v) - 8.0 * v,
     );
+    // Shallow deck recess, not a bright dividing rule. The lower printing starts
+    // farther below the fixed last-row legends, without moving any key artwork.
+    for (y, width, color) in [
+        (585.5, 0.45, Color32::from_rgb(25, 28, 25)),
+        (586.15, 0.30, Color32::from_rgb(49, 52, 44)),
+    ] {
+        aligned_horizontal(
+            p,
+            t,
+            28.0 - CASE_SIDE_EXPANSION,
+            302.0 + CASE_SIDE_EXPANSION,
+            y,
+            width,
+            color,
+        );
+    }
 }
 
 // One existing centerline and cross-section through the folded corners.
@@ -338,13 +354,13 @@ fn rim_points() -> Vec<Pos2> {
     for i in 0..outline.len() {
         let a = outline[i];
         let b = outline[(i + 1) % outline.len()];
-        if a.1 <= 583.5 {
+        if a.1 <= 585.5 {
             points.push(Pos2::new(a.0, a.1));
         }
-        if (a.1 <= 583.5) != (b.1 <= 583.5) {
-            let f = (583.5 - a.1) / (b.1 - a.1);
-            points.push(Pos2::new(a.0 + (b.0 - a.0) * f, 583.5));
-            if a.1 <= 583.5 {
+        if (a.1 <= 585.5) != (b.1 <= 585.5) {
+            let f = (585.5 - a.1) / (b.1 - a.1);
+            points.push(Pos2::new(a.0 + (b.0 - a.0) * f, 585.5));
+            if a.1 <= 585.5 {
                 points.push(Pos2::new(303.0 + CASE_SIDE_EXPANSION, 605.0));
                 points.push(Pos2::new(27.0 - CASE_SIDE_EXPANSION, 605.0));
             }
@@ -361,7 +377,7 @@ fn draw_continuous_rim(p: &Painter, t: Transform) {
 
 // Affine projection: every horizontal baseline and diagonal remains straight.
 fn nose_point(x: f32, y: f32) -> (f32, f32) {
-    (38.0 + x * 254.0 / 268.0, 584.4 + y * 0.90)
+    (38.0 + x * 254.0 / 268.0, 588.4 + y * 0.74)
 }
 
 fn draw_branding(p: &Painter, t: Transform) {
@@ -383,49 +399,48 @@ fn draw_branding(p: &Painter, t: Transform) {
             stroke,
         ));
     };
-    // A fine aluminum outline inset into the dark sloping face.
-    quad(
-        1.0,
-        1.5,
-        266.0,
-        18.0,
-        Color32::from_rgb(24, 25, 23),
-        Stroke::NONE,
-    );
-    // Measured reference badge: silver hairline around a black/blue rectangle;
-    // a narrow vintage hp, with curved shoulders and bowl, on a silver disc.
+    // Small period black/blue badge printed directly on the recessed strip.
+    // No surrounding raised grey tile; retain only its faint printed hairline.
     let ink = Color32::from_rgb(31, 33, 31);
-    let silver = Color32::from_rgb(185, 187, 172);
-    quad(6.0, 3.0, 31.0, 15.0, ink, Stroke::new(t.s(0.42), silver));
+    let silver = Color32::from_rgb(165, 168, 157);
+    let badge_point = |x, y| point(21.5 + (x - 21.5) * 0.78, 10.5 + (y - 10.5) * 0.90);
+    quad(
+        9.41,
+        3.75,
+        24.18,
+        13.5,
+        Color32::TRANSPARENT,
+        Stroke::new(t.s(0.18), Color32::from_gray(98)),
+    );
     quad(
         21.5,
-        3.25,
-        15.2,
-        14.5,
-        Color32::from_rgb(42, 109, 156),
+        3.975,
+        11.856,
+        13.05,
+        Color32::from_rgb(37, 91, 126),
         Stroke::NONE,
     );
     let circle = (0..128)
         .map(|i| {
             let a = i as f32 * std::f32::consts::TAU / 128.0;
-            point(20.0 + 6.25 * a.cos(), 10.5 + 7.0 * a.sin())
+            badge_point(20.0 + 6.25 * a.cos(), 10.5 + 7.0 * a.sin())
         })
         .collect();
     p.add(Shape::convex_polygon(circle, silver, Stroke::NONE));
     // Open h shoulder and curved p counter; thinner than the modern HP mark.
     let line = |a: (f32, f32), b: (f32, f32)| {
         p.line_segment(
-            [point(a.0, a.1), point(b.0, b.1)],
-            Stroke::new(t.s(0.72), ink),
+            [badge_point(a.0, a.1), badge_point(b.0, b.1)],
+            Stroke::new(t.s(0.56), ink),
         );
     };
     let curve = |coords: [(f32, f32); 4]| {
         p.add(Shape::CubicBezier(
             eframe::egui::epaint::CubicBezierShape::from_points_stroke(
-                coords.map(|(x, y)| point(x, y)),
+                coords.map(|(x, y)| badge_point(x, y)),
                 false,
                 Color32::TRANSPARENT,
-                Stroke::new(t.s(0.72), ink),
+                Stroke::new(t.s(0.56), ink),
             ),
         ));
     };
@@ -435,19 +450,19 @@ fn draw_branding(p: &Painter, t: Transform) {
     line((23.3, 7.8), (20.0, 18.0));
     curve([(23.3, 7.8), (27.6, 6.7), (26.5, 12.8), (21.9, 12.4)]);
     // Explicit tracking, with the model number as one unspaced pair.
-    let mut cursor = 54.0;
+    let mut cursor = 51.0;
     for ch in "HEWLETT-PACKARD".chars() {
         let value = ch.to_string();
         if ch == '-' {
             // The original nameplate separates the names with a centered dot.
-            let center = cursor + glyphs::width(&value, 8.0, 400) * 0.5;
-            p.circle_filled(point(center, 10.2), t.s(0.65), silver);
-            cursor += glyphs::width(&value, 8.0, 400) + 6.1;
+            let center = cursor + glyphs::width(&value, 7.6, 400) * 0.5;
+            p.circle_filled(point(center, 10.2), t.s(0.40), silver);
+            cursor += glyphs::width(&value, 7.6, 400) + 6.6;
             continue;
         }
         let mut mesh = glyphs::text_mesh(
             Pos2::new(cursor, 10.2),
-            8.0,
+            7.6,
             silver,
             &value,
             Align2::LEFT_CENTER,
@@ -458,11 +473,11 @@ fn draw_branding(p: &Painter, t: Transform) {
             vertex.pos = point(vertex.pos.x, vertex.pos.y);
         }
         p.add(Shape::mesh(mesh));
-        cursor += glyphs::width(&value, 8.0, 400) + 6.1;
+        cursor += glyphs::width(&value, 7.6, 400) + 6.6;
     }
     let mut mesh = glyphs::text_mesh(
         Pos2::new(246.0, 10.2),
-        10.0,
+        7.6,
         silver,
         "67",
         Align2::CENTER_CENTER,
@@ -551,7 +566,8 @@ fn draw_segment_string(p: &Painter, t: Transform, value: &str, x: f32, y: f32, w
 
 fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
     let mask = segment_mask(ch);
-    // Narrow LED dies with tapered ends and a low, red halo under the glass.
+    // Tapered dies: 16% more cross-section around the same centerlines, with
+    // only a narrow dim diffusion fringe under the tinted filter.
     for (bit, sx, sy, vertical) in [
         (SEG_A, 1.4, 0.0, false),
         (SEG_B, 8.0, 1.5, true),
@@ -574,9 +590,9 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
             .iter()
             .map(|&(a, b)| {
                 if vertical {
-                    t.pos(x + sx + b, y + sy + a * 1.25)
+                    t.pos(x + sx + 0.7 + (b - 0.7) * 1.16, y + sy + a * 1.25)
                 } else {
-                    t.pos(x + sx + a, y + sy + b)
+                    t.pos(x + sx + a, y + sy + 0.7 + (b - 0.7) * 1.16)
                 }
             })
             .collect();
@@ -592,7 +608,7 @@ fn draw_segment_digit(p: &Painter, t: Transform, x: f32, y: f32, ch: char) {
             if on {
                 Color32::from_rgb(250, 57, 35)
             } else {
-                Color32::from_rgb(31, 15, 13)
+                Color32::from_rgb(45, 25, 21)
             },
             Stroke::NONE,
         ));
