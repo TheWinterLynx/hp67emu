@@ -1,9 +1,11 @@
 use eframe::egui::{
     pos2, vec2, Color32, CursorIcon, Painter, Pos2, Rect, Sense, Stroke, TextureHandle, Ui,
-    Vec2,
 };
 
-use crate::hp67::{Hp67State, KeyAction, UiEvent};
+use crate::{
+    hp67::{Hp67State, KeyAction, UiEvent},
+    ui::classic_display,
+};
 
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
@@ -21,6 +23,8 @@ impl PxRect {
         Self { x0, y0, x1, y1 }
     }
 }
+
+const DISPLAY_GLASS: PxRect = PxRect::new(178.0, 105.0, 750.0, 208.0);
 
 #[derive(Clone, Copy)]
 struct PhotoKey {
@@ -179,7 +183,13 @@ impl Hp67Panel {
             }
         }
 
-        draw_led_display(&painter, photo_rect, state.display_text());
+        // hp67.png already contains the real filter, glass, bezel and reflections.
+        // Add only the physically calibrated 5082-7405 LED emission on top.
+        classic_display::paint(
+            &painter,
+            source_to_screen(photo_rect, DISPLAY_GLASS),
+            state.display_text(),
+        );
         events
     }
 }
@@ -239,7 +249,10 @@ fn paint_pressed_key(
     // Only a restrained contact/occlusion cue is needed at the top edge.
     let edge_y = original.top() + travel;
     p.line_segment(
-        [pos2(original.left() + scale * 3.0, edge_y), pos2(original.right() - scale * 3.0, edge_y)],
+        [
+            pos2(original.left() + scale * 3.0, edge_y),
+            pos2(original.right() - scale * 3.0, edge_y),
+        ],
         Stroke::new(
             (0.75 * scale).max(0.45),
             Color32::from_rgba_unmultiplied(0, 0, 0, (42.0 + 34.0 * press).round() as u8),
@@ -269,163 +282,6 @@ fn paint_pressed_key(
     );
 }
 
-fn draw_led_display(p: &Painter, photo: Rect, value: &str) {
-    if value.is_empty() {
-        return;
-    }
-
-    // The photo already supplies the glass, bezel, reflections and black level;
-    // this overlay paints only the emitting LED dies.
-    let display = source_to_screen(photo, PxRect::new(178.0, 105.0, 750.0, 208.0));
-    let p = p.with_clip_rect(display);
-    let cells = display_cells(value);
-    let pitch = display.width() / 15.0;
-    let height = display.height() * 0.48;
-    let cy = display.center().y + display.height() * 0.03;
-
-    for (i, ch) in cells.iter().enumerate() {
-        if *ch == ' ' {
-            continue;
-        }
-        let cx = display.left() + pitch * (i as f32 + 0.5);
-        draw_led_char(&p, cx, cy, pitch * 0.62, height, *ch);
-    }
-}
-
-fn display_cells(value: &str) -> [char; 15] {
-    let mut cells = [' '; 15];
-    let chars: Vec<char> = value.chars().take(15).collect();
-    let start = 15usize.saturating_sub(chars.len());
-    for (dst, ch) in cells[start..].iter_mut().zip(chars) {
-        *dst = ch;
-    }
-    cells
-}
-
-const A: u8 = 1 << 0;
-const B: u8 = 1 << 1;
-const C: u8 = 1 << 2;
-const D: u8 = 1 << 3;
-const E: u8 = 1 << 4;
-const F: u8 = 1 << 5;
-const G: u8 = 1 << 6;
-
-fn digit_mask(ch: char) -> u8 {
-    match ch {
-        '0' => A | B | C | D | E | F,
-        '1' => B | C,
-        '2' => A | B | D | E | G,
-        '3' => A | B | C | D | G,
-        '4' => B | C | F | G,
-        '5' => A | C | D | F | G,
-        '6' => A | C | D | E | F | G,
-        '7' => A | B | C,
-        '8' => A | B | C | D | E | F | G,
-        '9' => A | B | C | D | F | G,
-        '-' => G,
-        _ => 0,
-    }
-}
-
-fn draw_led_char(p: &Painter, cx: f32, cy: f32, width: f32, height: f32, ch: char) {
-    let core = Color32::from_rgb(245, 43, 22);
-    let glow = Color32::from_rgba_unmultiplied(255, 45, 22, 44);
-    let stroke = (height * 0.070).max(1.1);
-
-    if ch == '.' {
-        p.circle_filled(pos2(cx, cy + height * 0.20), stroke * 1.25, glow);
-        p.circle_filled(pos2(cx, cy + height * 0.20), stroke * 0.62, core);
-        return;
-    }
-    if ch == 'x' || ch == 'X' {
-        led_line(
-            p,
-            pos2(cx - width * 0.32, cy - height * 0.25),
-            pos2(cx + width * 0.32, cy + height * 0.25),
-            stroke,
-            glow,
-            core,
-        );
-        led_line(
-            p,
-            pos2(cx + width * 0.32, cy - height * 0.25),
-            pos2(cx - width * 0.32, cy + height * 0.25),
-            stroke,
-            glow,
-            core,
-        );
-        return;
-    }
-    if ch == '/' {
-        led_line(
-            p,
-            pos2(cx + width * 0.26, cy - height * 0.42),
-            pos2(cx - width * 0.26, cy + height * 0.42),
-            stroke,
-            glow,
-            core,
-        );
-        return;
-    }
-    if ch == '+' {
-        led_line(
-            p,
-            pos2(cx - width * 0.30, cy),
-            pos2(cx + width * 0.30, cy),
-            stroke,
-            glow,
-            core,
-        );
-        led_line(
-            p,
-            pos2(cx, cy - height * 0.28),
-            pos2(cx, cy + height * 0.28),
-            stroke,
-            glow,
-            core,
-        );
-        return;
-    }
-
-    let mask = digit_mask(ch);
-    if mask == 0 {
-        return;
-    }
-    let xl = cx - width * 0.36;
-    let xr = cx + width * 0.36;
-    let yt = cy - height * 0.46;
-    let ym = cy;
-    let yb = cy + height * 0.46;
-    let inset = width * 0.08;
-
-    let segments = [
-        (A, pos2(xl + inset, yt), pos2(xr - inset, yt)),
-        (B, pos2(xr, yt + inset), pos2(xr, ym - inset)),
-        (C, pos2(xr, ym + inset), pos2(xr, yb - inset)),
-        (D, pos2(xl + inset, yb), pos2(xr - inset, yb)),
-        (E, pos2(xl, ym + inset), pos2(xl, yb - inset)),
-        (F, pos2(xl, yt + inset), pos2(xl, ym - inset)),
-        (G, pos2(xl + inset, ym), pos2(xr - inset, ym)),
-    ];
-    for (bit, from, to) in segments {
-        if mask & bit != 0 {
-            led_line(p, from, to, stroke, glow, core);
-        }
-    }
-}
-
-fn led_line(
-    p: &Painter,
-    from: Pos2,
-    to: Pos2,
-    width: f32,
-    glow: Color32,
-    core: Color32,
-) {
-    p.line_segment([from, to], Stroke::new(width * 2.7, glow));
-    p.line_segment([from, to], Stroke::new(width, core));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,8 +293,14 @@ mod tests {
 
     #[test]
     fn source_mapping_preserves_photo_edges() {
-        let photo = Rect::from_min_size(Pos2::ZERO, Vec2::new(PHOTO_W, PHOTO_H));
+        let photo = Rect::from_min_size(Pos2::ZERO, vec2(PHOTO_W, PHOTO_H));
         let mapped = source_to_screen(photo, PxRect::new(0.0, 0.0, PHOTO_W, PHOTO_H));
         assert_eq!(mapped, photo);
+    }
+
+    #[test]
+    fn display_glass_stays_inside_source_photo() {
+        assert!(DISPLAY_GLASS.x0 >= 0.0 && DISPLAY_GLASS.y0 >= 0.0);
+        assert!(DISPLAY_GLASS.x1 <= PHOTO_W && DISPLAY_GLASS.y1 <= PHOTO_H);
     }
 }

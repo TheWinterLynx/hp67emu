@@ -1,30 +1,34 @@
-//! Physically calibrated HP-67 Classic-series LED display overlay.
+//! Authentic HP-67 Classic-series LED emission for the photographed display.
 //!
-//! The HP-67 uses three end-stackable five-character HP 5082-7405 style
-//! clusters: 15 character positions total, 3.81 mm pitch and a 2.794 mm
-//! magnified character height.  The 7405 uses HP's centered decimal point;
-//! the decimal therefore consumes a complete character time/position.
-//! Each monolithic LED segment is visibly split into three emitting bars and
-//! the decimal point into two bars.  The front red filter/lenses remain part of
-//! the optical model rather than being approximated as a modern flat 7-seg font.
+//! The physical HP-67 display is a 15-position assembly made from three
+//! end-stackable five-character HP 5082-7405-style modules.  Character pitch is
+//! 3.81 mm (.150 in), magnified character height is 2.794 mm (.110 in), and the
+//! centered decimal occupies its own character position.  Each logical segment
+//! is formed by three narrow emitting bars; the decimal die uses two bars.
+//!
+//! In the photorealistic renderer the photograph already provides the red
+//! contrast filter, bezel, reflections, module/lens structure and black level.
+//! This module therefore adds only the light emitted by the real LED geometry.
 
-use eframe::egui::{Color32, Painter, Rect, Shape, Stroke, Ui};
-
-use super::geometry::{
-    Transform, CASE_MAX_WIDTH, CASE_WIDTH_MM, DESIGN_H, DESIGN_W, DISPLAY_BOUNDS,
-};
+use eframe::egui::{pos2, Color32, Painter, Pos2, Rect, Stroke};
 
 pub(crate) const CHARACTER_COUNT: usize = 15;
-pub(crate) const MODULE_COUNT: usize = 3;
-pub(crate) const CHARACTERS_PER_MODULE: usize = 5;
-pub(crate) const CHARACTER_PITCH_MM: f32 = 3.81; // .150 in, 4/5-digit 5082-7400 package
-pub(crate) const CHARACTER_HEIGHT_MM: f32 = 2.794; // .110 in magnified character
+const MODULE_COUNT: usize = 3;
+const CHARACTERS_PER_MODULE: usize = 5;
+const CHARACTER_PITCH_MM: f32 = 3.81;
+const CHARACTER_HEIGHT_MM: f32 = 2.794;
 
-const UNITS_PER_MM: f32 = CASE_MAX_WIDTH / CASE_WIDTH_MM;
-pub(crate) const CHARACTER_PITCH: f32 = CHARACTER_PITCH_MM * UNITS_PER_MM;
-pub(crate) const CHARACTER_HEIGHT: f32 = CHARACTER_HEIGHT_MM * UNITS_PER_MM;
-pub(crate) const MODULE_WIDTH: f32 = CHARACTER_PITCH * CHARACTERS_PER_MODULE as f32;
-pub(crate) const ASSEMBLY_WIDTH: f32 = MODULE_WIDTH * MODULE_COUNT as f32;
+// The measured vector reconstruction uses 614 logical units for HP's published
+// 152.4 mm case length and a 282 x 57 display opening.  Keeping those reference
+// dimensions here preserves the physical LED-to-glass ratio while the final
+// mapping is made directly into the photographed display rectangle.
+const REFERENCE_UNITS_PER_MM: f32 = 614.0 / 152.4;
+const REFERENCE_DISPLAY_WIDTH: f32 = 282.0;
+const REFERENCE_DISPLAY_HEIGHT: f32 = 57.0;
+const CHARACTER_PITCH: f32 = CHARACTER_PITCH_MM * REFERENCE_UNITS_PER_MM;
+const CHARACTER_HEIGHT: f32 = CHARACTER_HEIGHT_MM * REFERENCE_UNITS_PER_MM;
+const MODULE_WIDTH: f32 = CHARACTER_PITCH * CHARACTERS_PER_MODULE as f32;
+const ASSEMBLY_WIDTH: f32 = MODULE_WIDTH * MODULE_COUNT as f32;
 
 const SEG_A: u8 = 1 << 0;
 const SEG_B: u8 = 1 << 1;
@@ -34,120 +38,59 @@ const SEG_E: u8 = 1 << 4;
 const SEG_F: u8 = 1 << 5;
 const SEG_G: u8 = 1 << 6;
 
-pub(crate) fn paint(ui: &Ui, panel_rect: Rect, value: &str) {
-    if panel_rect.width() <= 0.0 || panel_rect.height() <= 0.0 {
+#[derive(Clone, Copy)]
+struct DisplayTransform {
+    rect: Rect,
+    sx: f32,
+    sy: f32,
+    stroke_scale: f32,
+}
+
+impl DisplayTransform {
+    fn new(rect: Rect) -> Self {
+        let sx = rect.width() / REFERENCE_DISPLAY_WIDTH;
+        let sy = rect.height() / REFERENCE_DISPLAY_HEIGHT;
+        Self {
+            rect,
+            sx,
+            sy,
+            stroke_scale: sx.min(sy),
+        }
+    }
+
+    fn pos(self, x: f32, y: f32) -> Pos2 {
+        pos2(self.rect.left() + x * self.sx, self.rect.top() + y * self.sy)
+    }
+
+    fn stroke(self, reference_width: f32, minimum: f32) -> f32 {
+        (reference_width * self.stroke_scale).max(minimum)
+    }
+}
+
+/// Paint only authentic LED emission into the already-photographed glass.
+pub(crate) fn paint(painter: &Painter, display_rect: Rect, value: &str) {
+    if value.is_empty() || display_rect.width() <= 0.0 || display_rect.height() <= 0.0 {
         return;
     }
-    let scale = (panel_rect.width() / DESIGN_W).min(panel_rect.height() / DESIGN_H);
-    let size = eframe::egui::vec2(DESIGN_W * scale, DESIGN_H * scale);
-    let t = Transform {
-        origin: panel_rect.center() - size * 0.5,
-        scale,
-    };
-    let p = ui.painter().with_clip_rect(panel_rect);
-    paint_glass(&p, t);
-    paint_modules_and_digits(&p, t, &display_cells(value));
-}
 
-fn paint_glass(p: &Painter, t: Transform) {
-    let [left, top, width, height] = DISPLAY_BOUNDS;
-    let glass = t.rect(left, top, width, height);
+    let t = DisplayTransform::new(display_rect);
+    let p = painter.with_clip_rect(display_rect);
+    let cells = display_cells(value);
+    let center_x = REFERENCE_DISPLAY_WIDTH * 0.5;
+    let center_y = REFERENCE_DISPLAY_HEIGHT * 0.5;
+    let first_center = center_x - CHARACTER_PITCH * 7.0;
 
-    // The measured front-plane opening is already 282 x 57 design units.
-    // Repaint it here so the older generic segment renderer below cannot leak
-    // through; the WGPU optical pass is composited afterwards by app.rs.
-    p.rect_filled(glass, t.s(3.8), Color32::from_rgb(30, 13, 12));
-
-    // Red contrast filter: broad absorption plus a weak upper-room reflection.
-    p.rect_filled(
-        t.rect(left + 1.0, top + height * 0.54, width - 2.0, height * 0.45),
-        t.s(1.0),
-        Color32::from_rgba_unmultiplied(0, 0, 0, 30),
-    );
-    p.rect_filled(
-        t.rect(left + 4.0, top + 2.2, width - 8.0, 2.0),
-        t.s(1.0),
-        Color32::from_rgba_unmultiplied(104, 50, 42, 18),
-    );
-
-    // A dark inner edge is visible through the filter; keep it restrained so
-    // the subsequent Fresnel/reflection shader owns the final optical sheen.
-    p.rect_stroke(
-        glass.shrink(t.s(0.6)),
-        t.s(3.2),
-        Stroke::new(t.s(0.45), Color32::from_rgba_unmultiplied(8, 3, 3, 105)),
-    );
-}
-
-fn paint_modules_and_digits(p: &Painter, t: Transform, cells: &[char; CHARACTER_COUNT]) {
-    let [left, top, width, height] = DISPLAY_BOUNDS;
-    let cx = left + width * 0.5;
-    let cy = top + height * 0.5;
-    let first_center = cx - CHARACTER_PITCH * 7.0;
-
-    // Three five-character packages are end-stackable.  Their physical package
-    // width is five 3.81 mm pitches, so the 15-character assembly is 57.15 mm.
-    let assembly_left = cx - ASSEMBLY_WIDTH * 0.5;
-    for module in 0..MODULE_COUNT {
-        let x = assembly_left + module as f32 * MODULE_WIDTH;
-        p.rect_filled(
-            t.rect(x, cy - CHARACTER_HEIGHT * 0.98, MODULE_WIDTH, CHARACTER_HEIGHT * 1.96),
-            t.s(1.2),
-            Color32::from_rgba_unmultiplied(54, 11, 10, 16),
-        );
-        if module > 0 {
-            p.line_segment(
-                [
-                    t.pos(x, cy - CHARACTER_HEIGHT * 0.91),
-                    t.pos(x, cy + CHARACTER_HEIGHT * 0.91),
-                ],
-                Stroke::new(t.s(0.22), Color32::from_rgba_unmultiplied(6, 2, 2, 44)),
-            );
+    for (index, ch) in cells.into_iter().enumerate() {
+        if ch == ' ' {
+            continue;
         }
-    }
-
-    for (index, &ch) in cells.iter().enumerate() {
         let x = first_center + index as f32 * CHARACTER_PITCH;
-        draw_bubble_lens(p, t, x, cy, index);
         if ch == '.' {
-            draw_center_decimal(p, t, x, cy, true);
+            draw_center_decimal(&p, t, x, center_y);
         } else {
-            draw_digit(p, t, x, cy, ch);
+            draw_digit(&p, t, x, center_y, ch);
         }
     }
-}
-
-fn draw_bubble_lens(p: &Painter, t: Transform, cx: f32, cy: f32, index: usize) {
-    // Integral molded magnifier over each tiny die.  The minute package-to-
-    // package tint variation is deterministic and intentionally sub-visible.
-    let module = index / CHARACTERS_PER_MODULE;
-    let tint = match module {
-        0 => (61, 17, 15),
-        1 => (58, 16, 14),
-        _ => (60, 16, 14),
-    };
-    ellipse(
-        p,
-        t,
-        cx,
-        cy,
-        CHARACTER_PITCH * 0.405,
-        CHARACTER_HEIGHT * 0.78,
-        Color32::from_rgba_unmultiplied(tint.0, tint.1, tint.2, 27),
-        Stroke::new(t.s(0.20), Color32::from_rgba_unmultiplied(112, 36, 27, 18)),
-    );
-    // Tiny asymmetric lens catchlight. It must disappear at normal viewing
-    // distance rather than read as a modern glossy UI highlight.
-    ellipse(
-        p,
-        t,
-        cx - CHARACTER_PITCH * 0.105,
-        cy - CHARACTER_HEIGHT * 0.29,
-        CHARACTER_PITCH * 0.18,
-        CHARACTER_HEIGHT * 0.095,
-        Color32::from_rgba_unmultiplied(170, 68, 48, 10),
-        Stroke::NONE,
-    );
 }
 
 fn segment_mask(ch: char) -> u8 {
@@ -167,8 +110,12 @@ fn segment_mask(ch: char) -> u8 {
     }
 }
 
-fn draw_digit(p: &Painter, t: Transform, cx: f32, cy: f32, ch: char) {
+fn draw_digit(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, ch: char) {
     let mask = segment_mask(ch);
+    if mask == 0 {
+        return;
+    }
+
     let h = CHARACTER_HEIGHT;
     let w = h * 0.59;
     let x = w * 0.43;
@@ -186,114 +133,83 @@ fn draw_digit(p: &Painter, t: Transform, cx: f32, cy: f32, ch: char) {
         (SEG_F, cx - x, cy - upper_y, false, vertical_half, false),
         (SEG_G, cx, cy, true, horizontal_half * 0.98, false),
     ] {
-        draw_monolithic_segment(
-            p,
-            t,
-            x0,
-            y0,
-            horizontal,
-            half_len,
-            mask & bit != 0,
-            serif,
-        );
+        if mask & bit != 0 {
+            draw_monolithic_segment(p, t, x0, y0, horizontal, half_len, serif);
+        }
     }
 }
 
 fn draw_monolithic_segment(
     p: &Painter,
-    t: Transform,
+    t: DisplayTransform,
     cx: f32,
     cy: f32,
     horizontal: bool,
     half_len: f32,
-    on: bool,
     serif: bool,
 ) {
-    // HP's die has three emitting bars per segment.  At normal scale the three
-    // merge optically; at high DPI the authentic internal structure resolves.
+    // The three bars should merge optically at ordinary size but remain visible
+    // when enlarged, as on the real monolithic HP LED die.
     let offsets = [-0.22_f32, 0.0, 0.22];
-    let stripe_width = 0.155;
-    let glow = if on {
-        Color32::from_rgba_unmultiplied(255, 39, 18, 24)
-    } else {
-        Color32::from_rgba_unmultiplied(57, 13, 12, 15)
-    };
-    let ink = if on {
-        [
-            Color32::from_rgb(248, 46, 24),
-            Color32::from_rgb(255, 55, 27),
-            Color32::from_rgb(244, 39, 20),
-        ]
-    } else {
-        [
-            Color32::from_rgb(45, 15, 14),
-            Color32::from_rgb(47, 16, 14),
-            Color32::from_rgb(43, 14, 13),
-        ]
-    };
+    let inks = [
+        Color32::from_rgb(244, 38, 22),
+        Color32::from_rgb(255, 49, 25),
+        Color32::from_rgb(235, 31, 18),
+    ];
+    let glow = Color32::from_rgba_unmultiplied(255, 32, 18, 27);
 
-    if horizontal {
-        p.line_segment(
-            [t.pos(cx - half_len, cy), t.pos(cx + half_len, cy)],
-            Stroke::new(t.s(0.78), glow),
-        );
-        for (i, offset) in offsets.into_iter().enumerate() {
-            let left_extra = if serif { 0.18 - i as f32 * 0.055 } else { 0.0 };
+    let (glow_from, glow_to) = if horizontal {
+        (t.pos(cx - half_len, cy), t.pos(cx + half_len, cy))
+    } else {
+        (t.pos(cx, cy - half_len), t.pos(cx, cy + half_len))
+    };
+    p.line_segment(
+        [glow_from, glow_to],
+        Stroke::new(t.stroke(0.82, 0.72), glow),
+    );
+
+    for (index, offset) in offsets.into_iter().enumerate() {
+        if horizontal {
+            let left_extra = if serif {
+                0.18 - index as f32 * 0.055
+            } else {
+                0.0
+            };
             p.line_segment(
                 [
                     t.pos(cx - half_len - left_extra, cy + offset),
                     t.pos(cx + half_len, cy + offset),
                 ],
-                Stroke::new(t.s(stripe_width), ink[i]),
+                Stroke::new(t.stroke(0.155, 0.34), inks[index]),
             );
-        }
-    } else {
-        p.line_segment(
-            [t.pos(cx, cy - half_len), t.pos(cx, cy + half_len)],
-            Stroke::new(t.s(0.78), glow),
-        );
-        for (i, offset) in offsets.into_iter().enumerate() {
+        } else {
             p.line_segment(
                 [
                     t.pos(cx + offset, cy - half_len),
                     t.pos(cx + offset, cy + half_len),
                 ],
-                Stroke::new(t.s(stripe_width), ink[i]),
+                Stroke::new(t.stroke(0.155, 0.34), inks[index]),
             );
         }
     }
 }
 
-fn draw_center_decimal(p: &Painter, t: Transform, cx: f32, cy: f32, on: bool) {
-    // 5082-7405 center-decimal option: the decimal is a complete character,
-    // not a lower-right dot attached to a numeral.  The die itself has two bars.
-    let color_a = if on {
-        Color32::from_rgb(255, 55, 27)
-    } else {
-        Color32::from_rgb(46, 15, 14)
-    };
-    let color_b = if on {
-        Color32::from_rgb(244, 39, 20)
-    } else {
-        Color32::from_rgb(43, 14, 13)
-    };
-    if on {
-        ellipse(
-            p,
-            t,
-            cx,
-            cy + CHARACTER_HEIGHT * 0.02,
-            1.05,
-            0.92,
-            Color32::from_rgba_unmultiplied(255, 35, 18, 18),
-            Stroke::NONE,
-        );
-    }
+fn draw_center_decimal(p: &Painter, t: DisplayTransform, cx: f32, cy: f32) {
+    // 5082-7405 center-decimal die: two short horizontal emitting bars in its
+    // own character position, not a dot attached to the previous numeral.
     let half = 0.72;
-    for (dy, color) in [(-0.17, color_a), (0.17, color_b)] {
+    let glow = Color32::from_rgba_unmultiplied(255, 32, 18, 25);
+    p.line_segment(
+        [t.pos(cx - half, cy), t.pos(cx + half, cy)],
+        Stroke::new(t.stroke(0.85, 0.72), glow),
+    );
+    for (dy, color) in [
+        (-0.17, Color32::from_rgb(255, 49, 25)),
+        (0.17, Color32::from_rgb(235, 31, 18)),
+    ] {
         p.line_segment(
             [t.pos(cx - half, cy + dy), t.pos(cx + half, cy + dy)],
-            Stroke::new(t.s(0.18), color),
+            Stroke::new(t.stroke(0.18, 0.36), color),
         );
     }
 }
@@ -304,8 +220,8 @@ fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
         return cells;
     }
 
-    // Program listings may eventually supply already-spaced numeric fields.
-    // Preserve those verbatim instead of forcing numeric mantissa formatting.
+    // A future calculator core may supply an already-spaced hardware field.
+    // Preserve such fields verbatim rather than reformatting them.
     if value.contains(' ') && !value.contains(['e', 'E']) {
         for (cell, ch) in cells.iter_mut().zip(value.chars()) {
             *cell = ch;
@@ -331,6 +247,13 @@ fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
             decimal = true;
         }
     }
+
+    // The temporary UI model can emit operator characters even though the real
+    // HP-67 display cannot.  Do not invent non-hardware glyphs for those cases.
+    if digits == 0 {
+        return cells;
+    }
+
     if !decimal && out < 12 {
         cells[out] = '.';
     }
@@ -351,26 +274,8 @@ fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
         cells[13] = tens;
         cells[14] = ones;
     }
-    cells
-}
 
-fn ellipse(
-    p: &Painter,
-    t: Transform,
-    cx: f32,
-    cy: f32,
-    rx: f32,
-    ry: f32,
-    fill: Color32,
-    stroke: Stroke,
-) {
-    let points = (0..32)
-        .map(|i| {
-            let a = i as f32 * std::f32::consts::TAU / 32.0;
-            t.pos(cx + rx * a.cos(), cy + ry * a.sin())
-        })
-        .collect();
-    p.add(Shape::convex_polygon(points, fill, stroke));
+    cells
 }
 
 #[cfg(test)]
@@ -379,11 +284,20 @@ mod tests {
 
     #[test]
     fn hardware_dimensions_follow_hp_5082_7405_datasheet() {
-        assert!((CHARACTER_PITCH / UNITS_PER_MM - 3.81).abs() < 0.0001);
-        assert!((CHARACTER_HEIGHT / UNITS_PER_MM - 2.794).abs() < 0.0001);
-        assert!((ASSEMBLY_WIDTH / UNITS_PER_MM - 57.15).abs() < 0.001);
+        assert!((CHARACTER_PITCH / REFERENCE_UNITS_PER_MM - 3.81).abs() < 0.0001);
+        assert!((CHARACTER_HEIGHT / REFERENCE_UNITS_PER_MM - 2.794).abs() < 0.0001);
+        assert!((ASSEMBLY_WIDTH / REFERENCE_UNITS_PER_MM - 57.15).abs() < 0.001);
         assert_eq!(CHARACTER_COUNT, 15);
         assert_eq!(MODULE_COUNT * CHARACTERS_PER_MODULE, CHARACTER_COUNT);
+    }
+
+    #[test]
+    fn photographed_glass_keeps_original_led_to_aperture_ratio() {
+        let pitch_ratio = CHARACTER_PITCH / REFERENCE_DISPLAY_WIDTH;
+        let height_ratio = CHARACTER_HEIGHT / REFERENCE_DISPLAY_HEIGHT;
+        assert!((pitch_ratio - 0.05444).abs() < 0.0001);
+        assert!((height_ratio - 0.19749).abs() < 0.0001);
+        assert!((ASSEMBLY_WIDTH / REFERENCE_DISPLAY_WIDTH - 0.8165).abs() < 0.0002);
     }
 
     #[test]
@@ -397,7 +311,8 @@ mod tests {
             [' ', '1', '.', '2', '3', '4', '5', '6', '7', '8', '9', '0', ' ', '1', '2']
         );
         assert_eq!(&display_cells("0")[..3], &[' ', '0', '.']);
-        assert_eq!(display_cells(""), [' '; 15]);
+        assert_eq!(display_cells("+"), [' '; CHARACTER_COUNT]);
+        assert_eq!(display_cells(""), [' '; CHARACTER_COUNT]);
     }
 
     #[test]
