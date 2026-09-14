@@ -202,7 +202,7 @@ mod tests {
         let rom = fixture_rom();
         let initial = Hp67Reference::default();
         let mut target = SemanticTimedTarget::new(initial.clone(), rom.clone(), 1);
-        let mut reference = initial;
+        let reference = initial;
 
         target.machine.core.cpu.a[0] = 9;
         let error = assert_synchronized(&reference, &target)
