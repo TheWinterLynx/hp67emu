@@ -37,9 +37,9 @@ Contains the model-specific HP-67 definition:
 - a built-in HP-67 ROM image;
 - HP-67 card UI and model configuration.
 
-The embedded ROM is declared as `int i_rom[ROM_SIZE]` and `ROM_SIZE` is octal `020000`, i.e. 8192 host entries. This is large enough to represent the two-bank semantic address space used by the emulator.
+The embedded ROM is declared as `int i_rom[ROM_SIZE]` and `ROM_SIZE` is octal `020000`, i.e. 8192 host entries. The processor addresses the banked ROM as one flat array with the bank in address bit 12, so the physical normalization is unambiguous: entries `0..4095` are logical bank 0 PCs `0x000..0xfff`, and entries `4096..8191` are bank 1 PCs `0x000..0xfff`.
 
-The first two ROM words are octal `00000, 01743`. Nonpareil's HP-67 disassembly at address `@0000` starts with `nop` followed by `go to reset0`, so the two projects agree immediately at reset entry. A full word-for-word comparison is now a planned corpus check.
+The first two ROM words are octal `00000, 01743`. Nonpareil's HP-67 disassembly at address `@0000` starts with `nop` followed by `go to reset0`, so the two projects agree immediately at reset entry. This is only a sanity check; the project now has tooling for the full word-for-word comparison.
 
 ### `src/x11-calc-67.h`
 
@@ -60,13 +60,7 @@ This means x11-calc is useful for **functional speed and behavioural sequencing*
 
 ### `prg/x11-calc-67-*`
 
-The repository includes HP-67 card/program material, notably diagnostic program A and C card images plus other known programs. These are excellent future end-to-end acceptance fixtures for:
-
-- keyboard/program entry semantics;
-- CRC/card reader;
-- RAM/program storage;
-- branch/flag behaviour;
-- long-running firmware validation.
+The repository includes HP-67 card/program material, notably diagnostic program A and C card images plus other known programs. These are excellent future end-to-end acceptance fixtures for keyboard/program entry semantics, CRC/card-reader behaviour, RAM/program storage, branch/flag behaviour and long-running firmware validation.
 
 The card files themselves are third-party/project data and must be reviewed for redistribution before copying them into hp67emu. Their program behaviours can nevertheless be used as external regression references.
 
@@ -74,13 +68,7 @@ The card files themselves are third-party/project data and must be reviewed for 
 
 x11-calc contains HP-67-specific semantic operations for display/card-controller state, including motor control, card-present testing and read/write mode. Its model is host-file oriented and intentionally higher level than the electrical CRC we want.
 
-Use it to answer questions such as:
-
-- which firmware-visible condition changes after a semantic card operation;
-- which code paths expect card present / write mode / buffer state;
-- which diagnostic programs exercise the reader.
-
-Do not use it for magnetic-head timing, motor inertia, sense-amplifier pulses or ISA/DATA ownership.
+Use it to answer questions such as which firmware-visible condition changes after a semantic card operation, which code paths expect card present/write mode/buffer state, and which diagnostic programs exercise the reader. Do not use it for magnetic-head timing, motor inertia, sense-amplifier pulses or ISA/DATA ownership.
 
 ## P-pointer regression value
 
@@ -104,18 +92,30 @@ Our priority remains:
 3. x11-calc embedded ROM — independent implementation/corpus cross-check;
 4. Panamatik/Sydney Smith — further behavioural/address-level checks.
 
-A full comparison should report every differing address by bank/page rather than silently choosing one image.
+A full comparison must report every differing address by bank/page rather than silently choosing one image.
+
+## Implemented hp67emu tooling
+
+`src/research/rom_corpus.rs` and `src/bin/rom_compare.rs` now make the corpus comparison reproducible without importing x11-calc source or HP firmware into the repository.
+
+`extract-x11` locates `int i_rom[...]`, parses C octal/decimal/hex literals, validates every word as 10-bit, requires exactly 8192 words and emits the project-normalized `(bank, pc, word)` TSV representation. The mapping is the same physical two-bank ordering described above.
+
+`import-pairs` accepts explicit address/opcode listings for one bank. `merge` combines independently generated sparse corpora but rejects any overlapping location whose values disagree. `compare` reports exact differences plus per-bank/per-page counts and exits non-zero on disagreement. `inspect` reports only binary facts such as size and leading bytes; it deliberately does not guess the Teenix `.pfl` format.
+
+The complete local procedure is documented in `docs/ROM_CORPUS_WORKFLOW.md`.
 
 ## Licensing boundary
 
 x11-calc source files are GPLv3-or-later. hp67emu must not line-for-line translate its implementation unless we deliberately make a compatible licensing decision.
 
-We may safely use it as research evidence for behaviour, compare externally observable states, record independently corroborated hardware facts, and write our own Rust implementation from the hardware/microcode evidence.
+We may use it as research evidence for behaviour, compare externally observable states, record independently corroborated hardware facts, and write our own Rust implementation from the hardware/microcode evidence.
 
 ## Concrete hp67emu actions
 
-- Add x11-calc as a Tier-C behavioural/corpus source, not Tier-A/B timing evidence.
-- Compare the entire x11-calc 8192-entry ROM image against Teenix/Nonpareil after the physical dump is unpacked.
+- Keep x11-calc as a Tier-C behavioural/corpus source, not Tier-A/B timing evidence.
+- Run the entire 8192-entry image through `rom_compare extract-x11` and preserve the resulting hash/report locally.
+- Normalize an independently assembled Nonpareil corpus and compare it word-for-word with x11-calc.
+- Decode the Teenix `.pfl` format only after its structure is proven, then perform the three-way comparison.
 - Add P-wrap/label-search differential tests informed by both Nonpareil and x11-calc.
 - Cross-check the 35 HP-67 key codes against Nonpareil and the physical key matrix.
 - Use x11-calc diagnostic-card programs as end-to-end functional acceptance cases once the CRC/card path works.
