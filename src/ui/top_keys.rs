@@ -58,12 +58,12 @@ const TOP_KEYS: &[TopKey] = &[
     },
 ];
 
-/// Corrects the A-E row after the generic photographic key pass.
+/// Corrects only the photographed A-E wells after the generic key pass.
 ///
-/// Those five keys sit in unusually deep photographed wells. The generic crop
-/// contains part of that black well, so moving the whole crop makes the recess
-/// move with the key and exaggerates the apparent hole. We first restore the
-/// untouched photograph, then animate only the physical olive keycap itself.
+/// The generic crop contains part of the unusually deep black well around these
+/// five keys. Moving that whole crop makes the well move with the cap. Restore the
+/// original well, then move only the olive cap using the same travel and timings
+/// as every other photographic key.
 pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
     if host.width() <= 0.0 || host.height() <= 0.0 {
         return;
@@ -87,23 +87,15 @@ pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
             continue;
         }
 
-        // Remove the generic animation, including its shadow just below the
-        // source crop, by restoring the exact original pixels in this small area.
+        // Remove the generic animation, including its moving well/shadow.
         let restore = source_to_screen(photo_rect, key.restore);
         painter.image(photo.id(), restore, source_uv(key.restore), Color32::WHITE);
 
         let cap = source_to_screen(photo_rect, key.cap);
         let scale = photo_rect.height() / PHOTO_H;
-        let travel = 2.6 * scale * press;
-
-        // The top edge moves much less than the lower edge. This reads as the
-        // short Classic-series key travel while avoiding a newly exposed black
-        // strip above the A-E caps.
-        let moved = Rect::from_min_max(
-            pos2(cap.left(), cap.top() + travel * 0.22),
-            pos2(cap.right(), cap.bottom() + travel),
-        );
-        let shade = (255.0 - 5.0 * press).round() as u8;
+        let travel = 3.8 * scale * press;
+        let moved = cap.translate(vec2(0.0, travel));
+        let shade = (255.0 - 7.0 * press).round() as u8;
         painter.image(
             photo.id(),
             moved,
@@ -111,20 +103,16 @@ pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
             Color32::from_rgb(shade, shade, shade),
         );
 
-        // Very restrained contact shadow at the bottom; no synthetic top hole.
+        // Match the lower contact shadow used by the generic key animation.
+        let shadow_alpha = (30.0 + 34.0 * press).round() as u8;
         painter.line_segment(
             [
-                pos2(moved.left() + scale * 7.0, moved.bottom()),
-                pos2(moved.right() - scale * 7.0, moved.bottom()),
+                pos2(moved.left() + scale * 6.0, moved.bottom()),
+                pos2(moved.right() - scale * 6.0, moved.bottom()),
             ],
             eframe::egui::Stroke::new(
-                (0.9 * scale).max(0.55),
-                Color32::from_rgba_unmultiplied(
-                    0,
-                    0,
-                    0,
-                    (24.0 + 24.0 * press).round() as u8,
-                ),
+                (1.0 * scale).max(0.6),
+                Color32::from_rgba_unmultiplied(0, 0, 0, shadow_alpha),
             ),
         );
     }
