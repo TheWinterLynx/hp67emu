@@ -31,7 +31,7 @@ This exposes the architectural state Nonpareil considers necessary for Woodstock
 
 - eight 14-nibble registers: A, B, C, Y, Z, T, M1, M2;
 - 4-bit `F` register;
-- pointer `P` in the 0..13 range;
+- pointer `P` in the 0..13 range plus undocumented wrap states used by later ACTs;
 - decimal/binary arithmetic mode;
 - carry and previous carry;
 - 16 status bits plus external flags;
@@ -40,10 +40,10 @@ This exposes the architectural state Nonpareil considers necessary for Woodstock
 - a two-entry return stack;
 - keyboard buffer/flag and scanner inputs;
 - display state;
-- up to four 1K-word pages and two banks;
+- up to four 1K-word logical page groups and two banks;
 - RAM address/data state and peripheral hooks.
 
-The architecture-variant comments are especially useful: Nonpareil records the unusual P-wrap behaviour as applying to later ACT variants including HP part `1820-2530`. This is a regression target for our hardware model, not an invitation to reproduce Nonpareil's compatibility hack.
+The architecture-variant comments are especially useful: Nonpareil records the unusual P-wrap behaviour as applying to later ACT variants including HP parts `1820-1596` and `1820-2530`. This is a regression target for our hardware model, not an invitation to reproduce Nonpareil's compatibility hack.
 
 ### `src/proc_woodstock.c`
 
@@ -83,7 +83,7 @@ This distinction is central: Nonpareil gives us the expected **instruction-bound
 
 ### `src/digit_ops.c`
 
-Contains reusable semantic ideas for BCD/hex digit arithmetic, carry/borrow, shifts, copies, exchanges and comparisons. We should implement equivalent Rust helpers for the reference model, then implement separate bit-serial ALU behaviour for the electrical ACT.
+Contains reusable semantic ideas for BCD/hex digit arithmetic, carry/borrow, shifts, copies, exchanges and comparisons. We implement equivalent Rust helpers for the reference model, then separately implement bit-serial ALU behaviour for the electrical ACT.
 
 The production ACT must not call a whole-field `add()` and pretend that operation is cycle accurate.
 
@@ -99,7 +99,7 @@ Nonpareil has a useful functional model of the HP-67/97 CRC/card-reader chip. It
 - card inserted;
 - write mode.
 
-It maps CRC-specific opcode slots into the Woodstock opcode table and models read/write access through special RAM addresses. This is excellent semantic behaviour for card-reader regression tests.
+It maps CRC-specific opcode slots into the Woodstock opcode table and models read/write access through special RAM addresses. This is excellent semantic behaviour for card-reader regression tests and is now represented independently in `reference::crc`.
 
 It is not a model of magnetic-head timing, sense-amplifier pulses, motor transport or serial electrical bus timing. Those remain separate hp67emu devices.
 
@@ -121,7 +121,7 @@ This is unusually valuable HP-67-specific metadata. It declares:
 - RUN/PRGM switch through CRC flag 1;
 - every HP-67 hardware key code.
 
-The file identifies the ACT type through an older HP/Mostek part-number pairing while Nonpareil's architecture-variant comments also cover `1820-2530`. Our physical HP-67 sources identify `1820-2530`; the part-number/revision relationship must be explicitly reconciled before we freeze chip identity in code.
+The file names `1820-1596/MK6216N` as the ACT. Our HP-67 schematic and an inspected physical HP-67 instead identify `1820-2530`. This apparent conflict is now reconciled rather than left as an unknown: the HP-97 service manual's logic-PCA replacement table explicitly allows `1820-2530` when `1820-1596` is unavailable, and Nonpareil's own architecture-variant table assigns the same P-wrap behaviour to both parts. We therefore keep `1820-1596` as a valid semantic compatibility reference while targeting the physically documented `1820-2530` revision in hp67emu. See `docs/HARDWARE_SOURCES.md`.
 
 ### `ncd/67-97/*.asm`
 
@@ -137,17 +137,15 @@ The startup disassembly begins at ROM/anode driver `1818-0268` and immediately e
 
 For canonical firmware bytes we still prefer independently hashed physical ROM dumps (Teenix). The Nonpareil disassembly is a cross-check and symbolic map.
 
-## HP-67 configuration we can adopt as test data
-
-The following should become machine metadata/tests rather than handwritten guesses:
+## HP-67 configuration adopted as reference/test data
 
 ### ROM/RAM topology
 
-Use the Nonpareil HP-67 definition as one source for the mapping, then verify it against the HP-67 schematic and Teenix raw dumps. The machine has banked instruction storage with 1K-word pages and 16-register RAM blocks in the ROM/RAM chips.
+Use the Nonpareil HP-67 definition as one source for the mapping, then verify it against the HP-67 schematic and Teenix raw dumps. The machine has banked instruction storage with 1K-word logical groups and 16-register RAM blocks in the ROM/RAM chips. Teenix's later notes express the same physical ROM organization as sixteen 256-word pages; the two descriptions differ in grouping, not in the 4K PC address space.
 
 ### Keyboard codes
 
-Nonpareil gives all 35 user-key to hardware-key-code mappings. We can import the mapping as **test data** after checking it against the schematic/key scan. The final UI still closes physical contacts; the semantic hardware key code is an observation produced by the scanner, not the input API.
+Nonpareil gives all 35 user-key to hardware-key-code mappings. We can import the mapping as test data after checking it against the schematic/key scan. The final UI still closes physical contacts; the semantic hardware key code is an observation produced by the scanner, not the input API.
 
 ### RUN / W-PRGM
 
@@ -157,45 +155,39 @@ Nonpareil models RUN/PRGM through CRC flag 1. This directly supports the directi
 
 Nonpareil's HP-67 definition gives the segment character generator and its Woodstock scan code documents special 14-digit/sign handling. We should reuse those facts for regression expectations, but drive our renderer from actual anode/cathode timing and integrated segment energy.
 
-## What to implement in Rust from this analysis
+## Rust implementation status from this analysis
 
 ### Phase R1 — semantic reference core
 
-Create a deliberately small headless Rust model containing:
+Implemented in `reference::woodstock` and `reference::rom`:
 
-- 14-nibble registers;
-- P, F, status bits, carry and previous carry;
-- PC, delayed ROM selection, bank and two-level return stack;
-- 10-bit opcode decoder;
-- all eight arithmetic fields;
-- arithmetic/register operation semantics;
-- special-op semantics required by HP-67 ROM;
-- ROM/RAM semantic access;
-- instruction-boundary trace snapshots.
-
-This is not connected to the GUI.
+- 14-nibble registers and architectural control state;
+- complete four-way 10-bit decoder;
+- all 32 arithmetic/register operations and eight fields;
+- required HP-67 CPU special operations;
+- RAM/register access;
+- JSB/GOTO/THEN-GOTO/return/bank behaviour;
+- host-independent banked ROM storage and fetch.
 
 ### Phase R2 — differential harness
 
-For a given initial state and microinstruction, compare reference and electrical models at the next instruction boundary:
+Implemented in `reference::snapshot` and `reference::differential`:
 
-- A/B/C/Y/Z/T/M1/M2;
-- P/F;
-- all status bits;
-- carry;
-- PC/stack/bank/delayed-ROM state;
-- touched RAM;
-- CRC-visible semantic flags when relevant.
+- instruction-boundary CPU snapshots;
+- readable state differences;
+- timed-target trait with monotonic completed-instruction count;
+- bounded tick advance to the next target instruction boundary;
+- skipped-boundary/stall/divergence diagnostics.
 
-A mismatch should print the opcode, PC, field, first differing register digit and electrical tick.
+The harness is ready; the electrical ACT still needs to expose its reconstructed architectural snapshot and instruction counter before it can be connected.
 
 ### Phase R3 — run original HP-67 ROM in both paths
 
-Use the hashed Teenix ROM as input to both models. First target: reset/startup until the firmware reaches a stable key-wait/display loop. Then compare longer traces and real key sequences.
+Pending verified external ROM corpus. First target remains reset/startup until the firmware reaches a stable key-wait/display loop, then longer traces and real key sequences.
 
 ### Phase R4 — peripherals
 
-Add semantic CRC/card behaviour and display expectations to the reference side, while the fidelity side continues with independently timed electrical devices.
+CRC/card behaviour is now implemented semantically in `reference::crc` and composed into `reference::hp67`. Electrical CRC/card transport/display behavior remains pending.
 
 ## What we should not port
 
@@ -216,7 +208,7 @@ Those pieces would either duplicate our architecture or reduce fidelity.
 
 Nonpareil contains an explicit address-specific workaround for an undocumented P-pointer behaviour used by HP-67/97 label search. This is valuable evidence because it tells us exactly where an instruction-level model leaks hardware detail.
 
-Our goal is stronger: once P and its timing are modeled at the correct serial phase, the relevant HP-67 microcode should work without a PC-specific exception. We should preserve Nonpareil's known addresses as regression tests proving that our lower-level model naturally produces the required result.
+Our semantic reference expresses the condition generically from recent P movement, and the historical HP-67 address around octal `06132` is preserved as a regression test. The eventual electrical ACT must produce the same effect naturally from pointer timing without consulting the firmware PC.
 
 ## Implementation rule
 
