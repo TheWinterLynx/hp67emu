@@ -57,7 +57,7 @@ The important exception is the word fetched immediately after an `IF`/test instr
 
 The measured HP-67 examples include ordinary instructions with `Sync = 1` and following THEN-GOTO words with `Sync = 0`.
 
-This means the ROM-word electrical window is always b46..b55, while SYNC tells the ACT how to interpret the returned ten bits.
+This means the ROM-word electrical window is always b46..b55, while SYNC distinguishes an ordinary instruction-fetch cycle from the following implied-GOTO target cycle.
 
 ## IS/ISA passive and active drive behavior
 
@@ -90,7 +90,9 @@ This ownership description applies only to instruction fetch. IS has other funct
 
 The source explicitly states that the instruction fetched during one 56-bit machine cycle is executed during the following 56-bit cycle. hp67emu must therefore keep fetch and execution as adjacent pipeline stages rather than treating a ROM lookup as an instantaneous read at the moment an instruction executes.
 
-This is the key architectural bridge from the current instruction-boundary reference model to the future electrical ACT/ROM implementation.
+`src/machines/hp67/fetch.rs` now represents that boundary explicitly: the ACT endpoint sends a 12-bit address through the resolved IS net one bit at a time; the ROM endpoint reconstructs it from those electrical levels, latches a caller-supplied 10-bit ROM word, and returns that word through the same resolved net one bit at a time. A pipeline latch promotes a word fetched in cycle N to the executing slot when cycle N+1 begins.
+
+The integration regression uses the measured HP-67 `0x07b -> 0x04c` pair and the physical startup `0x001 -> 0x3e3` pair. Neither 10-bit value is passed directly from the ROM endpoint to the ACT endpoint; the receiver rebuilds it from ten resolved b46..b55 samples.
 
 ## What is still open
 
@@ -102,7 +104,8 @@ The following are deliberately **not** fixed by the code added with this note:
 - the precise PHI edge on which a ROM launches and the ACT samples each returned bit;
 - propagation delay between PHI transitions and IS transitions;
 - DATA bus passive/active drive behavior beyond the currently recorded source observations;
-- exact reset-to-first-valid-SYNC timing in production code.
+- exact reset-to-first-valid-SYNC timing in production code;
+- physical bank-selection storage/propagation inside the individual 1818-* devices.
 
 The current PDF includes expanded PHI/SYNC/IS waveforms on page 70, so the next evidence task is to convert those waveform edges into an explicit launch/sample convention without relying on visual guesswork.
 
@@ -115,6 +118,11 @@ The current PDF includes expanded PHI/SYNC/IS waveforms on page 70, so the next 
 - `src/machines/hp67/isa.rs`
   - LSB-first address/word serialization;
   - active-high / release-for-zero IS drive behavior.
+- `src/machines/hp67/fetch.rs`
+  - ACT address shift-out and ROM-word shift-in;
+  - ROM address reconstruction and response serialization;
+  - one-cycle fetch/execution pipeline latch;
+  - hard failure on floating/contentious samples or absent fixture words.
 - `src/machines/hp67/machine.rs`
   - passive pull-down bias for the shared IS/ISA net.
 
