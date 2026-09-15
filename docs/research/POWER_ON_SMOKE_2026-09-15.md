@@ -2,7 +2,7 @@
 
 ## Result
 
-A local run against the normalized 5120-word Teenix HP-67 corpus completed the first structural power-on checkpoint successfully.
+A local run against the normalized 5120-word Teenix HP-67 corpus completed the structural power-on checkpoint successfully.
 
 Command path:
 
@@ -82,20 +82,34 @@ cycle 86: EXEC pc=0x068 word=0x319 ... -> pc=0xfc6
 
 and executed CRC control traffic such as `set flag 4`, test/clear flag 5 and test/clear flag 6 while continuing through the same serial fetch path.
 
-The ending `pc=0x087` is inside the documented idle/key-wait region: the reviewed HP-67 disassembly labels octal `0167` (`0x077`) as the main wait-for-key loop and octal `0206` (`0x086`) as the card-present poll inside that loop. The run therefore strongly indicates that architectural reset has completed and firmware is circulating in its normal no-input idle path rather than merely surviving arbitrary instructions.
+## Deterministic boot-to-idle checkpoint
 
-To make that conclusion automatic rather than infer it from a terminal PC, the smoke runner now tracks source-backed boot landmarks and supports `--stop-at-idle`. The criterion requires display initialization at octal `0161`, two visits to main-wait `0167`, at least one pass through card-poll `0206`, `display_enable=true`, and no buffered key. Requiring the second main-wait visit proves a complete loop pass.
+A subsequent local run enabled `--stop-at-idle` and reached the complete source-backed idle criterion after only 281 executed words:
+
+```text
+BOOT IDLE PASS: real firmware completed initialization and cycled through the documented no-key wait loop with display_enable=true.
+BOOT IDLE: cycle=281; executed_words=281; pc=0x078; bank=0
+BOOT SUMMARY: display_init_seen=true; main_wait_visits=2; card_poll_visits=1; display_enable=true; no_key=true; physical_0x067_to_0xfc6=true; idle_cycle=281
+```
+
+This closes the architectural power-on checkpoint. The criterion is deliberately stronger than reaching one convenient PC: firmware must execute the display-initialization landmark, visit the main wait loop twice, pass through the card-present poll at least once, have the display enabled, have no buffered key, and reproduce the physical `0x067 -> 0x0fc6` delayed-ROM/JSB path. The second wait-loop visit proves a complete no-input loop pass rather than a one-time initialization branch.
+
+The ending PC `0x078` is the instruction immediately after the documented main wait entry `0x077`, consistent with stopping just after the second observed visit.
+
+## Display fidelity handoff
+
+With architectural reset/idle established, fidelity work moves to the actual display path rather than extending the instruction probe. Direct HP-67 logic-analyser evidence fixes ROM0 display data at IS `b0..b7` LSB-first, identifies the ROM0/anode decoder, the RCD/STR-controlled cathode scan and the fifteen observed STR slots. Those source-backed facts are now represented by the structural display module; exact PHI-relative edges, pulse widths, electrical LED current and integration with the ACT serial display source remain separate milestones.
 
 ## What this proves
 
-The physical startup anchors can be fetched from the reconciled firmware corpus through the structural HP-67 serial bus and executed in the correct one-word pipeline order. Subsequent firmware continues through the same serial path, with ACT-versus-CRC instruction ownership resolved independently of the reference implementation. A 10,000-cycle local run reaches the documented idle/key-wait region without an unsupported architectural boundary.
+The physical startup anchors can be fetched from the reconciled firmware corpus through the structural HP-67 serial bus and executed in the correct one-word pipeline order. Subsequent firmware continues through the same serial path, with ACT-versus-CRC instruction ownership resolved independently of the reference implementation. The real microcode completes initialization and enters a stable documented no-key idle loop after 281 executed words under the current architectural bridge.
 
 ## What this does not prove
 
-The current transport operates at evidenced `b0..b55` bit-cell coordinates but still uses the temporary four-subphase PHI scaffold. It therefore does not establish final PHI1/PHI2 launch/sample edges, physical pulse widths, propagation delays, bit-serial ACT ALU timing, DATA-bus timing, physical 1818-* RAM behavior, CRC card transport, full peripheral timing or display operation.
+The current transport operates at evidenced `b0..b55` bit-cell coordinates but still uses the temporary four-subphase PHI scaffold. It therefore does not establish final PHI1/PHI2 launch/sample edges, physical pulse widths, propagation delays, bit-serial ACT ALU timing, DATA-bus timing, physical 1818-* RAM behavior, CRC card transport or final display electrical behavior.
 
 `ActRamImage` and the CRC flag core are explicitly architectural bring-up scaffolds. They are not substitutes for the final physical RAM chips or 1820-1751 card-reader controller model. Likewise, `display_enable=true` at architectural idle is not yet equivalent to emitted LED segment energy.
 
 ## Immediate continuation
 
-Use `--stop-at-idle` to turn the firmware idle loop into a deterministic local acceptance checkpoint. Once that passes, the next fidelity milestone is the real display path: ROM0 display-anode output, RCD/STR scan control and the 1820-1749 cathode driver, so the first visible `0.00` is generated by microcode and modeled electronics rather than by UI formatting.
+Use the deterministic boot-idle checkpoint as the fixed starting point for display bring-up. The next steps are to observe the ACT display-register state at idle, connect its source-backed eight-bit display code to IS `b0..b7`, feed the ROM0 decoder, apply RCD/STR scan ordering through the cathode model, then integrate segment on-time so the first visible `0.00` emerges from microcode and modeled electronics rather than UI formatting.
