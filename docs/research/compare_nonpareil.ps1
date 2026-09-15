@@ -37,6 +37,21 @@ function Test-NonpareilUasm([string]$Executable) {
     return $Probe -match "uasm microassembler"
 }
 
+function Convert-ToWslPath([string]$WindowsPath) {
+    if ([string]::IsNullOrWhiteSpace($WindowsPath)) {
+        throw "Cannot convert an empty Windows path to WSL."
+    }
+
+    $FullPath = [System.IO.Path]::GetFullPath($WindowsPath)
+    if ($FullPath -match '^([A-Za-z]):\\(.*)$') {
+        $Drive = $Matches[1].ToLowerInvariant()
+        $Tail = $Matches[2] -replace '\\', '/'
+        return "/mnt/$Drive/$Tail"
+    }
+
+    throw "Unsupported Windows path for WSL conversion: $FullPath"
+}
+
 New-Item -ItemType Directory -Force $ResearchDir | Out-Null
 $ResearchDir = (Resolve-Path $ResearchDir).Path
 $ExternalDir = Join-Path $ResearchDir "external"
@@ -124,7 +139,7 @@ if ($NativeUasm) {
     }
 
     Write-Host "No verified native Nonpareil uasm found; building the official pinned uasm under WSL ..."
-    & $Wsl.Source sh -lc "command -v gcc >/dev/null 2>&1 && command -v flex >/dev/null 2>&1 && command -v bison >/dev/null 2>&1"
+    & $Wsl.Source -e sh -lc "command -v gcc >/dev/null 2>&1 && command -v flex >/dev/null 2>&1 && command -v bison >/dev/null 2>&1"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WSL is present but gcc/flex/bison are missing."
         Write-Host "Install once inside WSL with: sudo apt-get update && sudo apt-get install -y build-essential flex bison"
@@ -135,12 +150,31 @@ if ($NativeUasm) {
     New-Item -ItemType Directory -Force $BuildDir | Out-Null
     $Helper = Join-Path $RepoRoot "docs\research\build_nonpareil_uasm_wsl.sh"
 
-    $SourceWsl = (& $Wsl.Source wslpath -a $NonpareilSourceDir).Trim()
-    $ObjectWsl = (& $Wsl.Source wslpath -a $NonpareilDir).Trim()
-    $BuildWsl = (& $Wsl.Source wslpath -a $BuildDir).Trim()
-    $HelperWsl = (& $Wsl.Source wslpath -a $Helper).Trim()
+    # Do not invoke wslpath through wsl.exe with a raw Windows path. Depending
+    # on the Windows/WSL argument handoff, backslashes can be consumed before
+    # wslpath sees them (for example D:\foo\bar becoming D:foobar). Convert
+    # ordinary drive-letter paths deterministically on the PowerShell side.
+    $SourceWsl = Convert-ToWslPath $NonpareilSourceDir
+    $ObjectWsl = Convert-ToWslPath $NonpareilDir
+    $BuildWsl = Convert-ToWslPath $BuildDir
 
-    & $Wsl.Source bash $HelperWsl $SourceWsl $ObjectWsl $BuildWsl
+    # Git for Windows may check shell scripts out with CRLF. Feed WSL a local
+    # LF-only copy so bash behaviour does not depend on core.autocrlf.
+    $HelperLf = Join-Path $ResearchDir "build_nonpareil_uasm_wsl.lf.sh"
+    $HelperText = (Get-Content $Helper -Raw) -replace "`r`n", "`n"
+    [System.IO.File]::WriteAllText($HelperLf, $HelperText, [System.Text.UTF8Encoding]::new($false))
+    $HelperWsl = Convert-ToWslPath $HelperLf
+
+    Write-Host "WSL source path: $SourceWsl"
+    Write-Host "WSL output path: $ObjectWsl"
+    Write-Host "WSL build path : $BuildWsl"
+
+    & $Wsl.Source -e test -d $SourceWsl
+    if ($LASTEXITCODE -ne 0) { throw "WSL cannot access pinned Nonpareil source at $SourceWsl" }
+    & $Wsl.Source -e test -f $HelperWsl
+    if ($LASTEXITCODE -ne 0) { throw "WSL cannot access build helper at $HelperWsl" }
+
+    & $Wsl.Source -e bash $HelperWsl $SourceWsl $ObjectWsl $BuildWsl
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     $WslUasmArtifact = Join-Path $BuildDir "uasm"
