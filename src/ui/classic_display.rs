@@ -37,6 +37,7 @@ const SEG_D: u8 = 1 << 3;
 const SEG_E: u8 = 1 << 4;
 const SEG_F: u8 = 1 << 5;
 const SEG_G: u8 = 1 << 6;
+const SEG_DP: u8 = 1 << 7;
 
 #[derive(Clone, Copy)]
 struct DisplayTransform {
@@ -70,51 +71,32 @@ impl DisplayTransform {
     }
 }
 
-pub(crate) fn paint(painter: &Painter, display_rect: Rect, value: &str) {
-    if value.is_empty() || display_rect.width() <= 0.0 || display_rect.height() <= 0.0 {
+pub(crate) fn paint_segments(
+    painter: &Painter,
+    display_rect: Rect,
+    segments: &[u8; CHARACTER_COUNT],
+) {
+    if display_rect.width() <= 0.0 || display_rect.height() <= 0.0 {
         return;
     }
 
     let t = DisplayTransform::new(display_rect);
     let p = painter.with_clip_rect(display_rect);
-    let cells = display_cells(value);
     let center_x = REFERENCE_DISPLAY_WIDTH * 0.5;
     let center_y = REFERENCE_DISPLAY_HEIGHT * 0.5;
     let assembly_left = center_x - ASSEMBLY_WIDTH * 0.5;
     let first_center = assembly_left + CHARACTER_PITCH * 0.5;
 
-    for (index, ch) in cells.into_iter().enumerate() {
-        if ch == ' ' {
+    for (index, mask) in segments.iter().copied().enumerate() {
+        if mask == 0 {
             continue;
         }
         let x = first_center + index as f32 * CHARACTER_PITCH;
-        if ch == '.' {
-            draw_center_decimal(&p, t, x, center_y);
-        } else {
-            draw_digit(&p, t, x, center_y, ch);
-        }
+        draw_segment_mask(&p, t, x, center_y, mask);
     }
 }
 
-fn segment_mask(ch: char) -> u8 {
-    match ch {
-        '0' => SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,
-        '1' => SEG_B | SEG_C,
-        '2' => SEG_A | SEG_B | SEG_D | SEG_E | SEG_G,
-        '3' => SEG_A | SEG_B | SEG_C | SEG_D | SEG_G,
-        '4' => SEG_B | SEG_C | SEG_F | SEG_G,
-        '5' => SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
-        '6' => SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,
-        '7' => SEG_A | SEG_B | SEG_C,
-        '8' => SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,
-        '9' => SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G,
-        '-' => SEG_G,
-        _ => 0,
-    }
-}
-
-fn draw_digit(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, ch: char) {
-    let mask = segment_mask(ch);
+fn draw_segment_mask(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, mask: u8) {
     if mask == 0 {
         return;
     }
@@ -139,6 +121,10 @@ fn draw_digit(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, ch: char) {
         if mask & bit != 0 {
             draw_monolithic_segment(p, t, x0, y0, horizontal, half_len, serif);
         }
+    }
+
+    if mask & SEG_DP != 0 {
+        draw_center_decimal(p, t, cx, cy);
     }
 }
 
@@ -235,69 +221,6 @@ fn ellipse(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, rx: f32, ry: f32,
     p.add(Shape::convex_polygon(points, color, Stroke::NONE));
 }
 
-fn display_cells(value: &str) -> [char; CHARACTER_COUNT] {
-    let mut cells = [' '; CHARACTER_COUNT];
-    if value.is_empty() {
-        return cells;
-    }
-
-    // When the calculator core supplies an already-spaced 15-position field,
-    // preserve it verbatim. Eventually the renderer should be fed directly by
-    // the emulated display scan state rather than by formatted text.
-    if value.contains(' ') && !value.contains(['e', 'E']) {
-        for (cell, ch) in cells.iter_mut().zip(value.chars()) {
-            *cell = ch;
-        }
-        return cells;
-    }
-
-    let (mantissa, exponent) = value.split_once(['e', 'E']).unwrap_or((value, ""));
-    cells[0] = if mantissa.starts_with('-') { '-' } else { ' ' };
-    let magnitude = mantissa.trim_start_matches(['-', '+']);
-
-    let mut out = 1usize;
-    let mut digits = 0usize;
-    let mut decimal = false;
-    for ch in magnitude.chars() {
-        if ch.is_ascii_digit() && digits < 10 && out < 12 {
-            cells[out] = ch;
-            out += 1;
-            digits += 1;
-        } else if ch == '.' && !decimal && out < 12 {
-            cells[out] = '.';
-            out += 1;
-            decimal = true;
-        }
-    }
-
-    if digits == 0 {
-        return cells;
-    }
-
-    if !decimal && out < 12 {
-        cells[out] = '.';
-    }
-
-    if !exponent.is_empty() {
-        cells[12] = if exponent.starts_with('-') { '-' } else { ' ' };
-        let exp_digits: Vec<char> = exponent
-            .trim_start_matches(['-', '+'])
-            .chars()
-            .filter(|c| c.is_ascii_digit())
-            .collect();
-        let tens = if exp_digits.len() >= 2 {
-            exp_digits[exp_digits.len() - 2]
-        } else {
-            '0'
-        };
-        let ones = exp_digits.last().copied().unwrap_or('0');
-        cells[13] = tens;
-        cells[14] = ones;
-    }
-
-    cells
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,25 +246,10 @@ mod tests {
     }
 
     #[test]
-    fn hp67_fixed_display_partition_is_exact() {
-        assert_eq!(
-            display_cells("-1.234567890e-7"),
-            ['-', '1', '.', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '0', '7']
-        );
-        assert_eq!(
-            display_cells("1.234567890e12"),
-            [' ', '1', '.', '2', '3', '4', '5', '6', '7', '8', '9', '0', ' ', '1', '2']
-        );
-        assert_eq!(&display_cells("0.00")[..5], &[' ', '0', '.', '0', '0']);
-        assert_eq!(display_cells("+"), [' '; CHARACTER_COUNT]);
-        assert_eq!(display_cells(""), [' '; CHARACTER_COUNT]);
-    }
-
-    #[test]
-    fn classic_numeric_masks_match_seven_segment_wiring() {
-        assert_eq!(segment_mask('1'), SEG_B | SEG_C);
-        assert_eq!(segment_mask('8'), 0x7f);
-        assert_eq!(segment_mask('-'), SEG_G);
-        assert_eq!(segment_mask('.'), 0);
+    fn raw_hardware_segment_bits_match_renderer_wiring() {
+        assert_eq!(SEG_A, 0x01);
+        assert_eq!(SEG_G, 0x40);
+        assert_eq!(SEG_DP, 0x80);
+        assert_eq!(SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F, 0x3f);
     }
 }

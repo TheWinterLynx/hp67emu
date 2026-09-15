@@ -3,7 +3,7 @@ use eframe::egui::{
 };
 
 use crate::{
-    hp67::{Hp67State, KeyAction, UiEvent},
+    hp67::{HardwareDisplayFrame, Hp67State, KeyAction, UiEvent},
     ui::classic_display,
 };
 
@@ -201,7 +201,12 @@ const KEYS: &[PhotoKey] = &[
 pub struct Hp67Panel;
 
 impl Hp67Panel {
-    pub fn show(ui: &mut Ui, state: &Hp67State, photo: &TextureHandle) -> Vec<UiEvent> {
+    pub fn show(
+        ui: &mut Ui,
+        state: &Hp67State,
+        display: &HardwareDisplayFrame,
+        photo: &TextureHandle,
+    ) -> Vec<UiEvent> {
         let available = ui.available_size();
         let (host, _) = ui.allocate_exact_size(available, Sense::hover());
         if host.width() <= 0.0 || host.height() <= 0.0 {
@@ -273,11 +278,13 @@ impl Hp67Panel {
 
         // hp67.png already contains the real filter, glass, bezel and reflections.
         // Add only the physically calibrated 5082-7405 LED emission on top.
-        classic_display::paint(
-            &painter,
-            source_to_screen(photo_rect, DISPLAY_GLASS),
-            state.display_text(),
-        );
+        if state.power_on {
+            classic_display::paint_segments(
+                &painter,
+                source_to_screen(photo_rect, DISPLAY_GLASS),
+                display.segments(),
+            );
+        }
         events
     }
 }

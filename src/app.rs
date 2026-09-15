@@ -1,7 +1,7 @@
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
 use crate::{
-    hp67::Hp67State,
+    hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State},
     panel::Hp67Panel,
     ui::{sliders, top_keys},
 };
@@ -9,6 +9,7 @@ use crate::{
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
+    live_machine: Option<Hp67LiveMachine>,
 }
 
 impl Hp67App {
@@ -30,9 +31,18 @@ impl Hp67App {
             cc.egui_ctx
                 .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
 
+        let live_machine = match Hp67LiveMachine::boot_default() {
+            Ok(machine) => Some(machine),
+            Err(error) => {
+                eprintln!("HP-67 live display disabled: {error}");
+                None
+            }
+        };
+
         Self {
             state: Hp67State::default(),
             photo,
+            live_machine,
         }
     }
 }
@@ -43,7 +53,11 @@ impl eframe::App for Hp67App {
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
             .show(ctx, |ui| {
                 let host = ui.available_rect_before_wrap();
-                for event in Hp67Panel::show(ui, &self.state, &self.photo) {
+                let display = self
+                    .live_machine
+                    .as_ref()
+                    .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
+                for event in Hp67Panel::show(ui, &self.state, &display, &self.photo) {
                     self.state.handle(event);
                 }
                 top_keys::paint(ui, host, &self.photo);

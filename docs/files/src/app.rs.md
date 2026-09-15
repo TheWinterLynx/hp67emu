@@ -1,16 +1,16 @@
 # `src/app.rs`
 
 ## Purpose
-Owns the desktop application's top-level egui state and embedded HP-67 photograph texture.
+Owns the desktop application's top-level egui state, embedded HP-67 photograph texture and live structural HP-67 machine used as the display source.
 
 ## Why it exists
-The emulator needs a presentation adapter that loads assets, creates the current temporary UI state, delegates panel drawing, and schedules repaints without putting GUI concerns into the reusable emulation library.
+The emulator needs a presentation adapter that loads assets and connects headless emulation state to the photographed frontend without putting GUI concerns into the reusable emulation library. The display is no longer allowed to come from a formatted placeholder string.
 
 ## Relationships
-Uses `hp67::Hp67State` as a temporary smoke-test model, `panel::Hp67Panel` for the photographed body/input regions, and `ui::sliders` / `ui::top_keys` for visual corrections. It will later adapt `hp67emu::machines::hp67` electrical state to the renderer.
+Uses `hp67::Hp67LiveMachine` to boot the external firmware and obtain `HardwareDisplayFrame`, `hp67::Hp67State` only for remaining mechanical UI controls, `panel::Hp67Panel` for the photographed body/input regions, and `ui::sliders` / `ui::top_keys` for visual corrections.
 
 ## Responsibilities
-Embed/decode `assets/hp67.png`, configure egui visuals, own the texture handle and current prototype state, dispatch UI events, and request responsive repaint while input is held.
+Embed/decode `assets/hp67.png`, configure egui visuals, boot the live machine when the app starts, pass raw display segment masks to the panel, dispatch UI events, and leave the LEDs blank rather than inventing a fallback display when the external corpus is unavailable.
 
 ## Implementation
-`include_bytes!` compiles the PNG into the executable. The bytes are decoded once into an egui texture. Each frame calls the panel renderer, applies temporary UI events to the prototype state, then draws key/switch overlays.
+`include_bytes!` compiles only the PNG into the executable; firmware remains external. `Hp67LiveMachine::boot_default()` is attempted once during application construction. A boot failure is reported to stderr and represented by `None`, which maps to `HardwareDisplayFrame::BLANK`. Each frame passes a copy of the current raw segment frame into the panel before drawing key/switch overlays.
