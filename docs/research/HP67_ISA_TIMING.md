@@ -36,7 +36,7 @@ The same trace shows address `0x07B` as an example and the subsequent fetched wo
 
 ## Exact ROM-word window
 
-The same page states that after the address transfer there are 19 intervening bit times before the selected ROM begins returning data at bit times **46 through 55**, again **LSB first**.
+The same page describes a following **19-cycle ROM access interval** and states that the selected ROM starts outputting data at bit times **46 through 55**, again **LSB first**. We preserve the source's timing statement without reinterpreting that 19-cycle phrase as a count of only the strictly-between numbered slots.
 
 Therefore hp67emu fixes:
 
