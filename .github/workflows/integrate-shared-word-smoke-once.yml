@@ -1,0 +1,42 @@
+name: integrate-shared-word-smoke-once
+
+on:
+  push:
+    branches:
+      - foundation/cycle-accurate-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: foundation/cycle-accurate-architecture
+          fetch-depth: 0
+
+      - name: Apply integration patch
+        run: python3 .github/scripts/integrate_shared_word_smoke.py
+
+      - name: Format all Rust sources
+        run: cargo fmt --all
+
+      - name: Verify rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Run tests with warnings denied
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo test --all-targets
+
+      - name: Commit validated smoke integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/bin/hp67_poweron_smoke.rs docs/files/src/bin/hp67_poweron_smoke.rs.md
+          git commit -m "Run HP-67 smoke over shared display and fetch word"
+          git push origin HEAD:foundation/cycle-accurate-architecture
