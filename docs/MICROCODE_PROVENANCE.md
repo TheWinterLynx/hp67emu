@@ -23,7 +23,7 @@ The locally observed current-module files are:
 - `cal6713.pfl`: 92893 raw bytes;
 - `cal67b.pfl`: 87845 raw bytes.
 
-Their outer format is now proven rather than guessed. The current Teenix *Classic Notes* documents a lightweight file encoding used by Teenix card files: each byte is XORed with `0x55`; after decoding, the first line is `NeWe`, the second line is the decimal character count of the following text payload. The three current HP-67 `.pfl` files exhibit exactly that structure.
+Their outer format is proven. Every byte is XORed with `0x55`; after decoding, the first line is `NeWe`, the second line is the decimal byte count of the following text payload. The three current HP-67 `.pfl` files exhibit exactly that structure.
 
 Observed decoded headers are:
 
@@ -33,17 +33,26 @@ cal6713.pfl -> NeWe\r92882\r...
 cal67b.pfl  -> NeWe\r87834\r...
 ```
 
-In each case the declared count equals `file_size - header_size` exactly, and the first decoded payload line is:
+The decoded `cal67.pfl` payload is not a flat binary ROM image. It is a source-style Woodstock microcode listing. For the current file the grammar needed for exact reconstruction is now established:
+
+- blank lines do not consume ROM;
+- `// ...` lines are comments;
+- `org $1400` switches to physical bank 1 at logical PC `0x400`;
+- both `Lxxxx:` and `Hxxxx:` prefixes are hexadecimal address anchors;
+- every remaining non-empty record is one Woodstock microinstruction.
+
+The complete current listing contains 5127 decoded text lines but exactly **5120 microinstructions**: all 4096 bank-0 locations plus bank-1 PC `0x400..0x7ff`. The strict analyzer reports:
 
 ```text
-L0000:\tno operation
+candidate instructions: 5120
+unknown instructions  : 0
+label mismatches      : 0
+overflow instructions : 0
 ```
 
-The raw leading bytes `1b 30 02 30` XOR with `0x55` to the ASCII string `NeWe`. This is strong direct evidence that the `.pfl` files are XOR-obfuscated text containers, not opaque binary ROM blobs.
+`extract-teenix-hp67` therefore reconstructs exactly 5120 explicit 10-bit `(bank, pc, word)` entries from the current Teenix source without guessing or silently discarding text.
 
-`src/research/teenix.rs` now implements and tests this outer-container decoder. `rom_compare decode-teenix` writes the exact decoded payload and `rom_compare preview-teenix` previews it locally. The next task is to establish the **internal payload grammar** and map that textual source/listing to 10-bit ROM words without assuming the assembler syntax.
-
-The current Teenix page says that where available calculators run original microcode, while also warning that some microcode information across the project was unreliable or unavailable and was repaired with best guesses. Therefore the 2026 HP-67 module is a strong current semantic/microcode reference, but its contents still require independent comparison before being treated as canonical physical firmware.
+The current Teenix page says that where available calculators run original microcode, while also warning that some microcode information across the project was unreliable or unavailable and was repaired with best guesses. Therefore the 2026 HP-67 module is a strong current firmware reference, but its reconstructed words still require independent comparison before being treated as canonical physical firmware.
 
 ## Independent firmware corpora
 
@@ -56,7 +65,7 @@ Use the following corpora together:
 - Sydney Smith HP67u/HP67w and address-level analyses: https://www.sydneysmith.com/wordpress/hp67-main/
 - Tony Nixon, *Notes on HP's Classic Calculators*: https://literature.hpcalc.org/community/classic-notes.pdf
 
-x11-calc's first two words are octal `00000, 01743`, matching Nonpareil's symbolic reset entry. Agreement between independent emulators is useful evidence, but none of them becomes an electrical-timing authority merely by agreeing.
+The reviewed x11-calc baseline is commit `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983`. Its first two words are octal `00000, 01743`, matching Nonpareil's symbolic reset entry. Agreement between independent emulators is useful evidence, but none of them becomes an electrical-timing authority merely by agreeing.
 
 ## Physical startup evidence
 
@@ -66,13 +75,23 @@ Tony Nixon published a direct capture from a physical HP-67 while monitoring SYN
 - address `0x001`: word `0x3e3` — conditional branch to `0x0f8` when carry is clear;
 - address `0x0f8`: word `0x11a` — `0 -> c[w]`.
 
-This is currently our strongest direct firmware checkpoint because it ties decoded words and control flow to a real HP-67. `rom_compare verify-startup` checks normalized corpora against those three points. The same discussion records a later call from `0x0068` into the `1818-0232` ROM at `0x0fc6`, which is a future instruction-flow trace target.
+The reconstructed Teenix 2026 corpus passes all three checkpoints exactly:
+
+```text
+bank 0 pc 0x000 = 0x000 (0000 octal)
+bank 0 pc 0x001 = 0x3e3 (1743 octal)
+bank 0 pc 0x0f8 = 0x11a (0432 octal)
+```
+
+This is currently our strongest direct firmware checkpoint because it ties decoded source, reconstructed words and observed real-hardware execution together. The same physical-reader discussion records a later call from `0x0068` into the `1818-0232` ROM at `0x0fc6`, which remains a future instruction-flow trace target.
 
 ## Normalized corpus tooling
 
 `src/research/rom_corpus.rs` and `src/bin/rom_compare.rs` normalize sources to explicit `(bank, pc, 10-bit word)` coordinates. The x11-calc extractor requires all 8192 words, sparse address/opcode listings can be imported with an explicit radix, sparse corpora can be merged only when overlaps agree, and every mismatch is reported by bank/page/PC.
 
-`src/research/teenix.rs` sits one layer earlier: it only removes the Teenix XOR/text container and validates the declared payload length. It deliberately does not invent the meaning of payload lines.
+`src/research/teenix.rs` removes and validates the Teenix XOR/text envelope. `src/research/woodstock_asm.rs` assembles only documented/recognized Woodstock mnemonics, and `src/research/teenix_hp67.rs` handles the proven current HP-67 listing grammar and physical population map.
+
+Because Teenix has 5120 physically populated words while x11-calc exposes a complete 8192-entry two-bank logical array, `src/bin/rom_subset.rs` performs a directional comparison: every Teenix word must exist and match in the broader reference, while reference-only addresses remain informational. `docs/research/compare_teenix_x11.ps1` automates this check against the pinned x11-calc baseline and records local SHA-256 provenance.
 
 The complete procedure is documented in `docs/ROM_CORPUS_WORKFLOW.md`.
 
@@ -87,14 +106,15 @@ Tony Nixon's notes record that HP-67 and HP-97 microcode is identical from ROM a
 1. Preserve every downloaded archive unchanged and record SHA-256, URL and acquisition date.
 2. Treat current `HP67.zip` (10 May 2026) as the latest Teenix HP-67 module.
 3. Decode its `.pfl` outer `NeWe` container with the tested XOR-`0x55` decoder and preserve the exact plaintext payload locally.
-4. Establish the internal `.pfl` source/listing grammar from the decoded files and MultiCalc/Teenix documentation before translating lines to ROM words.
-5. Treat the historical 2022 ROM-reader dump statement separately from the current `ROMreader.zip` contents.
-6. Independently normalize x11-calc and Nonpareil.
-7. Require every normalized corpus to pass the physical startup checkpoints at `0x000`, `0x001` and `0x0f8`.
-8. Compare current Teenix HP-67 module ↔ x11-calc ↔ Nonpareil word-for-word once `.pfl` payload parsing is proven.
-9. If a historical or newer physical HP-67 dump is recovered, map each image to physical part number, bank and address range and use that as the strongest firmware provenance source.
-10. Cross-check the shared HP-67/97 region where independent HP-97 data is available.
-11. Record verified hashes/mappings/reports in the repository; do not commit copyrighted ROM bytes until redistribution is reviewed separately.
+4. Require the current `cal67.pfl` listing to parse to exactly 5120 understood microinstructions with zero unknowns, zero address-anchor mismatches and zero unsupported locations.
+5. Require the reconstructed Teenix corpus to pass the physical startup checkpoints at `0x000`, `0x001` and `0x0f8`.
+6. Independently normalize x11-calc at the reviewed commit and Nonpareil.
+7. Compare Teenix against broader corpora directionally over all 5120 physically populated words; any missing or differing word is a hard failure.
+8. Compare x11-calc and Nonpareil symmetrically where their population maps are intended to match.
+9. Treat the historical 2022 ROM-reader dump statement separately from the current `ROMreader.zip` contents.
+10. If a historical or newer physical HP-67 dump is recovered, map each image to physical part number, bank and address range and use that as the strongest firmware provenance source.
+11. Cross-check the shared HP-67/97 region where independent HP-97 data is available.
+12. Record verified hashes/mappings/reports in the repository; do not commit copyrighted ROM bytes until redistribution is reviewed separately.
 
 ## Repository policy
 
