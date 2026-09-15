@@ -7,3 +7,4 @@
 
 pub mod rom_corpus;
 pub mod teenix;
+pub mod woodstock_asm;
