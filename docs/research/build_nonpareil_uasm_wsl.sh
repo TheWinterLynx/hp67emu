@@ -23,6 +23,23 @@ mkdir -p "$build/src" "$out"
 cp -a "$repo/src/." "$build/src/"
 cd "$build/src"
 
+# The pinned Nonpareil commit has a known upstream packaging defect: wasm.c and
+# wasm_y.y include wasm.h, but that header was never committed. Upstream issue
+# #24 documents the missing declaration. Generate the minimal compatibility
+# header only in this disposable build tree; never modify or vendor upstream.
+if [[ ! -f wasm.h ]]; then
+    cat > wasm.h <<'EOF'
+#ifndef NONPAREIL_WASM_H
+#define NONPAREIL_WASM_H
+
+#include "asm.h"
+
+void pseudo_check(addr_t addr);
+
+#endif
+EOF
+fi
+
 for stem in asm asm_cond casm wasm nasm; do
     bison -d -o "${stem}_y.c" "${stem}_y.y"
     flex -o "${stem}_l.c" "${stem}_l.l"
