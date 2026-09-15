@@ -1,11 +1,13 @@
 //! HP-67 machine-specific electrical model.
 //!
 //! This module keeps wiring inventory, word timing, IS/ISA serial behavior, the
-//! structural ACT<->ROM fetch path and the independent ACT architectural
-//! bring-up core explicit before final pin/timing-accurate ACT, ROM/RAM,
+//! structural ACT<->ROM fetch path and the independent ACT+CRC architectural
+//! bring-up composition explicit before final pin/timing-accurate ACT, ROM/RAM,
 //! display, keyboard and card-reader devices are completed.
 
 pub mod act;
+pub mod architectural;
+pub mod crc;
 pub mod fetch;
 pub mod isa;
 pub mod machine;
@@ -16,6 +18,14 @@ pub use act::{
     ActArchitecturalCore, ActArchitecturalState, ActError, ActExecution, ActInstructionState,
     ActOperation, ActRamImage, ActRegister, PowerOnActCore, PowerOnActError, PowerOnExecution,
     PowerOnOperation, ACT_RAM_WORDS, ACT_RETURN_STACK_DEPTH, ACT_STATUS_BITS, ACT_WORD_DIGITS,
+};
+pub use architectural::{
+    Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation,
+};
+pub use crc::{
+    decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
+    CRC_FLAG_COUNT, CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
 };
 pub use fetch::{
     run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource,
