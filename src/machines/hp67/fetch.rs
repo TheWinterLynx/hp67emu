@@ -1,25 +1,29 @@
 //! Structural HP-67 ACT↔ROM serial fetch path.
 //!
 //! This module models the evidence-backed bit-cell transport on the shared IS/ISA
-//! line without yet claiming the exact PHI launch/sample edge.  The ACT emits a
+//! line without yet claiming the exact PHI launch/sample edge. The ACT emits a
 //! 12-bit ROM address LSB-first at b16..b27, a ROM-side endpoint reconstructs the
 //! address through the resolved electrical net, the selected ROM word is looked
 //! up through a caller-supplied source, and the ROM returns the 10-bit word
 //! LSB-first at b46..b55 for the ACT endpoint to reconstruct.
 
-use crate::emulation::{Drive, LogicLevel};
+use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
     isa::{act_address_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
-    timing::{isa_window_for_bit, IsaWindow, ROM_ADDRESS_BITS, ROM_WORD_BITS},
+    machine::Hp67ElectricalBackplane,
+    timing::{isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS},
+    wiring::Hp67Net,
 };
 
 const COMPLETE_ADDRESS_MASK: u16 = (1u16 << ROM_ADDRESS_BITS) - 1;
 const COMPLETE_WORD_MASK: u16 = (1u16 << ROM_WORD_BITS) - 1;
+const ACT_IS_DRIVER: DriverId = DriverId::new("hp67-act-fetch-is");
+const ROM_IS_DRIVER: DriverId = DriverId::new("hp67-rom-fetch-is");
 
 /// ROM lookup boundary used by the serial fetch responder.
 ///
-/// Physical 1818-* devices will implement this boundary later.  Keeping lookup
+/// Physical 1818-* devices will implement this boundary later. Keeping lookup
 /// behind a trait lets the serial transport be tested without embedding HP ROM
 /// payloads or depending on the semantic reference ROM implementation.
 pub trait Hp67RomWordSource {
@@ -123,7 +127,7 @@ impl RomFetchEndpoint {
         self.response_word = None;
     }
 
-    /// Sample ACT address bits from the resolved IS/ISA line.  When b27 is
+    /// Sample ACT address bits from the resolved IS/ISA line. When b27 is
     /// received, the complete 12-bit address is used to latch the ROM response.
     pub fn sample_for_bit<S: Hp67RomWordSource>(
         &mut self,
@@ -169,7 +173,7 @@ impl RomFetchEndpoint {
         Ok(self.received_address & ROM_ADDRESS_MASK)
     }
 
-    /// ROM contribution to IS/ISA for the current bit cell.  No response is
+    /// ROM contribution to IS/ISA for the current bit cell. No response is
     /// driven until all twelve address bits have been captured and a word found.
     pub const fn drive_for_bit(&self, word_bit: u8) -> Drive {
         match self.response_word {
@@ -188,7 +192,7 @@ pub struct FetchPipelineLatch {
 }
 
 impl FetchPipelineLatch {
-    /// Enter a new machine cycle.  The word fetched during the preceding cycle
+    /// Enter a new machine cycle. The word fetched during the preceding cycle
     /// becomes the word eligible to execute now.
     pub fn begin_cycle(&mut self) {
         self.executing = self.prefetched.take();
@@ -209,16 +213,53 @@ impl FetchPipelineLatch {
     }
 }
 
+/// Run one structural 56-bit ACT↔ROM fetch through the resolved HP-67 IS net.
+///
+/// This is a bit-cell harness, not the final edge-accurate device scheduler. It
+/// deliberately advances the current four-subphase timing scaffold once per bit
+/// cell while keeping every address/response bit on the resolved electrical net.
+pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act: &mut ActFetchEndpoint,
+    rom: &mut RomFetchEndpoint,
+    source: &S,
+) -> Result<u16, SerialFetchError> {
+    act.begin_cycle(address);
+    rom.begin_cycle();
+
+    for expected_bit in 0..BITS_PER_WORD {
+        debug_assert_eq!(backplane.word_bit(), expected_bit);
+
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit));
+        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
+
+        if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomAddress { .. }) {
+            rom.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa), source)?;
+            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
+        }
+
+        if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomWord { .. }) {
+            act.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
+        }
+
+        if backplane.level(Hp67Net::Isa) == LogicLevel::Contention {
+            return Err(SerialFetchError::IsaContention {
+                word_bit: expected_bit,
+            });
+        }
+
+        for _ in 0..4 {
+            backplane.advance_clock();
+        }
+    }
+
+    act.fetched_word()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        emulation::{DriverId, LogicLevel},
-        machines::hp67::{Hp67ElectricalBackplane, Hp67Net, BITS_PER_WORD},
-    };
-
-    const ACT_IS_DRIVER: DriverId = DriverId::new("test-act-is");
-    const ROM_IS_DRIVER: DriverId = DriverId::new("test-rom-is");
 
     struct FixtureRom {
         words: [(u16, u16); 2],
@@ -232,52 +273,16 @@ mod tests {
         }
     }
 
-    fn run_fetch_cycle<S: Hp67RomWordSource>(
-        backplane: &mut Hp67ElectricalBackplane,
-        act: &mut ActFetchEndpoint,
-        rom: &mut RomFetchEndpoint,
-        source: &S,
-    ) -> Result<u16, SerialFetchError> {
-        rom.begin_cycle();
-
-        for expected_bit in 0..BITS_PER_WORD {
-            assert_eq!(backplane.word_bit(), expected_bit);
-
-            backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit));
-            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
-
-            if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomAddress { .. }) {
-                rom.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa), source)?;
-                // The last address bit can latch the response, but the address
-                // window itself remains ACT-owned; the ROM cannot drive until
-                // the later b46..b55 response window.
-                backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
-            }
-
-            if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomWord { .. }) {
-                act.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
-            }
-
-            assert_ne!(backplane.level(Hp67Net::Isa), LogicLevel::Contention);
-            for _ in 0..4 {
-                backplane.advance_clock();
-            }
-        }
-
-        act.fetched_word()
-    }
-
     #[test]
     fn real_hp67_example_crosses_the_resolved_is_net_bit_by_bit() {
         let source = FixtureRom {
-            // Measured key-wait example plus the physical startup word at 0x001.
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut backplane = Hp67ElectricalBackplane::default();
         let mut act = ActFetchEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
 
-        let fetched = run_fetch_cycle(&mut backplane, &mut act, &mut rom, &source)
+        let fetched = run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source)
             .expect("serial fetch must complete");
 
         assert_eq!(rom.received_address(), Ok(0x07b));
@@ -298,7 +303,7 @@ mod tests {
 
         pipeline.begin_cycle();
         assert_eq!(pipeline.executing_word(), None);
-        let first = run_fetch_cycle(&mut backplane, &mut act, &mut rom, &source)
+        let first = run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source)
             .expect("first serial fetch must complete");
         pipeline.complete_cycle(first);
         assert_eq!(pipeline.executing_word(), None);
@@ -307,8 +312,7 @@ mod tests {
         pipeline.begin_cycle();
         assert_eq!(pipeline.executing_word(), Some(0x04c));
         assert_eq!(pipeline.prefetched_word(), None);
-        act.begin_cycle(0x001);
-        let second = run_fetch_cycle(&mut backplane, &mut act, &mut rom, &source)
+        let second = run_structural_fetch_cycle(&mut backplane, 0x001, &mut act, &mut rom, &source)
             .expect("second serial fetch must complete");
         pipeline.complete_cycle(second);
 
