@@ -1,8 +1,8 @@
 //! End-to-end structural regression for the first physically observed HP-67 startup words.
 
 use hp67emu::machines::hp67::{
-    run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67ElectricalBackplane,
-    Hp67RomWordSource, PowerOnActCore, RomFetchEndpoint,
+    run_structural_fetch_cycle, ActFetchEndpoint, ActRamImage, FetchPipelineLatch,
+    Hp67ElectricalBackplane, Hp67RomWordSource, PowerOnActCore, RomFetchEndpoint,
 };
 
 struct StartupFixture;
@@ -30,13 +30,16 @@ fn serial_power_on_executes_the_first_physical_startup_path() {
     let mut fetch_rom = RomFetchEndpoint::default();
     let mut pipeline = FetchPipelineLatch::default();
     let mut act = PowerOnActCore::default();
+    let mut ram = ActRamImage::hp67();
     let mut executed = Vec::new();
     let mut fetched = Vec::new();
 
     for _ in 0..4 {
         pipeline.begin_cycle();
         if let Some(word) = pipeline.executing_word() {
-            let execution = act.execute_word(word).expect("startup word must execute");
+            let execution = act
+                .execute_word(&mut ram, word)
+                .expect("startup word must execute");
             executed.push((execution.pc, execution.word));
         }
 
