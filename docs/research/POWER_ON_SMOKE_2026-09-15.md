@@ -33,9 +33,24 @@ cycle 3: FETCH pc=0x0f9 -> word=0x108 (word_index=4)
 PASS: serial microcode power-on reached 0x0f8, executed 0x11a (0 -> c[w]), and advanced to 0x0f9.
 ```
 
+## First probe continuation
+
+After adding independent low-level support for octal `0410` (`0x108`, `c exchange m1`), a local `--probe-cycles 64` run continued through real firmware until the next unsupported operation:
+
+```text
+PROBE: continuing for up to 64 additional machine cycle(s), stopping at the first unsupported ACT word.
+cycle 4: EXEC pc=0x0f9 word=0x108 ExchangeCAndM1 -> pc=0x0fa
+cycle 4: FETCH pc=0x0fa -> word=0x11a (word_index=5)
+cycle 5: EXEC pc=0x0fa word=0x11a ZeroCWhole -> pc=0x0fb
+cycle 5: FETCH pc=0x0fb -> word=0x188 (word_index=6)
+PROBE STOP: unsupported ACT word at cycle 6: pc=0x0fb word=0x188 (octal 0610)
+```
+
+Octal `0610` is the source-backed Woodstock `c exchange m2` special operation. The low-level startup core now contains an explicit fourteen-digit M2 register and executes that exchange directly; it still does not call the semantic reference machine.
+
 ## What this proves
 
-The directly observed physical startup anchors `0x000=0x000`, `0x001=0x3e3` and `0x0f8=0x11a` can be fetched from the reconciled firmware corpus through the current structural HP-67 serial bus model and executed in the correct one-word pipeline order. The conditional branch reaches `0x0f8`, `0 -> c[w]` executes, and the next real firmware word at `0x0f9` is fetched as `0x108`.
+The directly observed physical startup anchors `0x000=0x000`, `0x001=0x3e3` and `0x0f8=0x11a` can be fetched from the reconciled firmware corpus through the current structural HP-67 serial bus model and executed in the correct one-word pipeline order. The conditional branch reaches `0x0f8`, `0 -> c[w]` executes, and subsequent real firmware words at `0x0f9`, `0x0fa` and `0x0fb` are reached through the same serial path.
 
 This test does **not** pass a 10-bit opcode directly from the host corpus to the execution core. The ACT-side endpoint emits the 12-bit address one serial bit at a time, the ROM-side endpoint reconstructs it from resolved IS levels, the response is emitted one serial bit at a time, and the ACT-side endpoint reconstructs the 10-bit word.
 
@@ -47,4 +62,4 @@ The minimal ACT core is intentionally incomplete. Unknown opcodes remain hard fa
 
 ## Immediate continuation
 
-The next reconciled firmware word reached by the successful run is `0x108` (octal `0410`), `c exchange m1`. The low-level startup core now implements that operation and the smoke runner supports `--probe-cycles N`, allowing the local real firmware path to continue until the next unsupported ACT word is encountered. This creates an evidence-driven loop for expanding the ACT without inventing instructions or control flow.
+Run the same probe again after the `0610` implementation. The first new `PROBE STOP` is the next real startup operation to implement. This keeps ACT growth evidence-driven and ordered by the actual HP-67 power-on path rather than by an arbitrary opcode checklist.
