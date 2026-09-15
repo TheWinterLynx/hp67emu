@@ -13,6 +13,15 @@ use hp67emu::research::rom_corpus::{
 
 const MAX_PRINTED_DIFFERENCES: usize = 128;
 
+/// Three words observed by Tony Nixon on a physical HP-67 immediately after
+/// power-on while monitoring SYNC and IS. These are evidence points, not an
+/// embedded firmware image.
+const PHYSICAL_STARTUP_WORDS: &[(usize, usize, u16)] = &[
+    (0, 0x000, 0x000),
+    (0, 0x001, 0x3e3),
+    (0, 0x0f8, 0x11a),
+];
+
 fn main() {
     match run() {
         Ok(0) => {}
@@ -59,6 +68,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
         }
         "merge" if args.len() >= 5 => merge_files(&args[2], &args[3..]),
         "compare" if args.len() == 4 => compare_files(&args[2], &args[3]),
+        "verify-startup" if args.len() == 3 => verify_startup(&args[2]),
         "inspect" if args.len() == 3 => {
             inspect_binary(Path::new(&args[2]))?;
             Ok(0)
@@ -149,6 +159,42 @@ fn compare_files(left_path: &str, right_path: &str) -> Result<i32, Box<dyn Error
     Ok(1)
 }
 
+fn verify_startup(path: &str) -> Result<i32, Box<dyn Error>> {
+    let corpus = RomCorpus::from_normalized_tsv(&fs::read_to_string(path)?)?;
+    let mut failures = 0usize;
+
+    println!("physical HP-67 startup evidence check: {path}");
+    for &(bank, pc, expected) in PHYSICAL_STARTUP_WORDS {
+        match corpus.get(bank, pc)? {
+            Some(actual) if actual == expected => {
+                println!(
+                    "PASS bank {bank} pc 0x{pc:03x} (@{pc:04o}) = 0x{actual:03x} ({actual:04o})"
+                );
+            }
+            Some(actual) => {
+                failures += 1;
+                println!(
+                    "FAIL bank {bank} pc 0x{pc:03x} (@{pc:04o}): expected 0x{expected:03x} ({expected:04o}), got 0x{actual:03x} ({actual:04o})"
+                );
+            }
+            None => {
+                failures += 1;
+                println!(
+                    "FAIL bank {bank} pc 0x{pc:03x} (@{pc:04o}): expected 0x{expected:03x} ({expected:04o}), location missing"
+                );
+            }
+        }
+    }
+
+    if failures == 0 {
+        println!("\nMATCH: all physical startup evidence points agree.");
+        Ok(0)
+    } else {
+        println!("\nMISMATCH: {failures} physical startup evidence point(s) disagree or are missing.");
+        Ok(1)
+    }
+}
+
 fn print_difference(difference: RomDifference) {
     let location = difference.location();
     let prefix = format!(
@@ -178,6 +224,7 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
     if bytes.len() % 2 == 0 {
         println!("16-bit word count if interpreted as raw u16: {}", bytes.len() / 2);
     }
+
     let preview_len = bytes.len().min(32);
     let preview = bytes[..preview_len]
         .iter()
@@ -185,6 +232,49 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
         .collect::<Vec<_>>()
         .join(" ");
     println!("first {preview_len} bytes: {preview}");
+
+    if !bytes.is_empty() {
+        let mut counts = [0usize; 256];
+        for &byte in &bytes {
+            counts[byte as usize] += 1;
+        }
+        let ascii_printable = bytes
+            .iter()
+            .filter(|&&byte| byte == b'\n' || byte == b'\r' || byte == b'\t' || (0x20..=0x7e).contains(&byte))
+            .count();
+        let seven_bit = bytes.iter().filter(|&&byte| byte < 0x80).count();
+        let unique = counts.iter().filter(|&&count| count != 0).count();
+        let len = bytes.len() as f64;
+        let entropy = counts
+            .iter()
+            .filter(|&&count| count != 0)
+            .map(|&count| {
+                let p = count as f64 / len;
+                -p * p.log2()
+            })
+            .sum::<f64>();
+
+        let mut common = counts
+            .iter()
+            .enumerate()
+            .filter(|(_, count)| **count != 0)
+            .map(|(byte, &count)| (count, byte))
+            .collect::<Vec<_>>();
+        common.sort_unstable_by(|left, right| right.cmp(left));
+        let common = common
+            .into_iter()
+            .take(8)
+            .map(|(count, byte)| format!("0x{byte:02x}:{count}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        println!("7-bit bytes: {:.2}%", seven_bit as f64 * 100.0 / len);
+        println!("printable/text bytes: {:.2}%", ascii_printable as f64 * 100.0 / len);
+        println!("unique byte values: {unique}/256");
+        println!("Shannon entropy: {entropy:.3} bits/byte");
+        println!("most common bytes: {common}");
+    }
+
     println!("No binary format is inferred automatically; .pfl layout remains unproven.");
     Ok(())
 }
@@ -196,6 +286,7 @@ rom_compare extract-x11 <x11-calc-67.c> <out.tsv>\n  \
 rom_compare import-pairs <input.txt> <out.tsv> <bank> <auto|8|10|16>\n  \
 rom_compare merge <out.tsv> <input1.tsv> <input2.tsv> [more.tsv ...]\n  \
 rom_compare compare <left.tsv> <right.tsv>\n  \
+rom_compare verify-startup <corpus.tsv>\n  \
 rom_compare inspect <binary-file>"
     );
 }
