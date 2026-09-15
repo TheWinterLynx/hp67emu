@@ -10,9 +10,11 @@ use std::{cell::Cell, env, fs};
 
 use hp67emu::{
     machines::hp67::{
-        run_structural_fetch_cycle, structural_display_scan_from_act_registers, ActError,
-        ActFetchEndpoint, FetchPipelineLatch, Hp67ArchitecturalError, Hp67ArchitecturalMachine,
-        Hp67ElectricalBackplane, Hp67RomWordSource, RomFetchEndpoint,
+        decode_rom0_display_byte, display_byte_from_act_registers,
+        run_structural_display_fetch_cycle, ActError, ActFetchEndpoint, CathodeDriver1820_1749,
+        FetchPipelineLatch, Hp67ArchitecturalError, Hp67ArchitecturalMachine,
+        Hp67ElectricalBackplane, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint,
+        HP67_DISPLAY_SCAN_SLOTS,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -152,12 +154,66 @@ fn format_byte_sequence(bytes: &[u8]) -> String {
         .join(" ")
 }
 
-fn verify_boot_idle_display(machine: &Hp67ArchitecturalMachine) -> Result<(), String> {
-    let scan =
-        structural_display_scan_from_act_registers(&machine.act.state.a, &machine.act.state.b)
-            .map_err(|error| format!("boot display structural scan failed: {error:?}"))?;
+fn verify_boot_idle_display<S: Hp67RomWordSource>(
+    machine: &Hp67ArchitecturalMachine,
+    backplane: &mut Hp67ElectricalBackplane,
+    fetch_act: &mut ActFetchEndpoint,
+    fetch_rom: &mut RomFetchEndpoint,
+    display_rom0: &mut Rom0DisplayEndpoint,
+    display_cathode: &mut CathodeDriver1820_1749,
+    source: &S,
+) -> Result<(), String> {
+    // The final RCD edge timing is still unknown. For this deterministic idle
+    // checkpoint only, reset the coarse structural scan to slot 1 and freeze
+    // the already-reached architectural A/B state while each display byte shares
+    // a real 56-bit word transport with a ROM fetch on the same resolved IS net.
+    display_cathode.rcd_falling_edge();
+    let address = machine.pc();
+    let mut codes = Vec::with_capacity(usize::from(HP67_DISPLAY_SCAN_SLOTS));
+    let mut segments = Vec::with_capacity(usize::from(HP67_DISPLAY_SCAN_SLOTS));
 
-    let codes: Vec<u8> = scan.iter().map(|slot| slot.code).collect();
+    for expected_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
+        if display_cathode.scan_slot() != expected_slot {
+            return Err(format!(
+                "boot display scan phase mismatch: got slot {}, expected {expected_slot}",
+                display_cathode.scan_slot()
+            ));
+        }
+
+        let code = display_byte_from_act_registers(
+            expected_slot,
+            &machine.act.state.a,
+            &machine.act.state.b,
+        )
+        .map_err(|error| format!("boot display byte composition failed: {error:?}"))?;
+
+        let result = run_structural_display_fetch_cycle(
+            backplane,
+            address,
+            code,
+            fetch_act,
+            fetch_rom,
+            display_rom0,
+            source,
+        )
+        .map_err(|error| {
+            format!("boot display shared word failed at scan slot {expected_slot}: {error:?}")
+        })?;
+
+        if result.display_byte != code {
+            return Err(format!(
+                "boot display transport mismatch at slot {expected_slot}: got 0x{:02X}, expected 0x{code:02X}",
+                result.display_byte
+            ));
+        }
+
+        let decoded = decode_rom0_display_byte(expected_slot, result.display_byte)
+            .map_err(|error| format!("boot display ROM0 decode failed: {error:?}"))?;
+        codes.push(result.display_byte);
+        segments.push(decoded.bits());
+        display_cathode.str_falling_edge();
+    }
+
     if codes.as_slice() != EXPECTED_BOOT_DISPLAY_CODES {
         return Err(format!(
             "boot display code mismatch: got [{}], expected [{}]",
@@ -166,7 +222,6 @@ fn verify_boot_idle_display(machine: &Hp67ArchitecturalMachine) -> Result<(), St
         ));
     }
 
-    let segments: Vec<u8> = scan.iter().map(|slot| slot.segments.bits()).collect();
     if segments.as_slice() != EXPECTED_BOOT_DISPLAY_SEGMENTS {
         return Err(format!(
             "boot display segment mismatch: got [{}], expected [{}]",
@@ -176,7 +231,7 @@ fn verify_boot_idle_display(machine: &Hp67ArchitecturalMachine) -> Result<(), St
     }
 
     println!(
-        "BOOT DISPLAY PASS: real firmware A/B -> resolved IS b0..b7 -> ROM0 decode -> 15-slot cathode scan produces the source-backed power-on 0.00 pattern."
+        "BOOT DISPLAY PASS: real firmware A/B -> shared resolved IS word cycle (display b0..b7 + fetch b16..b27/b46..b55) -> ROM0 decode -> 15-slot cathode scan produces the source-backed power-on 0.00 pattern."
     );
     println!("BOOT DISPLAY CODES: {}", format_byte_sequence(&codes));
     Ok(())
@@ -283,6 +338,8 @@ fn fetch_cycle(
     machine: &mut Hp67ArchitecturalMachine,
     fetch_act: &mut ActFetchEndpoint,
     fetch_rom: &mut RomFetchEndpoint,
+    display_rom0: &mut Rom0DisplayEndpoint,
+    display_cathode: &mut CathodeDriver1820_1749,
     pipeline: &mut FetchPipelineLatch,
     source: &CorpusRom<'_>,
     verbose: bool,
@@ -290,8 +347,35 @@ fn fetch_cycle(
     let requested_bank = machine.prepare_hp67_fetch();
     source.select_bank(requested_bank);
     let address = machine.pc();
-    let fetched = run_structural_fetch_cycle(backplane, address, fetch_act, fetch_rom, source)
-        .map_err(|error| format!("cycle {cycle} serial fetch failed: {error:?}"))?;
+    let scan_slot = display_cathode.scan_slot();
+    let display_byte =
+        display_byte_from_act_registers(scan_slot, &machine.act.state.a, &machine.act.state.b)
+            .map_err(|error| {
+                format!(
+            "cycle {cycle} display byte composition failed at scan slot {scan_slot}: {error:?}"
+        )
+            })?;
+
+    let result = run_structural_display_fetch_cycle(
+        backplane,
+        address,
+        display_byte,
+        fetch_act,
+        fetch_rom,
+        display_rom0,
+        source,
+    )
+    .map_err(|error| format!("cycle {cycle} shared display/fetch word failed: {error:?}"))?;
+
+    if result.display_byte != display_byte {
+        return Err(format!(
+            "cycle {cycle} display transport mismatch at scan slot {scan_slot}: got 0x{:02X}, expected 0x{display_byte:02X}",
+            result.display_byte
+        ));
+    }
+
+    let fetched = result.fetched_word;
+    display_cathode.str_falling_edge();
     pipeline.complete_cycle(fetched);
 
     if verbose {
@@ -345,6 +429,8 @@ fn main() -> Result<(), String> {
     let mut backplane = Hp67ElectricalBackplane::default();
     let mut fetch_act = ActFetchEndpoint::new(0);
     let mut fetch_rom = RomFetchEndpoint::default();
+    let mut display_rom0 = Rom0DisplayEndpoint::default();
+    let mut display_cathode = CathodeDriver1820_1749::default();
     let mut pipeline = FetchPipelineLatch::default();
     let mut machine = Hp67ArchitecturalMachine::default();
     let mut milestones = BootMilestones::default();
@@ -357,7 +443,9 @@ fn main() -> Result<(), String> {
         arguments.corpus_path,
         corpus.populated_words()
     );
-    println!("fetch path: ACT b16..b27 -> resolved IS -> ROM b46..b55 -> ACT");
+    println!(
+        "word path: ACT display b0..b7 + address b16..b27 -> resolved IS -> ROM b46..b55 -> ACT"
+    );
     println!("machine path: independent ACT + CRC control architectural composition");
 
     for cycle in 0..4u64 {
@@ -383,6 +471,8 @@ fn main() -> Result<(), String> {
             &mut machine,
             &mut fetch_act,
             &mut fetch_rom,
+            &mut display_rom0,
+            &mut display_cathode,
             &mut pipeline,
             &source,
             true,
@@ -456,7 +546,16 @@ fn main() -> Result<(), String> {
                 return Ok(());
             }
             ProbeControl::IdleReached => {
-                verify_boot_idle_display(&machine)?;
+                source.select_bank(machine.bank());
+                verify_boot_idle_display(
+                    &machine,
+                    &mut backplane,
+                    &mut fetch_act,
+                    &mut fetch_rom,
+                    &mut display_rom0,
+                    &mut display_cathode,
+                    &source,
+                )?;
                 println!(
                     "BOOT IDLE PASS: real firmware completed initialization and cycled through the documented no-key wait loop with display_enable=true."
                 );
@@ -477,6 +576,8 @@ fn main() -> Result<(), String> {
             &mut machine,
             &mut fetch_act,
             &mut fetch_rom,
+            &mut display_rom0,
+            &mut display_cathode,
             &mut pipeline,
             &source,
             verbose,
@@ -538,7 +639,15 @@ mod tests {
     }
 
     #[test]
-    fn known_power_on_idle_state_passes_structural_display_gate() {
+    fn known_power_on_idle_state_passes_shared_word_display_gate() {
+        struct ZeroRom;
+
+        impl Hp67RomWordSource for ZeroRom {
+            fn read_word(&self, _address: u16) -> Option<u16> {
+                Some(0)
+            }
+        }
+
         let mut machine = Hp67ArchitecturalMachine::default();
         machine.act.state.a = [
             0x0, 0x0, 0x1, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0x0, 0x0, 0x0, 0x0,
@@ -546,6 +655,25 @@ mod tests {
         machine.act.state.b = [
             0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3, 0x0,
         ];
-        verify_boot_idle_display(&machine).expect("known HP-67 idle display must pass");
+
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut fetch_act = ActFetchEndpoint::new(0);
+        let mut fetch_rom = RomFetchEndpoint::default();
+        let mut display_rom0 = Rom0DisplayEndpoint::default();
+        let mut display_cathode = CathodeDriver1820_1749::default();
+
+        verify_boot_idle_display(
+            &machine,
+            &mut backplane,
+            &mut fetch_act,
+            &mut fetch_rom,
+            &mut display_rom0,
+            &mut display_cathode,
+            &ZeroRom,
+        )
+        .expect("known HP-67 idle display must pass through shared word transport");
+
+        assert_eq!(backplane.word_index(), u64::from(HP67_DISPLAY_SCAN_SLOTS));
+        assert_eq!(display_cathode.scan_slot(), 1);
     }
 }
