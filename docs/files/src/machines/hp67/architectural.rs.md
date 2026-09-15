@@ -1,0 +1,21 @@
+# `src/machines/hp67/architectural.rs`
+
+## Purpose
+
+Composes the independent ACT architectural core, temporary architectural RAM image and CRC control core into one HP-67 instruction-boundary bring-up machine.
+
+## Why it exists
+
+After the ACT opcode space was implemented, the next long-run firmware stop occurred on octal `1000`, which is not an ACT special at all: it is a CRC control instruction. Long firmware runs therefore need correct chip ownership at instruction boundaries rather than forcing every 10-bit word through the ACT decoder. This layer resolves that ownership while keeping the final electrical machine work separate.
+
+## Relationships
+
+Uses `act.rs` for Woodstock ACT behavior, `crc.rs` for CRC flag/control instructions and the temporary `ActRamImage` until physical 1818-* RAM timing is connected. `hp67_poweron_smoke.rs` drives this composed machine with words reconstructed from the serial IS/ISA fetch path. Reference implementations are not imported.
+
+## Responsibilities
+
+Route THEN-GOTO target words to the ACT regardless of bit pattern, route recognized CRC control words to the CRC while still applying the ACT's universal instruction-boundary work, latch true CRC flag tests into ACT status bit S3, preserve the HP-67 bank-zero fetch rule, and stop explicitly when firmware reaches CRC card-data ports whose physical behavior is not yet modeled.
+
+## Implementation
+
+For an ordinary ACT word, `execute_word()` delegates to `ActArchitecturalCore`. For a CRC control opcode it executes an ACT NOP-equivalent boundary cycle so PC/carry/P-history/delayed-ROM behavior still advances correctly, then applies the CRC side effect and, for a true test-and-clear result, sets ACT S3. A pending THEN-GOTO state bypasses CRC decode because that 10-bit ROM word is branch data rather than an opcode. Accesses targeting CRC data addresses `0x99` or `0x9b` return `CrcDataPortNotModeled` transactionally, making the next genuine hardware boundary visible instead of silently treating the ports as ordinary RAM.
