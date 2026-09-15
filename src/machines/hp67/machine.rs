@@ -10,10 +10,7 @@ use std::collections::BTreeMap;
 
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
-use super::{
-    timing::Hp67WordTiming,
-    wiring::Hp67Net,
-};
+use super::{timing::Hp67WordTiming, wiring::Hp67Net};
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
@@ -29,7 +26,18 @@ impl Default for Hp67ElectricalBackplane {
     fn default() -> Self {
         let nets = Hp67Net::ALL
             .into_iter()
-            .map(|net| (net, Net::new(Bias::Floating)))
+            .map(|net| {
+                // HP-67 hardware probing shows the shared IS line resting low
+                // through a weak internal path while active participants pull
+                // it high and otherwise release it.  Other nets remain
+                // floating until their own passive behavior is evidenced.
+                let bias = if net == Hp67Net::Isa {
+                    Bias::PullDown
+                } else {
+                    Bias::Floating
+                };
+                (net, Net::new(bias))
+            })
             .collect();
         Self {
             clock: TwoPhaseClock::default(),
@@ -98,10 +106,15 @@ mod tests {
     use crate::machines::hp67::timing::BITS_PER_WORD;
 
     #[test]
-    fn all_declared_nets_exist_and_begin_floating() {
+    fn declared_nets_exist_and_only_is_has_an_evidenced_passive_low_bias() {
         let backplane = Hp67ElectricalBackplane::default();
         for net in Hp67Net::ALL {
-            assert_eq!(backplane.level(net), LogicLevel::Floating);
+            let expected = if net == Hp67Net::Isa {
+                LogicLevel::Low
+            } else {
+                LogicLevel::Floating
+            };
+            assert_eq!(backplane.level(net), expected, "unexpected initial level for {net:?}");
         }
     }
 
