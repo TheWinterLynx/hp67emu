@@ -43,14 +43,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 - [ ] Transcribe the HP-67 schematic into a reviewed pin/net table.
 - [ ] Confirm exact HP-67 PHI1/PHI2 pulse width, period and non-overlap from primary/service or scope evidence.
-- [ ] Define the canonical 56-bit word numbering and bit numbering convention.
+- [x] Define the canonical 56-bit word numbering and bit numbering convention (`b0..b55`, 14 digits × 4 bits).
+- [x] Add an HP-67-specific word-timing scaffold that keeps the abstract PHI sequence aligned with the 56-bit coordinate without inventing physical durations.
 - [ ] Confirm ISA/IS bus idle state, active-drive polarity and ownership rules.
 - [ ] Confirm DATA bus idle state, active-drive polarity and ownership rules.
-- [ ] Confirm exact SYNC placement and width for the HP-67 ACT generation.
+- [x] Record HP-67-specific evidence that SYNC is present for normal instruction fetches and suppressed for the implied-GOTO target word following an `IF`.
+- [ ] Confirm exact SYNC bit positions, width and sampling edge for the HP-67 ACT generation.
+- [ ] Recover/verify the exact HP-67 ISA address and instruction bit windows inside `b0..b55`; do not transplant Classic windows.
 - [ ] Confirm RCD timing from ACT and STR timing from ROM0.
 - [ ] Record uncertainty/source level for every pin semantic; no undocumented assumption enters chip code.
 - [ ] Define a versioned text/binary trace format for logic-analyzer comparison.
 - [x] Record the direct physical HP-67 startup instruction evidence at `0x000`, `0x001` and `0x0f8` and expose it through `rom_compare verify-startup`.
+- [x] Add the physical `0x0067/0x0068 -> 0x0fc6` delayed-ROM/JSB flow as a semantic regression.
 - [ ] Import or manually encode at least one trusted HP-67 startup waveform as a golden regression fixture, including bit/edge timing rather than only decoded words.
 
 ## ROM/microcode corpus
@@ -87,10 +91,10 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Rerun Teenix 2026 ↔ x11-calc after correcting the stack-special mapping: all 5120 populated words match exactly, with 0 value mismatches and 0 missing reference locations.
 - [x] Pin current Nonpareil research baseline `c347bc1ab20170c253512042f7aac0d952f304ea`; document official `uasm` Woodstock object records as optional bank mask plus octal address/opcode.
 - [x] Add strict `research::nonpareil_obj`, `nonpareil_rom`, and `docs/research/compare_nonpareil.ps1` so official upstream `uasm` output can be normalized without reimplementing Nonpareil's symbolic assembler.
-- [ ] Assemble/export Nonpareil's `67.asm`, `6797.asm` and `67b1.asm` with official `uasm`, record source/object hashes, normalize the resulting objects and require the physical startup check to pass.
-- [ ] Run Teenix ↔ Nonpareil and x11-calc ↔ Nonpareil comparisons and preserve the exact report/hashes.
-- [ ] Require all normalized Teenix/x11-calc/Nonpareil candidates to pass the direct physical startup checkpoints.
-- [ ] Run Teenix 2026 ↔ x11-calc ↔ Nonpareil comparison over equivalent populated regions and explain every mismatch.
+- [x] Assemble/export Nonpareil's `67.asm`, `6797.asm` and `67b1.asm` with official `uasm`, record source/object hashes, normalize the resulting objects and require the physical startup check to pass.
+- [x] Run Teenix ↔ Nonpareil and x11-calc ↔ Nonpareil comparisons and preserve the exact report/hashes.
+- [x] Require all normalized Teenix/x11-calc/Nonpareil candidates to pass the direct physical startup checkpoints.
+- [x] Run Teenix 2026 ↔ x11-calc ↔ Nonpareil over equivalent populated regions: all 5120 words match exactly in all three paths with zero missing/mismatched words.
 - [ ] When recovered, run physical dump ↔ all software corpora and explain every mismatch.
 - [ ] Cross-check the shared HP-67/97 ROM region against independent HP-97 data.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
@@ -109,7 +113,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Inventory every architecturally visible register and width, using the Rust reference state as the instruction-boundary contract.
 - [ ] Implement 12-bit PC and verified return-stack behavior.
 - [ ] Implement status bits, pointer and format state.
-- [ ] Implement instruction fetch timing on ISA/IS.
+- [ ] Bind ACT serial execution state to the canonical HP-67 `b0..b55` word coordinate.
+- [ ] Implement instruction fetch timing on ISA/IS after exact HP-67 bit windows are evidenced.
 - [ ] Implement instruction decode one verified opcode family at a time.
 - [ ] Implement bit-serial register transfers.
 - [ ] Implement serial arithmetic/ALU timing.
