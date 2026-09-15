@@ -22,6 +22,7 @@ pub enum PowerOnOperation {
     ConditionalGoto { taken: bool, target: u16 },
     ZeroCWhole,
     ExchangeCAndM1,
+    ExchangeCAndM2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,16 +35,17 @@ pub struct PowerOnExecution {
 
 /// Small architectural ACT state used to grow the real-microcode startup trace.
 ///
-/// The program counter and carry path are real Woodstock semantics. C and M1
-/// are present because the reconciled startup path has now reached both
-/// `0 -> c[w]` and `c exchange m1`. Their deterministic reset contents are not
-/// claimed as physical power-on evidence; tests seed them when register contents
-/// matter to the operation being verified.
+/// The program counter and carry path are real Woodstock semantics. C, M1 and
+/// M2 are present because the reconciled startup path has reached `0 -> c[w]`,
+/// `c exchange m1` and `c exchange m2`. Their deterministic reset contents are
+/// not claimed as physical power-on evidence; tests seed them when register
+/// contents matter to the operation being verified.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PowerOnActCore {
     pc: u16,
     c: [u8; ACT_WORD_DIGITS],
     m1: [u8; ACT_WORD_DIGITS],
+    m2: [u8; ACT_WORD_DIGITS],
     carry: bool,
     previous_carry: bool,
     executed_words: u64,
@@ -55,6 +57,7 @@ impl Default for PowerOnActCore {
             pc: 0,
             c: [0; ACT_WORD_DIGITS],
             m1: [0; ACT_WORD_DIGITS],
+            m2: [0; ACT_WORD_DIGITS],
             carry: false,
             previous_carry: false,
             executed_words: 0,
@@ -81,6 +84,14 @@ impl PowerOnActCore {
 
     pub fn m1_mut(&mut self) -> &mut [u8; ACT_WORD_DIGITS] {
         &mut self.m1
+    }
+
+    pub const fn m2(&self) -> &[u8; ACT_WORD_DIGITS] {
+        &self.m2
+    }
+
+    pub fn m2_mut(&mut self) -> &mut [u8; ACT_WORD_DIGITS] {
+        &mut self.m2
     }
 
     pub const fn carry(&self) -> bool {
@@ -115,6 +126,9 @@ impl PowerOnActCore {
         } else if word == 0o0410 {
             core::mem::swap(&mut self.c, &mut self.m1);
             PowerOnOperation::ExchangeCAndM1
+        } else if word == 0o0610 {
+            core::mem::swap(&mut self.c, &mut self.m2);
+            PowerOnOperation::ExchangeCAndM2
         } else if word & 0x03 == 0x03 {
             let page_offset = (word >> 2) as u8;
             let target = (self.pc & 0x0f00) | u16::from(page_offset);
@@ -210,6 +224,27 @@ mod tests {
         assert_eq!(execution.operation, PowerOnOperation::ExchangeCAndM1);
         assert_eq!(*act.c(), old_m1);
         assert_eq!(*act.m1(), old_c);
+    }
+
+    #[test]
+    fn c_exchange_m2_swaps_all_fourteen_digits() {
+        let mut act = PowerOnActCore::default();
+        for index in 0..ACT_WORD_DIGITS {
+            act.c_mut()[index] = (index as u8) ^ 0x05;
+            act.m2_mut()[index] = 0x0f - index as u8;
+        }
+        let old_c = *act.c();
+        let old_m2 = *act.m2();
+
+        let execution = act
+            .execute_word(0o0610)
+            .expect("c exchange m2 must execute");
+
+        assert_eq!(execution.pc, 0x000);
+        assert_eq!(execution.next_pc, 0x001);
+        assert_eq!(execution.operation, PowerOnOperation::ExchangeCAndM2);
+        assert_eq!(*act.c(), old_m2);
+        assert_eq!(*act.m2(), old_c);
     }
 
     #[test]
