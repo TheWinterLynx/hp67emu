@@ -2,7 +2,7 @@
 
 ## Provenance
 
-The first complete local directional comparison used:
+The complete local directional comparison used:
 
 - Teenix `cal67.pfl` SHA-256: `C8563E7982F38DEE9B6004B1194727AA2942DEB72D327C4D2F008CFDD057804B`
 - x11-calc reviewed commit: `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983`
@@ -10,9 +10,9 @@ The first complete local directional comparison used:
 
 Both reconstructed corpora independently passed the physical HP-67 startup checkpoints at bank 0 PC `0x000`, `0x001` and `0x0f8`.
 
-## First comparison result
+## First comparison result and local assembler diagnosis
 
-The Teenix corpus contained 5120 physically populated words. The x11-calc logical corpus contained 8192 words. Directional comparison produced:
+The first run, before correcting hp67emu's text-assembler stack-special table, produced:
 
 ```text
 matching subset words : 5091
@@ -28,9 +28,7 @@ Every one of the 29 mismatches was exclusively the pair:
 0x2c8 = 0o1310
 ```
 
-with one corpus containing one value and the other corpus containing the other. No third opcode value occurred in the mismatch set.
-
-Exact mismatch locations from the first run:
+Exact mismatch locations from that first run:
 
 ```text
 bank 0 pc 0x2d8: Teenix 0x2c8, x11 0x248
@@ -64,17 +62,30 @@ bank 1 pc 0x55e: Teenix 0x2c8, x11 0x248
 bank 1 pc 0x55f: Teenix 0x2c8, x11 0x248
 ```
 
-## Diagnosis
-
-The mismatch was caused by a local `hp67emu` assembler-table error, not by a demonstrated firmware disagreement.
-
-Teenix's published Woodstock instruction table defines:
+The mismatch was caused by a local hp67emu assembler-table error, not by firmware disagreement. Teenix's documented Woodstock table and x11-calc's reviewed decoder both identify:
 
 ```text
-down rotate -> 1001001000 -> 0x248 -> 0o1110
-c -> stack  -> 1011001000 -> 0x2c8 -> 0o1310
+down rotate -> 0x248 -> 0o1110
+c -> stack  -> 0x2c8 -> 0o1310
 ```
 
-The reviewed x11-calc CPU decoder at the pinned commit independently uses the same mapping (`case 01110` for `down rotate`, `case 01310` for `c -> stack`). The initial `hp67emu` textual assembler had those two mnemonic encodings reversed. The semantic `reference::woodstock` execution behaviour itself already corresponded to the correct operations; regression tests now lock both opcode identities explicitly.
+The initial hp67emu textual assembler had those mnemonic encodings reversed. The mapping and semantic regression tests were corrected before the second run.
 
-The assembler mapping was corrected after this first run. A clean rerun is required before declaring the 5120-word Teenix subset identical to x11-calc.
+## Corrected comparison result
+
+After the fix, the exact same source files and hashes were processed again. The result was:
+
+```text
+matching subset words : 5120
+value mismatches      : 0
+missing in reference  : 0
+reference-only words  : 3072 (informational)
+
+SUBSET MATCH: all 5120 populated subset words exist and match exactly.
+```
+
+This establishes that every one of the 5120 physically populated HP-67 microcode locations reconstructed from the current Teenix 2026 `cal67.pfl` agrees bit-for-bit with the pinned x11-calc image. The extra 3072 x11-calc entries are outside the Teenix physical-population subset and are not treated as disagreement.
+
+## Status
+
+Teenix 2026 and x11-calc are now reconciled over the complete 5120-word HP-67 populated region. Both also agree with the three currently available direct physical startup observations. The next independent firmware cross-check is Nonpareil's official `uasm` output from `67.asm`, `6797.asm` and `67b1.asm`.
