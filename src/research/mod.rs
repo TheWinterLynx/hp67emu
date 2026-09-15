@@ -5,6 +5,7 @@
 //! can be decoded, normalized and compared without embedding copyrighted ROM
 //! bytes in the emulator.
 
+pub mod nonpareil_obj;
 pub mod rom_corpus;
 pub mod teenix;
 pub mod teenix_hp67;
