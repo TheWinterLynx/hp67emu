@@ -27,12 +27,14 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - In the same hardware experiment he removed a failed `1818-0232`, replaced its ROM function with a microcontroller and observed the calculator call into that ROM at `0x0fc6` from `0x0068`, execute five instructions and return.
 - These are direct machine-level trace anchors. Use them as startup/fetch regressions and as future logic-analyzer targets; do not infer unreported PHI edge placement from the prose alone.
 
-**HP-67 key-wait PHI/SYNC/IS waveform**
+**HP-67 PHI/SYNC/IS logic-analyser waveforms**
 
 - https://literature.hpcalc.org/community/classic-notes.pdf
-- The HP-67 Woodstock section includes an HP-67-specific waveform showing PHI1, PHI2, Sync and Is together while the calculator runs its key-wait loop.
-- The decoded trace shows Sync present for ordinary fetched instructions and intentionally suppressed for the 10-bit word following an `IF`, where that ROM word is consumed as the implied-GOTO address. This directly corroborates the HP-67 THEN-GOTO fetch rule.
-- Use this as direct HP-67 evidence for the semantic role of Sync. The currently available text/image does not yet justify hard-coding exact bit-slot boundaries or PHI sampling edges.
+- The section headed **“Woodstock – HP-67”** contains HP-67-specific logic-analyser captures of PHI1, PHI2, Sync and Is.
+- Pages 64-66 establish exact instruction-fetch coordinates: the 12-bit ROM address is sent LSB-first during bit times `16..27`; the selected ROM returns its 10-bit word LSB-first during bit times `46..55`; a normal instruction has SYNC asserted over those final ten times, while after an `IF` the same 10-bit word arrives with SYNC low and is consumed as the implied-GOTO destination.
+- Page 74 records shared-bus behavior: IS is weakly/passively biased low and active participants pull it high rather than actively driving zero; only one device is intended to control the bus at a time.
+- Page 73 separately shows HP-67 power-on stabilization and the first valid SYNC activity. Use the bit windows and bus polarity as direct HP-67 evidence, while keeping exact launch/sample PHI edges and propagation delay open until the page-70 expanded waveforms are transcribed into a reviewed edge convention.
+- The implementation/evidence mapping is recorded in `docs/research/HP67_ISA_TIMING.md`.
 
 ### Tier B — detailed HP-family timing/service evidence
 
@@ -41,6 +43,7 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - https://literature.hpcalc.org/community/classic-notes.pdf
 - Contains measured/reverse-engineered timing and HP-67-specific sections, including power-on observations, 56-bit bus behavior, ROM0 display decode, RCD/STR behavior and serial bus notes.
 - Also documents the HP-67/97 banked ROM map: bank 0 spans the normal 4K address space; HP-67 bank 1 is populated only for the equivalent of PC `0x400..0x7ff`, while entering the low `0x000..0x3ff` region forces bank 0.
+- The HP-67 pages also show that the fetched word from one 56-bit cycle is executed in the following 56-bit cycle, so instruction fetch and execution are explicitly pipelined.
 - Particularly useful for scope-derived waveforms and gaps not covered by an HP service manual.
 - Because it is reverse engineering rather than an original HP design specification, uncertain details must be cross-checked where practical.
 
@@ -92,7 +95,7 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 
 - PPC Journal V5N7 pp. 7-8, V5N8 pp. 14-17 and V5N10 pp. 25-27.
 - Later researchers cite this series as a direct 1978 investigation of the HP-67 machine time word using external shift registers on ISA/DATA.
-- Recovering the exact scans/pages is a priority because they may resolve HP-67-specific serial bit windows without borrowing them from another calculator family.
+- Recovering the exact scans/pages remains useful for independent corroboration of the now-identified serial windows and may add details not visible in the current logic-analyser notes.
 
 ## ACT revision policy
 
@@ -104,16 +107,17 @@ This resolves the apparent part-number conflict without claiming that every manu
 
 The following must have a source citation or a captured regression trace before production implementation depends on them:
 
-- exact PHI1/PHI2 frequency, pulse width and dead time;
-- ISA and DATA passive level and active-drive polarity;
-- exact HP-67 ISA address and instruction bit windows within `b0..b55`;
-- exact SYNC bit positions, width and sampling edge;
+- exact HP-67 PHI1/PHI2 frequency, pulse width and dead time;
+- exact PHI launch/sample edge and propagation delay for each IS address/ROM bit;
+- DATA passive level, active-drive polarity and ownership timing;
 - RCD and STR edge placement;
-- ACT reset sequencing;
+- ACT reset sequencing beyond currently observed high-level power-on behavior;
 - opcode semantics that differ across chipset generations;
 - keyboard matrix wiring and mode-switch flag path;
 - CRC/card-reader timing and bit encoding;
 - sign-digit transistor routing details.
+
+The following are no longer guesses and are encoded as HP-67 timing facts: the canonical 56-bit word coordinate, 12-bit LSB-first ROM address on IS at `b16..b27`, 10-bit LSB-first ROM result at `b46..b55`, the matching SYNC decision window, and IS weak-low/active-high drive behavior.
 
 Unknown behavior is represented as an explicit TODO or unimplemented error, not filled with a plausible value.
 
