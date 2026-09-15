@@ -14,8 +14,8 @@ Uses `src/research/woodstock_asm.rs` to assemble each mnemonic and `src/research
 
 ## Responsibilities
 
-Count payload/blank/instruction lines; map the expected 5120-word HP-67 physical ROM order; validate optional `Lxxxx:` hexadecimal address labels; report unknown mnemonics, address mismatches and overflow; refuse extraction until the entire listing is understood; normalize a clean listing into a `RomCorpus`.
+Count payload/blank/instruction lines; map the expected 5120-word HP-67 physical ROM order; validate optional `Lxxxx:` hexadecimal address labels; report unknown mnemonics, address mismatches and any non-empty records after the physical word slots; refuse extraction until the entire listing structure is understood; normalize a clean listing into a `RomCorpus`.
 
 ## Implementation
 
-Every non-empty payload line is treated as one candidate microinstruction. The first 4096 candidates map to bank 0 PCs `0x000..0xfff`; the next 1024 map to bank 1 PCs `0x400..0x7ff`. Optional labels are validation anchors rather than authorities that silently move the parser. Analysis returns detailed issue records with source line and expected location. Normalization is all-or-nothing and only proceeds when the instruction count is exactly 5120, all mnemonics assemble, all labels match and there is no overflow.
+Every non-empty payload line is initially treated as one candidate microinstruction. The first 4096 candidates map to bank 0 PCs `0x000..0xfff`; the next 1024 map to bank 1 PCs `0x400..0x7ff`. Optional labels are validation anchors rather than authorities that silently move the parser. Any additional non-empty lines are preserved verbatim in `overflow_details` with their source line and candidate ordinal so Teenix trailer metadata/directives can be identified explicitly rather than discarded. Normalization remains all-or-nothing and only proceeds when the instruction count is exactly 5120, all mnemonics assemble, all labels match and there is no unresolved overflow.
