@@ -2,20 +2,22 @@
 
 ## Purpose
 
-Runs a local HP-67 power-on smoke test against an external normalized 5120-word firmware corpus and can continue probing the startup path until the first ACT opcode not yet implemented by the low-level smoke core.
+Runs HP-67 power-on firmware from an external normalized 5120-word corpus through the structural serial fetch path and can continue for thousands of real machine cycles using the complete independent ACT architectural core.
 
 ## Why it exists
 
-Unit fixtures can prove transport mechanics, but the project also needs a reproducible demonstration that the reconciled Teenix/x11-calc/Nonpareil microcode actually enters the electrical fetch path and drives the first observed startup control flow. Firmware bytes are intentionally not committed, so the runner consumes the locally generated `.research/teenix-2026-hp67.tsv` corpus by default. The optional probe mode lets the real local corpus tell us exactly which verified ACT behavior must be implemented next instead of guessing a startup sequence.
+The project needs a reproducible demonstration that reconciled HP-67 microcode actually traverses the modeled IS/ISA path rather than being handed directly to an instruction executor. Once the initial startup proof was established, stopping after each newly encountered opcode became unnecessary. The runner now uses the complete architectural ACT bring-up core so probe length is limited by genuinely unsupported hardware/electrical behavior rather than by an arbitrary opcode checklist.
 
 ## Relationships
 
-Uses `research::rom_corpus::RomCorpus` only as a local research-file loader. The actual fetch crosses `Hp67ElectricalBackplane` through `run_structural_fetch_cycle`; `FetchPipelineLatch` enforces the one-word pipeline; `PowerOnActCore` executes the resulting words without calling `reference::woodstock`.
+Uses `research::rom_corpus::RomCorpus` only as a local firmware loader. Every fetch still crosses `Hp67ElectricalBackplane` through `run_structural_fetch_cycle`; `FetchPipelineLatch` enforces the one-word pipeline; `ActArchitecturalCore` executes the reconstructed word; and `ActRamImage` temporarily supplies architectural RAM behavior until physical 1818-* RAM devices are connected. The runner does not call `reference::woodstock`.
 
 ## Responsibilities
 
-Require exactly 5120 populated corpus words, expose bank-0 words through the ROM-source boundary, run four mandatory 56-bit structural machine cycles, verify the physical startup fetches `0x000=0x000`, `0x001=0x3e3`, `0x0f8=0x11a`, require those three words to execute in the following cycles, and fail on any discrepancy. When `--probe-cycles N` is supplied, continue from the already-prefetched word at `0x0f9` for at most N further cycles and stop cleanly with PC/word/octal diagnostics at the first unsupported ACT operation.
+Require exactly 5120 populated corpus words; preserve the physical startup checkpoints `0x000=0x000`, `0x001=0x3e3`, `0x0f8=0x11a`; honor the HP-67 bank-zero rule in the first 1K page; choose bank 1 only where that page is physically populated in the normalized corpus; and continue for `--probe-cycles N` real pipeline cycles. `--trace-limit N` bounds detailed output while the probe itself may run much farther.
 
 ## Implementation
 
-Cycle 0 fills the fetch pipeline from PC 0. Cycle 1 executes the fetched NOP and serially fetches PC 1. Cycle 2 executes `0x3e3`, branches to `0x0f8`, and serially fetches `0x11a`. Cycle 3 executes `0x11a` (`0 -> c[w]`) and concurrently fetches the next word at `0x0f9`. Every fetch address travels as twelve resolved IS bits at b16..b27 and every returned ROM word is reconstructed from ten resolved IS bits at b46..b55. After the mandatory PASS, probe mode repeatedly begins the next pipeline cycle, executes only source-backed operations already present in `PowerOnActCore`, performs the next serial fetch, and reports `PROBE STOP` rather than silently delegating an unknown opcode to the semantic reference model. The runner remains a structural bit-cell smoke/probe tool, not yet a claim of final PHI-edge timing.
+Cycle 0 fills the pipeline, cycles 1..3 verify the directly observed startup sequence, and subsequent cycles execute/fetch continuously. Address bits travel at b16..b27 and ROM response bits at b46..b55 through the resolved pull-down-biased IS net. Before each fetch, `prepare_hp67_fetch()` supplies the architectural bank state; the corpus adapter mirrors the HP-67 fallback-to-bank-0 rule for pages that have no requested bank populated.
+
+Probe execution stops only on a genuinely unknown special, the still-unimplemented ROM self-test operation, a missing serial ROM word, or another hard structural error. A detailed trace is emitted only for the first requested number of probe cycles, followed by a summary containing executed-word count, PC and bank. This remains a bit-cell structural bring-up tool: final PHI launch/sample edges and physical RAM/DATA timing are not claimed yet.
