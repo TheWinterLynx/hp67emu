@@ -36,6 +36,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Preserve Nonpareil's HP-67 P-wrap compatibility addresses as regression targets; do not copy the address-specific hack into the electrical ACT.
 - [ ] Add an HP-67 P-wrap/label-search regression that must agree with both Nonpareil and x11-calc without PC-specific hacks in the electrical ACT.
 - [x] Reconcile the 1820-1596/1820-2530 compatibility evidence sufficiently to target 1820-2530 while retaining 1820-1596 as a semantic compatibility reference; keep revision-dependent electrical differences open if later evidence appears.
+- [x] Lock the documented Woodstock stack-special mapping with regressions: `0o1110 = down rotate`, `0o1310 = c -> stack`.
 - [ ] Do not copy GPL-covered Nonpareil or x11-calc source line-for-line unless the project deliberately makes a compatible licensing decision.
 
 ## Next: evidence and timing
@@ -82,7 +83,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Locate an archived 2022 `ROMreader.zip` or another physical-reader HP-67 dump if the current archive no longer ships the ROM data.
 - [ ] Record chip-to-image mapping and SHA-256 for every physical HP-67 ROM image recovered.
 - [ ] Add a tested normalizer for the actual physical-reader output format.
-- [ ] Extract x11-calc at reviewed commit `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983`, run the 5120-word Teenix subset check, and preserve the exact mismatch report.
+- [x] Extract x11-calc at reviewed commit `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983` and preserve the first 5120-word Teenix subset report: 5091 matches, 29 `0o1110/0o1310` mismatches, 0 missing locations; diagnose all 29 as a local assembler mnemonic-table swap and preserve the exact report in `docs/research/TEENIX_X11_COMPARISON_2026-09-15.md`.
+- [ ] Rerun Teenix 2026 ↔ x11-calc after the corrected `down rotate`/`c -> stack` mapping and require all 5120 populated words to match.
 - [ ] Assemble/export Nonpareil's HP-67 sources to address/opcode listings and normalize both banks.
 - [ ] Run x11-calc ↔ Nonpareil comparison and preserve the report/hashes.
 - [ ] Require all normalized Teenix/x11-calc/Nonpareil candidates to pass the direct physical startup checkpoints.
