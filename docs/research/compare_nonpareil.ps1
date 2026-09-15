@@ -14,11 +14,16 @@ New-Item -ItemType Directory -Force $ExternalDir | Out-Null
 $NonpareilDir = Join-Path $ExternalDir "nonpareil-$NonpareilCommit"
 New-Item -ItemType Directory -Force $NonpareilDir | Out-Null
 
+$UasmCommand = $null
 if ([string]::IsNullOrWhiteSpace($Uasm)) {
-    $Found = Get-Command uasm -ErrorAction SilentlyContinue
-    if ($Found) {
-        $Uasm = $Found.Source
-    }
+    $UasmCommand = Get-Command uasm -ErrorAction SilentlyContinue
+} elseif (Test-Path $Uasm -PathType Leaf) {
+    $Uasm = (Resolve-Path $Uasm).Path
+} else {
+    $UasmCommand = Get-Command $Uasm -ErrorAction SilentlyContinue
+}
+if ($UasmCommand) {
+    $Uasm = $UasmCommand.Source
 }
 if ([string]::IsNullOrWhiteSpace($Uasm) -or !(Test-Path $Uasm -PathType Leaf)) {
     Write-Host "Nonpareil uasm was not found."
