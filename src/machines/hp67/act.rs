@@ -550,9 +550,7 @@ impl ActArchitecturalCore {
     }
 
     fn execute_arithmetic(&mut self, operation: u8, field: u8) {
-        let Some((first, last)) = field_bounds(field, self.state.p) else {
-            return;
-        };
+        let (first, last) = field_bounds(field, self.state.p);
         let base = if self.state.decimal { 10 } else { 16 };
         let a = self.state.a;
         let b = self.state.b;
@@ -632,31 +630,33 @@ impl ActArchitecturalCore {
     }
 }
 
-fn field_bounds(field: u8, p: u8) -> Option<(usize, usize)> {
+fn field_bounds(field: u8, p: u8) -> (usize, usize) {
     let p = usize::from(p);
     match field & 7 {
-        0 if p < ACT_WORD_DIGITS => Some((p, p)),
-        0 => None,
-        1 if p < ACT_WORD_DIGITS => Some((0, p)),
-        1 => Some((0, ACT_WORD_DIGITS - 1)),
-        2 => Some((2, 2)),
-        3 => Some((0, 2)),
-        4 => Some((13, 13)),
-        5 => Some((3, 12)),
-        6 => Some((0, 13)),
-        7 => Some((3, 13)),
+        0 if p < ACT_WORD_DIGITS => (p, p),
+        0 => (ACT_WORD_DIGITS, ACT_WORD_DIGITS - 1),
+        1 if p < ACT_WORD_DIGITS => (0, p),
+        1 => (0, ACT_WORD_DIGITS - 1),
+        2 => (2, 2),
+        3 => (0, 2),
+        4 => (13, 13),
+        5 => (3, 12),
+        6 => (0, 13),
+        7 => (3, 13),
         _ => unreachable!(),
     }
 }
 
 fn zero_range(register: &mut ActRegister, first: usize, last: usize) {
-    for digit in &mut register[first..=last] {
-        *digit = 0;
+    for index in first..=last {
+        register[index] = 0;
     }
 }
 
 fn copy_range(destination: &mut ActRegister, source: ActRegister, first: usize, last: usize) {
-    destination[first..=last].copy_from_slice(&source[first..=last]);
+    for index in first..=last {
+        destination[index] = source[index];
+    }
 }
 
 fn exchange_range(left: &mut ActRegister, right: &mut ActRegister, first: usize, last: usize) {
@@ -721,11 +721,11 @@ fn shift_right_range(register: &mut ActRegister, first: usize, last: usize) {
 }
 
 fn any_nonzero(register: ActRegister, first: usize, last: usize) -> bool {
-    register[first..=last].iter().any(|digit| *digit != 0)
+    (first..=last).any(|index| register[index] != 0)
 }
 
 fn all_zero(register: ActRegister, first: usize, last: usize) -> bool {
-    register[first..=last].iter().all(|digit| *digit == 0)
+    !any_nonzero(register, first, last)
 }
 
 // Compatibility aliases keep external bring-up tools source-compatible while
