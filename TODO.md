@@ -54,27 +54,31 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 ## ROM/microcode corpus
 
-- [x] Identify the Teenix physical ROM-reader archive as the preferred first HP-67 dump source; see `docs/MICROCODE_PROVENANCE.md`.
+- [x] Record the 2022 Teenix ROM-reader release as the strongest physical-dump provenance lead; do not assume the current ZIP still contains those historical ROM files.
 - [x] Identify Nonpareil's `67.asm`, `6797.asm`, `67b1.asm` and card-reader disassembly as symbolic cross-checks.
-- [x] Identify x11-calc's built-in 8192-entry `i_rom[]` image as a third HP-67 ROM corpus for comparison.
+- [x] Identify x11-calc's built-in 8192-entry `i_rom[]` image as an independent HP-67 ROM corpus.
 - [x] Add a local x11-calc `i_rom[]` extractor that requires exactly 8192 valid 10-bit words.
 - [x] Define a normalized sparse `(bank, pc, word)` TSV corpus format.
 - [x] Add explicit-radix address/opcode import for assembled/listed corpora.
 - [x] Add conflict-safe merging of sparse bank/page corpora.
 - [x] Add exact bank/page/PC corpus comparison with non-zero mismatch exit status.
 - [x] Add fact-only binary inspection for unknown firmware containers; do not guess `.pfl` structure.
-- [x] Document the complete local three-way comparison workflow in `docs/ROM_CORPUS_WORKFLOW.md`.
-- [x] Inspect the locally downloaded `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` sufficiently to establish that they are structured ~88-93 KiB Teenix module/container files, not simple raw 8192-word ROM images.
-- [ ] Record archive/file SHA-256 values for the Teenix research inputs.
-- [ ] Extract `ROMreader.zip`, inventory the HP-67 files included by the physical ROM-reader project, and identify their documented file format.
-- [ ] Record chip-to-image mapping for every physical HP-67 ROM-reader image.
-- [ ] Add a tested normalizer for the ROM-reader output format.
-- [ ] Decode `.pfl` only if it later provides information not already recoverable from the physical ROM-reader files; do not make `.pfl` reverse engineering a prerequisite for the emulator.
-- [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
+- [x] Document the comparison workflow in `docs/ROM_CORPUS_WORKFLOW.md`.
+- [x] Inspect `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` sufficiently to establish that they are structured ~88-93 KiB Teenix module/container files, not flat raw ROM images.
+- [x] Extract the current `ROMreader.zip` and establish that a filename search for `67`, `1818` or `rom` exposes only `ROM Reader Help.pdf` and `ROMread..hex`; historical ROM payload is not yet located.
+- [ ] Inventory every file in the current `ROMreader.zip` with size and SHA-256.
+- [ ] Confirm `ROMread..hex` as reader-controller Intel HEX rather than HP-67 microcode.
+- [ ] Read `ROM Reader Help.pdf` for reader output naming/encoding and database-file locations.
+- [ ] Locate an archived 2022 `ROMreader.zip` or another physical-reader HP-67 dump if the current archive no longer ships the ROM data.
+- [ ] Record chip-to-image mapping and SHA-256 for every physical HP-67 ROM image recovered.
+- [ ] Add a tested normalizer for the actual physical-reader output format.
+- [ ] Decode `.pfl` only if it later provides information not recoverable from the firmware corpora/physical dump.
 - [ ] Assemble/export Nonpareil's HP-67 sources to address/opcode listings and normalize both banks.
 - [ ] Run x11-calc ↔ Nonpareil comparison and preserve the report/hashes.
-- [ ] Run physical Teenix dump ↔ x11-calc and physical Teenix dump ↔ Nonpareil comparisons and explain every mismatch.
-- [ ] Cross-check the shared HP-67/97 ROM region against an independently obtained HP-97 dump.
+- [ ] Require both software corpora to pass the direct physical startup checkpoints.
+- [ ] When recovered, run physical dump ↔ x11-calc and physical dump ↔ Nonpareil comparisons and explain every mismatch.
+- [ ] Cross-check the shared HP-67/97 ROM region against independent HP-97 data.
+- [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
 - [ ] Build opcode conformance fixtures from the reference model plus trusted Woodstock/HP-67 microcode analysis.
 
 ## Scheduler
