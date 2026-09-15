@@ -22,6 +22,9 @@ jobs:
       - name: Apply live display integration
         run: python .github/scripts/connect_live_display.py
 
+      - name: Remove obsolete text display path
+        run: python .github/scripts/remove_text_display.py
+
       - name: Format all Rust sources
         run: cargo fmt --all
 
