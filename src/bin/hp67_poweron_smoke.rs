@@ -3,7 +3,8 @@
 //! Firmware stays external. Addresses and returned words still cross the
 //! resolved IS/ISA model bit by bit, while the independent architectural
 //! HP-67 bring-up machine resolves ACT versus CRC ownership at each instruction
-//! boundary. This lets one local run cover thousands of real firmware words.
+//! boundary. This lets one local run cover thousands of real firmware words and
+//! detect convergence into the documented no-key idle loop.
 
 use std::{cell::Cell, env, fs};
 
@@ -18,6 +19,15 @@ use hp67emu::{
 
 const EXPECTED_POPULATED_WORDS: usize = 5120;
 const STARTUP_FETCHES: [(u16, u16); 3] = [(0x000, 0x000), (0x001, 0x3e3), (0x0f8, 0x11a)];
+
+// Nonpareil's reviewed HP-67 disassembly labels these source-backed firmware
+// landmarks in octal. Keep them as addresses only; no firmware payload is
+// embedded here.
+const DISPLAY_INIT_PC: u16 = 0o0161; // 0x071: "hi i'm woodstock", then display off/toggle.
+const MAIN_WAIT_PC: u16 = 0o0167; // 0x077: documented main wait-for-key loop entry.
+const CARD_POLL_PC: u16 = 0o0206; // 0x086: card-present poll inside that idle loop.
+const PHYSICAL_DELAYED_ROM_PC: u16 = 0x067;
+const PHYSICAL_DELAYED_ROM_TARGET_PC: u16 = 0x0fc6;
 
 struct CorpusRom<'a> {
     corpus: &'a RomCorpus,
@@ -68,6 +78,49 @@ struct Arguments {
     corpus_path: String,
     probe_cycles: u64,
     trace_limit: u64,
+    stop_at_idle: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProbeControl {
+    Continue,
+    BoundaryStop,
+    IdleReached,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct BootMilestones {
+    saw_display_init: bool,
+    main_wait_visits: u64,
+    card_poll_visits: u64,
+    saw_physical_delayed_rom_source: bool,
+    saw_physical_delayed_rom_target: bool,
+    idle_cycle: Option<u64>,
+}
+
+impl BootMilestones {
+    fn observe(&mut self, cycle: u64, machine: &Hp67ArchitecturalMachine, execution_pc: u16) {
+        match execution_pc {
+            DISPLAY_INIT_PC => self.saw_display_init = true,
+            MAIN_WAIT_PC => self.main_wait_visits = self.main_wait_visits.saturating_add(1),
+            CARD_POLL_PC => self.card_poll_visits = self.card_poll_visits.saturating_add(1),
+            PHYSICAL_DELAYED_ROM_PC => self.saw_physical_delayed_rom_source = true,
+            PHYSICAL_DELAYED_ROM_TARGET_PC => self.saw_physical_delayed_rom_target = true,
+            _ => {}
+        }
+
+        if self.idle_cycle.is_none() && self.idle_ready(machine) {
+            self.idle_cycle = Some(cycle);
+        }
+    }
+
+    fn idle_ready(&self, machine: &Hp67ArchitecturalMachine) -> bool {
+        self.saw_display_init
+            && self.main_wait_visits >= 2
+            && self.card_poll_visits >= 1
+            && machine.act.state.display_enable
+            && machine.act.state.key_buffer.is_none()
+    }
 }
 
 fn parse_arguments() -> Result<Arguments, String> {
@@ -77,6 +130,7 @@ fn parse_arguments() -> Result<Arguments, String> {
         .unwrap_or_else(|| ".research/teenix-2026-hp67.tsv".to_owned());
     let mut probe_cycles = 0u64;
     let mut trace_limit = 64u64;
+    let mut stop_at_idle = false;
 
     while let Some(argument) = args.next() {
         match argument.as_str() {
@@ -96,6 +150,7 @@ fn parse_arguments() -> Result<Arguments, String> {
                     .parse::<u64>()
                     .map_err(|_| format!("invalid --trace-limit value: {value}"))?;
             }
+            "--stop-at-idle" => stop_at_idle = true,
             _ => return Err(format!("unknown argument: {argument}")),
         }
     }
@@ -104,6 +159,7 @@ fn parse_arguments() -> Result<Arguments, String> {
         corpus_path,
         probe_cycles,
         trace_limit,
+        stop_at_idle,
     })
 }
 
@@ -111,15 +167,17 @@ fn execute_cycle(
     cycle: u64,
     machine: &mut Hp67ArchitecturalMachine,
     pipeline: &mut FetchPipelineLatch,
+    milestones: &mut BootMilestones,
+    stop_at_idle: bool,
     verbose: bool,
-) -> Result<bool, String> {
+) -> Result<ProbeControl, String> {
     pipeline.begin_cycle();
 
     let Some(word) = pipeline.executing_word() else {
         if verbose {
             println!("cycle {cycle}: EXEC <pipeline fill>");
         }
-        return Ok(true);
+        return Ok(ProbeControl::Continue);
     };
 
     match machine.execute_word(word) {
@@ -130,24 +188,29 @@ fn execute_cycle(
                     execution.pc, execution.word, execution.operation, execution.next_pc
                 );
             }
-            Ok(true)
+            milestones.observe(cycle, machine, execution.pc);
+            if stop_at_idle && milestones.idle_ready(machine) {
+                Ok(ProbeControl::IdleReached)
+            } else {
+                Ok(ProbeControl::Continue)
+            }
         }
         Err(Hp67ArchitecturalError::Act(ActError::UnknownSpecial { pc, word })) => {
             println!(
                 "PROBE STOP: unknown ACT special at cycle {cycle}: pc=0x{pc:03x} word=0x{word:03x} (octal {word:04o})"
             );
-            Ok(false)
+            Ok(ProbeControl::BoundaryStop)
         }
         Err(Hp67ArchitecturalError::Act(ActError::UnsupportedRomSelfTest { pc })) => {
             println!("PROBE STOP: ROM self-test reached at cycle {cycle}: pc=0x{pc:03x}");
-            Ok(false)
+            Ok(ProbeControl::BoundaryStop)
         }
         Err(Hp67ArchitecturalError::CrcDataPortNotModeled { pc, address, write }) => {
             let direction = if write { "write" } else { "read" };
             println!(
                 "PROBE STOP: CRC DATA-port {direction} reached at cycle {cycle}: pc=0x{pc:03x} address=0x{address:02x}"
             );
-            Ok(false)
+            Ok(ProbeControl::BoundaryStop)
         }
         Err(error) => Err(format!("cycle {cycle} architectural execution failed: {error:?}")),
     }
@@ -180,6 +243,21 @@ fn fetch_cycle(
     Ok((address, fetched))
 }
 
+fn print_boot_summary(milestones: &BootMilestones, machine: &Hp67ArchitecturalMachine) {
+    println!(
+        "BOOT SUMMARY: display_init_seen={}; main_wait_visits={}; card_poll_visits={}; display_enable={}; no_key={}; physical_0x067_to_0xfc6={}; idle_cycle={}",
+        milestones.saw_display_init,
+        milestones.main_wait_visits,
+        milestones.card_poll_visits,
+        machine.act.state.display_enable,
+        machine.act.state.key_buffer.is_none(),
+        milestones.saw_physical_delayed_rom_source && milestones.saw_physical_delayed_rom_target,
+        milestones
+            .idle_cycle
+            .map_or_else(|| "none".to_owned(), |cycle| cycle.to_string())
+    );
+}
+
 fn main() -> Result<(), String> {
     let arguments = parse_arguments()?;
     let input = fs::read_to_string(&arguments.corpus_path)
@@ -200,6 +278,7 @@ fn main() -> Result<(), String> {
     let mut fetch_rom = RomFetchEndpoint::default();
     let mut pipeline = FetchPipelineLatch::default();
     let mut machine = Hp67ArchitecturalMachine::default();
+    let mut milestones = BootMilestones::default();
     let mut verified_fetches = 0usize;
     let mut executed = Vec::new();
 
@@ -223,6 +302,7 @@ fn main() -> Result<(), String> {
                 "cycle {cycle}: EXEC pc=0x{:03x} word=0x{:03x} {:?} -> pc=0x{:03x}",
                 execution.pc, execution.word, execution.operation, execution.next_pc
             );
+            milestones.observe(cycle, &machine, execution.pc);
             executed.push((execution.pc, execution.word));
         } else {
             println!("cycle {cycle}: EXEC <pipeline fill>");
@@ -269,6 +349,7 @@ fn main() -> Result<(), String> {
     );
 
     if arguments.probe_cycles == 0 {
+        print_boot_summary(&milestones, &machine);
         return Ok(());
     }
 
@@ -276,20 +357,50 @@ fn main() -> Result<(), String> {
         "PROBE: running up to {} additional machine cycle(s); detailed trace limited to {} cycle(s).",
         arguments.probe_cycles, arguments.trace_limit
     );
+    if arguments.stop_at_idle {
+        println!(
+            "BOOT TARGET: stop after two visits to main wait L0167 with a card-poll pass, display enabled and no key."
+        );
+    }
 
     let mut completed_probe_cycles = 0u64;
     for offset in 0..arguments.probe_cycles {
         let cycle = 4 + offset;
         let verbose = offset < arguments.trace_limit;
-        if !execute_cycle(cycle, &mut machine, &mut pipeline, verbose)? {
-            println!(
-                "PROBE SUMMARY: completed {completed_probe_cycles} additional cycles; executed_words={}; pc=0x{:03x}; bank={}",
-                machine.executed_words(),
-                machine.pc(),
-                machine.bank()
-            );
-            return Ok(());
+        match execute_cycle(
+            cycle,
+            &mut machine,
+            &mut pipeline,
+            &mut milestones,
+            arguments.stop_at_idle,
+            verbose,
+        )? {
+            ProbeControl::Continue => {}
+            ProbeControl::BoundaryStop => {
+                println!(
+                    "PROBE SUMMARY: completed {completed_probe_cycles} additional cycles; executed_words={}; pc=0x{:03x}; bank={}",
+                    machine.executed_words(),
+                    machine.pc(),
+                    machine.bank()
+                );
+                print_boot_summary(&milestones, &machine);
+                return Ok(());
+            }
+            ProbeControl::IdleReached => {
+                println!(
+                    "BOOT IDLE PASS: real firmware completed initialization and cycled through the documented no-key wait loop with display_enable=true."
+                );
+                println!(
+                    "BOOT IDLE: cycle={cycle}; executed_words={}; pc=0x{:03x}; bank={}",
+                    machine.executed_words(),
+                    machine.pc(),
+                    machine.bank()
+                );
+                print_boot_summary(&milestones, &machine);
+                return Ok(());
+            }
         }
+
         fetch_cycle(
             cycle,
             &mut backplane,
@@ -310,5 +421,40 @@ fn main() -> Result<(), String> {
         machine.pc(),
         machine.bank()
     );
+    print_boot_summary(&milestones, &machine);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn boot_idle_requires_a_complete_no_key_loop_after_display_init() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        let mut milestones = BootMilestones::default();
+
+        milestones.observe(10, &machine, DISPLAY_INIT_PC);
+        machine.act.state.display_enable = true;
+        milestones.observe(20, &machine, MAIN_WAIT_PC);
+        assert!(!milestones.idle_ready(&machine));
+
+        milestones.observe(30, &machine, CARD_POLL_PC);
+        assert!(!milestones.idle_ready(&machine));
+
+        milestones.observe(40, &machine, MAIN_WAIT_PC);
+        assert!(milestones.idle_ready(&machine));
+        assert_eq!(milestones.idle_cycle, Some(40));
+    }
+
+    #[test]
+    fn physical_delayed_rom_landmarks_are_recorded_independently() {
+        let machine = Hp67ArchitecturalMachine::default();
+        let mut milestones = BootMilestones::default();
+        milestones.observe(1, &machine, PHYSICAL_DELAYED_ROM_PC);
+        assert!(milestones.saw_physical_delayed_rom_source);
+        assert!(!milestones.saw_physical_delayed_rom_target);
+        milestones.observe(2, &machine, PHYSICAL_DELAYED_ROM_TARGET_PC);
+        assert!(milestones.saw_physical_delayed_rom_target);
+    }
 }
