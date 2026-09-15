@@ -1,15 +1,19 @@
 //! Initial HP-67 electrical backplane shell.
 //!
-//! It currently owns explicit named nets and a deterministic two-phase timing
-//! source.  The timing source is a scaffold, not yet the final ACT oscillator;
-//! later milestones will replace it with ACT-driven, measured timing while
-//! retaining the same observable net boundary.
+//! It currently owns explicit named nets, a deterministic two-phase timing
+//! source and the canonical 56-bit serial-word coordinate.  The timing source is
+//! still a scaffold, not yet the final ACT oscillator; later milestones will
+//! replace its durations/edge placement from hardware evidence while retaining
+//! the same observable net and word-coordinate boundaries.
 
 use std::collections::BTreeMap;
 
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
-use super::wiring::Hp67Net;
+use super::{
+    timing::Hp67WordTiming,
+    wiring::Hp67Net,
+};
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
@@ -17,6 +21,7 @@ const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalBackplane {
     clock: TwoPhaseClock,
+    word_timing: Hp67WordTiming,
     nets: BTreeMap<Hp67Net, Net>,
 }
 
@@ -28,6 +33,7 @@ impl Default for Hp67ElectricalBackplane {
             .collect();
         Self {
             clock: TwoPhaseClock::default(),
+            word_timing: Hp67WordTiming::default(),
             nets,
         }
     }
@@ -36,6 +42,21 @@ impl Default for Hp67ElectricalBackplane {
 impl Hp67ElectricalBackplane {
     pub fn tick(&self) -> Tick {
         self.clock.tick()
+    }
+
+    /// Current HP-67 serial bit coordinate (`b0..b55`).
+    pub const fn word_bit(&self) -> u8 {
+        self.word_timing.bit_index()
+    }
+
+    /// Current 4-bit digit coordinate (`0..13`).
+    pub const fn word_digit(&self) -> u8 {
+        self.word_timing.digit_index()
+    }
+
+    /// Monotonic machine-word coordinate since timing reset.
+    pub const fn word_index(&self) -> u64 {
+        self.word_timing.word_index()
     }
 
     pub fn level(&self, net: Hp67Net) -> LogicLevel {
@@ -52,7 +73,8 @@ impl Hp67ElectricalBackplane {
             .set_drive(driver, drive);
     }
 
-    /// Advance the timing scaffold by one non-overlapping clock sub-phase.
+    /// Advance the temporary timing scaffold by one non-overlapping clock
+    /// sub-phase and advance the HP-67 56-bit coordinate accordingly.
     pub fn advance_clock(&mut self) -> Tick {
         let levels = self.clock.advance();
         self.drive(
@@ -65,6 +87,7 @@ impl Hp67ElectricalBackplane {
             CLOCK_DRIVER,
             if levels.phi2 { Drive::High } else { Drive::Low },
         );
+        self.word_timing.advance_clock_subphase();
         self.clock.tick()
     }
 }
@@ -72,6 +95,7 @@ impl Hp67ElectricalBackplane {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::machines::hp67::timing::BITS_PER_WORD;
 
     #[test]
     fn all_declared_nets_exist_and_begin_floating() {
@@ -90,5 +114,28 @@ mod tests {
             let phi2 = backplane.level(Hp67Net::Phi2) == LogicLevel::High;
             assert!(!(phi1 && phi2));
         }
+    }
+
+    #[test]
+    fn one_scaffold_phase_period_advances_one_serial_bit() {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        assert_eq!(backplane.word_index(), 0);
+        assert_eq!(backplane.word_bit(), 0);
+        assert_eq!(backplane.word_digit(), 0);
+
+        for _ in 0..4 {
+            backplane.advance_clock();
+        }
+        assert_eq!(backplane.word_bit(), 1);
+        assert_eq!(backplane.word_digit(), 0);
+
+        for _ in 1..BITS_PER_WORD {
+            for _ in 0..4 {
+                backplane.advance_clock();
+            }
+        }
+        assert_eq!(backplane.word_index(), 1);
+        assert_eq!(backplane.word_bit(), 0);
+        assert_eq!(backplane.word_digit(), 0);
     }
 }
