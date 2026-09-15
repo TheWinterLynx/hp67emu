@@ -10,8 +10,10 @@ use hp67emu::research::rom_corpus::{
     compare, parse_address_opcode_pairs, parse_x11_hp67_c, NumberRadix, RomCorpus, RomDifference,
     ROM_BANKS, ROM_PAGES, WORDS_PER_BANK,
 };
+use hp67emu::research::teenix::{decode_container, has_newe_signature};
 
 const MAX_PRINTED_DIFFERENCES: usize = 128;
+const DEFAULT_TEENIX_PREVIEW_LINES: usize = 60;
 
 /// Three words observed by Tony Nixon on a physical HP-67 immediately after
 /// power-on while monitoring SYNC and IS. These are evidence points, not an
@@ -69,6 +71,15 @@ fn run() -> Result<i32, Box<dyn Error>> {
         "merge" if args.len() >= 5 => merge_files(&args[2], &args[3..]),
         "compare" if args.len() == 4 => compare_files(&args[2], &args[3]),
         "verify-startup" if args.len() == 3 => verify_startup(&args[2]),
+        "decode-teenix" if args.len() == 4 => decode_teenix_file(&args[2], &args[3]),
+        "preview-teenix" if args.len() == 3 || args.len() == 4 => {
+            let line_count = if args.len() == 4 {
+                args[3].parse::<usize>()?
+            } else {
+                DEFAULT_TEENIX_PREVIEW_LINES
+            };
+            preview_teenix_file(&args[2], line_count)
+        }
         "inspect" if args.len() == 3 => {
             inspect_binary(Path::new(&args[2]))?;
             Ok(0)
@@ -78,6 +89,31 @@ fn run() -> Result<i32, Box<dyn Error>> {
             Ok(2)
         }
     }
+}
+
+fn decode_teenix_file(input_path: &str, output_path: &str) -> Result<i32, Box<dyn Error>> {
+    let bytes = fs::read(input_path)?;
+    let container = decode_container(&bytes)?;
+    fs::write(output_path, container.payload())?;
+    println!("decoded Teenix NeWe container: {input_path}");
+    println!("declared payload bytes: {}", container.declared_payload_len);
+    println!("decoded payload written to: {output_path}");
+    Ok(0)
+}
+
+fn preview_teenix_file(path: &str, line_count: usize) -> Result<i32, Box<dyn Error>> {
+    let bytes = fs::read(path)?;
+    let container = decode_container(&bytes)?;
+    let text = container.payload_text()?;
+
+    println!("Teenix NeWe container: {path}");
+    println!("declared payload bytes: {}", container.declared_payload_len);
+    println!("payload lines: {}", text.lines().count());
+    println!("--- first {line_count} lines ---");
+    for (index, line) in text.lines().take(line_count).enumerate() {
+        println!("{:05}: {line}", index + 1);
+    }
+    Ok(0)
 }
 
 fn merge_files(output_path: &str, input_paths: &[String]) -> Result<i32, Box<dyn Error>> {
@@ -233,6 +269,25 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
         .join(" ");
     println!("first {preview_len} bytes: {preview}");
 
+    if has_newe_signature(&bytes) {
+        println!("Teenix NeWe XOR-0x55 signature: YES");
+        match decode_container(&bytes) {
+            Ok(container) => {
+                println!("Teenix container validation: PASS");
+                println!("declared payload bytes: {}", container.declared_payload_len);
+                if let Ok(text) = container.payload_text() {
+                    println!("decoded payload lines: {}", text.lines().count());
+                    if let Some(first_line) = text.lines().next() {
+                        println!("decoded first payload line: {first_line}");
+                    }
+                }
+            }
+            Err(error) => println!("Teenix container validation: FAIL ({error})"),
+        }
+    } else {
+        println!("Teenix NeWe XOR-0x55 signature: no");
+    }
+
     if !bytes.is_empty() {
         let mut counts = [0usize; 256];
         for &byte in &bytes {
@@ -240,7 +295,9 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
         }
         let ascii_printable = bytes
             .iter()
-            .filter(|&&byte| byte == b'\n' || byte == b'\r' || byte == b'\t' || (0x20..=0x7e).contains(&byte))
+            .filter(|&&byte| {
+                byte == b'\n' || byte == b'\r' || byte == b'\t' || (0x20..=0x7e).contains(&byte)
+            })
             .count();
         let seven_bit = bytes.iter().filter(|&&byte| byte < 0x80).count();
         let unique = counts.iter().filter(|&&count| count != 0).count();
@@ -275,7 +332,6 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
         println!("most common bytes: {common}");
     }
 
-    println!("No binary format is inferred automatically; .pfl layout remains unproven.");
     Ok(())
 }
 
@@ -287,6 +343,8 @@ rom_compare import-pairs <input.txt> <out.tsv> <bank> <auto|8|10|16>\n  \
 rom_compare merge <out.tsv> <input1.tsv> <input2.tsv> [more.tsv ...]\n  \
 rom_compare compare <left.tsv> <right.tsv>\n  \
 rom_compare verify-startup <corpus.tsv>\n  \
+rom_compare decode-teenix <input.pfl> <out.txt>\n  \
+rom_compare preview-teenix <input.pfl> [line-count]\n  \
 rom_compare inspect <binary-file>"
     );
 }
