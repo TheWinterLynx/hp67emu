@@ -18,8 +18,10 @@ jobs:
         with:
           ref: foundation/cycle-accurate-architecture
 
-      - name: Install rustfmt
-        run: rustup component add rustfmt
+      - name: Install project Rust toolchain
+        run: |
+          rustup toolchain install 1.76.0 --profile minimal --component rustfmt
+          rustup override set 1.76.0
 
       - name: Verify rustfmt
         run: cargo fmt --all -- --check
