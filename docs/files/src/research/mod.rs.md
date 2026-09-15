@@ -10,7 +10,7 @@ Firmware provenance work must remain separate from the production electrical emu
 
 ## Relationships
 
-Exports `research::rom_corpus` for normalized ROM comparison, `research::teenix` for the Teenix `NeWe` XOR container, `research::woodstock_asm` for strict mnemonic-to-word assembly, and `research::teenix_hp67` for current HP-67 listing analysis/normalization. It is exposed by `src/lib.rs` so local command-line research tools such as `src/bin/rom_compare.rs` can reuse the same tested logic.
+Exports `research::rom_corpus` for normalized ROM comparison, `research::nonpareil_obj` for official Nonpareil `uasm` Woodstock object files, `research::teenix` for the Teenix `NeWe` XOR container, `research::woodstock_asm` for strict mnemonic-to-word assembly, and `research::teenix_hp67` for current HP-67 listing analysis/normalization. It is exposed by `src/lib.rs` so local command-line research tools such as `src/bin/rom_compare.rs` can reuse the same tested logic.
 
 ## Responsibilities
 
@@ -18,4 +18,4 @@ Keep research/import/decoding/assembly code clearly separated from `emulation`, 
 
 ## Implementation
 
-The module re-exports small helpers with explicit evidence boundaries: ROM corpus normalization/comparison, Teenix outer-container decoding, documented Woodstock text assembly and HP-67-specific listing topology validation. Unknown source grammar remains a hard error rather than being guessed.
+The module re-exports small helpers with explicit evidence boundaries: ROM corpus normalization/comparison, strict import of upstream Nonpareil object output, Teenix outer-container decoding, documented Woodstock text assembly and HP-67-specific listing topology validation. Unknown source grammar remains a hard error rather than being guessed.
