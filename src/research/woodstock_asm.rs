@@ -309,9 +309,9 @@ fn assemble_fixed_special(mnemonic: &str) -> Option<u16> {
         "m2 exchange c" => 0o0610,
         "m2 -> c" => 0o0710,
         "stack -> a" => 0o1010,
-        "c -> stack" => 0o1110,
+        "down rotate" => 0o1110,
         "y -> a" => 0o1210,
-        "down rotate" => 0o1310,
+        "c -> stack" => 0o1310,
         "decimal" => 0o1410,
         "f -> a" => 0o1610,
         "f exchange a" => 0o1710,
@@ -426,6 +426,12 @@ mod tests {
     fn accepts_documented_twf_display_reset_spelling() {
         assert_eq!(assemble_mnemonic("display reset twf").unwrap(), 0o0320);
         assert_eq!(assemble_mnemonic("reset twf").unwrap(), 0o0320);
+    }
+
+    #[test]
+    fn stack_specials_match_documented_encodings() {
+        assert_eq!(assemble_mnemonic("down rotate").unwrap(), 0o1110);
+        assert_eq!(assemble_mnemonic("c -> stack").unwrap(), 0o1310);
     }
 
     #[test]
