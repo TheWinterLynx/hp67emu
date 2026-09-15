@@ -85,6 +85,14 @@ bank 0 pc 0x0f8 = 0x11a (0432 octal)
 
 This is currently our strongest direct firmware checkpoint because it ties decoded source, reconstructed words and observed real-hardware execution together. The same physical-reader discussion records a later call from `0x0068` into the `1818-0232` ROM at `0x0fc6`, which remains a future instruction-flow trace target.
 
+## Teenix 2026 ↔ x11-calc first complete comparison
+
+The first complete 5120-word directional comparison used Teenix `cal67.pfl` SHA-256 `C8563E7982F38DEE9B6004B1194727AA2942DEB72D327C4D2F008CFDD057804B` and x11-calc source SHA-256 `3EBB5E8C014ACAC9013CC1D0CBC96734EC17BC6D6903E9D988B5AFC89B919B43` at reviewed commit `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983`.
+
+The first run found 5091 matches and 29 mismatches, with zero missing Teenix locations. Every mismatch was exclusively the opcode pair `0x248/0x2c8` (`0o1110/0o1310`). Investigation showed this was a local `hp67emu` text-assembler table error rather than a demonstrated source disagreement. Teenix's published Woodstock table defines `down rotate = 0o1110` and `c -> stack = 0o1310`; the reviewed x11-calc CPU decoder independently uses the same mapping. `hp67emu` had these two mnemonic encodings reversed.
+
+The research assembler has been corrected and unit tests now lock both encodings. `reference::woodstock` already implemented the corresponding stack transformations under the correct numeric opcodes; an explicit semantic regression now protects that mapping too. The exact first-run mismatch set and provenance are preserved in `docs/research/TEENIX_X11_COMPARISON_2026-09-15.md`. A post-fix rerun is required before declaring the 5120-word subset identical.
+
 ## Normalized corpus tooling
 
 `src/research/rom_corpus.rs` and `src/bin/rom_compare.rs` normalize sources to explicit `(bank, pc, 10-bit word)` coordinates. The x11-calc extractor requires all 8192 words, sparse address/opcode listings can be imported with an explicit radix, sparse corpora can be merged only when overlaps agree, and every mismatch is reported by bank/page/PC.
