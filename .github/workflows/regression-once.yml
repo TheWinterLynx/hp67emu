@@ -1,0 +1,30 @@
+name: regression-once
+
+on:
+  push:
+    branches:
+      - foundation/cycle-accurate-architecture
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: foundation/cycle-accurate-architecture
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Verify rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Run tests with warnings denied
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo test --locked --all-targets
