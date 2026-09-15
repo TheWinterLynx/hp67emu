@@ -123,6 +123,18 @@ impl BootMilestones {
     }
 }
 
+fn format_act_register(register: &[u8; 14]) -> String {
+    let mut output = String::with_capacity(register.len());
+    for digit in register.iter().rev() {
+        output.push(
+            char::from_digit(u32::from(*digit & 0x0f), 16)
+                .expect("nibble is always a hexadecimal digit")
+                .to_ascii_uppercase(),
+        );
+    }
+    output
+}
+
 fn parse_arguments() -> Result<Arguments, String> {
     let mut args = env::args().skip(1);
     let corpus_path = args
@@ -255,6 +267,14 @@ fn print_boot_summary(milestones: &BootMilestones, machine: &Hp67ArchitecturalMa
         milestones
             .idle_cycle
             .map_or_else(|| "none".to_owned(), |cycle| cycle.to_string())
+    );
+    println!(
+        "DISPLAY ARCH STATE: A={}; B={}; C={}; display_14_digit={}; display_enable={}",
+        format_act_register(&machine.act.state.a),
+        format_act_register(&machine.act.state.b),
+        format_act_register(&machine.act.state.c),
+        machine.act.state.display_14_digit,
+        machine.act.state.display_enable
     );
 }
 
@@ -456,5 +476,14 @@ mod tests {
         assert!(!milestones.saw_physical_delayed_rom_target);
         milestones.observe(2, &machine, PHYSICAL_DELAYED_ROM_TARGET_PC);
         assert!(milestones.saw_physical_delayed_rom_target);
+    }
+
+    #[test]
+    fn display_register_dump_is_most_significant_digit_first() {
+        let mut register = [0u8; 14];
+        for (index, digit) in register.iter_mut().enumerate() {
+            *digit = index as u8;
+        }
+        assert_eq!(format_act_register(&register), "DCBA9876543210");
     }
 }
