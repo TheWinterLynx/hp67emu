@@ -84,9 +84,11 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Record chip-to-image mapping and SHA-256 for every physical HP-67 ROM image recovered.
 - [ ] Add a tested normalizer for the actual physical-reader output format.
 - [x] Extract x11-calc at reviewed commit `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983` and preserve the first 5120-word Teenix subset report: 5091 matches, 29 `0o1110/0o1310` mismatches, 0 missing locations; diagnose all 29 as a local assembler mnemonic-table swap and preserve the exact report in `docs/research/TEENIX_X11_COMPARISON_2026-09-15.md`.
-- [ ] Rerun Teenix 2026 ↔ x11-calc after the corrected `down rotate`/`c -> stack` mapping and require all 5120 populated words to match.
-- [ ] Assemble/export Nonpareil's HP-67 sources to address/opcode listings and normalize both banks.
-- [ ] Run x11-calc ↔ Nonpareil comparison and preserve the report/hashes.
+- [x] Rerun Teenix 2026 ↔ x11-calc after correcting the stack-special mapping: all 5120 populated words match exactly, with 0 value mismatches and 0 missing reference locations.
+- [x] Pin current Nonpareil research baseline `c347bc1ab20170c253512042f7aac0d952f304ea`; document official `uasm` Woodstock object records as optional bank mask plus octal address/opcode.
+- [x] Add strict `research::nonpareil_obj`, `nonpareil_rom`, and `docs/research/compare_nonpareil.ps1` so official upstream `uasm` output can be normalized without reimplementing Nonpareil's symbolic assembler.
+- [ ] Assemble/export Nonpareil's `67.asm`, `6797.asm` and `67b1.asm` with official `uasm`, record source/object hashes, normalize the resulting objects and require the physical startup check to pass.
+- [ ] Run Teenix ↔ Nonpareil and x11-calc ↔ Nonpareil comparisons and preserve the exact report/hashes.
 - [ ] Require all normalized Teenix/x11-calc/Nonpareil candidates to pass the direct physical startup checkpoints.
 - [ ] Run Teenix 2026 ↔ x11-calc ↔ Nonpareil comparison over equivalent populated regions and explain every mismatch.
 - [ ] When recovered, run physical dump ↔ all software corpora and explain every mismatch.
@@ -142,7 +144,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Cross-check all 35 resulting hardware key codes against both Nonpareil `67.ncd.tmpl` and x11-calc `x11-calc-67.c`.
 - [ ] Replace semantic key events with contact closures in cycle-accurate mode.
 - [ ] Implement KC1-KC5 and related key-scan path.
-- [ ] Route RUN/W/PRGM through the correct hardware-visible CRC flag/input; Nonpareil identifies CRC flag 1 as the semantic switch state.
+- [ ] Route RUN/W-PRGM through the correct hardware-visible CRC flag/input; Nonpareil identifies CRC flag 1 as the semantic switch state.
 - [ ] Route OFF/ON through machine power/reset rather than UI state.
 - [ ] Add bounce only if measured behavior matters to firmware-visible timing.
 
