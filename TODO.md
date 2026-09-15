@@ -63,16 +63,17 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add explicit-radix address/opcode import for assembled/listed corpora.
 - [x] Add conflict-safe merging of sparse bank/page corpora.
 - [x] Add exact bank/page/PC corpus comparison with non-zero mismatch exit status.
+- [x] Add directional ROM subset verification so the 5120 physically populated Teenix words can be checked against broader 8192-entry software corpora without treating reference-only locations as failures.
 - [x] Add physical-startup evidence checking for `0x000`, `0x001` and `0x0f8`.
 - [x] Prove the current Teenix `.pfl` outer container: XOR every byte with `0x55`, decoded first line `NeWe`, decoded second line decimal payload length.
 - [x] Add a tested `research::teenix` decoder that validates magic and payload length exactly.
 - [x] Add `rom_compare decode-teenix` and `preview-teenix` for local inspection without committing firmware payloads.
 - [x] Record the observed Teenix 2026 decoded headers: `cal67=92855`, `cal6713=92882`, `cal67b=87834` payload bytes; `cal67.pfl` contains 5127 decoded text lines and begins with the physical startup sequence.
-- [x] Establish the first-pass current Teenix listing grammar: one candidate microinstruction per non-empty line, optional `Lxxxx:` hexadecimal address anchors, and the documented HP-67 4096 + 1024 physical-word topology.
+- [x] Establish the Teenix listing grammar needed by `cal67.pfl`: blank/comment records do not consume ROM, `org $1400` switches to bank 1 PC `0x400`, and both `Lxxxx:` and `Hxxxx:` are hexadecimal address anchors.
 - [x] Add a strict documented Woodstock mnemonic assembler covering control flow, all 32 arithmetic operations/eight fields, status/P families, ROM/data-register families, CRC commands and fixed specials.
 - [x] Add `research::teenix_hp67`, `analyze-teenix-hp67` and all-or-nothing `extract-teenix-hp67`; unknown text, label mismatches and wrong word counts are hard failures.
-- [ ] Run `analyze-teenix-hp67` against the full current `cal67.pfl`; classify any non-empty metadata/pseudo-ops or missing mnemonic spellings until the report is fully extractable.
-- [ ] Extract the current Teenix 2026 listing to exactly 5120 `(bank, pc, word)` entries and require the physical startup check to pass.
+- [x] Run `analyze-teenix-hp67` against the full current `cal67.pfl`: 5120 candidate instructions, 0 unknown instructions, 0 label mismatches and 0 overflow.
+- [x] Extract the current Teenix 2026 listing to exactly 5120 `(bank, pc, word)` entries and verify all three direct physical startup checkpoints.
 - [ ] Record SHA-256 for the current `HP67.zip`, each `.pfl`, decoded payloads and MultiCalc package used for analysis.
 - [x] Extract the current `ROMreader.zip` and establish that a filename search for `67`, `1818` or `rom` exposes only `ROM Reader Help.pdf` and `ROMread..hex`; historical ROM payload is not yet located.
 - [ ] Inventory every file in the current `ROMreader.zip` with size and SHA-256.
@@ -81,10 +82,11 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Locate an archived 2022 `ROMreader.zip` or another physical-reader HP-67 dump if the current archive no longer ships the ROM data.
 - [ ] Record chip-to-image mapping and SHA-256 for every physical HP-67 ROM image recovered.
 - [ ] Add a tested normalizer for the actual physical-reader output format.
+- [ ] Extract x11-calc at reviewed commit `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983`, run the 5120-word Teenix subset check, and preserve the exact mismatch report.
 - [ ] Assemble/export Nonpareil's HP-67 sources to address/opcode listings and normalize both banks.
 - [ ] Run x11-calc ↔ Nonpareil comparison and preserve the report/hashes.
 - [ ] Require all normalized Teenix/x11-calc/Nonpareil candidates to pass the direct physical startup checkpoints.
-- [ ] Run Teenix 2026 ↔ x11-calc ↔ Nonpareil full comparison and explain every mismatch.
+- [ ] Run Teenix 2026 ↔ x11-calc ↔ Nonpareil comparison over equivalent populated regions and explain every mismatch.
 - [ ] When recovered, run physical dump ↔ all software corpora and explain every mismatch.
 - [ ] Cross-check the shared HP-67/97 ROM region against independent HP-97 data.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
