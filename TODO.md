@@ -51,6 +51,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Fix the HP-67 SYNC decision window to `b46..b55`; leave exact PHI sampling edge open.
 - [x] Fix the HP-67 IS fetch windows from direct logic-analyser evidence: 12-bit ROM address LSB-first at `b16..b27`, 10-bit ROM result LSB-first at `b46..b55`.
 - [x] Add tested IS serializers that emit address/ROM bits LSB-first and represent zero as bus release against the passive low bias.
+- [x] Add structural ACT↔ROM serial fetch endpoints that reconstruct the 12-bit address and 10-bit result only from resolved IS levels, plus a one-cycle fetch/execution pipeline latch.
 - [ ] Convert the expanded page-70 HP-67 PHI/SYNC/IS waveforms into explicit launch/sample-edge conventions and propagation constraints.
 - [ ] Confirm RCD timing from ACT and STR timing from ROM0.
 - [ ] Record uncertainty/source level for every pin semantic; no undocumented assumption enters chip code.
@@ -116,8 +117,9 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Implement 12-bit PC and verified return-stack behavior.
 - [ ] Implement status bits, pointer and format state.
 - [ ] Bind ACT serial execution state to the canonical HP-67 `b0..b55` word coordinate.
-- [ ] Implement ACT address transmission on IS at `b16..b27` and capture the selected-ROM result at `b46..b55` using the evidenced wired-high/release bus contract.
-- [ ] Pipeline the word fetched in one 56-bit cycle so it executes in the following 56-bit cycle.
+- [x] Establish and regression-test the structural ACT address-shift/ROM-result-shift path over the real IS net at `b16..b27` and `b46..b55`; exact PHI edges remain pending.
+- [x] Establish a one-word pipeline latch where a word fetched in cycle N becomes executable when cycle N+1 begins.
+- [ ] Integrate those fetch endpoints into the production ACT and physical 1818-* device scheduler once launch/sample edges are fixed.
 - [ ] Implement instruction decode one verified opcode family at a time.
 - [ ] Implement bit-serial register transfers.
 - [ ] Implement serial arithmetic/ALU timing.
