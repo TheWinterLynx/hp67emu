@@ -14,7 +14,7 @@ use hp67emu::{
         ActRamImage, FetchPipelineLatch, Hp67ElectricalBackplane, Hp67RomWordSource,
         RomFetchEndpoint,
     },
-    research::rom_corpus::{RomCorpus, WORDS_PER_PAGE},
+    research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
 
 const EXPECTED_POPULATED_WORDS: usize = 5120;
@@ -23,24 +23,39 @@ const STARTUP_FETCHES: [(u16, u16); 3] = [(0x000, 0x000), (0x001, 0x3e3), (0x0f8
 struct CorpusRom<'a> {
     corpus: &'a RomCorpus,
     requested_bank: Cell<u8>,
+    page_bank_mask: [u8; ROM_PAGES],
 }
 
-impl CorpusRom<'_> {
-    fn select_bank(&self, bank: u8) {
-        self.requested_bank.set(bank & 1);
+impl<'a> CorpusRom<'a> {
+    fn new(corpus: &'a RomCorpus) -> Self {
+        let mut page_bank_mask = [0u8; ROM_PAGES];
+        for (page, mask) in page_bank_mask.iter_mut().enumerate() {
+            let page_base = page * WORDS_PER_PAGE;
+            for bank in 0..2usize {
+                if (page_base..page_base + WORDS_PER_PAGE)
+                    .any(|pc| corpus.get(bank, pc).ok().flatten().is_some())
+                {
+                    *mask |= 1u8 << bank;
+                }
+            }
+        }
+        Self {
+            corpus,
+            requested_bank: Cell::new(0),
+            page_bank_mask,
+        }
     }
 
-    fn page_has_bank(&self, bank: usize, address: u16) -> bool {
-        let page_base = (usize::from(address) / WORDS_PER_PAGE) * WORDS_PER_PAGE;
-        (page_base..page_base + WORDS_PER_PAGE)
-            .any(|pc| self.corpus.get(bank, pc).ok().flatten().is_some())
+    fn select_bank(&self, bank: u8) {
+        self.requested_bank.set(bank & 1);
     }
 }
 
 impl Hp67RomWordSource for CorpusRom<'_> {
     fn read_word(&self, address: u16) -> Option<u16> {
         let requested = usize::from(self.requested_bank.get());
-        let effective = if requested != 0 && self.page_has_bank(requested, address) {
+        let page = usize::from(address) / WORDS_PER_PAGE;
+        let effective = if self.page_bank_mask[page] & (1u8 << requested) != 0 {
             requested
         } else {
             0
@@ -174,10 +189,7 @@ fn main() -> Result<(), String> {
         ));
     }
 
-    let source = CorpusRom {
-        corpus: &corpus,
-        requested_bank: Cell::new(0),
-    };
+    let source = CorpusRom::new(&corpus);
     let mut backplane = Hp67ElectricalBackplane::default();
     let mut fetch_act = ActFetchEndpoint::new(0);
     let mut fetch_rom = RomFetchEndpoint::default();
