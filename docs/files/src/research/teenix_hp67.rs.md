@@ -6,7 +6,7 @@ Analyses and normalizes the decoded current Teenix HP-67 microcode listing into 
 
 ## Why it exists
 
-The current `cal67.pfl` is a `NeWe` XOR container whose decoded payload is source-style Woodstock assembly. The HP-67 has 4096 bank-0 words plus the populated 1024-word bank-1 window at PC `0x400..0x7ff`; a strict parser lets us turn the Teenix 2026 listing into a corpus only when every microinstruction is understood and every address anchor agrees.
+The current `cal67.pfl` is a `NeWe` XOR container whose decoded payload is source-style Woodstock assembly. The listing is not a bare sequence of instructions: the bank transition contains `//` comments, an `org $1400` directive and `Hxxxx:` address anchors. A strict parser must understand those source records without counting them as ROM words.
 
 ## Relationships
 
@@ -14,8 +14,8 @@ Uses `src/research/woodstock_asm.rs` to assemble each mnemonic and `src/research
 
 ## Responsibilities
 
-Count payload/blank/instruction lines; map the expected 5120-word HP-67 physical ROM order; validate optional `Lxxxx:` hexadecimal address labels; report unknown mnemonics, address mismatches and any non-empty records after the physical word slots; refuse extraction until the entire listing structure is understood; normalize a clean listing into a `RomCorpus`.
+Count payload, blank, comment, directive and instruction lines separately; track the combined Teenix source address; interpret bit 12 as the ROM bank selector and the low 12 bits as logical Woodstock PC; validate observed `Lxxxx:` and `Hxxxx:` anchors; report unknown mnemonics, address mismatches and unsupported locations; refuse extraction until all 5120 physical HP-67 microinstructions are understood.
 
 ## Implementation
 
-Every non-empty payload line is initially treated as one candidate microinstruction. The first 4096 candidates map to bank 0 PCs `0x000..0xfff`; the next 1024 map to bank 1 PCs `0x400..0x7ff`. Optional labels are validation anchors rather than authorities that silently move the parser. Any additional non-empty lines are preserved verbatim in `overflow_details` with their source line and candidate ordinal so Teenix trailer metadata/directives can be identified explicitly rather than discarded. Normalization remains all-or-nothing and only proceeds when the instruction count is exactly 5120, all mnemonics assemble, all labels match and there is no unresolved overflow.
+The address cursor starts at `$0000`. Blank lines and `//` comments consume no ROM location. `org $xxxx` changes the combined source address without emitting a word; the observed `org $1400` therefore starts bank 1 at logical PC `0x400`. Instructions at combined `$0000..$0fff` map to bank 0, while `$1400..$17ff` map to the populated bank-1 window. Both `Lxxxx:` and `Hxxxx:` prefixes are treated as hexadecimal address anchors whose numeric PC must agree with the current cursor; the prefix is preserved for diagnostics but is not used by itself to infer the bank. Normalization remains all-or-nothing and `RomCorpus::set` rejects duplicate locations.
