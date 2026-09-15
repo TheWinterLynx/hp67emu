@@ -39,10 +39,8 @@ fn compare_one(seed: u8, opcode: u16, then_goto: bool) {
         state.delayed_rom = None;
     }
 
-    let mut ours = ActArchitecturalCore {
-        state: state.clone(),
-        ..ActArchitecturalCore::default()
-    };
+    let mut ours = ActArchitecturalCore::default();
+    ours.state = state.clone();
     let mut ours_ram = ActRamImage::hp67();
     seed_our_ram(&mut ours_ram, seed);
 
