@@ -12,11 +12,12 @@ use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
     display::{Rom0DisplayEndpoint, Rom0DisplayError},
-    isa::{
-        act_address_drive, act_display_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
-    },
+    isa::{act_address_drive, act_display_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
-    timing::{display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS},
+    timing::{
+        display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS,
+        ROM_WORD_BITS,
+    },
     wiring::Hp67Net,
 };
 
@@ -346,7 +347,7 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
         rom,
         source,
         Some(display_byte),
-        Some(rom0),
+        Some(&mut *rom0),
     )?;
     Ok(StructuralWordResult {
         fetched_word,
