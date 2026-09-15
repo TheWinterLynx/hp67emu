@@ -48,27 +48,33 @@ cargo run --bin rom_compare -- verify-startup .research\nonpareil-hp67.tsv
 
 The Teenix page marks HP-67 as updated **10 May 2026** and MultiCalc as updated **11 May 2026**, so the current HP-67 module is a high-priority corpus rather than a legacy artefact.
 
-The outer `.pfl` format is now established. Teenix's current *Classic Notes* documents a file convention where each byte is XORed with `0x55`; after decoding the first line is `NeWe`, the second line is the decimal byte count of the remaining text. The current `cal67.pfl`, `cal6713.pfl` and `cal67b.pfl` match that convention exactly.
+The outer `.pfl` format is established: XOR every byte with `0x55`; the decoded first line is `NeWe`; the decoded second line is the decimal byte count of the remaining text. Current `cal67.pfl`, `cal6713.pfl` and `cal67b.pfl` match that convention exactly.
 
-Observed decoded headers:
+The decoded `cal67.pfl` payload is a Woodstock source-style listing. The first observed lines are `L0000: no operation`, `L0001: if no carry go to $0F8`, and so on. The current payload has 5127 text lines. The expected physical HP-67 microcode population is 5120 words: all 4096 bank-0 locations plus bank-1 PC `0x400..0x7ff`. That near-exact count is now tested rather than assumed.
 
-```text
-cal67.pfl   -> NeWe\r92855\r...
-cal6713.pfl -> NeWe\r92882\r...
-cal67b.pfl  -> NeWe\r87834\r...
+Research tooling now contains a strict documented-mnemonic assembler plus a listing analyzer. It understands JSB/GOTO/THEN-GOTO, all 32 arithmetic operations and eight fields, status/P families, ROM/data-register families, CRC commands and fixed Woodstock specials. Unknown text is rejected.
+
+Run the analyzer first:
+
+```powershell
+cargo run --bin rom_compare -- analyze-teenix-hp67 .\cal67.pfl
 ```
 
-The declared lengths exactly match the remaining payload sizes, and each observed payload begins with `L0000:\tno operation`.
+It reports payload/blank/candidate counts, every unknown mnemonic and every `Lxxxx:` address mismatch against the independently documented HP-67 physical ordering. Only when it reports `EXTRACTABLE` should the corpus be generated:
 
-Use the tested decoder rather than manually XORing files:
+```powershell
+cargo run --bin rom_compare -- extract-teenix-hp67 .\cal67.pfl .research\teenix-2026-hp67.tsv
+```
+
+Extraction is all-or-nothing: exactly 5120 understood microinstructions, no label mismatch and no overflow. The command then immediately applies the physical startup check. This prevents a source comment, unknown pseudo-op or bank-layout mistake from being silently converted into firmware.
+
+The lossless outer-container commands remain useful:
 
 ```powershell
 cargo run --bin rom_compare -- inspect .\cal67.pfl
 cargo run --bin rom_compare -- preview-teenix .\cal67.pfl 80
 cargo run --bin rom_compare -- decode-teenix .\cal67.pfl .research\cal67.decoded.txt
 ```
-
-`decode-teenix` validates both `NeWe` and the exact declared payload length before writing the plaintext. This proves the **outer container only**. The next stage is to establish the internal textual assembler/listing grammar and then translate that source to 10-bit words with tests. Do not infer opcodes merely from mnemonic text until address, bank and directive syntax are understood.
 
 ## 4. Teenix physical ROM-reader provenance
 
@@ -80,7 +86,7 @@ Physical startup observations from the same research remain direct evidence even
 
 ## 5. Compare corpora
 
-Once Teenix's decoded textual payload has been converted to explicit `(bank, pc, word)` data, compare all three software corpora:
+Once Teenix's listing is extractable, compare all three software corpora:
 
 ```powershell
 cargo run --bin rom_compare -- compare .research\x11-hp67.tsv .research\nonpareil-hp67.tsv
@@ -94,12 +100,13 @@ Every mismatch must be explained. Agreement plus the three physical startup word
 
 A working canonical ROM set requires:
 
-1. current Teenix `.pfl` containers decoded losslessly and their internal source/listing grammar proven;
-2. x11-calc and Nonpareil independently normalized;
-3. all three candidates passing `verify-startup` after normalization;
-4. all Teenix ↔ x11-calc ↔ Nonpareil differences explained;
-5. physical-reader provenance recovered and mapped to chip/bank/address when available;
-6. the physical corpus compared against all software corpora;
-7. later instruction-flow and electrical traces agreeing with the selected image.
+1. current Teenix `.pfl` container decoded losslessly and the complete listing accepted by the strict analyzer;
+2. current Teenix listing normalized to 5120 explicit physical words with all address anchors agreeing;
+3. x11-calc and Nonpareil independently normalized;
+4. all three candidates passing `verify-startup`;
+5. all Teenix ↔ x11-calc ↔ Nonpareil differences explained;
+6. physical-reader provenance recovered and mapped to chip/bank/address when available;
+7. the physical corpus compared against all software corpora;
+8. later instruction-flow and electrical traces agreeing with the selected image.
 
 Firmware agreement does not establish PHI1/PHI2 or bus timing. Electrical timing remains validated against hardware/service evidence.
