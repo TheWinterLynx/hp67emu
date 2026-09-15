@@ -1,18 +1,17 @@
 //! Runs HP-67 power-on microcode through the structural serial fetch path.
 //!
 //! Firmware stays external. Addresses and returned words still cross the
-//! resolved IS/ISA model bit by bit, while the independent architectural ACT
-//! core now implements the complete Woodstock instruction-boundary semantics.
-//! This lets one local run cover thousands of real firmware words instead of
-//! growing the executor one opcode at a time.
+//! resolved IS/ISA model bit by bit, while the independent architectural
+//! HP-67 bring-up machine resolves ACT versus CRC ownership at each instruction
+//! boundary. This lets one local run cover thousands of real firmware words.
 
 use std::{cell::Cell, env, fs};
 
 use hp67emu::{
     machines::hp67::{
-        run_structural_fetch_cycle, ActArchitecturalCore, ActError, ActFetchEndpoint,
-        ActRamImage, FetchPipelineLatch, Hp67ElectricalBackplane, Hp67RomWordSource,
-        RomFetchEndpoint,
+        run_structural_fetch_cycle, ActError, ActFetchEndpoint, FetchPipelineLatch,
+        Hp67ArchitecturalError, Hp67ArchitecturalMachine, Hp67ElectricalBackplane,
+        Hp67RomWordSource, RomFetchEndpoint,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -110,8 +109,7 @@ fn parse_arguments() -> Result<Arguments, String> {
 
 fn execute_cycle(
     cycle: u64,
-    act: &mut ActArchitecturalCore,
-    ram: &mut ActRamImage,
+    machine: &mut Hp67ArchitecturalMachine,
     pipeline: &mut FetchPipelineLatch,
     verbose: bool,
 ) -> Result<bool, String> {
@@ -124,7 +122,7 @@ fn execute_cycle(
         return Ok(true);
     };
 
-    match act.execute_word(ram, word) {
+    match machine.execute_word(word) {
         Ok(execution) => {
             if verbose {
                 println!(
@@ -134,33 +132,40 @@ fn execute_cycle(
             }
             Ok(true)
         }
-        Err(ActError::UnknownSpecial { pc, word }) => {
+        Err(Hp67ArchitecturalError::Act(ActError::UnknownSpecial { pc, word })) => {
             println!(
                 "PROBE STOP: unknown ACT special at cycle {cycle}: pc=0x{pc:03x} word=0x{word:03x} (octal {word:04o})"
             );
             Ok(false)
         }
-        Err(ActError::UnsupportedRomSelfTest { pc }) => {
+        Err(Hp67ArchitecturalError::Act(ActError::UnsupportedRomSelfTest { pc })) => {
             println!("PROBE STOP: ROM self-test reached at cycle {cycle}: pc=0x{pc:03x}");
             Ok(false)
         }
-        Err(error) => Err(format!("cycle {cycle} ACT execution failed: {error:?}")),
+        Err(Hp67ArchitecturalError::CrcDataPortNotModeled { pc, address, write }) => {
+            let direction = if write { "write" } else { "read" };
+            println!(
+                "PROBE STOP: CRC DATA-port {direction} reached at cycle {cycle}: pc=0x{pc:03x} address=0x{address:02x}"
+            );
+            Ok(false)
+        }
+        Err(error) => Err(format!("cycle {cycle} architectural execution failed: {error:?}")),
     }
 }
 
 fn fetch_cycle(
     cycle: u64,
     backplane: &mut Hp67ElectricalBackplane,
-    act: &mut ActArchitecturalCore,
+    machine: &mut Hp67ArchitecturalMachine,
     fetch_act: &mut ActFetchEndpoint,
     fetch_rom: &mut RomFetchEndpoint,
     pipeline: &mut FetchPipelineLatch,
     source: &CorpusRom<'_>,
     verbose: bool,
 ) -> Result<(u16, u16), String> {
-    let requested_bank = act.prepare_hp67_fetch();
+    let requested_bank = machine.prepare_hp67_fetch();
     source.select_bank(requested_bank);
-    let address = act.pc();
+    let address = machine.pc();
     let fetched = run_structural_fetch_cycle(backplane, address, fetch_act, fetch_rom, source)
         .map_err(|error| format!("cycle {cycle} serial fetch failed: {error:?}"))?;
     pipeline.complete_cycle(fetched);
@@ -168,7 +173,7 @@ fn fetch_cycle(
     if verbose {
         println!(
             "cycle {cycle}: FETCH bank={} pc=0x{address:03x} -> word=0x{fetched:03x} (word_index={})",
-            act.bank(),
+            machine.bank(),
             backplane.word_index()
         );
     }
@@ -194,8 +199,7 @@ fn main() -> Result<(), String> {
     let mut fetch_act = ActFetchEndpoint::new(0);
     let mut fetch_rom = RomFetchEndpoint::default();
     let mut pipeline = FetchPipelineLatch::default();
-    let mut act = ActArchitecturalCore::default();
-    let mut ram = ActRamImage::hp67();
+    let mut machine = Hp67ArchitecturalMachine::default();
     let mut verified_fetches = 0usize;
     let mut executed = Vec::new();
 
@@ -206,15 +210,15 @@ fn main() -> Result<(), String> {
         corpus.populated_words()
     );
     println!("fetch path: ACT b16..b27 -> resolved IS -> ROM b46..b55 -> ACT");
-    println!("ACT path: complete independent Woodstock instruction-boundary core");
+    println!("machine path: independent ACT + CRC control architectural composition");
 
     for cycle in 0..4u64 {
         pipeline.begin_cycle();
 
         if let Some(word) = pipeline.executing_word() {
-            let execution = act
-                .execute_word(&mut ram, word)
-                .map_err(|error| format!("cycle {cycle} ACT execution failed: {error:?}"))?;
+            let execution = machine
+                .execute_word(word)
+                .map_err(|error| format!("cycle {cycle} execution failed: {error:?}"))?;
             println!(
                 "cycle {cycle}: EXEC pc=0x{:03x} word=0x{:03x} {:?} -> pc=0x{:03x}",
                 execution.pc, execution.word, execution.operation, execution.next_pc
@@ -227,7 +231,7 @@ fn main() -> Result<(), String> {
         let (address, fetched) = fetch_cycle(
             cycle,
             &mut backplane,
-            &mut act,
+            &mut machine,
             &mut fetch_act,
             &mut fetch_rom,
             &mut pipeline,
@@ -253,10 +257,10 @@ fn main() -> Result<(), String> {
         ));
     }
 
-    if act.pc() != 0x0f9 {
+    if machine.pc() != 0x0f9 {
         return Err(format!(
             "startup ACT PC ended at 0x{:03x}; expected 0x0f9 after executing 0 -> c[w]",
-            act.pc()
+            machine.pc()
         ));
     }
 
@@ -277,19 +281,19 @@ fn main() -> Result<(), String> {
     for offset in 0..arguments.probe_cycles {
         let cycle = 4 + offset;
         let verbose = offset < arguments.trace_limit;
-        if !execute_cycle(cycle, &mut act, &mut ram, &mut pipeline, verbose)? {
+        if !execute_cycle(cycle, &mut machine, &mut pipeline, verbose)? {
             println!(
                 "PROBE SUMMARY: completed {completed_probe_cycles} additional cycles; executed_words={}; pc=0x{:03x}; bank={}",
-                act.executed_words(),
-                act.pc(),
-                act.bank()
+                machine.executed_words(),
+                machine.pc(),
+                machine.bank()
             );
             return Ok(());
         }
         fetch_cycle(
             cycle,
             &mut backplane,
-            &mut act,
+            &mut machine,
             &mut fetch_act,
             &mut fetch_rom,
             &mut pipeline,
@@ -300,11 +304,11 @@ fn main() -> Result<(), String> {
     }
 
     println!(
-        "PROBE LIMIT: completed {} additional machine cycle(s) without an unsupported ACT word; executed_words={}; pc=0x{:03x}; bank={}.",
+        "PROBE LIMIT: completed {} additional machine cycle(s) without an unsupported architectural/hardware boundary; executed_words={}; pc=0x{:03x}; bank={}.",
         completed_probe_cycles,
-        act.executed_words(),
-        act.pc(),
-        act.bank()
+        machine.executed_words(),
+        machine.pc(),
+        machine.bank()
     );
     Ok(())
 }
