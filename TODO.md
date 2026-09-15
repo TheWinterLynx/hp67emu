@@ -45,11 +45,13 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Confirm exact HP-67 PHI1/PHI2 pulse width, period and non-overlap from primary/service or scope evidence.
 - [x] Define the canonical 56-bit word numbering and bit numbering convention (`b0..b55`, 14 digits × 4 bits).
 - [x] Add an HP-67-specific word-timing scaffold that keeps the abstract PHI sequence aligned with the 56-bit coordinate without inventing physical durations.
-- [ ] Confirm ISA/IS bus idle state, active-drive polarity and ownership rules.
+- [x] Confirm HP-67 IS/ISA passive/active behavior and fetch ownership: weak/passive low, active high/release, ACT address window followed by selected-ROM response.
 - [ ] Confirm DATA bus idle state, active-drive polarity and ownership rules.
 - [x] Record HP-67-specific evidence that SYNC is present for normal instruction fetches and suppressed for the implied-GOTO target word following an `IF`.
-- [ ] Confirm exact SYNC bit positions, width and sampling edge for the HP-67 ACT generation.
-- [ ] Recover/verify the exact HP-67 ISA address and instruction bit windows inside `b0..b55`; do not transplant Classic windows.
+- [x] Fix the HP-67 SYNC decision window to `b46..b55`; leave exact PHI sampling edge open.
+- [x] Fix the HP-67 IS fetch windows from direct logic-analyser evidence: 12-bit ROM address LSB-first at `b16..b27`, 10-bit ROM result LSB-first at `b46..b55`.
+- [x] Add tested IS serializers that emit address/ROM bits LSB-first and represent zero as bus release against the passive low bias.
+- [ ] Convert the expanded page-70 HP-67 PHI/SYNC/IS waveforms into explicit launch/sample-edge conventions and propagation constraints.
 - [ ] Confirm RCD timing from ACT and STR timing from ROM0.
 - [ ] Record uncertainty/source level for every pin semantic; no undocumented assumption enters chip code.
 - [ ] Define a versioned text/binary trace format for logic-analyzer comparison.
@@ -114,12 +116,13 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Implement 12-bit PC and verified return-stack behavior.
 - [ ] Implement status bits, pointer and format state.
 - [ ] Bind ACT serial execution state to the canonical HP-67 `b0..b55` word coordinate.
-- [ ] Implement instruction fetch timing on ISA/IS after exact HP-67 bit windows are evidenced.
+- [ ] Implement ACT address transmission on IS at `b16..b27` and capture the selected-ROM result at `b46..b55` using the evidenced wired-high/release bus contract.
+- [ ] Pipeline the word fetched in one 56-bit cycle so it executes in the following 56-bit cycle.
 - [ ] Implement instruction decode one verified opcode family at a time.
 - [ ] Implement bit-serial register transfers.
 - [ ] Implement serial arithmetic/ALU timing.
 - [ ] Implement SYNC and RCD outputs.
-- [ ] Implement DATA and ISA bus drive/release timing.
+- [ ] Implement DATA and ISA bus drive/release timing beyond the now-defined instruction-fetch windows.
 - [ ] Add unknown-opcode hard failure with PC/word/tick context.
 - [ ] At each instruction boundary compare against `reference::woodstock` rather than hand-authored expected states where possible.
 
