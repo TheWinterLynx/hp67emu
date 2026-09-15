@@ -27,6 +27,13 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - In the same hardware experiment he removed a failed `1818-0232`, replaced its ROM function with a microcontroller and observed the calculator call into that ROM at `0x0fc6` from `0x0068`, execute five instructions and return.
 - These are direct machine-level trace anchors. Use them as startup/fetch regressions and as future logic-analyzer targets; do not infer unreported PHI edge placement from the prose alone.
 
+**HP-67 key-wait PHI/SYNC/IS waveform**
+
+- https://literature.hpcalc.org/community/classic-notes.pdf
+- The HP-67 Woodstock section includes an HP-67-specific waveform showing PHI1, PHI2, Sync and Is together while the calculator runs its key-wait loop.
+- The decoded trace shows Sync present for ordinary fetched instructions and intentionally suppressed for the 10-bit word following an `IF`, where that ROM word is consumed as the implied-GOTO address. This directly corroborates the HP-67 THEN-GOTO fetch rule.
+- Use this as direct HP-67 evidence for the semantic role of Sync. The currently available text/image does not yet justify hard-coding exact bit-slot boundaries or PHI sampling edges.
+
 ### Tier B — detailed HP-family timing/service evidence
 
 **Notes on HP's Classic Calculators / Teenix**
@@ -43,6 +50,13 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - The HP-97 is not the HP-67, but it is a close programmable/card-reader relative and service documentation describes ACT/ROM/CRC/display bus theory, SYNC, ISA/DATA timing and display scanning.
 - Its logic-PCA replacement-parts table lists 1820-1596 as the replacement ACT and explicitly permits 1820-2530 when 1820-1596 is unavailable. This is strong HP-origin evidence that the two ACT revisions are intended to be compatible in this hardware family.
 - Use as corroboration only where the relevant chips/signals are known to be shared or equivalent. Never copy HP-97-only behavior into HP-67 code without an HP-67-specific check.
+
+**Jacques Laporte serial-bus measurements**
+
+- https://archived.hpcalc.org/laporte/ROM%20DUMP.htm
+- https://archived.hpcalc.org/laporte/HP35%20Hardware%20basic%20design.htm
+- Establishes a useful `b0..b55` trace-numbering convention and includes measured Classic-series bus windows plus a Woodstock/HP-25 ISA waveform comparison.
+- Laporte explicitly notes that the Woodstock address/instruction windows differ from the Classic arrangement. Therefore these pages support the project bit-numbering convention and family-level hypotheses, but Classic bit windows must not be copied into HP-67 code.
 
 ### Tier C — architecture and microcode research
 
@@ -71,7 +85,14 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 
 - https://www.hpmuseum.org/forum/thread-18327.html
 - Documents practical investigation of HP-67 ROM/RAM bus behavior and hardware ROM reading.
+- Tony Nixon states that HP-67 ROM `Is` and `Data` pins are bidirectional while Sync, Phi1 and Phi2 are inputs to the ROM. Use this as bus-direction evidence, while leaving exact intra-bit drive/release timing open.
 - Useful secondary evidence for electrical bus ownership and ROM provenance work; specific physical captures promoted above to Tier A should be treated as direct evidence points.
+
+**Tom Napier, “An HP-67 Anatomy Lesson”**
+
+- PPC Journal V5N7 pp. 7-8, V5N8 pp. 14-17 and V5N10 pp. 25-27.
+- Later researchers cite this series as a direct 1978 investigation of the HP-67 machine time word using external shift registers on ISA/DATA.
+- Recovering the exact scans/pages is a priority because they may resolve HP-67-specific serial bit windows without borrowing them from another calculator family.
 
 ## ACT revision policy
 
@@ -85,7 +106,8 @@ The following must have a source citation or a captured regression trace before 
 
 - exact PHI1/PHI2 frequency, pulse width and dead time;
 - ISA and DATA passive level and active-drive polarity;
-- exact SYNC bit positions and width;
+- exact HP-67 ISA address and instruction bit windows within `b0..b55`;
+- exact SYNC bit positions, width and sampling edge;
 - RCD and STR edge placement;
 - ACT reset sequencing;
 - opcode semantics that differ across chipset generations;
