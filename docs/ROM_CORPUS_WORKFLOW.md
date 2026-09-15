@@ -48,13 +48,29 @@ At that commit `uasm` writes Woodstock object records as an optional bank mask f
 
 `research::nonpareil_obj` parses that exact upstream object format, and `nonpareil_rom` merges several `.obj` files into the standard hp67emu TSV while rejecting conflicting overlaps.
 
-If official `uasm` is available locally:
+There is an important executable-name collision on Windows: the widely distributed `uasm64.exe` identifies itself as **“UASM ... Masm-compatible assembler”** and is an x86/x64 MASM-compatible assembler. It is unrelated to Eric Smith's Nonpareil calculator microassembler and cannot assemble these `.asm` files. The comparison script now probes the executable banner and refuses that program rather than passing Nonpareil options to it.
+
+Current Nonpareil documentation states that precompiled binaries are not published. `compare_nonpareil.ps1` therefore follows this order:
+
+1. use an explicitly supplied `-Uasm` only if its banner identifies it as `uasm microassembler`;
+2. otherwise try `tools\nonpareil-uasm.exe`, `nonpareil-uasm` or `uasm` and validate the same banner;
+3. otherwise, if WSL is available, clone the pinned Nonpareil source and build the official `uasm` locally from that exact commit with `gcc`, `flex` and `bison`, then run the resulting Linux binary under WSL to generate the three `.obj` files.
+
+The WSL build helper is `docs/research/build_nonpareil_uasm_wsl.sh`. It keeps the upstream GPL source and generated binary under `.research`; none of them are committed to hp67emu.
+
+Run the complete comparison with:
 
 ```powershell
-& .\docs\research\compare_nonpareil.ps1 -Uasm D:\path\to\uasm.exe
+& .\docs\research\compare_nonpareil.ps1
 ```
 
-If `uasm` is already on `PATH`, omit `-Uasm`. The script downloads only the three pinned Nonpareil HP-67 assembly sources, records source/object SHA-256 hashes, runs official `uasm`, normalizes the three objects, verifies the physical startup words, compares the complete Teenix 5120-word subset against Nonpareil and, when an x11 TSV is already present in `.research`, compares Nonpareil against x11-calc too.
+If WSL is present but its build tools are missing, install them once inside the WSL distribution:
+
+```bash
+sudo apt-get update && sudo apt-get install -y build-essential flex bison
+```
+
+The script pins the full upstream checkout, records source/object/uasm SHA-256 hashes, normalizes the three objects, verifies the physical startup words, compares the complete Teenix 5120-word subset against Nonpareil and, when an x11 TSV is already present in `.research`, compares Nonpareil against x11-calc too.
 
 The standalone normalization command is:
 
