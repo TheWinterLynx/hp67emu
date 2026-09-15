@@ -14,7 +14,7 @@ use super::timing::{display_data_serial_bit, DISPLAY_DATA_BITS};
 pub const HP67_DISPLAY_SCAN_SLOTS: u8 = 15;
 pub const HP67_SHARED_SIGN_SLOT: u8 = 3;
 
-const COMPLETE_DISPLAY_MASK: u8 = (1u8 << DISPLAY_DATA_BITS) - 1;
+const COMPLETE_DISPLAY_MASK: u8 = u8::MAX;
 
 /// Anode segment mask emitted by the ROM0 display decoder.
 ///
@@ -213,11 +213,9 @@ impl CathodeDriver1820_1749 {
         self.scan_slot
     }
 
-    pub const fn scan_role(&self) -> Hp67DisplayRole {
-        match display_role_for_scan_slot(self.scan_slot) {
-            Some(role) => role,
-            None => unreachable!(),
-        }
+    pub fn scan_role(&self) -> Hp67DisplayRole {
+        display_role_for_scan_slot(self.scan_slot)
+            .expect("cathode structural scan slot is always in 1..=15")
     }
 
     pub fn rcd_falling_edge(&mut self) {
