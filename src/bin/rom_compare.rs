@@ -11,8 +11,12 @@ use hp67emu::research::rom_corpus::{
     ROM_BANKS, ROM_PAGES, WORDS_PER_BANK,
 };
 use hp67emu::research::teenix::{decode_container, has_newe_signature};
+use hp67emu::research::teenix_hp67::{
+    analyze_hp67_listing, normalize_hp67_listing, HP67_PHYSICAL_WORDS,
+};
 
 const MAX_PRINTED_DIFFERENCES: usize = 128;
+const MAX_PRINTED_LISTING_ISSUES: usize = 64;
 const DEFAULT_TEENIX_PREVIEW_LINES: usize = 60;
 
 /// Three words observed by Tony Nixon on a physical HP-67 immediately after
@@ -80,6 +84,10 @@ fn run() -> Result<i32, Box<dyn Error>> {
             };
             preview_teenix_file(&args[2], line_count)
         }
+        "analyze-teenix-hp67" if args.len() == 3 => analyze_teenix_hp67_file(&args[2]),
+        "extract-teenix-hp67" if args.len() == 4 => {
+            extract_teenix_hp67_file(&args[2], &args[3])
+        }
         "inspect" if args.len() == 3 => {
             inspect_binary(Path::new(&args[2]))?;
             Ok(0)
@@ -114,6 +122,85 @@ fn preview_teenix_file(path: &str, line_count: usize) -> Result<i32, Box<dyn Err
         println!("{:05}: {line}", index + 1);
     }
     Ok(0)
+}
+
+fn analyze_teenix_hp67_file(path: &str) -> Result<i32, Box<dyn Error>> {
+    let bytes = fs::read(path)?;
+    let container = decode_container(&bytes)?;
+    let text = container.payload_text()?;
+    let report = analyze_hp67_listing(text);
+
+    println!("Teenix HP-67 listing analysis: {path}");
+    println!("decoded payload bytes : {}", container.declared_payload_len);
+    println!("payload lines         : {}", report.total_lines);
+    println!("blank lines           : {}", report.blank_lines);
+    println!("candidate instructions: {}", report.instruction_lines);
+    println!("expected HP-67 words  : {HP67_PHYSICAL_WORDS}");
+    println!("unknown instructions  : {}", report.unknown_instructions.len());
+    println!("label mismatches      : {}", report.label_mismatches.len());
+    println!("overflow instructions : {}", report.overflow_instructions);
+
+    if !report.unknown_instructions.is_empty() {
+        println!("\n--- unknown instruction text (first {MAX_PRINTED_LISTING_ISSUES}) ---");
+        for issue in report
+            .unknown_instructions
+            .iter()
+            .take(MAX_PRINTED_LISTING_ISSUES)
+        {
+            println!(
+                "line {:05} bank {} pc 0x{:03x}: {:?} ({})",
+                issue.line, issue.bank, issue.pc, issue.text, issue.error
+            );
+        }
+        if report.unknown_instructions.len() > MAX_PRINTED_LISTING_ISSUES {
+            println!(
+                "... {} additional unknown instruction(s) omitted",
+                report.unknown_instructions.len() - MAX_PRINTED_LISTING_ISSUES
+            );
+        }
+    }
+
+    if !report.label_mismatches.is_empty() {
+        println!("\n--- label/address mismatches (first {MAX_PRINTED_LISTING_ISSUES}) ---");
+        for issue in report
+            .label_mismatches
+            .iter()
+            .take(MAX_PRINTED_LISTING_ISSUES)
+        {
+            println!(
+                "line {:05} bank {} expected pc 0x{:03x}, label L{:04X}: {}",
+                issue.line, issue.bank, issue.expected_pc, issue.label_pc, issue.text
+            );
+        }
+        if report.label_mismatches.len() > MAX_PRINTED_LISTING_ISSUES {
+            println!(
+                "... {} additional label mismatch(es) omitted",
+                report.label_mismatches.len() - MAX_PRINTED_LISTING_ISSUES
+            );
+        }
+    }
+
+    if report.is_extractable() {
+        println!("\nEXTRACTABLE: all 5120 physical HP-67 words are understood and anchored consistently.");
+        Ok(0)
+    } else {
+        println!("\nNOT YET EXTRACTABLE: no unknown text will be guessed or silently discarded.");
+        Ok(1)
+    }
+}
+
+fn extract_teenix_hp67_file(input_path: &str, output_path: &str) -> Result<i32, Box<dyn Error>> {
+    let bytes = fs::read(input_path)?;
+    let container = decode_container(&bytes)?;
+    let text = container.payload_text()?;
+    let corpus = normalize_hp67_listing(text)?;
+    fs::write(output_path, corpus.to_normalized_tsv())?;
+    println!(
+        "extracted {} understood Teenix HP-67 microinstructions -> {}",
+        corpus.populated_words(),
+        output_path
+    );
+    verify_startup(output_path)
 }
 
 fn merge_files(output_path: &str, input_paths: &[String]) -> Result<i32, Box<dyn Error>> {
@@ -345,6 +432,8 @@ rom_compare compare <left.tsv> <right.tsv>\n  \
 rom_compare verify-startup <corpus.tsv>\n  \
 rom_compare decode-teenix <input.pfl> <out.txt>\n  \
 rom_compare preview-teenix <input.pfl> [line-count]\n  \
+rom_compare analyze-teenix-hp67 <input.pfl>\n  \
+rom_compare extract-teenix-hp67 <input.pfl> <out.tsv>\n  \
 rom_compare inspect <binary-file>"
     );
 }
