@@ -8,9 +8,9 @@ This document defines the reproducible local workflow used to decide whether ind
 
 ```text
 # hp67emu-rom-corpus-v1
-bank	pc	word
-0	0x000	0x000
-0	0x001	0x3e3
+bank\tpc\tword
+0\t0x000\t0x000
+0\t0x001\t0x3e3
 ...
 ```
 
@@ -44,57 +44,62 @@ cargo run --bin rom_compare -- verify-startup .research\nonpareil-hp67.tsv
 
 `merge` rejects conflicting overlaps.
 
-## 3. Teenix ROM-reader provenance
+## 3. Teenix 2026 HP-67 module
 
-The 2022 HP Museum announcement for `ROMreader.zip` explicitly says that the ZIP included HP-97 and HP-67 ROM files produced with the physical reader. This is valuable historical provenance.
+The Teenix page marks HP-67 as updated **10 May 2026** and MultiCalc as updated **11 May 2026**, so the current HP-67 module is a high-priority corpus rather than a legacy artefact.
 
-The archive downloaded and extracted on 2026-09-15, however, did **not** expose obvious HP-67 ROM dumps in a filename search for `67`, `1818` or `rom`. That search returned only:
+The outer `.pfl` format is now established. Teenix's current *Classic Notes* documents a file convention where each byte is XORed with `0x55`; after decoding the first line is `NeWe`, the second line is the decimal byte count of the remaining text. The current `cal67.pfl`, `cal6713.pfl` and `cal67b.pfl` match that convention exactly.
 
-- `ROM Reader Help.pdf` — 826258 bytes;
-- `ROMread..hex` — 7134 bytes.
+Observed decoded headers:
 
-The `.hex` file is expected to be reader-controller firmware, not calculator microcode, but that must be confirmed from its contents. Therefore the current ZIP may have changed since the 2022 release. We no longer assume the currently downloadable archive contains the historical ROM payload.
+```text
+cal67.pfl   -> NeWe\r92855\r...
+cal6713.pfl -> NeWe\r92882\r...
+cal67b.pfl  -> NeWe\r87834\r...
+```
 
-The correct next procedure is:
+The declared lengths exactly match the remaining payload sizes, and each observed payload begins with `L0000:\tno operation`.
 
-1. list **every file** in the extracted archive with size and SHA-256;
-2. inspect the first records of `ROMread..hex` and confirm whether it is Intel HEX for the reader controller;
-3. inspect `ROM Reader Help.pdf` for the output-file naming/format used by the reader;
-4. search for an archived 2022 copy if the current ZIP no longer ships the HP-67/97 data files;
-5. only then write a parser for the actual physical-reader output format.
+Use the tested decoder rather than manually XORing files:
 
-The separate Teenix HP-67 emulator files `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` are structured ~88-93 KiB containers and are not treated as flat raw ROM images.
+```powershell
+cargo run --bin rom_compare -- inspect .\cal67.pfl
+cargo run --bin rom_compare -- preview-teenix .\cal67.pfl 80
+cargo run --bin rom_compare -- decode-teenix .\cal67.pfl .research\cal67.decoded.txt
+```
 
-## 4. Compare software corpora now
+`decode-teenix` validates both `NeWe` and the exact declared payload length before writing the plaintext. This proves the **outer container only**. The next stage is to establish the internal textual assembler/listing grammar and then translate that source to 10-bit words with tests. Do not infer opcodes merely from mnemonic text until address, bank and directive syntax are understood.
 
-We do not need to wait for the historical physical dump to compare the two independent open-source firmware corpora:
+## 4. Teenix physical ROM-reader provenance
+
+Keep the historical physical-reader project separate from the 2026 emulator module. Tony Nixon's 2022 HP Museum announcement for `ROMreader.zip` explicitly says that the ZIP included HP-97 and HP-67 ROM files produced with the physical reader.
+
+The archive downloaded and extracted on 2026-09-15 did **not** expose obvious HP-67 ROM dumps in a filename search for `67`, `1818` or `rom`. That search returned only `ROM Reader Help.pdf` and `ROMread..hex`. Therefore current archive contents and historical physical provenance must not be conflated.
+
+Physical startup observations from the same research remain direct evidence even while the historical dump is being located.
+
+## 5. Compare corpora
+
+Once Teenix's decoded textual payload has been converted to explicit `(bank, pc, word)` data, compare all three software corpora:
 
 ```powershell
 cargo run --bin rom_compare -- compare .research\x11-hp67.tsv .research\nonpareil-hp67.tsv
+cargo run --bin rom_compare -- compare .research\teenix-2026-hp67.tsv .research\x11-hp67.tsv
+cargo run --bin rom_compare -- compare .research\teenix-2026-hp67.tsv .research\nonpareil-hp67.tsv
 ```
 
 Every mismatch must be explained. Agreement plus the three physical startup words provides a strong provisional firmware baseline while the raw physical-reader corpus is being recovered.
-
-## 5. Add the physical corpus later
-
-Once a physical-reader dump with defensible provenance is available:
-
-```powershell
-cargo run --bin rom_compare -- compare .research\physical-hp67.tsv .research\x11-hp67.tsv
-cargo run --bin rom_compare -- compare .research\physical-hp67.tsv .research\nonpareil-hp67.tsv
-```
-
-The comparator reports populated counts and exact mismatches by bank/page/PC. Exit code 0 means identical presence and values; exit code 1 means at least one word differs.
 
 ## Acceptance rule
 
 A working canonical ROM set requires:
 
-1. x11-calc and Nonpareil independently normalized;
-2. both passing `verify-startup`;
-3. all x11-calc ↔ Nonpareil differences explained;
-4. physical-reader provenance recovered and mapped to chip/bank/address when available;
-5. the physical corpus compared against both software corpora;
-6. later instruction-flow and electrical traces agreeing with the selected image.
+1. current Teenix `.pfl` containers decoded losslessly and their internal source/listing grammar proven;
+2. x11-calc and Nonpareil independently normalized;
+3. all three candidates passing `verify-startup` after normalization;
+4. all Teenix ↔ x11-calc ↔ Nonpareil differences explained;
+5. physical-reader provenance recovered and mapped to chip/bank/address when available;
+6. the physical corpus compared against all software corpora;
+7. later instruction-flow and electrical traces agreeing with the selected image.
 
 Firmware agreement does not establish PHI1/PHI2 or bus timing. Electrical timing remains validated against hardware/service evidence.
