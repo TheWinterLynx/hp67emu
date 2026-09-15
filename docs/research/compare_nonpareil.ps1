@@ -14,9 +14,19 @@ New-Item -ItemType Directory -Force $ExternalDir | Out-Null
 $NonpareilDir = Join-Path $ExternalDir "nonpareil-$NonpareilCommit"
 New-Item -ItemType Directory -Force $NonpareilDir | Out-Null
 
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$RepoUasm = Join-Path $RepoRoot "tools\uasm64.exe"
 $UasmCommand = $null
 if ([string]::IsNullOrWhiteSpace($Uasm)) {
-    $UasmCommand = Get-Command uasm -ErrorAction SilentlyContinue
+    if (Test-Path $RepoUasm -PathType Leaf) {
+        $Uasm = $RepoUasm
+        Write-Host "Using repository uasm: $Uasm"
+    } else {
+        $UasmCommand = Get-Command uasm64 -ErrorAction SilentlyContinue
+        if (!$UasmCommand) {
+            $UasmCommand = Get-Command uasm -ErrorAction SilentlyContinue
+        }
+    }
 } elseif (Test-Path $Uasm -PathType Leaf) {
     $Uasm = (Resolve-Path $Uasm).Path
 } else {
@@ -27,14 +37,20 @@ if ($UasmCommand) {
 }
 if ([string]::IsNullOrWhiteSpace($Uasm) -or !(Test-Path $Uasm -PathType Leaf)) {
     Write-Host "Nonpareil uasm was not found."
-    Write-Host "Build the official Nonpareil uasm locally, then rerun with -Uasm <path-to-uasm-or-uasm.exe>."
+    Write-Host "Expected repository path: $RepoUasm"
+    Write-Host "Alternatively rerun with -Uasm <path-to-uasm-or-uasm.exe>."
     Write-Host "Pinned Nonpareil commit: $NonpareilCommit"
     exit 3
 }
 $Uasm = (Resolve-Path $Uasm).Path
+$UasmHash = (Get-FileHash $Uasm -Algorithm SHA256).Hash
 
 $Objects = @()
-$HashLines = @("Nonpareil commit=$NonpareilCommit", "uasm=$Uasm")
+$HashLines = @(
+    "Nonpareil commit=$NonpareilCommit",
+    "uasm=$Uasm",
+    "uasm SHA256=$UasmHash"
+)
 foreach ($Name in $SourceNames) {
     $Url = "https://raw.githubusercontent.com/brouhaha/nonpareil/$NonpareilCommit/ncd/67-97/$Name.asm"
     $Source = Join-Path $NonpareilDir "$Name.asm"
