@@ -43,9 +43,10 @@ pub const fn rom_word_serial_bit(word: u16, serial_bit: u8) -> bool {
 /// `b0..b55` coordinate.  Outside b16..b27 the ACT releases this fetch role.
 pub const fn act_address_drive(address: u16, word_bit: u8) -> Drive {
     match isa_window_for_bit(word_bit) {
-        IsaWindow::RomAddress { serial_bit } => {
-            wired_high_drive(rom_address_serial_bit(address & ROM_ADDRESS_MASK, serial_bit))
-        }
+        IsaWindow::RomAddress { serial_bit } => wired_high_drive(rom_address_serial_bit(
+            address & ROM_ADDRESS_MASK,
+            serial_bit,
+        )),
         IsaWindow::RomWord { .. } | IsaWindow::Other => Drive::HighZ,
     }
 }
@@ -78,7 +79,9 @@ mod tests {
         // 0x07B = binary 0000_0111_1011.  The expected serial stream is the
         // address bit order observed in the HP-67 timing documentation.
         let address = 0x07b;
-        let expected = [true, true, false, true, true, true, true, false, false, false, false, false];
+        let expected = [
+            true, true, false, true, true, true, true, false, false, false, false, false,
+        ];
         for (serial_bit, expected_bit) in expected.into_iter().enumerate() {
             assert_eq!(
                 act_address_drive(address, 16 + serial_bit as u8),
@@ -94,7 +97,9 @@ mod tests {
         // HP-67 example from the measured key-wait loop: address 0x07B returns
         // 0x04C.  0x04C = 00_0100_1100, so the serial stream is bit 0 first.
         let word = 0x04c;
-        let expected = [false, false, true, true, false, false, true, false, false, false];
+        let expected = [
+            false, false, true, true, false, false, true, false, false, false,
+        ];
         for (serial_bit, expected_bit) in expected.into_iter().enumerate() {
             assert_eq!(
                 rom_word_drive(word, 46 + serial_bit as u8),

@@ -36,12 +36,7 @@ impl ArchitecturalSnapshot {
             self.cpu.p_change,
             other.cpu.p_change,
         );
-        diff_value(
-            &mut lines,
-            "DECIMAL",
-            self.cpu.decimal,
-            other.cpu.decimal,
-        );
+        diff_value(&mut lines, "DECIMAL", self.cpu.decimal, other.cpu.decimal);
         diff_value(&mut lines, "CARRY", self.cpu.carry, other.cpu.carry);
         diff_value(
             &mut lines,
@@ -49,7 +44,12 @@ impl ArchitecturalSnapshot {
             self.cpu.previous_carry,
             other.cpu.previous_carry,
         );
-        diff_value(&mut lines, "PC", OctalPc(self.cpu.pc), OctalPc(other.cpu.pc));
+        diff_value(
+            &mut lines,
+            "PC",
+            OctalPc(self.cpu.pc),
+            OctalPc(other.cpu.pc),
+        );
         diff_value(&mut lines, "BANK", self.cpu.bank, other.cpu.bank);
         diff_value(
             &mut lines,

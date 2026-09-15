@@ -26,13 +26,13 @@ pub use architectural::{
     Hp67ArchitecturalOperation,
 };
 pub use crc::{
-    decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
-    CRC_FLAG_COUNT, CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
+    decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction, CRC_FLAG_COUNT,
+    CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
 };
 pub use display::{
-    decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749,
-    Hp67DisplayRole, Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError,
-    HP67_DISPLAY_SCAN_SLOTS, HP67_SHARED_SIGN_SLOT,
+    decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, Hp67DisplayRole,
+    Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError, HP67_DISPLAY_SCAN_SLOTS,
+    HP67_SHARED_SIGN_SLOT,
 };
 pub use display_snapshot::{
     display_byte_from_act_registers, display_register_index_for_scan_slot,
@@ -42,7 +42,9 @@ pub use fetch::{
     run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource,
     RomFetchEndpoint, SerialFetchError,
 };
-pub use isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK};
+pub use isa::{
+    act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
+};
 pub use machine::Hp67ElectricalBackplane;
 pub use timing::{
     display_data_serial_bit, isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow,

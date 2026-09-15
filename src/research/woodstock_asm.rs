@@ -14,8 +14,15 @@ const PC_MASK: u16 = 0x0fff;
 pub enum WoodstockAsmError {
     EmptyMnemonic,
     UnknownMnemonic(String),
-    InvalidOperand { mnemonic: String, operand: String },
-    OperandOutOfRange { mnemonic: String, value: u16, maximum: u16 },
+    InvalidOperand {
+        mnemonic: String,
+        operand: String,
+    },
+    OperandOutOfRange {
+        mnemonic: String,
+        value: u16,
+        maximum: u16,
+    },
     MultipleFields(String),
 }
 
@@ -25,7 +32,10 @@ impl fmt::Display for WoodstockAsmError {
             Self::EmptyMnemonic => write!(f, "empty Woodstock mnemonic"),
             Self::UnknownMnemonic(text) => write!(f, "unknown Woodstock mnemonic: {text}"),
             Self::InvalidOperand { mnemonic, operand } => {
-                write!(f, "invalid operand {operand:?} in Woodstock mnemonic {mnemonic:?}")
+                write!(
+                    f,
+                    "invalid operand {operand:?} in Woodstock mnemonic {mnemonic:?}"
+                )
             }
             Self::OperandOutOfRange {
                 mnemonic,
@@ -36,7 +46,10 @@ impl fmt::Display for WoodstockAsmError {
                 "operand {value} in Woodstock mnemonic {mnemonic:?} exceeds maximum {maximum}"
             ),
             Self::MultipleFields(text) => {
-                write!(f, "multiple Woodstock arithmetic fields in mnemonic: {text}")
+                write!(
+                    f,
+                    "multiple Woodstock arithmetic fields in mnemonic: {text}"
+                )
             }
         }
     }
@@ -182,10 +195,16 @@ fn assemble_parameterized_special(mnemonic: &str) -> Result<Option<u16>, Woodsto
         }
         return Ok(Some(opcode));
     }
-    if let Some(value) = mnemonic.strip_prefix("1 -> s").filter(|value| !value.is_empty()) {
+    if let Some(value) = mnemonic
+        .strip_prefix("1 -> s")
+        .filter(|value| !value.is_empty())
+    {
         return family_operand(mnemonic, value, 15, 0o04).map(Some);
     }
-    if let Some(value) = mnemonic.strip_prefix("0 -> s").filter(|value| !value.is_empty()) {
+    if let Some(value) = mnemonic
+        .strip_prefix("0 -> s")
+        .filter(|value| !value.is_empty())
+    {
         return family_operand(mnemonic, value, 15, 0o14).map(Some);
     }
     if let Some(value) = mnemonic
@@ -293,7 +312,9 @@ fn assemble_arithmetic(mnemonic: &str) -> Result<Option<u16>, WoodstockAsmError>
         _ => return Ok(None),
     };
 
-    Ok(Some((u16::from(operation) << 5) | (field.encoded() << 2) | 0x02))
+    Ok(Some(
+        (u16::from(operation) << 5) | (field.encoded() << 2) | 0x02,
+    ))
 }
 
 fn assemble_fixed_special(mnemonic: &str) -> Option<u16> {
@@ -351,11 +372,7 @@ fn family_operand(
     Ok((value << 6) | low_bits)
 }
 
-fn parse_hex_target(
-    mnemonic: &str,
-    text: &str,
-    maximum: u16,
-) -> Result<u16, WoodstockAsmError> {
+fn parse_hex_target(mnemonic: &str, text: &str, maximum: u16) -> Result<u16, WoodstockAsmError> {
     let value = text.strip_prefix('$').unwrap_or(text);
     let value = parse_u16_radix(mnemonic, value, 16)?;
     if value > maximum {
@@ -368,11 +385,7 @@ fn parse_hex_target(
     Ok(value)
 }
 
-fn parse_u16_radix(
-    mnemonic: &str,
-    text: &str,
-    radix: u32,
-) -> Result<u16, WoodstockAsmError> {
+fn parse_u16_radix(mnemonic: &str, text: &str, radix: u32) -> Result<u16, WoodstockAsmError> {
     u16::from_str_radix(text.trim(), radix).map_err(|_| WoodstockAsmError::InvalidOperand {
         mnemonic: mnemonic.to_owned(),
         operand: text.trim().to_owned(),

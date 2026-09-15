@@ -53,8 +53,16 @@ fn run() -> Result<i32, Box<dyn Error>> {
         }
     }
 
-    println!("subset   : {} ({} populated words)", args[1], subset.populated_words());
-    println!("reference: {} ({} populated words)", args[2], reference.populated_words());
+    println!(
+        "subset   : {} ({} populated words)",
+        args[1],
+        subset.populated_words()
+    );
+    println!(
+        "reference: {} ({} populated words)",
+        args[2],
+        reference.populated_words()
+    );
     println!("matching subset words : {}", comparison.matching_words());
     println!("value mismatches      : {mismatches}");
     println!("missing in reference  : {missing_reference}");
@@ -77,7 +85,10 @@ fn run() -> Result<i32, Box<dyn Error>> {
         );
         Ok(0)
     } else {
-        println!("\nSUBSET MISMATCH: {} populated subset location(s) disagree or are missing.", failures.len());
+        println!(
+            "\nSUBSET MISMATCH: {} populated subset location(s) disagree or are missing.",
+            failures.len()
+        );
         Ok(1)
     }
 }
@@ -92,9 +103,9 @@ fn print_failure(difference: RomDifference) {
         RomDifference::Mismatch { left, right, .. } => println!(
             "{prefix}: subset=0x{left:03x} ({left:04o}) reference=0x{right:03x} ({right:04o})"
         ),
-        RomDifference::MissingRight { left, .. } => println!(
-            "{prefix}: subset=0x{left:03x} ({left:04o}) reference=missing"
-        ),
+        RomDifference::MissingRight { left, .. } => {
+            println!("{prefix}: subset=0x{left:03x} ({left:04o}) reference=missing")
+        }
         RomDifference::MissingLeft { .. } => {
             unreachable!("reference-only differences are informational, not failures")
         }

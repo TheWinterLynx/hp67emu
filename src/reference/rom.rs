@@ -59,12 +59,7 @@ impl RomImage {
         Self::default()
     }
 
-    pub fn install_word(
-        &mut self,
-        bank: u8,
-        address: u16,
-        opcode: u16,
-    ) -> Result<(), RomError> {
+    pub fn install_word(&mut self, bank: u8, address: u16, opcode: u16) -> Result<(), RomError> {
         let index = Self::index(bank, address)?;
         if opcode > OPCODE_MASK {
             return Err(RomError::OpcodeOutOfRange(opcode));

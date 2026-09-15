@@ -7,7 +7,7 @@
 
 use std::{error::Error, fmt};
 
-use super::rom_corpus::{CorpusError, RomCorpus, ROM_BANKS, WORD_MASK, WORDS_PER_BANK};
+use super::rom_corpus::{CorpusError, RomCorpus, ROM_BANKS, WORDS_PER_BANK, WORD_MASK};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NonpareilObjError {
@@ -30,10 +30,16 @@ impl fmt::Display for NonpareilObjError {
                 write!(f, "invalid Nonpareil bank prefix on line {line}: {text}")
             }
             Self::InvalidOctal { line, token } => {
-                write!(f, "invalid octal token on Nonpareil object line {line}: {token}")
+                write!(
+                    f,
+                    "invalid octal token on Nonpareil object line {line}: {token}"
+                )
             }
             Self::BankOutOfRange { line, bank } => {
-                write!(f, "Nonpareil object line {line} names unsupported bank {bank}")
+                write!(
+                    f,
+                    "Nonpareil object line {line} names unsupported bank {bank}"
+                )
             }
             Self::AddressOutOfRange { line, address } => write!(
                 f,
@@ -110,7 +116,10 @@ pub fn parse_nonpareil_woodstock_obj(input: &str) -> Result<RomCorpus, Nonpareil
     Ok(corpus)
 }
 
-fn parse_bank_prefix(line_number: usize, line: &str) -> Result<(Vec<usize>, &str), NonpareilObjError> {
+fn parse_bank_prefix(
+    line_number: usize,
+    line: &str,
+) -> Result<(Vec<usize>, &str), NonpareilObjError> {
     if !line.starts_with('[') {
         return Ok((vec![0], line));
     }
@@ -177,7 +186,8 @@ mod tests {
 
     #[test]
     fn parses_current_uasm_bank_prefixed_format() {
-        let input = "# SPDX-License-Identifier: GPL-3.0\n[0]0000:0000\n[0]0001:1743\n[1]2000:0432\n";
+        let input =
+            "# SPDX-License-Identifier: GPL-3.0\n[0]0000:0000\n[0]0001:1743\n[1]2000:0432\n";
         let corpus = parse_nonpareil_woodstock_obj(input).unwrap();
         assert_eq!(corpus.populated_words(), 3);
         assert_eq!(corpus.get(0, 0x000).unwrap(), Some(0x000));
@@ -219,7 +229,9 @@ mod tests {
         ));
         assert!(matches!(
             parse_nonpareil_woodstock_obj("[0]0000:0000\n[0]0000:0001\n"),
-            Err(NonpareilObjError::Corpus(CorpusError::DuplicateLocation { .. }))
+            Err(NonpareilObjError::Corpus(
+                CorpusError::DuplicateLocation { .. }
+            ))
         ));
     }
 }

@@ -110,9 +110,7 @@ impl Hp67Reference {
 
         self.core.step_word(opcode)?;
 
-        if direct_crc_read
-            || (register_read && self.core.cpu.ram_address == CRC_RAM_READ_ADDRESS)
-        {
+        if direct_crc_read || (register_read && self.core.cpu.ram_address == CRC_RAM_READ_ADDRESS) {
             self.crc.read_into_c(&mut self.core.cpu.c)?;
         }
         if direct_crc_write
@@ -187,7 +185,8 @@ mod tests {
         hp67.core.cpu.instruction_state = InstructionState::ThenGoto;
         hp67.core.cpu.carry = false;
 
-        hp67.step_word(0o260).expect("branch target must be consumed");
+        hp67.step_word(0o260)
+            .expect("branch target must be consumed");
 
         assert_eq!(hp67.core.cpu.pc, 0x8b0);
         assert!(!hp67.card_motor_running());

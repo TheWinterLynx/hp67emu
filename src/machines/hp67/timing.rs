@@ -218,14 +218,8 @@ mod tests {
         assert_eq!(ROM_WORD_FIRST_BIT, 46);
         assert_eq!(ROM_WORD_LAST_BIT, 55);
         assert_eq!(ROM_WORD_BITS, 10);
-        assert_eq!(
-            isa_window_for_bit(46),
-            IsaWindow::RomWord { serial_bit: 0 }
-        );
-        assert_eq!(
-            isa_window_for_bit(55),
-            IsaWindow::RomWord { serial_bit: 9 }
-        );
+        assert_eq!(isa_window_for_bit(46), IsaWindow::RomWord { serial_bit: 0 });
+        assert_eq!(isa_window_for_bit(55), IsaWindow::RomWord { serial_bit: 9 });
         assert!(!sync_decision_window(45));
         for bit in 46..=55 {
             assert!(sync_decision_window(bit));

@@ -238,10 +238,7 @@ fn parse_org_directive(line: &str) -> Option<usize> {
 
 fn split_optional_label(line: &str) -> (Option<(char, usize)>, &str) {
     let bytes = line.as_bytes();
-    if bytes.len() >= 6
-        && matches!(bytes[0], b'L' | b'l' | b'H' | b'h')
-        && bytes[5] == b':'
-    {
+    if bytes.len() >= 6 && matches!(bytes[0], b'L' | b'l' | b'H' | b'h') && bytes[5] == b':' {
         if let Ok(pc) = usize::from_str_radix(&line[1..5], 16) {
             return (Some((bytes[0] as char, pc)), line[6..].trim());
         }

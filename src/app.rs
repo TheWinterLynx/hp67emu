@@ -26,9 +26,9 @@ impl Hp67App {
         .to_rgba8();
         let size = [decoded.width() as usize, decoded.height() as usize];
         let color = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
-        let photo = cc
-            .egui_ctx
-            .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
+        let photo =
+            cc.egui_ctx
+                .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
 
         Self {
             state: Hp67State::default(),

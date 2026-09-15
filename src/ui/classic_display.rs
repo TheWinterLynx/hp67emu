@@ -59,7 +59,10 @@ impl DisplayTransform {
     }
 
     fn pos(self, x: f32, y: f32) -> Pos2 {
-        pos2(self.rect.left() + x * self.sx, self.rect.top() + y * self.sy)
+        pos2(
+            self.rect.left() + x * self.sx,
+            self.rect.top() + y * self.sy,
+        )
     }
 
     fn stroke(self, reference_width: f32, minimum: f32) -> f32 {
@@ -222,15 +225,7 @@ fn draw_center_decimal(p: &Painter, t: DisplayTransform, cx: f32, cy: f32) {
     );
 }
 
-fn ellipse(
-    p: &Painter,
-    t: DisplayTransform,
-    cx: f32,
-    cy: f32,
-    rx: f32,
-    ry: f32,
-    color: Color32,
-) {
+fn ellipse(p: &Painter, t: DisplayTransform, cx: f32, cy: f32, rx: f32, ry: f32, color: Color32) {
     let points = (0..24)
         .map(|i| {
             let angle = i as f32 * std::f32::consts::TAU / 24.0;

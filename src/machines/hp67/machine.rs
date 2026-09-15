@@ -114,7 +114,11 @@ mod tests {
             } else {
                 LogicLevel::Floating
             };
-            assert_eq!(backplane.level(net), expected, "unexpected initial level for {net:?}");
+            assert_eq!(
+                backplane.level(net),
+                expected,
+                "unexpected initial level for {net:?}"
+            );
         }
     }
 

@@ -22,11 +22,8 @@ const DEFAULT_TEENIX_PREVIEW_LINES: usize = 60;
 /// Three words observed by Tony Nixon on a physical HP-67 immediately after
 /// power-on while monitoring SYNC and IS. These are evidence points, not an
 /// embedded firmware image.
-const PHYSICAL_STARTUP_WORDS: &[(usize, usize, u16)] = &[
-    (0, 0x000, 0x000),
-    (0, 0x001, 0x3e3),
-    (0, 0x0f8, 0x11a),
-];
+const PHYSICAL_STARTUP_WORDS: &[(usize, usize, u16)] =
+    &[(0, 0x000, 0x000), (0, 0x001, 0x3e3), (0, 0x0f8, 0x11a)];
 
 fn main() {
     match run() {
@@ -85,9 +82,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             preview_teenix_file(&args[2], line_count)
         }
         "analyze-teenix-hp67" if args.len() == 3 => analyze_teenix_hp67_file(&args[2]),
-        "extract-teenix-hp67" if args.len() == 4 => {
-            extract_teenix_hp67_file(&args[2], &args[3])
-        }
+        "extract-teenix-hp67" if args.len() == 4 => extract_teenix_hp67_file(&args[2], &args[3]),
         "inspect" if args.len() == 3 => {
             inspect_binary(Path::new(&args[2]))?;
             Ok(0)
@@ -136,7 +131,10 @@ fn analyze_teenix_hp67_file(path: &str) -> Result<i32, Box<dyn Error>> {
     println!("blank lines           : {}", report.blank_lines);
     println!("candidate instructions: {}", report.instruction_lines);
     println!("expected HP-67 words  : {HP67_PHYSICAL_WORDS}");
-    println!("unknown instructions  : {}", report.unknown_instructions.len());
+    println!(
+        "unknown instructions  : {}",
+        report.unknown_instructions.len()
+    );
     println!("label mismatches      : {}", report.label_mismatches.len());
     println!("overflow instructions : {}", report.overflow_instructions);
 
@@ -285,7 +283,10 @@ fn compare_files(left_path: &str, right_path: &str) -> Result<i32, Box<dyn Error
     }
 
     if result.is_identical() {
-        println!("\nIDENTICAL: {} populated words match exactly.", result.matching_words());
+        println!(
+            "\nIDENTICAL: {} populated words match exactly.",
+            result.matching_words()
+        );
         return Ok(0);
     }
 
@@ -333,7 +334,9 @@ fn verify_startup(path: &str) -> Result<i32, Box<dyn Error>> {
         println!("\nMATCH: all physical startup evidence points agree.");
         Ok(0)
     } else {
-        println!("\nMISMATCH: {failures} physical startup evidence point(s) disagree or are missing.");
+        println!(
+            "\nMISMATCH: {failures} physical startup evidence point(s) disagree or are missing."
+        );
         Ok(1)
     }
 }
@@ -352,9 +355,7 @@ fn print_difference(difference: RomDifference) {
             println!("{prefix}: left=0x{left:03x} ({left:04o}) right=missing");
         }
         RomDifference::Mismatch { left, right, .. } => {
-            println!(
-                "{prefix}: left=0x{left:03x} ({left:04o}) right=0x{right:03x} ({right:04o})"
-            );
+            println!("{prefix}: left=0x{left:03x} ({left:04o}) right=0x{right:03x} ({right:04o})");
         }
     }
 }
@@ -365,7 +366,10 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
     println!("size: {} bytes", bytes.len());
     println!("even byte count: {}", bytes.len() % 2 == 0);
     if bytes.len() % 2 == 0 {
-        println!("16-bit word count if interpreted as raw u16: {}", bytes.len() / 2);
+        println!(
+            "16-bit word count if interpreted as raw u16: {}",
+            bytes.len() / 2
+        );
     }
 
     let preview_len = bytes.len().min(32);
@@ -433,7 +437,10 @@ fn inspect_binary(path: &Path) -> Result<(), Box<dyn Error>> {
             .join(" ");
 
         println!("7-bit bytes: {:.2}%", seven_bit as f64 * 100.0 / len);
-        println!("printable/text bytes: {:.2}%", ascii_printable as f64 * 100.0 / len);
+        println!(
+            "printable/text bytes: {:.2}%",
+            ascii_printable as f64 * 100.0 / len
+        );
         println!("unique byte values: {unique}/256");
         println!("Shannon entropy: {entropy:.3} bits/byte");
         println!("most common bytes: {common}");

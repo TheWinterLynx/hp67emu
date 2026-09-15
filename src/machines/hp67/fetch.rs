@@ -234,7 +234,10 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
         backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit));
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
-        if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomAddress { .. }) {
+        if matches!(
+            isa_window_for_bit(expected_bit),
+            IsaWindow::RomAddress { .. }
+        ) {
             rom.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa), source)?;
             backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
         }
@@ -282,8 +285,9 @@ mod tests {
         let mut act = ActFetchEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
 
-        let fetched = run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source)
-            .expect("serial fetch must complete");
+        let fetched =
+            run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source)
+                .expect("serial fetch must complete");
 
         assert_eq!(rom.received_address(), Ok(0x07b));
         assert_eq!(fetched, 0x04c);
@@ -337,7 +341,10 @@ mod tests {
             };
             let result = rom.sample_for_bit(bit, level, &source);
             if bit == 27 {
-                assert_eq!(result, Err(SerialFetchError::MissingRomWord { address: 0x222 }));
+                assert_eq!(
+                    result,
+                    Err(SerialFetchError::MissingRomWord { address: 0x222 })
+                );
             } else {
                 assert_eq!(result, Ok(()));
             }

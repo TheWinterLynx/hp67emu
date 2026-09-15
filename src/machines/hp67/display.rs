@@ -180,12 +180,7 @@ pub fn decode_rom0_display_byte(
         0x0f | 0x20 => 0x00,
         0x30 => Hp67SegmentMask::DP.bits(),
         0x40..=0x4f => 0x00,
-        _ => {
-            return Err(Rom0DisplayError::UnknownDisplayCode {
-                scan_slot,
-                code,
-            })
-        }
+        _ => return Err(Rom0DisplayError::UnknownDisplayCode { scan_slot, code }),
     };
     Ok(Hp67SegmentMask::from_bits(segments))
 }
@@ -263,10 +258,7 @@ mod tests {
     fn direct_hp67_digit_and_decimal_codes_decode_to_segments() {
         assert_eq!(decode_rom0_display_byte(1, 0x00).unwrap().bits(), 0x3f);
         assert_eq!(decode_rom0_display_byte(4, 0x09).unwrap().bits(), 0x6f);
-        assert_eq!(
-            decode_rom0_display_byte(8, 0x30),
-            Ok(Hp67SegmentMask::DP)
-        );
+        assert_eq!(decode_rom0_display_byte(8, 0x30), Ok(Hp67SegmentMask::DP));
         assert_eq!(
             decode_rom0_display_byte(14, 0x4f),
             Ok(Hp67SegmentMask::BLANK)
@@ -296,11 +288,26 @@ mod tests {
 
     #[test]
     fn scan_roles_follow_observed_fifteen_slot_order() {
-        assert_eq!(display_role_for_scan_slot(1), Some(Hp67DisplayRole::ExponentUnits));
-        assert_eq!(display_role_for_scan_slot(2), Some(Hp67DisplayRole::ExponentTens));
-        assert_eq!(display_role_for_scan_slot(3), Some(Hp67DisplayRole::SharedSigns));
-        assert_eq!(display_role_for_scan_slot(4), Some(Hp67DisplayRole::MantissaDigit(11)));
-        assert_eq!(display_role_for_scan_slot(14), Some(Hp67DisplayRole::MantissaDigit(1)));
+        assert_eq!(
+            display_role_for_scan_slot(1),
+            Some(Hp67DisplayRole::ExponentUnits)
+        );
+        assert_eq!(
+            display_role_for_scan_slot(2),
+            Some(Hp67DisplayRole::ExponentTens)
+        );
+        assert_eq!(
+            display_role_for_scan_slot(3),
+            Some(Hp67DisplayRole::SharedSigns)
+        );
+        assert_eq!(
+            display_role_for_scan_slot(4),
+            Some(Hp67DisplayRole::MantissaDigit(11))
+        );
+        assert_eq!(
+            display_role_for_scan_slot(14),
+            Some(Hp67DisplayRole::MantissaDigit(1))
+        );
         assert_eq!(
             display_role_for_scan_slot(15),
             Some(Hp67DisplayRole::ExponentUnitsDuplicate)

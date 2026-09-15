@@ -20,12 +20,10 @@ use hp67emu::{
 const EXPECTED_POPULATED_WORDS: usize = 5120;
 const STARTUP_FETCHES: [(u16, u16); 3] = [(0x000, 0x000), (0x001, 0x3e3), (0x0f8, 0x11a)];
 const EXPECTED_BOOT_DISPLAY_CODES: [u8; 15] = [
-    0x20, 0x20, 0x01, 0x00, 0x30, 0x00, 0x00, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
-    0x20,
+    0x20, 0x20, 0x01, 0x00, 0x30, 0x00, 0x00, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x20,
 ];
 const EXPECTED_BOOT_DISPLAY_SEGMENTS: [u8; 15] = [
-    0x00, 0x00, 0x00, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00,
+    0x00, 0x00, 0x00, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
 // Nonpareil's reviewed HP-67 disassembly labels these source-backed firmware
@@ -77,7 +75,10 @@ impl Hp67RomWordSource for CorpusRom<'_> {
         } else {
             0
         };
-        self.corpus.get(effective, usize::from(address)).ok().flatten()
+        self.corpus
+            .get(effective, usize::from(address))
+            .ok()
+            .flatten()
     }
 }
 
@@ -152,11 +153,9 @@ fn format_byte_sequence(bytes: &[u8]) -> String {
 }
 
 fn verify_boot_idle_display(machine: &Hp67ArchitecturalMachine) -> Result<(), String> {
-    let scan = structural_display_scan_from_act_registers(
-        &machine.act.state.a,
-        &machine.act.state.b,
-    )
-    .map_err(|error| format!("boot display structural scan failed: {error:?}"))?;
+    let scan =
+        structural_display_scan_from_act_registers(&machine.act.state.a, &machine.act.state.b)
+            .map_err(|error| format!("boot display structural scan failed: {error:?}"))?;
 
     let codes: Vec<u8> = scan.iter().map(|slot| slot.code).collect();
     if codes.as_slice() != EXPECTED_BOOT_DISPLAY_CODES {
@@ -272,7 +271,9 @@ fn execute_cycle(
             );
             Ok(ProbeControl::BoundaryStop)
         }
-        Err(error) => Err(format!("cycle {cycle} architectural execution failed: {error:?}")),
+        Err(error) => Err(format!(
+            "cycle {cycle} architectural execution failed: {error:?}"
+        )),
     }
 }
 

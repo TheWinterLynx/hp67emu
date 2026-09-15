@@ -345,7 +345,9 @@ impl ActArchitecturalCore {
         match word {
             0o0000 | 0o1760 => return Ok(()),
             0o0070 => {
-                self.state.c = ram.read(self.state.ram_address).unwrap_or([0; ACT_WORD_DIGITS]);
+                self.state.c = ram
+                    .read(self.state.ram_address)
+                    .unwrap_or([0; ACT_WORD_DIGITS]);
                 return Ok(());
             }
             0o0010 => {
@@ -536,7 +538,9 @@ impl ActArchitecturalCore {
             0o64 => self.state.delayed_rom = Some(operand),
             0o70 => {
                 self.select_register(operand);
-                self.state.c = ram.read(self.state.ram_address).unwrap_or([0; ACT_WORD_DIGITS]);
+                self.state.c = ram
+                    .read(self.state.ram_address)
+                    .unwrap_or([0; ACT_WORD_DIGITS]);
             }
             0o74 => self.state.p = P_SET_MAP[usize::from(operand)],
             _ => {
@@ -566,19 +570,95 @@ impl ActArchitecturalCore {
             0x06 => copy_range(&mut self.state.c, b, first, last),
             0x07 => exchange_range(&mut self.state.b, &mut self.state.c, first, last),
             0x08 => zero_range(&mut self.state.c, first, last),
-            0x09 => self.state.carry = add_range(&mut self.state.a, a, Some(b), first, last, false, base),
-            0x0a => self.state.carry = add_range(&mut self.state.a, a, Some(c), first, last, false, base),
-            0x0b => self.state.carry = add_range(&mut self.state.c, c, Some(c), first, last, false, base),
-            0x0c => self.state.carry = add_range(&mut self.state.c, a, Some(c), first, last, false, base),
-            0x0d => self.state.carry = add_range(&mut self.state.a, a, None, first, last, true, base),
+            0x09 => {
+                self.state.carry =
+                    add_range(&mut self.state.a, a, Some(b), first, last, false, base)
+            }
+            0x0a => {
+                self.state.carry =
+                    add_range(&mut self.state.a, a, Some(c), first, last, false, base)
+            }
+            0x0b => {
+                self.state.carry =
+                    add_range(&mut self.state.c, c, Some(c), first, last, false, base)
+            }
+            0x0c => {
+                self.state.carry =
+                    add_range(&mut self.state.c, a, Some(c), first, last, false, base)
+            }
+            0x0d => {
+                self.state.carry = add_range(&mut self.state.a, a, None, first, last, true, base)
+            }
             0x0e => shift_left_range(&mut self.state.a, first, last),
-            0x0f => self.state.carry = add_range(&mut self.state.c, c, None, first, last, true, base),
-            0x10 => self.state.carry = sub_range(Some(&mut self.state.a), Some(a), Some(b), first, last, false, base),
-            0x11 => self.state.carry = sub_range(Some(&mut self.state.c), Some(a), Some(c), first, last, false, base),
-            0x12 => self.state.carry = sub_range(Some(&mut self.state.a), Some(a), None, first, last, true, base),
-            0x13 => self.state.carry = sub_range(Some(&mut self.state.c), Some(c), None, first, last, true, base),
-            0x14 => self.state.carry = sub_range(Some(&mut self.state.c), None, Some(c), first, last, false, base),
-            0x15 => self.state.carry = sub_range(Some(&mut self.state.c), None, Some(c), first, last, true, base),
+            0x0f => {
+                self.state.carry = add_range(&mut self.state.c, c, None, first, last, true, base)
+            }
+            0x10 => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.a),
+                    Some(a),
+                    Some(b),
+                    first,
+                    last,
+                    false,
+                    base,
+                )
+            }
+            0x11 => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.c),
+                    Some(a),
+                    Some(c),
+                    first,
+                    last,
+                    false,
+                    base,
+                )
+            }
+            0x12 => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.a),
+                    Some(a),
+                    None,
+                    first,
+                    last,
+                    true,
+                    base,
+                )
+            }
+            0x13 => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.c),
+                    Some(c),
+                    None,
+                    first,
+                    last,
+                    true,
+                    base,
+                )
+            }
+            0x14 => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.c),
+                    None,
+                    Some(c),
+                    first,
+                    last,
+                    false,
+                    base,
+                )
+            }
+            0x15 => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.c),
+                    None,
+                    Some(c),
+                    first,
+                    last,
+                    true,
+                    base,
+                )
+            }
             0x16 => {
                 self.state.instruction_state = ActInstructionState::ThenGoto;
                 self.state.carry = any_nonzero(b, first, last);
@@ -603,7 +683,17 @@ impl ActArchitecturalCore {
                 self.state.instruction_state = ActInstructionState::ThenGoto;
                 self.state.carry = all_zero(c, first, last);
             }
-            0x1c => self.state.carry = sub_range(Some(&mut self.state.a), Some(a), Some(c), first, last, false, base),
+            0x1c => {
+                self.state.carry = sub_range(
+                    Some(&mut self.state.a),
+                    Some(a),
+                    Some(c),
+                    first,
+                    last,
+                    false,
+                    base,
+                )
+            }
             0x1d => shift_right_range(&mut self.state.a, first, last),
             0x1e => shift_right_range(&mut self.state.b, first, last),
             0x1f => shift_right_range(&mut self.state.c, first, last),
@@ -614,14 +704,12 @@ impl ActArchitecturalCore {
     fn test_p(&mut self, operand: u8, equal: bool) {
         let target = P_TEST_MAP[usize::from(operand)];
         self.state.instruction_state = ActInstructionState::ThenGoto;
-        let equal_result = if target == 0
-            && self.state.p_change[1] == 1
-            && self.state.p_change[2] == 1
-        {
-            self.state.p == 0 || self.state.p == 1
-        } else {
-            self.state.p == target
-        };
+        let equal_result =
+            if target == 0 && self.state.p_change[1] == 1 && self.state.p_change[2] == 1 {
+                self.state.p == 0 || self.state.p == 1
+            } else {
+                self.state.p == target
+            };
         self.state.carry = if equal { !equal_result } else { equal_result };
     }
 
@@ -678,7 +766,11 @@ fn add_range(
         let rhs = right.map_or(0, |register| register[index]);
         let raw = u16::from(left[index]) + u16::from(rhs) + u16::from(carry);
         let next_carry = if base == 10 { raw > 9 } else { raw > 15 };
-        let adjusted = if base == 10 && next_carry { raw + 6 } else { raw };
+        let adjusted = if base == 10 && next_carry {
+            raw + 6
+        } else {
+            raw
+        };
         destination[index] = (adjusted & 0x0f) as u8;
         carry = next_carry;
     }
@@ -699,7 +791,11 @@ fn sub_range(
         let rhs = right.map_or(0, |register| register[index]);
         let raw = i16::from(lhs) - i16::from(rhs) - i16::from(borrow);
         let next_borrow = raw < 0;
-        let adjusted = if next_borrow { raw + i16::from(base) } else { raw };
+        let adjusted = if next_borrow {
+            raw + i16::from(base)
+        } else {
+            raw
+        };
         if let Some(register) = destination.as_deref_mut() {
             register[index] = ((adjusted as i32) & 0x0f) as u8;
         }
@@ -710,13 +806,21 @@ fn sub_range(
 
 fn shift_left_range(register: &mut ActRegister, first: usize, last: usize) {
     for index in (first..=last).rev() {
-        register[index] = if index == first { 0 } else { register[index - 1] };
+        register[index] = if index == first {
+            0
+        } else {
+            register[index - 1]
+        };
     }
 }
 
 fn shift_right_range(register: &mut ActRegister, first: usize, last: usize) {
     for index in first..=last {
-        register[index] = if index == last { 0 } else { register[index + 1] };
+        register[index] = if index == last {
+            0
+        } else {
+            register[index + 1]
+        };
     }
 }
 

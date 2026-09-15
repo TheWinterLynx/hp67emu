@@ -82,16 +82,16 @@ pub fn has_newe_signature(bytes: &[u8]) -> bool {
 pub fn decode_container(bytes: &[u8]) -> Result<TeenixContainer, TeenixContainerError> {
     let decoded = bytes.iter().map(|byte| byte ^ XOR_KEY).collect::<Vec<_>>();
 
-    let (magic, after_magic) = split_line(&decoded, 0)
-        .ok_or(TeenixContainerError::MissingMagicLine)?;
+    let (magic, after_magic) =
+        split_line(&decoded, 0).ok_or(TeenixContainerError::MissingMagicLine)?;
     let magic = str::from_utf8(magic)
         .map_err(|_| TeenixContainerError::WrongMagic("<non-UTF8>".to_owned()))?;
     if magic != MAGIC {
         return Err(TeenixContainerError::WrongMagic(magic.to_owned()));
     }
 
-    let (length_text, payload_start) = split_line(&decoded, after_magic)
-        .ok_or(TeenixContainerError::MissingLengthLine)?;
+    let (length_text, payload_start) =
+        split_line(&decoded, after_magic).ok_or(TeenixContainerError::MissingLengthLine)?;
     let length_text = str::from_utf8(length_text)
         .map_err(|_| TeenixContainerError::InvalidLength("<non-UTF8>".to_owned()))?;
     let declared_payload_len = length_text
@@ -153,7 +153,10 @@ mod tests {
         let container = decode_container(&file).expect("valid container");
         assert_eq!(container.declared_payload_len, payload.len());
         assert_eq!(container.payload(), payload);
-        assert_eq!(container.payload_text().unwrap(), "L0000:\tno operation\r\n");
+        assert_eq!(
+            container.payload_text().unwrap(),
+            "L0000:\tno operation\r\n"
+        );
     }
 
     #[test]

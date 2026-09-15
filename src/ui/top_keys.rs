@@ -95,7 +95,10 @@ pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
         );
         let gap = Rect::from_min_max(
             cap.min,
-            pos2(cap.right(), (cap.top() + travel + 0.35 * scale).min(cap.bottom())),
+            pos2(
+                cap.right(),
+                (cap.top() + travel + 0.35 * scale).min(cap.bottom()),
+            ),
         );
         painter.image(photo.id(), gap, source_uv(recess_src), Color32::WHITE);
     }

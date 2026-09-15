@@ -21,7 +21,10 @@ fn every_rust_source_has_a_companion_markdown_document() {
     collect_rust_files(&root.join("tests"), &mut sources);
     sources.sort();
 
-    assert!(!sources.is_empty(), "documentation contract found no Rust files");
+    assert!(
+        !sources.is_empty(),
+        "documentation contract found no Rust files"
+    );
 
     let mut failures = Vec::new();
     for source in sources {

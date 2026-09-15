@@ -6,7 +6,8 @@
 
 use super::{
     act::{
-        ActArchitecturalCore, ActError, ActExecution, ActInstructionState, ActOperation, ActRamImage,
+        ActArchitecturalCore, ActError, ActExecution, ActInstructionState, ActOperation,
+        ActRamImage,
     },
     crc::{
         decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
@@ -37,11 +38,7 @@ pub enum Hp67ArchitecturalError {
     OpcodeOutOfRange(u16),
     Act(ActError),
     Crc(CrcArchitecturalError),
-    CrcDataPortNotModeled {
-        pc: u16,
-        address: u8,
-        write: bool,
-    },
+    CrcDataPortNotModeled { pc: u16, address: u8, write: bool },
 }
 
 impl From<ActError> for Hp67ArchitecturalError {
@@ -201,7 +198,9 @@ mod tests {
     #[test]
     fn startup_crc_set_flag_is_not_treated_as_unknown_act_special() {
         let mut machine = Hp67ArchitecturalMachine::default();
-        let execution = machine.execute_word(0o1000).expect("CRC set flag must execute");
+        let execution = machine
+            .execute_word(0o1000)
+            .expect("CRC set flag must execute");
         assert_eq!(execution.pc, 0);
         assert_eq!(execution.next_pc, 1);
         assert_eq!(machine.crc.flag(4), Some(true));
@@ -211,7 +210,9 @@ mod tests {
     #[test]
     fn crc_program_switch_test_pulses_act_s3() {
         let mut machine = Hp67ArchitecturalMachine::default();
-        machine.set_program_mode(true).expect("program switch must exist");
+        machine
+            .set_program_mode(true)
+            .expect("program switch must exist");
         machine.execute_word(0o300).expect("CRC test must execute");
         assert!(machine.act.state.status[3]);
         assert_eq!(machine.crc.external_flag(CRC_FLAG_PROGRAM_MODE), Some(true));
@@ -224,7 +225,9 @@ mod tests {
         machine.act.state.instruction_state = ActInstructionState::ThenGoto;
         machine.act.state.carry = false;
 
-        machine.execute_word(0o260).expect("branch data must execute");
+        machine
+            .execute_word(0o260)
+            .expect("branch data must execute");
         assert_eq!(machine.act.state.pc, 0x8b0);
         assert_eq!(machine.crc.flag(9), Some(false));
     }

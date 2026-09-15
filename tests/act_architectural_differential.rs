@@ -58,7 +58,10 @@ fn compare_one(seed: u8, opcode: u16, then_goto: bool) {
             for address in 0u8..0x40 {
                 let ours_word = ours_ram.read(address);
                 let reference_word = reference.ram(address).map(|register| *register.digits());
-                assert_eq!(ours_word, reference_word, "RAM mismatch: {context} addr=0x{address:02x}");
+                assert_eq!(
+                    ours_word, reference_word,
+                    "RAM mismatch: {context} addr=0x{address:02x}"
+                );
             }
         }
         (Err(our_error), Err(reference_error)) => {
@@ -67,9 +70,9 @@ fn compare_one(seed: u8, opcode: u16, then_goto: bool) {
                 "error mismatch: {context}: ours={our_error:?} reference={reference_error:?}"
             );
         }
-        _ => panic!(
-            "result mismatch: {context}: ours={our_result:?} reference={reference_result:?}"
-        ),
+        _ => {
+            panic!("result mismatch: {context}: ours={our_result:?} reference={reference_result:?}")
+        }
     }
 }
 
@@ -166,7 +169,11 @@ fn to_reference_state(source: &ActArchitecturalState) -> ArchitecturalState {
     }
 }
 
-fn assert_states_equal(ours: &ActArchitecturalState, reference: &ArchitecturalState, context: &str) {
+fn assert_states_equal(
+    ours: &ActArchitecturalState,
+    reference: &ArchitecturalState,
+    context: &str,
+) {
     assert_eq!(ours.a, *reference.a.digits(), "A mismatch: {context}");
     assert_eq!(ours.b, *reference.b.digits(), "B mismatch: {context}");
     assert_eq!(ours.c, *reference.c.digits(), "C mismatch: {context}");
@@ -177,28 +184,55 @@ fn assert_states_equal(ours: &ActArchitecturalState, reference: &ArchitecturalSt
     assert_eq!(ours.m2, *reference.m2.digits(), "M2 mismatch: {context}");
     assert_eq!(ours.f, reference.f, "F mismatch: {context}");
     assert_eq!(ours.p, reference.p, "P mismatch: {context}");
-    assert_eq!(ours.p_change, reference.p_change, "P-change mismatch: {context}");
-    assert_eq!(ours.decimal, reference.decimal, "decimal mismatch: {context}");
+    assert_eq!(
+        ours.p_change, reference.p_change,
+        "P-change mismatch: {context}"
+    );
+    assert_eq!(
+        ours.decimal, reference.decimal,
+        "decimal mismatch: {context}"
+    );
     assert_eq!(ours.carry, reference.carry, "carry mismatch: {context}");
-    assert_eq!(ours.previous_carry, reference.previous_carry, "previous-carry mismatch: {context}");
+    assert_eq!(
+        ours.previous_carry, reference.previous_carry,
+        "previous-carry mismatch: {context}"
+    );
     assert_eq!(ours.status, reference.status, "status mismatch: {context}");
     assert_eq!(ours.pc, reference.pc, "PC mismatch: {context}");
-    assert_eq!(ours.delayed_rom, reference.delayed_rom, "delayed-ROM mismatch: {context}");
+    assert_eq!(
+        ours.delayed_rom, reference.delayed_rom,
+        "delayed-ROM mismatch: {context}"
+    );
     assert_eq!(ours.bank, reference.bank, "bank mismatch: {context}");
-    assert_eq!(ours.return_stack, reference.return_stack, "return-stack mismatch: {context}");
-    assert_eq!(ours.stack_pointer, reference.stack_pointer, "stack-pointer mismatch: {context}");
+    assert_eq!(
+        ours.return_stack, reference.return_stack,
+        "return-stack mismatch: {context}"
+    );
+    assert_eq!(
+        ours.stack_pointer, reference.stack_pointer,
+        "stack-pointer mismatch: {context}"
+    );
     assert_eq!(
         ours.instruction_state == ActInstructionState::ThenGoto,
         reference.instruction_state == InstructionState::ThenGoto,
         "instruction-state mismatch: {context}"
     );
-    assert_eq!(ours.key_buffer, reference.key_buffer, "key-buffer mismatch: {context}");
-    assert_eq!(ours.display_enable, reference.display_enable, "display-enable mismatch: {context}");
+    assert_eq!(
+        ours.key_buffer, reference.key_buffer,
+        "key-buffer mismatch: {context}"
+    );
+    assert_eq!(
+        ours.display_enable, reference.display_enable,
+        "display-enable mismatch: {context}"
+    );
     assert_eq!(
         ours.display_14_digit, reference.display_14_digit,
         "display-width mismatch: {context}"
     );
-    assert_eq!(ours.ram_address, reference.ram_address, "RAM-address mismatch: {context}");
+    assert_eq!(
+        ours.ram_address, reference.ram_address,
+        "RAM-address mismatch: {context}"
+    );
 }
 
 fn equivalent_error(ours: ActError, reference: ExecutionError) -> bool {

@@ -65,10 +65,7 @@ impl CrcArchitecturalCore {
     }
 
     /// Execute one CRC control opcode. Returns `Some(condition)` for test-and-clear.
-    pub fn execute_opcode(
-        &mut self,
-        opcode: u16,
-    ) -> Result<Option<bool>, CrcArchitecturalError> {
+    pub fn execute_opcode(&mut self, opcode: u16) -> Result<Option<bool>, CrcArchitecturalError> {
         let Some(instruction) = decode_crc_opcode(opcode)? else {
             return Ok(None);
         };
@@ -95,9 +92,7 @@ impl CrcArchitecturalCore {
     }
 }
 
-pub fn decode_crc_opcode(
-    opcode: u16,
-) -> Result<Option<CrcInstruction>, CrcArchitecturalError> {
+pub fn decode_crc_opcode(opcode: u16) -> Result<Option<CrcInstruction>, CrcArchitecturalError> {
     if opcode > ROM_WORD_MASK {
         return Err(CrcArchitecturalError::OpcodeOutOfRange(opcode));
     }

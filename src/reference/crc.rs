@@ -355,8 +355,7 @@ mod tests {
         crc.insert_card(CardSide::default())
             .expect("card must insert");
         crc.execute_opcode(0o260).expect("motor must start");
-        crc.execute_opcode(0o660)
-            .expect("write-mode flag must set");
+        crc.execute_opcode(0o660).expect("write-mode flag must set");
 
         let mut c = Register::zero();
         for index in 0..7 {
@@ -385,10 +384,12 @@ mod tests {
         let mut crc = CrcReference::default();
         crc.insert_card(side).expect("card must insert");
         crc.execute_opcode(0o260).expect("motor must start");
-        crc.execute_opcode(0o660)
-            .expect("write-mode flag must set");
+        crc.execute_opcode(0o660).expect("write-mode flag must set");
 
-        assert_eq!(crc.write_from_c(&Register::zero()), Err(CrcError::WriteProtected));
+        assert_eq!(
+            crc.write_from_c(&Register::zero()),
+            Err(CrcError::WriteProtected)
+        );
     }
 
     #[test]
@@ -396,7 +397,8 @@ mod tests {
         let mut crc = CrcReference::default();
         crc.set_external_flag(FLAG_PROGRAM_MODE as u8, true)
             .expect("flag must exist");
-        crc.insert_card(CardSide::default()).expect("card must insert");
+        crc.insert_card(CardSide::default())
+            .expect("card must insert");
         crc.reset();
 
         assert!(crc.card_inserted());

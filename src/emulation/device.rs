@@ -22,10 +22,5 @@ pub trait ElectricalDevice<N: Copy> {
     fn device_name(&self) -> &'static str;
 
     /// Evaluate one scheduler tick from a stable input snapshot.
-    fn evaluate(
-        &mut self,
-        tick: Tick,
-        inputs: &dyn NetReader<N>,
-        outputs: &mut dyn DriveSink<N>,
-    );
+    fn evaluate(&mut self, tick: Tick, inputs: &dyn NetReader<N>, outputs: &mut dyn DriveSink<N>);
 }

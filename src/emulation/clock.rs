@@ -106,13 +106,25 @@ mod tests {
         assert_eq!(
             observed,
             vec![
-                ClockLevels { phi1: true, phi2: false },
+                ClockLevels {
+                    phi1: true,
+                    phi2: false
+                },
                 ClockLevels::BOTH_LOW,
-                ClockLevels { phi1: false, phi2: true },
+                ClockLevels {
+                    phi1: false,
+                    phi2: true
+                },
                 ClockLevels::BOTH_LOW,
-                ClockLevels { phi1: true, phi2: false },
+                ClockLevels {
+                    phi1: true,
+                    phi2: false
+                },
                 ClockLevels::BOTH_LOW,
-                ClockLevels { phi1: false, phi2: true },
+                ClockLevels {
+                    phi1: false,
+                    phi2: true
+                },
                 ClockLevels::BOTH_LOW,
             ]
         );

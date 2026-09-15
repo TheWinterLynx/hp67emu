@@ -217,7 +217,11 @@ impl Default for ArchitecturalState {
 
 impl ArchitecturalState {
     pub const fn arithmetic_base(&self) -> u8 {
-        if self.decimal { 10 } else { 16 }
+        if self.decimal {
+            10
+        } else {
+            16
+        }
     }
 
     pub fn normalize_architectural_widths(&mut self) {
@@ -308,25 +312,13 @@ impl ArchitecturalState {
             0x06 => copy_range(&mut self.c, b, first, last),
             0x07 => exchange_range(&mut self.b, &mut self.c, first, last),
             0x08 => zero_range(&mut self.c, first, last),
-            0x09 => {
-                self.carry = add_range(&mut self.a, a, Some(b), first, last, false, base)
-            }
-            0x0a => {
-                self.carry = add_range(&mut self.a, a, Some(c), first, last, false, base)
-            }
-            0x0b => {
-                self.carry = add_range(&mut self.c, c, Some(c), first, last, false, base)
-            }
-            0x0c => {
-                self.carry = add_range(&mut self.c, a, Some(c), first, last, false, base)
-            }
-            0x0d => {
-                self.carry = add_range(&mut self.a, a, None, first, last, true, base)
-            }
+            0x09 => self.carry = add_range(&mut self.a, a, Some(b), first, last, false, base),
+            0x0a => self.carry = add_range(&mut self.a, a, Some(c), first, last, false, base),
+            0x0b => self.carry = add_range(&mut self.c, c, Some(c), first, last, false, base),
+            0x0c => self.carry = add_range(&mut self.c, a, Some(c), first, last, false, base),
+            0x0d => self.carry = add_range(&mut self.a, a, None, first, last, true, base),
             0x0e => shift_left_range(&mut self.a, first, last),
-            0x0f => {
-                self.carry = add_range(&mut self.c, c, None, first, last, true, base)
-            }
+            0x0f => self.carry = add_range(&mut self.c, c, None, first, last, true, base),
             0x10 => {
                 self.carry = sub_range(
                     Some(&mut self.a),
@@ -350,48 +342,16 @@ impl ArchitecturalState {
                 )
             }
             0x12 => {
-                self.carry = sub_range(
-                    Some(&mut self.a),
-                    Some(a),
-                    None,
-                    first,
-                    last,
-                    true,
-                    base,
-                )
+                self.carry = sub_range(Some(&mut self.a), Some(a), None, first, last, true, base)
             }
             0x13 => {
-                self.carry = sub_range(
-                    Some(&mut self.c),
-                    Some(c),
-                    None,
-                    first,
-                    last,
-                    true,
-                    base,
-                )
+                self.carry = sub_range(Some(&mut self.c), Some(c), None, first, last, true, base)
             }
             0x14 => {
-                self.carry = sub_range(
-                    Some(&mut self.c),
-                    None,
-                    Some(c),
-                    first,
-                    last,
-                    false,
-                    base,
-                )
+                self.carry = sub_range(Some(&mut self.c), None, Some(c), first, last, false, base)
             }
             0x15 => {
-                self.carry = sub_range(
-                    Some(&mut self.c),
-                    None,
-                    Some(c),
-                    first,
-                    last,
-                    true,
-                    base,
-                )
+                self.carry = sub_range(Some(&mut self.c), None, Some(c), first, last, true, base)
             }
             0x16 => {
                 self.instruction_state = InstructionState::ThenGoto;
@@ -403,27 +363,11 @@ impl ArchitecturalState {
             }
             0x18 => {
                 self.instruction_state = InstructionState::ThenGoto;
-                self.carry = sub_range(
-                    None,
-                    Some(a),
-                    Some(c),
-                    first,
-                    last,
-                    false,
-                    base,
-                );
+                self.carry = sub_range(None, Some(a), Some(c), first, last, false, base);
             }
             0x19 => {
                 self.instruction_state = InstructionState::ThenGoto;
-                self.carry = sub_range(
-                    None,
-                    Some(a),
-                    Some(b),
-                    first,
-                    last,
-                    false,
-                    base,
-                );
+                self.carry = sub_range(None, Some(a), Some(b), first, last, false, base);
             }
             0x1a => {
                 self.instruction_state = InstructionState::ThenGoto;
@@ -767,7 +711,8 @@ impl ReferenceMachine {
         let target = P_TEST_MAP[usize::from(operand)];
         self.cpu.instruction_state = InstructionState::ThenGoto;
 
-        let equal_result = if target == 0 && self.cpu.p_change[1] == 1 && self.cpu.p_change[2] == 1 {
+        let equal_result = if target == 0 && self.cpu.p_change[1] == 1 && self.cpu.p_change[2] == 1
+        {
             // Woodstock documentation describes P as disappearing briefly on
             // wrap. HP-67/97 label search depends on that behaviour. Model the
             // condition generically rather than keying it to a firmware PC.
@@ -1017,7 +962,9 @@ mod tests {
         let mut branch = ReferenceMachine::default();
         branch.cpu.pc = 0x120;
         branch.cpu.carry = false;
-        branch.step_word(goto_word(0x55)).expect("goto must execute");
+        branch
+            .step_word(goto_word(0x55))
+            .expect("goto must execute");
         assert_eq!(branch.cpu.pc, 0x155);
 
         let mut fall_through = ReferenceMachine::default();
@@ -1033,9 +980,7 @@ mod tests {
     fn jsb_and_return_use_the_two_level_ring_stack() {
         let mut machine = ReferenceMachine::default();
         machine.cpu.pc = 0x345;
-        machine
-            .step_word(jsb_word(0x67))
-            .expect("jsb must execute");
+        machine.step_word(jsb_word(0x67)).expect("jsb must execute");
         assert_eq!(machine.cpu.return_stack[0], 0x346);
         assert_eq!(machine.cpu.pc, 0x367);
         machine.step_word(0o1020).expect("return must execute");
@@ -1088,7 +1033,9 @@ mod tests {
         down_rotate.cpu.y[0] = 2;
         down_rotate.cpu.z[0] = 3;
         down_rotate.cpu.t[0] = 4;
-        down_rotate.step_word(0o1110).expect("down rotate must execute");
+        down_rotate
+            .step_word(0o1110)
+            .expect("down rotate must execute");
         assert_eq!(down_rotate.cpu.c[0], 2);
         assert_eq!(down_rotate.cpu.y[0], 3);
         assert_eq!(down_rotate.cpu.z[0], 4);
@@ -1111,7 +1058,9 @@ mod tests {
         let mut machine = ReferenceMachine::default();
         machine.cpu.p = 13;
         machine.step_word(0o0720).expect("first inc P must execute");
-        machine.step_word(0o0720).expect("second inc P must execute");
+        machine
+            .step_word(0o0720)
+            .expect("second inc P must execute");
         assert_eq!(machine.cpu.p, 1);
 
         // P-test operand 11 maps to zero. After two consecutive increments,
@@ -1126,7 +1075,9 @@ mod tests {
     fn clear_status_preserves_the_four_hardware_retained_bits() {
         let mut machine = ReferenceMachine::default();
         machine.cpu.status = [true; STATUS_BITS];
-        machine.step_word(0o0110).expect("clear status must execute");
+        machine
+            .step_word(0o0110)
+            .expect("clear status must execute");
         for index in 0..STATUS_BITS {
             assert_eq!(machine.cpu.status[index], matches!(index, 1 | 2 | 5 | 15));
         }

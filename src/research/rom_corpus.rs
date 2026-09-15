@@ -35,7 +35,10 @@ impl fmt::Display for CorpusError {
             Self::X11ArrayNotFound => write!(f, "x11-calc int i_rom[...] array was not found"),
             Self::X11ArrayUnterminated => write!(f, "x11-calc i_rom array has no closing brace"),
             Self::WrongWordCount { expected, actual } => {
-                write!(f, "ROM contains {actual} words; expected exactly {expected}")
+                write!(
+                    f,
+                    "ROM contains {actual} words; expected exactly {expected}"
+                )
             }
             Self::InvalidNumber { token, radix } => {
                 write!(f, "invalid base-{radix} integer literal: {token}")
@@ -54,7 +57,9 @@ impl fmt::Display for CorpusError {
             Self::InvalidPairLine { line, text } => {
                 write!(f, "invalid address/opcode line {line}: {text}")
             }
-            Self::UnsupportedRadix(radix) => write!(f, "unsupported radix {radix}; use auto, 8, 10 or 16"),
+            Self::UnsupportedRadix(radix) => {
+                write!(f, "unsupported radix {radix}; use auto, 8, 10 or 16")
+            }
         }
     }
 }
@@ -157,7 +162,10 @@ impl RomCorpus {
         for (line_index, raw_line) in input.lines().enumerate() {
             let line_number = line_index + 1;
             let line = raw_line.trim();
-            if line.is_empty() || line.starts_with('#') || line.eq_ignore_ascii_case("bank\tpc\tword") {
+            if line.is_empty()
+                || line.starts_with('#')
+                || line.eq_ignore_ascii_case("bank\tpc\tword")
+            {
                 continue;
             }
             let fields: Vec<_> = line.split_whitespace().collect();
@@ -191,8 +199,14 @@ pub struct RomLocation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RomDifference {
-    MissingLeft { location: RomLocation, right: u16 },
-    MissingRight { location: RomLocation, left: u16 },
+    MissingLeft {
+        location: RomLocation,
+        right: u16,
+    },
+    MissingRight {
+        location: RomLocation,
+        left: u16,
+    },
     Mismatch {
         location: RomLocation,
         left: u16,
@@ -300,7 +314,9 @@ pub fn parse_x11_hp67_c(source: &str) -> Result<RomCorpus, CorpusError> {
     let marker = "int i_rom";
     let marker_start = source.find(marker).ok_or(CorpusError::X11ArrayNotFound)?;
     let after_marker = &source[marker_start..];
-    let open_relative = after_marker.find('{').ok_or(CorpusError::X11ArrayNotFound)?;
+    let open_relative = after_marker
+        .find('{')
+        .ok_or(CorpusError::X11ArrayNotFound)?;
     let open = marker_start + open_relative;
     let close_relative = source[open + 1..]
         .find('}')
@@ -309,7 +325,11 @@ pub fn parse_x11_hp67_c(source: &str) -> Result<RomCorpus, CorpusError> {
     let body = strip_c_comments(&source[open + 1..close]);
 
     let mut words = Vec::with_capacity(PHYSICAL_ROM_WORDS);
-    for token in body.split(',').map(str::trim).filter(|token| !token.is_empty()) {
+    for token in body
+        .split(',')
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+    {
         let value = parse_c_integer(token)?;
         validate_word(value)?;
         words.push(value as u16);
@@ -388,7 +408,10 @@ fn validate_word(word: u32) -> Result<(), CorpusError> {
 fn parse_c_integer(token: &str) -> Result<u32, CorpusError> {
     let token = token.trim();
     let literal = token.trim_end_matches(|ch: char| matches!(ch, 'u' | 'U' | 'l' | 'L'));
-    let (digits, radix) = if let Some(rest) = literal.strip_prefix("0x").or_else(|| literal.strip_prefix("0X")) {
+    let (digits, radix) = if let Some(rest) = literal
+        .strip_prefix("0x")
+        .or_else(|| literal.strip_prefix("0X"))
+    {
         (rest, 16)
     } else if literal.len() > 1 && literal.starts_with('0') {
         (&literal[1..], 8)
@@ -405,9 +428,15 @@ fn parse_c_integer(token: &str) -> Result<u32, CorpusError> {
 
 fn parse_auto_integer(token: &str) -> Result<u32, CorpusError> {
     let trimmed = token.trim();
-    if let Some(rest) = trimmed.strip_prefix("0x").or_else(|| trimmed.strip_prefix("0X")) {
+    if let Some(rest) = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+    {
         parse_digits(rest, 16, trimmed)
-    } else if let Some(rest) = trimmed.strip_prefix("0o").or_else(|| trimmed.strip_prefix("0O")) {
+    } else if let Some(rest) = trimmed
+        .strip_prefix("0o")
+        .or_else(|| trimmed.strip_prefix("0O"))
+    {
         parse_digits(rest, 8, trimmed)
     } else {
         parse_digits(trimmed, 10, trimmed)
@@ -420,8 +449,14 @@ fn parse_with_radix(token: &str, radix: NumberRadix) -> Result<u32, CorpusError>
         Some(value) => {
             let trimmed = token.trim();
             let digits = match value {
-                8 => trimmed.strip_prefix("0o").or_else(|| trimmed.strip_prefix("0O")).unwrap_or(trimmed),
-                16 => trimmed.strip_prefix("0x").or_else(|| trimmed.strip_prefix("0X")).unwrap_or(trimmed),
+                8 => trimmed
+                    .strip_prefix("0o")
+                    .or_else(|| trimmed.strip_prefix("0O"))
+                    .unwrap_or(trimmed),
+                16 => trimmed
+                    .strip_prefix("0x")
+                    .or_else(|| trimmed.strip_prefix("0X"))
+                    .unwrap_or(trimmed),
                 _ => trimmed,
             };
             parse_digits(digits, value, trimmed)
@@ -494,12 +529,8 @@ mod tests {
 
     #[test]
     fn x11_array_maps_bit_12_to_bank_selection() {
-        let source = synthetic_x11_source(&[
-            (0, 0o001),
-            (4095, 0o002),
-            (4096, 0o003),
-            (8191, 0o004),
-        ]);
+        let source =
+            synthetic_x11_source(&[(0, 0o001), (4095, 0o002), (4096, 0o003), (8191, 0o004)]);
         let corpus = parse_x11_hp67_c(&source).expect("synthetic x11 ROM must parse");
 
         assert_eq!(corpus.populated_words(), PHYSICAL_ROM_WORDS);
