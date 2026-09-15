@@ -25,6 +25,7 @@ The documentation regression uses these companion files as the source-level owne
 - [src/machines/hp67/mod.rs](files/src/machines/hp67/mod.rs.md)
 - [src/machines/hp67/wiring.rs](files/src/machines/hp67/wiring.rs.md)
 - [src/machines/hp67/machine.rs](files/src/machines/hp67/machine.rs.md)
+- [src/machines/hp67/display_snapshot.rs](files/src/machines/hp67/display_snapshot.rs.md)
 
 ## Regression tests
 
