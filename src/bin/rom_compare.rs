@@ -180,6 +180,26 @@ fn analyze_teenix_hp67_file(path: &str) -> Result<i32, Box<dyn Error>> {
         }
     }
 
+    if !report.overflow_details.is_empty() {
+        println!("\n--- records after the 5120 physical word slots ---");
+        for issue in report
+            .overflow_details
+            .iter()
+            .take(MAX_PRINTED_LISTING_ISSUES)
+        {
+            println!(
+                "line {:05} candidate #{:04x}: {:?}",
+                issue.line, issue.ordinal, issue.text
+            );
+        }
+        if report.overflow_details.len() > MAX_PRINTED_LISTING_ISSUES {
+            println!(
+                "... {} additional trailing record(s) omitted",
+                report.overflow_details.len() - MAX_PRINTED_LISTING_ISSUES
+            );
+        }
+    }
+
     if report.is_extractable() {
         println!("\nEXTRACTABLE: all 5120 physical HP-67 words are understood and anchored consistently.");
         Ok(0)
