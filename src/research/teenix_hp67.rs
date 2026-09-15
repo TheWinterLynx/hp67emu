@@ -40,6 +40,13 @@ pub struct LabelMismatch {
     pub text: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverflowInstruction {
+    pub line: usize,
+    pub ordinal: usize,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Hp67ListingReport {
     pub total_lines: usize,
@@ -48,6 +55,7 @@ pub struct Hp67ListingReport {
     pub unknown_instructions: Vec<UnknownInstruction>,
     pub label_mismatches: Vec<LabelMismatch>,
     pub overflow_instructions: usize,
+    pub overflow_details: Vec<OverflowInstruction>,
 }
 
 impl Hp67ListingReport {
@@ -94,7 +102,10 @@ impl From<CorpusError> for Hp67ListingError {
 ///
 /// Every non-empty payload line is treated as a candidate microinstruction.
 /// This matches the observed `cal67.pfl` source layout and lets optional labels
-/// validate the independently known physical ROM ordering.
+/// validate the independently known physical ROM ordering. Non-empty records
+/// after the 5120 known physical word slots are preserved verbatim in
+/// `overflow_details` so source metadata/directives can be identified rather
+/// than silently discarded.
 pub fn analyze_hp67_listing(text: &str) -> Hp67ListingReport {
     let mut report = Hp67ListingReport::default();
     let mut instruction_index = 0usize;
@@ -109,6 +120,7 @@ pub fn analyze_hp67_listing(text: &str) -> Hp67ListingReport {
         }
 
         report.instruction_lines += 1;
+        let ordinal = instruction_index;
         let location = location_for_instruction(instruction_index);
         instruction_index += 1;
 
@@ -137,6 +149,11 @@ pub fn analyze_hp67_listing(text: &str) -> Hp67ListingReport {
             }
         } else {
             report.overflow_instructions += 1;
+            report.overflow_details.push(OverflowInstruction {
+                line: line_number,
+                ordinal,
+                text: raw_line.to_owned(),
+            });
         }
     }
 
@@ -250,5 +267,20 @@ mod tests {
         assert_eq!(report.unknown_instructions.len(), 1);
         assert_eq!(report.unknown_instructions[0].bank, 0);
         assert_eq!(report.unknown_instructions[0].pc, 0);
+    }
+
+    #[test]
+    fn trailing_nonblank_records_are_preserved_for_analysis() {
+        let mut listing = String::new();
+        for _ in 0..HP67_PHYSICAL_WORDS {
+            listing.push_str("no operation\n");
+        }
+        listing.push_str("MODULE END\n");
+
+        let report = analyze_hp67_listing(&listing);
+        assert_eq!(report.overflow_instructions, 1);
+        assert_eq!(report.overflow_details.len(), 1);
+        assert_eq!(report.overflow_details[0].ordinal, HP67_PHYSICAL_WORDS);
+        assert_eq!(report.overflow_details[0].text, "MODULE END");
     }
 }
