@@ -49,7 +49,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Confirm RCD timing from ACT and STR timing from ROM0.
 - [ ] Record uncertainty/source level for every pin semantic; no undocumented assumption enters chip code.
 - [ ] Define a versioned text/binary trace format for logic-analyzer comparison.
-- [ ] Import or manually encode at least one trusted HP-67 startup waveform as a golden regression fixture.
+- [x] Record the direct physical HP-67 startup instruction evidence at `0x000`, `0x001` and `0x0f8` and expose it through `rom_compare verify-startup`.
+- [ ] Import or manually encode at least one trusted HP-67 startup waveform as a golden regression fixture, including bit/edge timing rather than only decoded words.
 
 ## ROM/microcode corpus
 
@@ -63,14 +64,16 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add exact bank/page/PC corpus comparison with non-zero mismatch exit status.
 - [x] Add fact-only binary inspection for unknown firmware containers; do not guess `.pfl` structure.
 - [x] Document the complete local three-way comparison workflow in `docs/ROM_CORPUS_WORKFLOW.md`.
-- [ ] Inspect the locally downloaded Teenix HP-67 files and record archive/file SHA-256 values.
-- [ ] Prove the binary structure of `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` from Teenix source/documentation or an independent decoder.
-- [ ] Add a tested Teenix `.pfl` normalizer only after its format is proven.
-- [ ] Record chip-to-image mapping for every Teenix ROM image.
+- [x] Inspect the locally downloaded `cal67.pfl`, `cal67b.pfl` and `cal6713.pfl` sufficiently to establish that they are structured ~88-93 KiB Teenix module/container files, not simple raw 8192-word ROM images.
+- [ ] Record archive/file SHA-256 values for the Teenix research inputs.
+- [ ] Extract `ROMreader.zip`, inventory the HP-67 files included by the physical ROM-reader project, and identify their documented file format.
+- [ ] Record chip-to-image mapping for every physical HP-67 ROM-reader image.
+- [ ] Add a tested normalizer for the ROM-reader output format.
+- [ ] Decode `.pfl` only if it later provides information not already recoverable from the physical ROM-reader files; do not make `.pfl` reverse engineering a prerequisite for the emulator.
 - [ ] Decide repository/distribution policy before committing any copyrighted ROM bytes.
 - [ ] Assemble/export Nonpareil's HP-67 sources to address/opcode listings and normalize both banks.
 - [ ] Run x11-calc ↔ Nonpareil comparison and preserve the report/hashes.
-- [ ] Run Teenix ↔ x11-calc and Teenix ↔ Nonpareil comparisons and explain every mismatch.
+- [ ] Run physical Teenix dump ↔ x11-calc and physical Teenix dump ↔ Nonpareil comparisons and explain every mismatch.
 - [ ] Cross-check the shared HP-67/97 ROM region against an independently obtained HP-97 dump.
 - [ ] Build opcode conformance fixtures from the reference model plus trusted Woodstock/HP-67 microcode analysis.
 
