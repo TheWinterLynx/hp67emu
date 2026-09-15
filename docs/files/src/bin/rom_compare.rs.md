@@ -2,20 +2,20 @@
 
 ## Purpose
 
-Provides the local command-line entry point for HP-67 firmware extraction, normalization, merging, Teenix container decoding, inspection, evidence checking and comparison.
+Provides the local command-line entry point for HP-67 firmware extraction, normalization, merging, Teenix container/listing analysis, inspection, evidence checking and comparison.
 
 ## Why it exists
 
-ROM provenance must be checked locally against files obtained from their original sources. A dedicated tool makes that process reproducible without embedding third-party firmware in `hp67emu` or depending on GitHub Actions. The current 2026 Teenix HP-67 module uses XOR-obfuscated `NeWe` containers, so the tool also needs a lossless way to expose their textual payload for further grammar analysis.
+ROM provenance must be checked locally against files obtained from their original sources. A dedicated tool makes that process reproducible without embedding third-party firmware in `hp67emu` or depending on GitHub Actions. The current 2026 Teenix HP-67 module uses XOR-obfuscated `NeWe` containers whose decoded payload is a Woodstock source-style listing.
 
 ## Relationships
 
-Uses `src/research/rom_corpus.rs` for normalized ROM parsing/storage/comparison and `src/research/teenix.rs` for the Teenix `NeWe` outer container. It is a developer tool only and is not called by the desktop emulator or the cycle-accurate machine. The `verify-startup` command checks normalized corpora against three instruction words observed on a physical HP-67 by Tony Nixon while monitoring the real machine at power-on.
+Uses `src/research/rom_corpus.rs` for normalized ROM parsing/storage/comparison, `src/research/teenix.rs` for the Teenix `NeWe` outer container, and `src/research/teenix_hp67.rs` plus `src/research/woodstock_asm.rs` to analyse/assemble the HP-67 listing. It is a developer tool only and is not called by the desktop emulator or cycle-accurate machine. `verify-startup` checks normalized corpora against three words observed directly on physical HP-67 hardware.
 
 ## Responsibilities
 
-Expose `extract-x11`, `import-pairs`, `merge`, `compare`, `verify-startup`, `decode-teenix`, `preview-teenix` and `inspect`; write normalized TSV files; decode validated Teenix payloads without changing them; combine sparse bank/page corpora only when overlaps agree; print bank/page comparison summaries and precise mismatches; return a non-zero process status when corpora differ or contradict physical startup evidence. Decoding the outer Teenix container must not silently infer the internal `.pfl` assembler/source grammar.
+Expose `extract-x11`, `import-pairs`, `merge`, `compare`, `verify-startup`, `decode-teenix`, `preview-teenix`, `analyze-teenix-hp67`, `extract-teenix-hp67` and `inspect`; write normalized TSV files; decode validated Teenix payloads losslessly; report every unknown mnemonic/address mismatch before extraction; combine sparse corpora only when overlaps agree; print precise differences; return non-zero status when evidence disagrees.
 
 ## Implementation
 
-The CLI uses only the Rust standard library plus the tested research modules in this crate. `extract-x11` parses x11-calc's complete 8192-entry HP-67 `i_rom[]`; `import-pairs` normalizes explicit address/opcode listings; `merge` combines corpora and fails on conflicting overlaps; `compare` returns exit code 0 for identical corpora and 1 for differences; `verify-startup` checks bank 0 locations `0x000`, `0x001` and `0x0f8` against `0x000`, `0x3e3` and `0x11a`. `decode-teenix` validates the `NeWe` header/count then writes the exact XOR-decoded payload, while `preview-teenix` prints a numbered prefix of that payload. `inspect` recognizes and validates a `NeWe` signature when present and otherwise reports byte-distribution facts. Malformed input or I/O failures return 2.
+`extract-x11` parses x11-calc's 8192-entry HP-67 image. `decode-teenix` and `preview-teenix` validate the `NeWe` envelope before exposing payload text. `analyze-teenix-hp67` counts candidate microinstructions against the expected 5120 physical words, lists unknown mnemonics and validates every `Lxxxx:` anchor. `extract-teenix-hp67` only writes TSV after the entire listing is understood, then immediately applies the physical startup check. `compare` returns 0 for identical corpora and 1 for differences; malformed input/I/O errors return 2.
