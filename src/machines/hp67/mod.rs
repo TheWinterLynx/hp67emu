@@ -39,11 +39,13 @@ pub use display_snapshot::{
     structural_display_scan_from_act_registers, StructuralDisplaySlot,
 };
 pub use fetch::{
-    run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource,
-    RomFetchEndpoint, SerialFetchError,
+    run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActFetchEndpoint,
+    FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
+    StructuralWordResult,
 };
 pub use isa::{
-    act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
+    act_address_drive, act_display_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK,
+    ROM_WORD_MASK,
 };
 pub use machine::Hp67ElectricalBackplane;
 pub use timing::{
