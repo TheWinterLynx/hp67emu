@@ -2,20 +2,20 @@
 
 ## Purpose
 
-Implements the smallest independent HP-67 ACT execution core needed to run the first directly observed power-on microinstructions after they have crossed the serial IS/ISA fetch path.
+Implements the deliberately small independent HP-67 ACT execution core used to grow the real-microcode structural power-on trace.
 
 ## Why it exists
 
-The project must demonstrate real firmware execution without cheating by calling the instruction-boundary reference machine or by handing opcodes directly to the ACT. At the same time, claiming a complete 1820-2530 before its bit-serial datapath and PHI-edge timing are implemented would be misleading. This module therefore creates a deliberately narrow bridge: it executes only the source-backed startup forms required to prove the first physical trace.
+The project must demonstrate real firmware execution without cheating by calling the instruction-boundary reference machine or by handing opcodes directly to the ACT. At the same time, claiming a complete 1820-2530 before its bit-serial datapath and PHI-edge timing are implemented would be misleading. This module therefore grows only as far as the validated startup trace reaches and fails loudly at the first unsupported word.
 
 ## Relationships
 
-`fetch.rs` reconstructs each 10-bit word from resolved IS/ISA levels and `hp67_poweron_smoke.rs` feeds the resulting one-word pipeline into `PowerOnActCore`. The semantic `reference::woodstock` implementation is not imported. The full future 1820-2530 implementation will replace this smoke core once its serial registers, ALU and timing are available.
+`fetch.rs` reconstructs each 10-bit word from resolved IS/ISA levels and `hp67_poweron_smoke.rs` feeds the resulting one-word pipeline into `PowerOnActCore`. The semantic `reference::woodstock` implementation is not imported by this core. The full future 1820-2530 implementation will replace this smoke core once its serial registers, ALU and timing are available.
 
 ## Responsibilities
 
-Maintain a 12-bit architectural PC, carry/previous-carry state and the fourteen-nibble C register; execute NOP, conditional GOTO and `0 -> c[w]`; preserve the observed Woodstock branch semantics needed by startup; and fail explicitly on every unsupported opcode.
+Maintain a 12-bit architectural PC, carry/previous-carry state and the fourteen-nibble C/M1 registers; execute the source-backed startup operations currently reached by the structural trace; preserve Woodstock conditional-branch semantics needed by startup; and fail explicitly on every unsupported opcode.
 
 ## Implementation
 
-`execute_word()` snapshots carry, clears current carry, advances PC, then applies the supported operation. Conditional GOTO uses the previous carry and the encoded eight-bit page offset while preserving the current high PC page. The arithmetic form accepted for the first milestone is exactly operation 8 over field W, which clears all fourteen C digits. Unit tests run the physical `0x000`, `0x3e3`, `0x11a` sequence and require PC `0x000 -> 0x001 -> 0x0f8 -> 0x0f9`. The deterministic zero-filled default C register is not claimed as the physical reset contents; the test seeds it explicitly when verifying the clear operation.
+`execute_word()` snapshots carry, clears current carry, advances PC, then applies one supported operation. Conditional GOTO uses the previous carry and the encoded eight-bit page offset while preserving the current high PC page. Arithmetic operation 8 over field W clears all fourteen C digits. Special word octal `0410` (`0x108`) exchanges all fourteen digits of C and M1; this is the next reconciled firmware word fetched at PC `0x0f9` by the validated smoke run. Unit tests cover the physical `0x000`, `0x3e3`, `0x11a` startup sequence, the C↔M1 exchange, and the invariant that an unsupported word does not advance PC. Deterministic default register contents are test scaffolding and are not claimed as measured reset state.
