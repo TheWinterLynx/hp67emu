@@ -1,30 +1,51 @@
-//! Runs the first HP-67 power-on instructions from an external normalized ROM corpus.
+//! Runs HP-67 power-on microcode through the structural serial fetch path.
 //!
-//! The program does not embed firmware. It loads the locally generated 5120-word
-//! corpus, sends each fetch address and ROM response through the structural IS/ISA
-//! electrical path, respects the one-word pipeline, executes only source-backed
-//! ACT operations, and can optionally continue until the first unsupported word.
+//! Firmware stays external. Addresses and returned words still cross the
+//! resolved IS/ISA model bit by bit, while the independent architectural ACT
+//! core now implements the complete Woodstock instruction-boundary semantics.
+//! This lets one local run cover thousands of real firmware words instead of
+//! growing the executor one opcode at a time.
 
-use std::{env, fs};
+use std::{cell::Cell, env, fs};
 
 use hp67emu::{
     machines::hp67::{
-        run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67ElectricalBackplane,
-        Hp67RomWordSource, PowerOnActCore, PowerOnActError, RomFetchEndpoint,
+        run_structural_fetch_cycle, ActArchitecturalCore, ActError, ActFetchEndpoint,
+        ActRamImage, FetchPipelineLatch, Hp67ElectricalBackplane, Hp67RomWordSource,
+        RomFetchEndpoint,
     },
-    research::rom_corpus::RomCorpus,
+    research::rom_corpus::{RomCorpus, WORDS_PER_PAGE},
 };
 
 const EXPECTED_POPULATED_WORDS: usize = 5120;
 const STARTUP_FETCHES: [(u16, u16); 3] = [(0x000, 0x000), (0x001, 0x3e3), (0x0f8, 0x11a)];
 
-struct BankZeroCorpus<'a> {
+struct CorpusRom<'a> {
     corpus: &'a RomCorpus,
+    requested_bank: Cell<u8>,
 }
 
-impl Hp67RomWordSource for BankZeroCorpus<'_> {
+impl CorpusRom<'_> {
+    fn select_bank(&self, bank: u8) {
+        self.requested_bank.set(bank & 1);
+    }
+
+    fn page_has_bank(&self, bank: usize, address: u16) -> bool {
+        let page_base = (usize::from(address) / WORDS_PER_PAGE) * WORDS_PER_PAGE;
+        (page_base..page_base + WORDS_PER_PAGE)
+            .any(|pc| self.corpus.get(bank, pc).ok().flatten().is_some())
+    }
+}
+
+impl Hp67RomWordSource for CorpusRom<'_> {
     fn read_word(&self, address: u16) -> Option<u16> {
-        self.corpus.get(0, usize::from(address)).ok().flatten()
+        let requested = usize::from(self.requested_bank.get());
+        let effective = if requested != 0 && self.page_has_bank(requested, address) {
+            requested
+        } else {
+            0
+        };
+        self.corpus.get(effective, usize::from(address)).ok().flatten()
     }
 }
 
@@ -32,6 +53,7 @@ impl Hp67RomWordSource for BankZeroCorpus<'_> {
 struct Arguments {
     corpus_path: String,
     probe_cycles: u64,
+    trace_limit: u64,
 }
 
 fn parse_arguments() -> Result<Arguments, String> {
@@ -40,6 +62,7 @@ fn parse_arguments() -> Result<Arguments, String> {
         .next()
         .unwrap_or_else(|| ".research/teenix-2026-hp67.tsv".to_owned());
     let mut probe_cycles = 0u64;
+    let mut trace_limit = 64u64;
 
     while let Some(argument) = args.next() {
         match argument.as_str() {
@@ -51,6 +74,14 @@ fn parse_arguments() -> Result<Arguments, String> {
                     .parse::<u64>()
                     .map_err(|_| format!("invalid --probe-cycles value: {value}"))?;
             }
+            "--trace-limit" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--trace-limit requires an integer value".to_owned())?;
+                trace_limit = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("invalid --trace-limit value: {value}"))?;
+            }
             _ => return Err(format!("unknown argument: {argument}")),
         }
     }
@@ -58,57 +89,74 @@ fn parse_arguments() -> Result<Arguments, String> {
     Ok(Arguments {
         corpus_path,
         probe_cycles,
+        trace_limit,
     })
 }
 
 fn execute_cycle(
     cycle: u64,
-    act: &mut PowerOnActCore,
+    act: &mut ActArchitecturalCore,
+    ram: &mut ActRamImage,
     pipeline: &mut FetchPipelineLatch,
+    verbose: bool,
 ) -> Result<bool, String> {
     pipeline.begin_cycle();
 
     let Some(word) = pipeline.executing_word() else {
-        println!("cycle {cycle}: EXEC <pipeline fill>");
+        if verbose {
+            println!("cycle {cycle}: EXEC <pipeline fill>");
+        }
         return Ok(true);
     };
 
-    match act.execute_word(word) {
+    match act.execute_word(ram, word) {
         Ok(execution) => {
-            println!(
-                "cycle {cycle}: EXEC pc=0x{:03x} word=0x{:03x} {:?} -> pc=0x{:03x}",
-                execution.pc, execution.word, execution.operation, execution.next_pc
-            );
+            if verbose {
+                println!(
+                    "cycle {cycle}: EXEC pc=0x{:03x} word=0x{:03x} {:?} -> pc=0x{:03x}",
+                    execution.pc, execution.word, execution.operation, execution.next_pc
+                );
+            }
             Ok(true)
         }
-        Err(PowerOnActError::UnsupportedOpcode { pc, word }) => {
+        Err(ActError::UnknownSpecial { pc, word }) => {
             println!(
-                "PROBE STOP: unsupported ACT word at cycle {cycle}: pc=0x{pc:03x} word=0x{word:03x} (octal {word:04o})"
+                "PROBE STOP: unknown ACT special at cycle {cycle}: pc=0x{pc:03x} word=0x{word:03x} (octal {word:04o})"
             );
+            Ok(false)
+        }
+        Err(ActError::UnsupportedRomSelfTest { pc }) => {
+            println!("PROBE STOP: ROM self-test reached at cycle {cycle}: pc=0x{pc:03x}");
             Ok(false)
         }
         Err(error) => Err(format!("cycle {cycle} ACT execution failed: {error:?}")),
     }
 }
 
-fn fetch_cycle<S: Hp67RomWordSource>(
+fn fetch_cycle(
     cycle: u64,
     backplane: &mut Hp67ElectricalBackplane,
-    act: &PowerOnActCore,
+    act: &mut ActArchitecturalCore,
     fetch_act: &mut ActFetchEndpoint,
     fetch_rom: &mut RomFetchEndpoint,
     pipeline: &mut FetchPipelineLatch,
-    source: &S,
+    source: &CorpusRom<'_>,
+    verbose: bool,
 ) -> Result<(u16, u16), String> {
+    let requested_bank = act.prepare_hp67_fetch();
+    source.select_bank(requested_bank);
     let address = act.pc();
     let fetched = run_structural_fetch_cycle(backplane, address, fetch_act, fetch_rom, source)
         .map_err(|error| format!("cycle {cycle} serial fetch failed: {error:?}"))?;
     pipeline.complete_cycle(fetched);
 
-    println!(
-        "cycle {cycle}: FETCH pc=0x{address:03x} -> word=0x{fetched:03x} (word_index={})",
-        backplane.word_index()
-    );
+    if verbose {
+        println!(
+            "cycle {cycle}: FETCH bank={} pc=0x{address:03x} -> word=0x{fetched:03x} (word_index={})",
+            act.bank(),
+            backplane.word_index()
+        );
+    }
     Ok((address, fetched))
 }
 
@@ -126,12 +174,16 @@ fn main() -> Result<(), String> {
         ));
     }
 
-    let source = BankZeroCorpus { corpus: &corpus };
+    let source = CorpusRom {
+        corpus: &corpus,
+        requested_bank: Cell::new(0),
+    };
     let mut backplane = Hp67ElectricalBackplane::default();
     let mut fetch_act = ActFetchEndpoint::new(0);
     let mut fetch_rom = RomFetchEndpoint::default();
     let mut pipeline = FetchPipelineLatch::default();
-    let mut act = PowerOnActCore::default();
+    let mut act = ActArchitecturalCore::default();
+    let mut ram = ActRamImage::hp67();
     let mut verified_fetches = 0usize;
     let mut executed = Vec::new();
 
@@ -142,15 +194,14 @@ fn main() -> Result<(), String> {
         corpus.populated_words()
     );
     println!("fetch path: ACT b16..b27 -> resolved IS -> ROM b46..b55 -> ACT");
+    println!("ACT path: complete independent Woodstock instruction-boundary core");
 
-    // Cycle 0 fills the pipeline. Cycles 1..3 execute the three directly
-    // observed startup words while concurrently fetching the next word.
     for cycle in 0..4u64 {
         pipeline.begin_cycle();
 
         if let Some(word) = pipeline.executing_word() {
             let execution = act
-                .execute_word(word)
+                .execute_word(&mut ram, word)
                 .map_err(|error| format!("cycle {cycle} ACT execution failed: {error:?}"))?;
             println!(
                 "cycle {cycle}: EXEC pc=0x{:03x} word=0x{:03x} {:?} -> pc=0x{:03x}",
@@ -164,11 +215,12 @@ fn main() -> Result<(), String> {
         let (address, fetched) = fetch_cycle(
             cycle,
             &mut backplane,
-            &act,
+            &mut act,
             &mut fetch_act,
             &mut fetch_rom,
             &mut pipeline,
             &source,
+            true,
         )?;
 
         if verified_fetches < STARTUP_FETCHES.len() {
@@ -197,7 +249,7 @@ fn main() -> Result<(), String> {
     }
 
     println!(
-        "PASS: serial microcode power-on reached 0x0f8, executed 0x11a (0 -> c[w]), and advanced to 0x0f9."
+        "PASS: serial microcode power-on reached 0x0f8, executed 0x11a, and advanced to 0x0f9."
     );
 
     if arguments.probe_cycles == 0 {
@@ -205,28 +257,42 @@ fn main() -> Result<(), String> {
     }
 
     println!(
-        "PROBE: continuing for up to {} additional machine cycle(s), stopping at the first unsupported ACT word.",
-        arguments.probe_cycles
+        "PROBE: running up to {} additional machine cycle(s); detailed trace limited to {} cycle(s).",
+        arguments.probe_cycles, arguments.trace_limit
     );
 
-    for cycle in 4..4 + arguments.probe_cycles {
-        if !execute_cycle(cycle, &mut act, &mut pipeline)? {
+    let mut completed_probe_cycles = 0u64;
+    for offset in 0..arguments.probe_cycles {
+        let cycle = 4 + offset;
+        let verbose = offset < arguments.trace_limit;
+        if !execute_cycle(cycle, &mut act, &mut ram, &mut pipeline, verbose)? {
+            println!(
+                "PROBE SUMMARY: completed {completed_probe_cycles} additional cycles; executed_words={}; pc=0x{:03x}; bank={}",
+                act.executed_words(),
+                act.pc(),
+                act.bank()
+            );
             return Ok(());
         }
         fetch_cycle(
             cycle,
             &mut backplane,
-            &act,
+            &mut act,
             &mut fetch_act,
             &mut fetch_rom,
             &mut pipeline,
             &source,
+            verbose,
         )?;
+        completed_probe_cycles += 1;
     }
 
     println!(
-        "PROBE LIMIT: completed {} additional machine cycle(s) without reaching an unsupported ACT word.",
-        arguments.probe_cycles
+        "PROBE LIMIT: completed {} additional machine cycle(s) without an unsupported ACT word; executed_words={}; pc=0x{:03x}; bank={}.",
+        completed_probe_cycles,
+        act.executed_words(),
+        act.pc(),
+        act.bank()
     );
     Ok(())
 }
