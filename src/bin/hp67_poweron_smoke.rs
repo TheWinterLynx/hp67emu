@@ -10,15 +10,23 @@ use std::{cell::Cell, env, fs};
 
 use hp67emu::{
     machines::hp67::{
-        run_structural_fetch_cycle, ActError, ActFetchEndpoint, FetchPipelineLatch,
-        Hp67ArchitecturalError, Hp67ArchitecturalMachine, Hp67ElectricalBackplane,
-        Hp67RomWordSource, RomFetchEndpoint,
+        run_structural_fetch_cycle, structural_display_scan_from_act_registers, ActError,
+        ActFetchEndpoint, FetchPipelineLatch, Hp67ArchitecturalError, Hp67ArchitecturalMachine,
+        Hp67ElectricalBackplane, Hp67RomWordSource, RomFetchEndpoint,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
 
 const EXPECTED_POPULATED_WORDS: usize = 5120;
 const STARTUP_FETCHES: [(u16, u16); 3] = [(0x000, 0x000), (0x001, 0x3e3), (0x0f8, 0x11a)];
+const EXPECTED_BOOT_DISPLAY_CODES: [u8; 15] = [
+    0x20, 0x20, 0x01, 0x00, 0x30, 0x00, 0x00, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+    0x20,
+];
+const EXPECTED_BOOT_DISPLAY_SEGMENTS: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00,
+];
 
 // Nonpareil's reviewed HP-67 disassembly labels these source-backed firmware
 // landmarks in octal. Keep them as addresses only; no firmware payload is
@@ -133,6 +141,46 @@ fn format_act_register(register: &[u8; 14]) -> String {
         );
     }
     output
+}
+
+fn format_byte_sequence(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02X}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn verify_boot_idle_display(machine: &Hp67ArchitecturalMachine) -> Result<(), String> {
+    let scan = structural_display_scan_from_act_registers(
+        &machine.act.state.a,
+        &machine.act.state.b,
+    )
+    .map_err(|error| format!("boot display structural scan failed: {error:?}"))?;
+
+    let codes: Vec<u8> = scan.iter().map(|slot| slot.code).collect();
+    if codes.as_slice() != EXPECTED_BOOT_DISPLAY_CODES {
+        return Err(format!(
+            "boot display code mismatch: got [{}], expected [{}]",
+            format_byte_sequence(&codes),
+            format_byte_sequence(&EXPECTED_BOOT_DISPLAY_CODES)
+        ));
+    }
+
+    let segments: Vec<u8> = scan.iter().map(|slot| slot.segments.bits()).collect();
+    if segments.as_slice() != EXPECTED_BOOT_DISPLAY_SEGMENTS {
+        return Err(format!(
+            "boot display segment mismatch: got [{}], expected [{}]",
+            format_byte_sequence(&segments),
+            format_byte_sequence(&EXPECTED_BOOT_DISPLAY_SEGMENTS)
+        ));
+    }
+
+    println!(
+        "BOOT DISPLAY PASS: real firmware A/B -> resolved IS b0..b7 -> ROM0 decode -> 15-slot cathode scan produces the source-backed power-on 0.00 pattern."
+    );
+    println!("BOOT DISPLAY CODES: {}", format_byte_sequence(&codes));
+    Ok(())
 }
 
 fn parse_arguments() -> Result<Arguments, String> {
@@ -407,6 +455,7 @@ fn main() -> Result<(), String> {
                 return Ok(());
             }
             ProbeControl::IdleReached => {
+                verify_boot_idle_display(&machine)?;
                 println!(
                     "BOOT IDLE PASS: real firmware completed initialization and cycled through the documented no-key wait loop with display_enable=true."
                 );
@@ -485,5 +534,17 @@ mod tests {
             *digit = index as u8;
         }
         assert_eq!(format_act_register(&register), "DCBA9876543210");
+    }
+
+    #[test]
+    fn known_power_on_idle_state_passes_structural_display_gate() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.a = [
+            0x0, 0x0, 0x1, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0x0, 0x0, 0x0, 0x0,
+        ];
+        machine.act.state.b = [
+            0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3, 0x0,
+        ];
+        verify_boot_idle_display(&machine).expect("known HP-67 idle display must pass");
     }
 }
