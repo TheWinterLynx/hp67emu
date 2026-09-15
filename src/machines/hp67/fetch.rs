@@ -313,7 +313,7 @@ mod tests {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut rom = RomFetchEndpoint::default();
-        let mut address = ActFetchEndpoint::new(0x222);
+        let address = ActFetchEndpoint::new(0x222);
 
         for bit in 16..=27 {
             let level = match address.drive_for_bit(bit) {
