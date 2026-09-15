@@ -1082,6 +1082,31 @@ mod tests {
     }
 
     #[test]
+    fn stack_special_opcodes_match_documented_operations() {
+        let mut down_rotate = ReferenceMachine::default();
+        down_rotate.cpu.c[0] = 1;
+        down_rotate.cpu.y[0] = 2;
+        down_rotate.cpu.z[0] = 3;
+        down_rotate.cpu.t[0] = 4;
+        down_rotate.step_word(0o1110).expect("down rotate must execute");
+        assert_eq!(down_rotate.cpu.c[0], 2);
+        assert_eq!(down_rotate.cpu.y[0], 3);
+        assert_eq!(down_rotate.cpu.z[0], 4);
+        assert_eq!(down_rotate.cpu.t[0], 1);
+
+        let mut push = ReferenceMachine::default();
+        push.cpu.c[0] = 1;
+        push.cpu.y[0] = 2;
+        push.cpu.z[0] = 3;
+        push.cpu.t[0] = 4;
+        push.step_word(0o1310).expect("C to stack must execute");
+        assert_eq!(push.cpu.c[0], 1);
+        assert_eq!(push.cpu.y[0], 1);
+        assert_eq!(push.cpu.z[0], 2);
+        assert_eq!(push.cpu.t[0], 3);
+    }
+
+    #[test]
     fn generic_p_wrap_rule_replaces_nonpareil_pc_specific_hack() {
         let mut machine = ReferenceMachine::default();
         machine.cpu.p = 13;
