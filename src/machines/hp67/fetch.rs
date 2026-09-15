@@ -179,8 +179,8 @@ impl RomFetchEndpoint {
     }
 }
 
-/// One-word pipeline latch separating a just-fetched word from the word that is
-/// eligible to execute in the following 56-bit cycle.
+/// One-word pipeline latch separating a word executing in the current 56-bit
+/// cycle from the word being prefetched for the following cycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct FetchPipelineLatch {
     executing: Option<u16>,
@@ -188,10 +188,15 @@ pub struct FetchPipelineLatch {
 }
 
 impl FetchPipelineLatch {
-    /// Commit the word reconstructed during the just-finished machine cycle.
-    /// The previously prefetched word becomes executable for the next cycle.
-    pub fn complete_cycle(&mut self, fetched_word: u16) {
+    /// Enter a new machine cycle.  The word fetched during the preceding cycle
+    /// becomes the word eligible to execute now.
+    pub fn begin_cycle(&mut self) {
         self.executing = self.prefetched.take();
+    }
+
+    /// Commit the word reconstructed during the current machine cycle so it can
+    /// become executable when the following cycle begins.
+    pub fn complete_cycle(&mut self, fetched_word: u16) {
         self.prefetched = Some(fetched_word & ROM_WORD_MASK);
     }
 
@@ -282,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn fetched_word_enters_execution_only_on_the_following_machine_cycle() {
+    fn fetched_word_enters_execution_on_the_following_machine_cycle() {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
@@ -291,12 +296,17 @@ mod tests {
         let mut rom = RomFetchEndpoint::default();
         let mut pipeline = FetchPipelineLatch::default();
 
+        pipeline.begin_cycle();
+        assert_eq!(pipeline.executing_word(), None);
         let first = run_fetch_cycle(&mut backplane, &mut act, &mut rom, &source)
             .expect("first serial fetch must complete");
         pipeline.complete_cycle(first);
         assert_eq!(pipeline.executing_word(), None);
         assert_eq!(pipeline.prefetched_word(), Some(0x04c));
 
+        pipeline.begin_cycle();
+        assert_eq!(pipeline.executing_word(), Some(0x04c));
+        assert_eq!(pipeline.prefetched_word(), None);
         act.begin_cycle(0x001);
         let second = run_fetch_cycle(&mut backplane, &mut act, &mut rom, &source)
             .expect("second serial fetch must complete");
