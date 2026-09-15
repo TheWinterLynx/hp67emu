@@ -20,6 +20,13 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - Confirms an inspected HP-67 built with the 1820-2530 ACT plus 1818-0231, 1818-0232, 1818-0268, 1818-0550, 1818-0551, 1820-1749, 1820-1751, 1826-0322 and 1858-0050.
 - Use for the physical target inventory. Treat reverse-engineered prose as secondary to a service schematic when they differ.
 
+**Physical HP-67 ROM-reader / bus-monitor capture**
+
+- https://www.hpmuseum.org/forum/thread-18327-page-2.html
+- Tony Nixon monitored a physical HP-67's SYNC and IS buses at power-on and published the first observed instructions: `0x000 = 0x000`, `0x001 = 0x3e3`, branch target `0x0f8 = 0x11a`.
+- In the same hardware experiment he removed a failed `1818-0232`, replaced its ROM function with a microcontroller and observed the calculator call into that ROM at `0x0fc6` from `0x0068`, execute five instructions and return.
+- These are direct machine-level trace anchors. Use them as startup/fetch regressions and as future logic-analyzer targets; do not infer unreported PHI edge placement from the prose alone.
+
 ### Tier B — detailed HP-family timing/service evidence
 
 **Notes on HP's Classic Calculators / Teenix**
@@ -64,7 +71,7 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 
 - https://www.hpmuseum.org/forum/thread-18327.html
 - Documents practical investigation of HP-67 ROM/RAM bus behavior and hardware ROM reading.
-- Useful secondary evidence for electrical bus ownership and ROM provenance work.
+- Useful secondary evidence for electrical bus ownership and ROM provenance work; specific physical captures promoted above to Tier A should be treated as direct evidence points.
 
 ## ACT revision policy
 
