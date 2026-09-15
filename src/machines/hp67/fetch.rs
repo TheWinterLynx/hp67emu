@@ -1,8 +1,9 @@
 //! Structural HP-67 ACT↔ROM serial fetch path.
 //!
 //! This module models the evidence-backed bit-cell transport on the shared IS/ISA
-//! line without yet claiming the exact PHI launch/sample edge. The ACT emits a
-//! 12-bit ROM address LSB-first at b16..b27, a ROM-side endpoint reconstructs the
+//! line without yet claiming the exact PHI launch/sample edge. The ACT can emit
+//! the eight-bit ROM0 display byte at b0..b7 and the 12-bit ROM address LSB-first
+//! at b16..b27 during the same 56-bit word. A ROM-side endpoint reconstructs the
 //! address through the resolved electrical net, the selected ROM word is looked
 //! up through a caller-supplied source, and the ROM returns the 10-bit word
 //! LSB-first at b46..b55 for the ACT endpoint to reconstruct.
@@ -10,9 +11,12 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
-    isa::{act_address_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
+    display::{Rom0DisplayEndpoint, Rom0DisplayError},
+    isa::{
+        act_address_drive, act_display_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
+    },
     machine::Hp67ElectricalBackplane,
-    timing::{isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS},
+    timing::{display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS},
     wiring::Hp67Net,
 };
 
@@ -38,6 +42,32 @@ pub enum SerialFetchError {
     MissingRomWord { address: u16 },
     IncompleteAddress { received_mask: u16 },
     IncompleteRomWord { received_mask: u16 },
+}
+
+/// Errors from a combined structural HP-67 word carrying display and fetch data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructuralWordError {
+    Fetch(SerialFetchError),
+    Display(Rom0DisplayError),
+}
+
+impl From<SerialFetchError> for StructuralWordError {
+    fn from(error: SerialFetchError) -> Self {
+        Self::Fetch(error)
+    }
+}
+
+impl From<Rom0DisplayError> for StructuralWordError {
+    fn from(error: Rom0DisplayError) -> Self {
+        Self::Display(error)
+    }
+}
+
+/// Values reconstructed from one shared 56-bit HP-67 structural word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructuralWordResult {
+    pub fetched_word: u16,
+    pub display_byte: u8,
 }
 
 fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, SerialFetchError> {
@@ -77,7 +107,7 @@ impl ActFetchEndpoint {
         self.address
     }
 
-    /// ACT contribution to IS/ISA for the current bit cell.
+    /// ACT fetch contribution to IS/ISA for the current bit cell.
     pub const fn drive_for_bit(&self, word_bit: u8) -> Drive {
         act_address_drive(self.address, word_bit)
     }
@@ -213,26 +243,38 @@ impl FetchPipelineLatch {
     }
 }
 
-/// Run one structural 56-bit ACT↔ROM fetch through the resolved HP-67 IS net.
-///
-/// This is a bit-cell harness, not the final edge-accurate device scheduler. It
-/// deliberately advances the current four-subphase timing scaffold once per bit
-/// cell while keeping every address/response bit on the resolved electrical net.
-pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
+fn run_structural_word_transport<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     address: u16,
     act: &mut ActFetchEndpoint,
     rom: &mut RomFetchEndpoint,
     source: &S,
-) -> Result<u16, SerialFetchError> {
+    display_byte: Option<u8>,
+    mut rom0: Option<&mut Rom0DisplayEndpoint>,
+) -> Result<u16, StructuralWordError> {
     act.begin_cycle(address);
     rom.begin_cycle();
+    if let Some(endpoint) = rom0.as_deref_mut() {
+        endpoint.begin_word();
+    }
 
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit));
+        let act_drive = match display_byte {
+            Some(code) if display_data_serial_bit(expected_bit).is_some() => {
+                act_display_drive(code, expected_bit)
+            }
+            _ => act.drive_for_bit(expected_bit),
+        };
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
+
+        if let Some(endpoint) = rom0.as_deref_mut() {
+            if display_data_serial_bit(expected_bit).is_some() {
+                endpoint.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
+            }
+        }
 
         if matches!(
             isa_window_for_bit(expected_bit),
@@ -249,7 +291,8 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
         if backplane.level(Hp67Net::Isa) == LogicLevel::Contention {
             return Err(SerialFetchError::IsaContention {
                 word_bit: expected_bit,
-            });
+            }
+            .into());
         }
 
         for _ in 0..4 {
@@ -257,12 +300,64 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
         }
     }
 
-    act.fetched_word()
+    Ok(act.fetched_word()?)
+}
+
+/// Run one structural 56-bit ACT↔ROM fetch through the resolved HP-67 IS net.
+///
+/// This is a bit-cell harness, not the final edge-accurate device scheduler. It
+/// deliberately advances the current four-subphase timing scaffold once per bit
+/// cell while keeping every address/response bit on the resolved electrical net.
+pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act: &mut ActFetchEndpoint,
+    rom: &mut RomFetchEndpoint,
+    source: &S,
+) -> Result<u16, SerialFetchError> {
+    match run_structural_word_transport(backplane, address, act, rom, source, None, None) {
+        Ok(word) => Ok(word),
+        Err(StructuralWordError::Fetch(error)) => Err(error),
+        Err(StructuralWordError::Display(_)) => {
+            unreachable!("fetch-only structural cycle cannot produce a display error")
+        }
+    }
+}
+
+/// Run one structural 56-bit word with ACT display traffic and instruction fetch
+/// sharing the same resolved HP-67 IS net and backplane timing coordinate.
+///
+/// This establishes simultaneous coarse word-level transport only. It does not
+/// claim final PHI-relative ACT launch edges, ROM0 sampling edges, or STR/RCD
+/// propagation timing.
+pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    display_byte: u8,
+    act: &mut ActFetchEndpoint,
+    rom: &mut RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    source: &S,
+) -> Result<StructuralWordResult, StructuralWordError> {
+    let fetched_word = run_structural_word_transport(
+        backplane,
+        address,
+        act,
+        rom,
+        source,
+        Some(display_byte),
+        Some(rom0),
+    )?;
+    Ok(StructuralWordResult {
+        fetched_word,
+        display_byte: rom0.display_byte()?,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::machines::hp67::Hp67SegmentMask;
 
     struct FixtureRom {
         words: [(u16, u16); 2],
@@ -291,6 +386,35 @@ mod tests {
 
         assert_eq!(rom.received_address(), Ok(0x07b));
         assert_eq!(fetched, 0x04c);
+        assert_eq!(backplane.word_index(), 1);
+        assert_eq!(backplane.word_bit(), 0);
+    }
+
+    #[test]
+    fn display_and_fetch_share_one_resolved_word_cycle() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActFetchEndpoint::new(0x07b);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+
+        let result = run_structural_display_fetch_cycle(
+            &mut backplane,
+            0x07b,
+            0x30,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("display and fetch transport must share one structural word");
+
+        assert_eq!(result.fetched_word, 0x04c);
+        assert_eq!(result.display_byte, 0x30);
+        assert_eq!(rom.received_address(), Ok(0x07b));
+        assert_eq!(rom0.decoded_anodes(4), Ok(Hp67SegmentMask::DP));
         assert_eq!(backplane.word_index(), 1);
         assert_eq!(backplane.word_bit(), 0);
     }
