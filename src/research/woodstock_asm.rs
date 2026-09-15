@@ -94,18 +94,11 @@ impl Field {
     }
 }
 
-/// Assemble one Teenix/HP Woodstock mnemonic into its 10-bit microinstruction.
-///
-/// The accepted spelling follows the current Teenix listings and CPU
-/// instruction notes. Whitespace and ASCII case are normalized, but semantic
-/// aliases are deliberately kept to a small documented set so transcription or
-/// format changes surface as errors instead of silently producing ROM words.
 pub fn assemble_mnemonic(input: &str) -> Result<u16, WoodstockAsmError> {
     let mnemonic = normalize_spaces(input);
     if mnemonic.is_empty() {
         return Err(WoodstockAsmError::EmptyMnemonic);
     }
-
     if let Some(word) = assemble_control_flow(&mnemonic)? {
         return Ok(word);
     }
@@ -118,7 +111,6 @@ pub fn assemble_mnemonic(input: &str) -> Result<u16, WoodstockAsmError> {
     if let Some(word) = assemble_fixed_special(&mnemonic) {
         return Ok(word);
     }
-
     Err(WoodstockAsmError::UnknownMnemonic(input.trim().to_owned()))
 }
 
@@ -172,7 +164,6 @@ fn assemble_parameterized_special(mnemonic: &str) -> Result<Option<u16>, Woodsto
     {
         return family_operand(mnemonic, value, 15, 0o70).map(Some);
     }
-
     if let Some(value) = mnemonic.strip_prefix("crc ") {
         let opcode = parse_u16_radix(mnemonic, value, 8)?;
         if opcode > WORD_MASK {
@@ -184,17 +175,10 @@ fn assemble_parameterized_special(mnemonic: &str) -> Result<Option<u16>, Woodsto
         }
         return Ok(Some(opcode));
     }
-
-    if let Some(value) = mnemonic
-        .strip_prefix("1 -> s")
-        .filter(|value| !value.is_empty())
-    {
+    if let Some(value) = mnemonic.strip_prefix("1 -> s").filter(|value| !value.is_empty()) {
         return family_operand(mnemonic, value, 15, 0o04).map(Some);
     }
-    if let Some(value) = mnemonic
-        .strip_prefix("0 -> s")
-        .filter(|value| !value.is_empty())
-    {
+    if let Some(value) = mnemonic.strip_prefix("0 -> s").filter(|value| !value.is_empty()) {
         return family_operand(mnemonic, value, 15, 0o14).map(Some);
     }
     if let Some(value) = mnemonic
@@ -209,7 +193,6 @@ fn assemble_parameterized_special(mnemonic: &str) -> Result<Option<u16>, Woodsto
     {
         return family_operand(mnemonic, value, 15, 0o34).map(Some);
     }
-
     if let Some(value) = mnemonic.strip_suffix(" -> p") {
         if let Ok(target) = value.parse::<u16>() {
             if target <= 13 {
@@ -248,7 +231,6 @@ fn assemble_parameterized_special(mnemonic: &str) -> Result<Option<u16>, Woodsto
         let operand = p_test_operand(target as u8);
         return Ok(Some((u16::from(operand) << 6) | 0o54));
     }
-
     Ok(None)
 }
 
@@ -268,7 +250,7 @@ fn assemble_arithmetic(mnemonic: &str) -> Result<Option<u16>, WoodstockAsmError>
         return Ok(None);
     };
 
-    let operation = match generic.as_str() {
+    let operation: u8 = match generic.as_str() {
         "0 -> a[fs]" => 0x00,
         "0 -> b[fs]" => 0x01,
         "a exchange b[fs]" => 0x02,
@@ -304,9 +286,7 @@ fn assemble_arithmetic(mnemonic: &str) -> Result<Option<u16>, WoodstockAsmError>
         _ => return Ok(None),
     };
 
-    Ok(Some(
-        (u16::from(operation) << 5) | (field.encoded() << 2) | 0x02,
-    ))
+    Ok(Some((u16::from(operation) << 5) | (field.encoded() << 2) | 0x02))
 }
 
 fn assemble_fixed_special(mnemonic: &str) -> Option<u16> {
@@ -398,9 +378,6 @@ fn p_set_operand(target: u8) -> u8 {
 }
 
 fn p_test_operand(target: u8) -> u8 {
-    // Woodstock encodes P tests through a non-linear table. Values 1 and 4
-    // have duplicate hardware encodings; Teenix's instruction notes use the
-    // first encoding in the processor table, which is what we emit here.
     const OPERANDS: [u8; 14] = [11, 5, 3, 7, 0, 10, 6, 14, 1, 4, 13, 12, 2, 9];
     OPERANDS[usize::from(target)]
 }
@@ -412,10 +389,7 @@ mod tests {
     #[test]
     fn assembles_physical_startup_words() {
         assert_eq!(assemble_mnemonic("no operation").unwrap(), 0x000);
-        assert_eq!(
-            assemble_mnemonic("if no carry go to $0F8").unwrap(),
-            0x3e3
-        );
+        assert_eq!(assemble_mnemonic("if no carry go to $0F8").unwrap(), 0x3e3);
         assert_eq!(assemble_mnemonic("0 -> c[w]").unwrap(), 0x11a);
     }
 
