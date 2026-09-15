@@ -48,6 +48,7 @@ pub struct LabelMismatch {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OverflowInstruction {
     pub line: usize,
+    pub ordinal: usize,
     pub combined_address: usize,
     pub text: String,
 }
@@ -135,6 +136,7 @@ pub fn analyze_hp67_listing(text: &str) -> Hp67ListingReport {
             continue;
         }
 
+        let ordinal = report.instruction_lines;
         report.instruction_lines += 1;
         let (label, mnemonic) = split_optional_label(trimmed);
 
@@ -165,6 +167,7 @@ pub fn analyze_hp67_listing(text: &str) -> Hp67ListingReport {
             report.overflow_instructions += 1;
             report.overflow_details.push(OverflowInstruction {
                 line: line_number,
+                ordinal,
                 combined_address,
                 text: raw_line.to_owned(),
             });
@@ -337,6 +340,7 @@ mod tests {
         let report = analyze_hp67_listing("org $1000\nno operation\n");
         assert_eq!(report.org_directives, 1);
         assert_eq!(report.overflow_instructions, 1);
+        assert_eq!(report.overflow_details[0].ordinal, 0);
         assert_eq!(report.overflow_details[0].combined_address, 0x1000);
         assert_eq!(report.overflow_details[0].text, "no operation");
     }
