@@ -10,7 +10,7 @@ The decoded Teenix HP-67 `.pfl` payload contains human-readable instructions rat
 
 ## Relationships
 
-Used by `src/research/teenix_hp67.rs` when analysing and normalizing the decoded `cal67.pfl` listing. The encoding rules are cross-checked against the independent semantic decoder in `src/reference/woodstock.rs` and Teenix's published CPU Instruction Notes, but this module remains research-only.
+Used by `src/research/teenix_hp67.rs` when analysing and normalizing the decoded `cal67.pfl` listing. The encoding rules are cross-checked against the independent semantic decoder in `src/reference/woodstock.rs`, Teenix's published CPU Instruction Notes and the reviewed x11-calc Woodstock decoder, but this module remains research-only.
 
 ## Responsibilities
 
@@ -18,4 +18,4 @@ Normalize whitespace/case; encode JSB, GOTO/THEN-GOTO, all 32 arithmetic operati
 
 ## Implementation
 
-Arithmetic words are encoded as operation bits plus the three-bit field selector and the Woodstock `..10` class. JSB and ordinary GOTO use their documented low-bit classes and eight-bit page offset. THEN-GOTO is different: after an IF-class instruction the next complete 10-bit ROM word is consumed as the destination while the logical 12-bit PC keeps its current upper two bits. Teenix prints full addresses such as `$61C`, so the assembler accepts a 12-bit target and emits its low ten bits (`$61C -> 0x21c`). Special families use their documented operand/high-bit layout. P set/test instructions use the non-linear Woodstock operand maps. Unit tests cover the physical HP-67 startup words, cross-page THEN-GOTO, Teenix `display reset twf`, all arithmetic fields and representative status/P families.
+Arithmetic words are encoded as operation bits plus the three-bit field selector and the Woodstock `..10` class. JSB and ordinary GOTO use their documented low-bit classes and eight-bit page offset. THEN-GOTO is different: after an IF-class instruction the next complete 10-bit ROM word is consumed as the destination while the logical 12-bit PC keeps its current upper two bits. Teenix prints full addresses such as `$61C`, so the assembler accepts a 12-bit target and emits its low ten bits (`$61C -> 0x21c`). Special families use their documented operand/high-bit layout. The fixed stack opcodes are locked to the published encoding: `down rotate = 0o1110 (0x248)` and `c -> stack = 0o1310 (0x2c8)`. P set/test instructions use the non-linear Woodstock operand maps. Unit tests cover the physical HP-67 startup words, cross-page THEN-GOTO, Teenix `display reset twf`, the two stack specials, all arithmetic fields and representative status/P families.
