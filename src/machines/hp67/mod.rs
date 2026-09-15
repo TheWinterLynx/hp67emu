@@ -1,13 +1,14 @@
 //! HP-67 machine-specific electrical model.
 //!
 //! This module keeps wiring inventory, word timing, IS/ISA serial behavior, the
-//! structural ACT<->ROM fetch path and the independent ACT+CRC architectural
-//! bring-up composition explicit before final pin/timing-accurate ACT, ROM/RAM,
-//! display, keyboard and card-reader devices are completed.
+//! structural ACT<->ROM fetch path, the ROM0/cathode display path and the
+//! independent ACT+CRC architectural bring-up composition explicit before final
+//! pin/timing-accurate devices are completed.
 
 pub mod act;
 pub mod architectural;
 pub mod crc;
+pub mod display;
 pub mod fetch;
 pub mod isa;
 pub mod machine;
@@ -27,6 +28,11 @@ pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
     CRC_FLAG_COUNT, CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
 };
+pub use display::{
+    decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749,
+    Hp67DisplayRole, Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError,
+    HP67_DISPLAY_SCAN_SLOTS, HP67_SHARED_SIGN_SLOT,
+};
 pub use fetch::{
     run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource,
     RomFetchEndpoint, SerialFetchError,
@@ -34,8 +40,9 @@ pub use fetch::{
 pub use isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK};
 pub use machine::Hp67ElectricalBackplane;
 pub use timing::{
-    isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow, BITS_PER_DIGIT,
-    BITS_PER_WORD, DIGITS_PER_WORD, ROM_ADDRESS_BITS, ROM_ADDRESS_FIRST_BIT,
+    display_data_serial_bit, isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow,
+    BITS_PER_DIGIT, BITS_PER_WORD, DIGITS_PER_WORD, DISPLAY_DATA_BITS, DISPLAY_DATA_FIRST_BIT,
+    DISPLAY_DATA_LAST_BIT, DISPLAY_STR_BIT, ROM_ADDRESS_BITS, ROM_ADDRESS_FIRST_BIT,
     ROM_ADDRESS_LAST_BIT, ROM_WORD_BITS, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT,
 };
 pub use wiring::{Hp67Chip, Hp67Net, CHIPSET};
