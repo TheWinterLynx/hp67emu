@@ -27,12 +27,16 @@ Every Rust source file must have a companion Markdown document under `docs/files
 
 ## Build and regression suite
 
+Formatting is a hard regression gate. Do not continue to tests or release builds while `cargo fmt --all -- --check` reports any difference.
+
 ```powershell
-cargo test; cargo run --release
+cargo fmt --all -- --check; if ($LASTEXITCODE -eq 0) { $env:RUSTFLAGS='-Dwarnings'; cargo test --locked --all-targets }; if ($LASTEXITCODE -eq 0) { cargo build --locked --release --bins }
 ```
 
 The regression suite currently checks, among other things:
 
+- repository-wide `rustfmt` cleanliness before any later gate;
+- compiler warnings denied across all test targets;
 - the non-overlapping two-phase timing scaffold;
 - electrical net floating/pull/drive/contention resolution;
 - the HP-67 hardware inventory and core named nets;
