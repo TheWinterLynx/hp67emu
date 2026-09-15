@@ -8,6 +8,7 @@
 use std::{error::Error, fmt};
 
 const WORD_MASK: u16 = 0x03ff;
+const PC_MASK: u16 = 0x0fff;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WoodstockAsmError {
@@ -124,20 +125,26 @@ fn normalize_spaces(input: &str) -> String {
 
 fn assemble_control_flow(mnemonic: &str) -> Result<Option<u16>, WoodstockAsmError> {
     if let Some(target) = mnemonic.strip_prefix("jsb ") {
-        let target = parse_hex_target(mnemonic, target, 0x0fff)?;
+        let target = parse_hex_target(mnemonic, target, PC_MASK)?;
         return Ok(Some((((target & 0x00ff) << 2) | 0x01) & WORD_MASK));
     }
     if let Some(target) = mnemonic.strip_prefix("if no carry go to ") {
-        let target = parse_hex_target(mnemonic, target, 0x0fff)?;
+        let target = parse_hex_target(mnemonic, target, PC_MASK)?;
         return Ok(Some((((target & 0x00ff) << 2) | 0x03) & WORD_MASK));
     }
     if let Some(target) = mnemonic.strip_prefix("go to ") {
-        let target = parse_hex_target(mnemonic, target, 0x0fff)?;
+        let target = parse_hex_target(mnemonic, target, PC_MASK)?;
         return Ok(Some((((target & 0x00ff) << 2) | 0x03) & WORD_MASK));
     }
     if let Some(target) = mnemonic.strip_prefix("then go to ") {
-        let target = parse_hex_target(mnemonic, target, WORD_MASK)?;
-        return Ok(Some(target));
+        // After an IF-class instruction Woodstock suppresses normal SYNC and
+        // consumes the next complete 10-bit ROM word as the destination. The
+        // upper two logical-PC bits therefore come from the current 1 Kiword
+        // group while the literal 12-bit listing address contributes only its
+        // low ten bits. Teenix prints the full logical address (e.g. $61C), so
+        // accept a 12-bit target and emit the hardware-visible 10-bit word.
+        let target = parse_hex_target(mnemonic, target, PC_MASK)?;
+        return Ok(Some(target & WORD_MASK));
     }
     Ok(None)
 }
@@ -311,7 +318,7 @@ fn assemble_fixed_special(mnemonic: &str) -> Option<u16> {
         "keys -> rom address" => 0o0020,
         "keys -> a" => 0o0120,
         "a -> rom address" => 0o0220,
-        "display reset kmf" => 0o0320,
+        "display reset kmf" | "display reset twf" | "reset twf" => 0o0320,
         "binary" => 0o0420,
         "rotate a left" => 0o0520,
         "p - 1 -> p" => 0o0620,
@@ -321,7 +328,7 @@ fn assemble_fixed_special(mnemonic: &str) -> Option<u16> {
         "c -> data address" => 0o1160,
         "clear data registers" => 0o1260,
         "c -> data" => 0o1360,
-        "rom self test" => 0o1460,
+        "rom self test" | "rom checksum" => 0o1460,
         "hi i'm woodstock" => 0o1760,
         _ => return None,
     })
@@ -406,6 +413,19 @@ mod tests {
         assert_eq!(assemble_mnemonic("if s11 = 0").unwrap(), 0o1334);
         assert_eq!(assemble_mnemonic("CRC 1500").unwrap(), 0o1500);
         assert_eq!(assemble_mnemonic("hi i'm woodstock").unwrap(), 0o1760);
+    }
+
+    #[test]
+    fn then_goto_uses_the_low_ten_bits_of_the_full_logical_target() {
+        assert_eq!(assemble_mnemonic("then go to $400").unwrap(), 0x000);
+        assert_eq!(assemble_mnemonic("then go to $61C").unwrap(), 0x21c);
+        assert_eq!(assemble_mnemonic("then go to $FFF").unwrap(), 0x3ff);
+    }
+
+    #[test]
+    fn accepts_documented_twf_display_reset_spelling() {
+        assert_eq!(assemble_mnemonic("display reset twf").unwrap(), 0o0320);
+        assert_eq!(assemble_mnemonic("reset twf").unwrap(), 0o0320);
     }
 
     #[test]
