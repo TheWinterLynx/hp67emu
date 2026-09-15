@@ -9,6 +9,7 @@ pub mod act;
 pub mod architectural;
 pub mod crc;
 pub mod display;
+pub mod display_snapshot;
 pub mod fetch;
 pub mod isa;
 pub mod machine;
@@ -32,6 +33,10 @@ pub use display::{
     decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749,
     Hp67DisplayRole, Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError,
     HP67_DISPLAY_SCAN_SLOTS, HP67_SHARED_SIGN_SLOT,
+};
+pub use display_snapshot::{
+    display_byte_from_act_registers, display_register_index_for_scan_slot,
+    structural_display_scan_from_act_registers, StructuralDisplaySlot,
 };
 pub use fetch::{
     run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource,
