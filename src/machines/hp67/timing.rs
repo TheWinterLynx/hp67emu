@@ -1,12 +1,12 @@
 //! HP-67 serial-word timing coordinates layered on the temporary PHI scaffold.
 //!
 //! The physical Woodstock datapath is a 56-bit serial word: fourteen 4-bit
-//! digit times.  This module defines the project's bit numbering convention as
-//! `b0..b55` and tracks that position.  HP-67-specific logic-analyser evidence
-//! now anchors the ROM address window at b16..b27 and the 10-bit ROM response at
-//! b46..b55, both least-significant bit first.  Absolute pulse widths and the
-//! exact PHI edge used to sample/launch each serial bit remain deliberately
-//! unspecified until they are tied to a reviewed waveform.
+//! digit times. This module defines the project's bit numbering convention as
+//! `b0..b55` and tracks that position. HP-67-specific logic-analyser evidence
+//! anchors ROM0 display data at b0..b7, the ROM address window at b16..b27 and
+//! the 10-bit ROM response at b46..b55. Absolute pulse widths and exact PHI
+//! launch/sample edges remain deliberately unspecified until tied to a reviewed
+//! waveform.
 
 /// Number of serial bits in one HP-67 digit/nibble.
 pub const BITS_PER_DIGIT: u8 = 4;
@@ -14,6 +14,17 @@ pub const BITS_PER_DIGIT: u8 = 4;
 pub const DIGITS_PER_WORD: u8 = 14;
 /// Number of serial bit times in one HP-67 machine word.
 pub const BITS_PER_WORD: u8 = BITS_PER_DIGIT * DIGITS_PER_WORD;
+
+/// First HP-67 bit time carrying the eight-bit ROM0 display code on IS.
+pub const DISPLAY_DATA_FIRST_BIT: u8 = 0;
+/// Number of serial bits in one ROM0 display code, LSB first.
+pub const DISPLAY_DATA_BITS: u8 = 8;
+/// Last HP-67 bit time carrying the ROM0 display code on IS.
+pub const DISPLAY_DATA_LAST_BIT: u8 = DISPLAY_DATA_FIRST_BIT + DISPLAY_DATA_BITS - 1;
+/// Coarse bit coordinate at which the ROM0 STR pulse is observed.
+///
+/// This does not specify the final PHI-relative launch edge or pulse width.
+pub const DISPLAY_STR_BIT: u8 = DISPLAY_DATA_LAST_BIT;
 
 /// First HP-67 bit time carrying the 12-bit ROM address on IS/ISA.
 pub const ROM_ADDRESS_FIRST_BIT: u8 = 16;
@@ -30,12 +41,12 @@ pub const ROM_WORD_BITS: u8 = 10;
 pub const ROM_WORD_LAST_BIT: u8 = ROM_WORD_FIRST_BIT + ROM_WORD_BITS - 1;
 
 // The current generic TwoPhaseClock scaffold is PHI1-high, dead, PHI2-high,
-// dead.  Until measured widths are installed, one complete four-slot sequence
-// is treated as one serial bit time.  This is a scheduler coordinate, not an
+// dead. Until measured widths are installed, one complete four-slot sequence
+// is treated as one serial bit time. This is a scheduler coordinate, not an
 // assertion that every slot has the same physical duration.
 const CLOCK_SUBPHASES_PER_BIT: u8 = 4;
 
-/// Meaning of the IS/ISA line at one HP-67 serial bit coordinate.
+/// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsaWindow {
     /// ACT-to-ROM 12-bit address transfer. `serial_bit` is 0..11, LSB first.
@@ -44,6 +55,18 @@ pub enum IsaWindow {
     RomWord { serial_bit: u8 },
     /// No instruction-fetch meaning is assigned here by this timing contract.
     Other,
+}
+
+/// Return the ROM0 display-code bit carried at one `b0..b55` coordinate.
+///
+/// The eight-bit value is observed LSB first at b0..b7. Outside that window
+/// there is no ROM0 display-code bit assigned by this contract.
+pub const fn display_data_serial_bit(bit_index: u8) -> Option<u8> {
+    if bit_index >= DISPLAY_DATA_FIRST_BIT && bit_index <= DISPLAY_DATA_LAST_BIT {
+        Some(bit_index - DISPLAY_DATA_FIRST_BIT)
+    } else {
+        None
+    }
 }
 
 /// Classify one `b0..b55` coordinate by its evidenced HP-67 instruction-fetch
@@ -63,7 +86,7 @@ pub const fn isa_window_for_bit(bit_index: u8) -> IsaWindow {
 }
 
 /// SYNC's instruction/THEN-GOTO decision window is exactly the ten returned ROM
-/// bit times b46..b55.  For a normal instruction SYNC is asserted across this
+/// bit times b46..b55. For a normal instruction SYNC is asserted across this
 /// window; after an IF/test it remains low and the returned 10-bit word is used
 /// as a full within-1K destination address instead of being decoded as an
 /// instruction.
@@ -100,6 +123,11 @@ impl Hp67WordTiming {
         self.bit_index
     }
 
+    /// Current ROM0 display-code serial bit, if this is b0..b7.
+    pub const fn display_data_serial_bit(&self) -> Option<u8> {
+        display_data_serial_bit(self.bit_index)
+    }
+
     /// Current evidenced IS/ISA instruction-fetch role.
     pub const fn isa_window(&self) -> IsaWindow {
         isa_window_for_bit(self.bit_index)
@@ -127,8 +155,8 @@ impl Hp67WordTiming {
 
     /// Advance one scheduler clock sub-phase.
     ///
-    /// Every complete four-slot scaffold period advances one serial bit.  Bit
-    /// 55 wraps to bit 0 and increments `word_index`.
+    /// Every complete four-slot scaffold period advances one serial bit. Bit 55
+    /// wraps to bit 0 and increments `word_index`.
     pub fn advance_clock_subphase(&mut self) {
         self.clock_subphase += 1;
         if self.clock_subphase < CLOCK_SUBPHASES_PER_BIT {
@@ -153,6 +181,19 @@ mod tests {
         assert_eq!(BITS_PER_DIGIT, 4);
         assert_eq!(DIGITS_PER_WORD, 14);
         assert_eq!(BITS_PER_WORD, 56);
+    }
+
+    #[test]
+    fn hp67_rom0_display_window_is_b0_through_b7_lsb_first() {
+        assert_eq!(DISPLAY_DATA_FIRST_BIT, 0);
+        assert_eq!(DISPLAY_DATA_LAST_BIT, 7);
+        assert_eq!(DISPLAY_DATA_BITS, 8);
+        assert_eq!(DISPLAY_STR_BIT, 7);
+        for bit in 0..8 {
+            assert_eq!(display_data_serial_bit(bit), Some(bit));
+        }
+        assert_eq!(display_data_serial_bit(8), None);
+        assert_eq!(display_data_serial_bit(55), None);
     }
 
     #[test]
@@ -192,17 +233,11 @@ mod tests {
     }
 
     #[test]
-    fn address_and_rom_word_windows_are_disjoint() {
+    fn evidenced_is_windows_are_disjoint() {
         for bit in 0..BITS_PER_WORD {
-            let role = isa_window_for_bit(bit);
-            assert!(!matches!(
-                role,
-                IsaWindow::RomAddress { .. } if bit >= ROM_WORD_FIRST_BIT
-            ));
-            assert!(!matches!(
-                role,
-                IsaWindow::RomWord { .. } if bit <= ROM_ADDRESS_LAST_BIT
-            ));
+            let display = display_data_serial_bit(bit).is_some();
+            let fetch = !matches!(isa_window_for_bit(bit), IsaWindow::Other);
+            assert!(!(display && fetch));
         }
     }
 
