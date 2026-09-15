@@ -1,10 +1,10 @@
 //! Minimal HP-67 ACT execution core for the first real-microcode power-on trace.
 //!
 //! This is intentionally not the finished 1820-2530 model. It implements only
-//! the source-backed architectural effects needed to execute the first three
-//! physically observed HP-67 startup words while those words are fetched through
-//! the serial IS/ISA path. Unsupported opcodes fail loudly instead of falling
-//! back to the semantic reference machine.
+//! source-backed architectural effects reached by the growing structural
+//! power-on trace while those words are fetched through the serial IS/ISA path.
+//! Unsupported opcodes fail loudly instead of falling back to the semantic
+//! reference machine.
 
 use super::isa::{ROM_ADDRESS_MASK, ROM_WORD_MASK};
 
@@ -21,6 +21,7 @@ pub enum PowerOnOperation {
     Nop,
     ConditionalGoto { taken: bool, target: u16 },
     ZeroCWhole,
+    ExchangeCAndM1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,16 +32,18 @@ pub struct PowerOnExecution {
     pub operation: PowerOnOperation,
 }
 
-/// Small architectural ACT state sufficient for the initial power-on smoke test.
+/// Small architectural ACT state used to grow the real-microcode startup trace.
 ///
-/// The program counter and carry path are real Woodstock semantics. The C
-/// register is present only because the third observed startup word is
-/// `0 -> c[w]`. Its reset contents are deliberately not claimed as hardware
-/// evidence; callers may seed it when testing the clear operation.
+/// The program counter and carry path are real Woodstock semantics. C and M1
+/// are present because the reconciled startup path has now reached both
+/// `0 -> c[w]` and `c exchange m1`. Their deterministic reset contents are not
+/// claimed as physical power-on evidence; tests seed them when register contents
+/// matter to the operation being verified.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PowerOnActCore {
     pc: u16,
     c: [u8; ACT_WORD_DIGITS],
+    m1: [u8; ACT_WORD_DIGITS],
     carry: bool,
     previous_carry: bool,
     executed_words: u64,
@@ -51,6 +54,7 @@ impl Default for PowerOnActCore {
         Self {
             pc: 0,
             c: [0; ACT_WORD_DIGITS],
+            m1: [0; ACT_WORD_DIGITS],
             carry: false,
             previous_carry: false,
             executed_words: 0,
@@ -71,6 +75,14 @@ impl PowerOnActCore {
         &mut self.c
     }
 
+    pub const fn m1(&self) -> &[u8; ACT_WORD_DIGITS] {
+        &self.m1
+    }
+
+    pub fn m1_mut(&mut self) -> &mut [u8; ACT_WORD_DIGITS] {
+        &mut self.m1
+    }
+
     pub const fn carry(&self) -> bool {
         self.carry
     }
@@ -85,8 +97,9 @@ impl PowerOnActCore {
 
     /// Execute one already-fetched 10-bit word at the current architectural PC.
     ///
-    /// The first implementation deliberately supports only the forms required by
-    /// the physical startup trace: NOP, conditional GOTO and `0 -> c[w]`.
+    /// Only source-backed forms already reached by the structural power-on path
+    /// are accepted. This keeps unknown startup behavior visible while the ACT
+    /// implementation grows one verified opcode family at a time.
     pub fn execute_word(&mut self, word: u16) -> Result<PowerOnExecution, PowerOnActError> {
         if word > ROM_WORD_MASK {
             return Err(PowerOnActError::OpcodeOutOfRange(word));
@@ -99,6 +112,9 @@ impl PowerOnActCore {
 
         let operation = if word == 0 {
             PowerOnOperation::Nop
+        } else if word == 0o0410 {
+            core::mem::swap(&mut self.c, &mut self.m1);
+            PowerOnOperation::ExchangeCAndM1
         } else if word & 0x03 == 0x03 {
             let page_offset = (word >> 2) as u8;
             let target = (self.pc & 0x0f00) | u16::from(page_offset);
@@ -173,6 +189,27 @@ mod tests {
         assert_eq!(clear.next_pc, 0x0f9);
         assert!(act.c().iter().all(|digit| *digit == 0));
         assert_eq!(act.executed_words(), 3);
+    }
+
+    #[test]
+    fn c_exchange_m1_swaps_all_fourteen_digits() {
+        let mut act = PowerOnActCore::default();
+        for index in 0..ACT_WORD_DIGITS {
+            act.c_mut()[index] = index as u8;
+            act.m1_mut()[index] = 0x0f - index as u8;
+        }
+        let old_c = *act.c();
+        let old_m1 = *act.m1();
+
+        let execution = act
+            .execute_word(0o0410)
+            .expect("c exchange m1 must execute");
+
+        assert_eq!(execution.pc, 0x000);
+        assert_eq!(execution.next_pc, 0x001);
+        assert_eq!(execution.operation, PowerOnOperation::ExchangeCAndM1);
+        assert_eq!(*act.c(), old_m1);
+        assert_eq!(*act.m1(), old_c);
     }
 
     #[test]
