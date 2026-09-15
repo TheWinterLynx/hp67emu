@@ -1,0 +1,59 @@
+name: validate-shared-word-once
+
+on:
+  push:
+    branches:
+      - foundation/cycle-accurate-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: foundation/cycle-accurate-architecture
+          fetch-depth: 0
+
+      - name: Apply known mutable reborrow fix
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('src/machines/hp67/fetch.rs')
+          text = path.read_text()
+          old = '        Some(rom0),\n'
+          new = '        Some(&mut *rom0),\n'
+          if old not in text:
+              raise SystemExit('expected reborrow target not found')
+          path.write_text(text.replace(old, new, 1))
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Format all Rust sources
+        run: cargo fmt --all
+
+      - name: Verify rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Run tests with warnings denied
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo test --all-targets
+
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.rs'
+          if git diff --cached --quiet; then
+            echo "No Rust source changes to commit."
+            exit 0
+          fi
+          git commit -m "Validate shared display and fetch word transport"
+          git push origin HEAD:foundation/cycle-accurate-architecture
