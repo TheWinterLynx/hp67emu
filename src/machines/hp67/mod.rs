@@ -1,18 +1,23 @@
 //! HP-67 machine-specific electrical model.
 //!
-//! This module keeps wiring inventory, word timing, IS/ISA serial behavior and
-//! the structural ACT↔ROM fetch path explicit before full ACT, ROM/RAM, display,
-//! keyboard and card-reader devices are added, so the generic electrical kernel
-//! remains reusable.
+//! This module keeps wiring inventory, word timing, IS/ISA serial behavior, the
+//! structural ACT↔ROM fetch path and the first constrained ACT power-on executor
+//! explicit before full ACT, ROM/RAM, display, keyboard and card-reader devices
+//! are added, so the generic electrical kernel remains reusable.
 
+pub mod act;
 pub mod fetch;
 pub mod isa;
 pub mod machine;
 pub mod timing;
 pub mod wiring;
 
+pub use act::{
+    PowerOnActCore, PowerOnActError, PowerOnExecution, PowerOnOperation, ACT_WORD_DIGITS,
+};
 pub use fetch::{
-    ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError,
+    run_structural_fetch_cycle, ActFetchEndpoint, FetchPipelineLatch, Hp67RomWordSource,
+    RomFetchEndpoint, SerialFetchError,
 };
 pub use isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK};
 pub use machine::Hp67ElectricalBackplane;
