@@ -6,8 +6,7 @@ use hp67emu::{
         run_structural_display_fetch_cycle, ActFetchEndpoint, ActOperation, CathodeDriver1820_1749,
         FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
         Hp67ElectricalBackplane, Hp67RomWordSource, Hp67SegmentMask, Rom0DisplayEndpoint,
-        RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-        HP67_OBSERVED_WORD_TIME_US,
+        RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -18,7 +17,6 @@ const DISPLAY_INIT_PC: u16 = 0o0161;
 const MAIN_WAIT_PC: u16 = 0o0167;
 const CARD_POLL_PC: u16 = 0o0206;
 const BOOT_CYCLE_LIMIT: u64 = 2_000;
-const RESET_DISPLAY_CODE: u8 = 0x00;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LiveBootPhase {
@@ -240,17 +238,6 @@ pub struct Hp67LiveMachine {
     display_control_seen: bool,
 }
 
-fn power_on_reset_display_frame() -> Result<HardwareDisplayFrame, String> {
-    let mut frame = HardwareDisplayFrame::BLANK;
-    for scan_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
-        let anodes = decode_rom0_display_byte(scan_slot, RESET_DISPLAY_CODE).map_err(|error| {
-            format!("power-on reset ROM0 decode failed at slot {scan_slot}: {error:?}")
-        })?;
-        frame.capture_scan_slot(scan_slot, anodes)?;
-    }
-    Ok(frame)
-}
-
 impl Hp67LiveMachine {
     pub fn power_on_default() -> Result<Self, String> {
         let corpus_path =
@@ -258,7 +245,6 @@ impl Hp67LiveMachine {
         let input = fs::read_to_string(&corpus_path)
             .map_err(|error| format!("failed to read HP-67 ROM corpus {corpus_path}: {error}"))?;
         let source = UiCorpusRom::from_tsv(&input)?;
-        let display = power_on_reset_display_frame()?;
         Ok(Self {
             source,
             backplane: Hp67ElectricalBackplane::default(),
@@ -268,7 +254,7 @@ impl Hp67LiveMachine {
             cathode: CathodeDriver1820_1749::default(),
             pipeline: FetchPipelineLatch::default(),
             machine: Hp67ArchitecturalMachine::default(),
-            display,
+            display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
             boot_cycle: 0,
@@ -296,7 +282,7 @@ impl Hp67LiveMachine {
         self.cathode = CathodeDriver1820_1749::default();
         self.pipeline = FetchPipelineLatch::default();
         self.machine = Hp67ArchitecturalMachine::default();
-        self.display = power_on_reset_display_frame()?;
+        self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
         self.boot_cycle = 0;
@@ -412,18 +398,19 @@ impl Hp67LiveMachine {
         }
         self.pipeline.complete_cycle(result.fetched_word);
 
-        if self.display_control_seen {
-            if self.machine.act.state.display_enable {
-                let anodes =
-                    decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
-                        format!(
-                            "live cycle {cycle} ROM0 decode failed at slot {scan_slot}: {error:?}"
-                        )
-                    })?;
-                self.display.capture_scan_slot(scan_slot, anodes)?;
-            } else {
-                self.display.clear();
-            }
+        // Before firmware executes its first display-control instruction, do not
+        // use the architectural `display_enable` default as an electrical inhibit.
+        // A real HP-67 visibly emits during this interval, while the semantic
+        // model's reset value is not hardware evidence.  The emitted CONTENT is
+        // still entirely derived from ACT A/B -> IS -> ROM0 for this word.
+        if !self.display_control_seen || self.machine.act.state.display_enable {
+            let anodes =
+                decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
+                    format!("live cycle {cycle} ROM0 decode failed at slot {scan_slot}: {error:?}")
+                })?;
+            self.display.capture_scan_slot(scan_slot, anodes)?;
+        } else {
+            self.display.clear();
         }
 
         self.cathode.str_falling_edge();
@@ -434,6 +421,7 @@ impl Hp67LiveMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hp67emu::machines::hp67::HP67_DISPLAY_SCAN_SLOTS;
 
     #[test]
     fn ui_state_no_longer_contains_a_fake_display_value() {
@@ -485,14 +473,17 @@ mod tests {
     }
 
     #[test]
-    fn reset_bus_zero_code_produces_observed_all_zero_power_on_pattern() {
-        let frame = power_on_reset_display_frame().unwrap();
-        assert_eq!(frame.segments()[0], Hp67SegmentMask::G.bits());
-        for index in 1..=11 {
-            assert_eq!(frame.segments()[index], 0x3f);
+    fn reset_act_registers_naturally_encode_zero_display_bytes() {
+        let machine = Hp67ArchitecturalMachine::default();
+        assert!(!machine.act.state.display_enable);
+        for scan_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
+            let code = display_byte_from_act_registers(
+                scan_slot,
+                &machine.act.state.a,
+                &machine.act.state.b,
+            )
+            .unwrap();
+            assert_eq!(code, 0x00);
         }
-        assert_eq!(frame.segments()[12], 0);
-        assert_eq!(frame.segments()[13], 0x3f);
-        assert_eq!(frame.segments()[14], 0x3f);
     }
 }
