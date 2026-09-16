@@ -521,10 +521,7 @@ mod tests {
             )
             .expect("ACT-owned display phase must advance one slot per word");
             assert_eq!(result.str_event.scan_slot, expected_slot);
-            assert_eq!(
-                result.rcd_falling,
-                expected_slot == HP67_DISPLAY_SCAN_SLOTS
-            );
+            assert_eq!(result.rcd_falling, expected_slot == HP67_DISPLAY_SCAN_SLOTS);
         }
         assert_eq!(act.display_scan_slot(), 1);
     }
