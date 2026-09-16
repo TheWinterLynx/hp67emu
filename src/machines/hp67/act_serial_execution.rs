@@ -251,10 +251,20 @@ mod tests {
     #[test]
     fn invalid_p_matches_architectural_field_fallbacks() {
         let p_field = ActSerialExecution::new(0x102, ActInstructionState::Normal).unwrap();
-        assert!(!p_field.arithmetic_coordinate(DIGITS_PER_WORD).unwrap().selected);
+        assert!(
+            !p_field
+                .arithmetic_coordinate(DIGITS_PER_WORD)
+                .unwrap()
+                .selected
+        );
 
         let wp_field = ActSerialExecution::new(0x106, ActInstructionState::Normal).unwrap();
-        assert!(wp_field.arithmetic_coordinate(DIGITS_PER_WORD).unwrap().selected);
+        assert!(
+            wp_field
+                .arithmetic_coordinate(DIGITS_PER_WORD)
+                .unwrap()
+                .selected
+        );
     }
 
     #[test]
