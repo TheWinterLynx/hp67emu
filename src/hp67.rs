@@ -217,8 +217,9 @@ impl Hp67RomWordSource for UiCorpusRom {
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
 ///
 /// The firmware remains external. Startup executes through the same combined
-/// display/fetch word transport used by the structural smoke test. The remaining
-/// temporary bridge is A/B -> b0..b7 inside `display_byte_from_act_registers()`.
+/// display/fetch word transport used by the structural smoke test. ACT owns the
+/// display phase, ROM0 emits STR events, and the cathode driver only consumes
+/// downstream STR/RCD control events.
 pub struct Hp67LiveMachine {
     source: UiCorpusRom,
     backplane: Hp67ElectricalBackplane,
@@ -371,11 +372,9 @@ impl Hp67LiveMachine {
         let requested_bank = self.machine.prepare_hp67_fetch();
         self.source.select_bank(requested_bank);
         let address = self.machine.pc();
-        let scan_slot = self.cathode.scan_slot();
         let result = run_structural_display_fetch_cycle(
             &mut self.backplane,
             address,
-            scan_slot,
             &self.machine.act.state,
             &mut self.act_serial,
             &mut self.fetch_rom,
@@ -385,10 +384,12 @@ impl Hp67LiveMachine {
         .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?;
         self.pipeline.complete_cycle(result.fetched_word);
 
+        let scan_slot = result.str_event.scan_slot;
+
         // Before firmware executes its first display-control instruction, do not
         // use the architectural `display_enable` default as an electrical inhibit.
         // A real HP-67 visibly emits during this interval, while the semantic
-        // model's reset value is not hardware evidence.  The emitted CONTENT is
+        // model's reset value is not hardware evidence. The emitted CONTENT is
         // still entirely derived from ACT A/B -> IS -> ROM0 for this word.
         if !self.display_control_seen || self.machine.act.state.display_enable {
             let anodes =
@@ -400,7 +401,9 @@ impl Hp67LiveMachine {
             self.display.clear();
         }
 
-        self.cathode.str_falling_edge();
+        self.cathode
+            .apply_control_edges(result.str_event, result.rcd_falling)
+            .map_err(|error| format!("live cycle {cycle} cathode control failed: {error:?}"))?;
         Ok(())
     }
 }
