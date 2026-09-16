@@ -11,13 +11,9 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
-    act::{
-        display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError,
-    },
+    act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     display::{Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS},
-    isa::{
-        act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
-    },
+    isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     timing::{
         display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS,
@@ -173,11 +169,7 @@ impl ActSerialEndpoint {
     ///
     /// During b0..b7 the bit is read from the current A/B architectural state,
     /// rather than from a nibble snapshot captured at the start of the word.
-    pub fn drive_for_bit(
-        &self,
-        word_bit: u8,
-        state: Option<&ActArchitecturalState>,
-    ) -> Drive {
+    pub fn drive_for_bit(&self, word_bit: u8, state: Option<&ActArchitecturalState>) -> Drive {
         if let Some(serial_bit) = display_data_serial_bit(word_bit) {
             let (Some(register_index), Some(state)) = (self.display_register_index, state) else {
                 return Drive::HighZ;
@@ -339,11 +331,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        backplane.drive(
-            Hp67Net::Isa,
-            ACT_IS_DRIVER,
-            act.drive_for_bit(expected_bit, act_state),
-        );
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit, act_state));
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
         if let Some(endpoint) = rom0.as_deref_mut() {
