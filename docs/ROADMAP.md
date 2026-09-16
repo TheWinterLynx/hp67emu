@@ -4,6 +4,25 @@
 
 Each milestone is implemented in a focused branch created from the then-current `main`. After validation and merge, the next milestone branch starts from the updated `main`. We do not stack long-lived feature branches on top of one another.
 
+## Current status snapshot — 2026-09-16
+
+The project has progressed vertically through several later milestones in order to validate real HP-67 firmware and the display path early. Therefore milestone numbers must not be read as a strictly completed prefix: M5/M6 have strong working slices while important M2/M3/M4 electrical details remain unfinished.
+
+- **M0 — complete.** Generic architecture foundation, resolver, scheduler scaffold, tracing types, HP-67 wiring vocabulary and documentation contracts are in place.
+- **M1 — partial.** The 56-bit convention, IS ownership, ROM/display windows, corpus provenance and several real-hardware timing observations are locked. Exact/bounded PHI launch/sample relationships and formal machine-readable golden captures are still incomplete.
+- **M2 — partial.** Resolve/snapshot/evaluate/commit infrastructure, clock/subphase scaffolding and contention diagnostics exist. The scheduler is not yet calibrated to exact HP-67 PHI timing and STR/RCD are not yet resolved electrical nets.
+- **M3 — partial and currently the main fidelity bottleneck.** Instruction-boundary ACT semantics are strong enough to execute the real firmware to idle; ACT owns display serialization, ROM address serialization, ROM-word sampling and the fifteen-word display phase. The major missing piece is true intra-word 56-bit serial register/ALU evolution with source-backed pin-edge timing.
+- **M4 — partial.** External ROM corpus loading, resolved serial ROM fetch and ROM0 display decode work. Physical per-part ROM/RAM devices and real RAM bus timing remain to be implemented.
+- **M5 — strong structural partial.** Real firmware reaches the documented no-key idle loop, including the physical delayed-ROM landmark, without hard-coded display results. Startup is still a hybrid of architectural ACT execution and structural electrical transport rather than a fully pin-timed chip boot.
+- **M6 — strong structural partial.** Raw ROM0 display decode, sign routing, 1820-1749 scan state, ACT-owned scan phase and physical raw-segment UI are implemented. The current slice removes cathode feedback from the transport and represents ROM0 STR plus ACT RCD as explicit downstream structural events. This slice is implemented but remains pending the local formatting/test/release/smoke gate. Exact PHI-relative STR/RCD edges, LED on-time integration and optical persistence are still outstanding.
+- **M7 — not started electrically.** UI keys are clickable but do not synthesize calculator results; the physical keyboard matrix/scan path is still absent.
+- **M8 — early partial.** Architectural CRC control exists for firmware bring-up; magnetic-card electronics, motor/sense/data timing and physical CRC boundary behavior remain outstanding.
+- **M9 — early partial.** Observed power-on delays and reset-visible behavior are modeled conservatively; full electrical power/reset qualification and state-loss behavior are not.
+- **M10 — partial.** Differential/unit tests, structural bus tests and a long real-microcode boot smoke exist. Full deterministic input replay, complete golden bit-level traces and performance validation remain outstanding.
+- **M11 — intentionally not started.** No generic Woodstock extraction until HP-67 hardware behavior is proven end to end.
+
+The next high-value fidelity work after the current STR/RCD slice is validated is M3/M2 work: replace word-boundary ACT A/B snapshots with source-backed intra-word serial ACT state, while keeping unresolved PHI edge placement explicit rather than guessed.
+
 ## M0 — Architecture foundation
 
 Branch: `foundation/cycle-accurate-architecture`
