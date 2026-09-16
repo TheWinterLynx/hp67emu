@@ -1,16 +1,16 @@
 # `src/ui/classic_display.rs`
 
 ## Purpose
-Draws photorealistic HP Classic-series LED emission over the photographed display glass directly from physical A..G/DP segment masks.
+Draws photorealistic HP Classic-series LED emission directly from the physical A..G/DP masks produced by the emulated display hardware.
 
 ## Why it exists
-The source photograph supplies the bezel/filter/reflections but cannot show dynamic LEDs. The electrical/structural display path can now provide raw segment state, so the production renderer must draw those masks without first formatting characters or a calculator value.
+The photographed filter and bezel are static, while the LED emitters are dynamic. The display geometry must therefore be rendered independently, but it must preserve the real module pitch and character dimensions instead of being stretched to fill an arbitrary UI rectangle.
 
 ## Relationships
-Called by `panel.rs`. Its production entry point `paint_segments()` consumes the fifteen-position `HardwareDisplayFrame` generated from `machines::hp67` ROM0/cathode state. The former text-to-cell renderer has been removed from this module, leaving raw segment masks as the only display input path.
+Called by `panel.rs`. `panel.rs` owns registration to `assets/hp67.png`; this module owns the 5082-7400/7405-family physical dimensions and raw segment artwork. The electrical source remains `machines::hp67` via `HardwareDisplayFrame`.
 
 ## Responsibilities
-Map the 15 physical positions, calibrated LED geometry, A..G masks, decimal-point mask, optical color and glow into egui drawing primitives while preserving the photographed filter and glass underneath.
+Map the fifteen raw A..G/DP masks onto fifteen physical LED positions at 3.81 mm pitch, preserve the 2.794 mm character height, 1.5748 mm character width and 0.5334 mm decimal emitter diameter, and draw emitted light without formatting a number or text string.
 
 ## Implementation
-`paint_segments()` positions all fifteen physical character cells and passes each nonzero byte directly to `draw_segment_mask()`. Bits 0..6 drive the seven segment emitters and bit 7 drives the centered decimal emitter. No numeric parsing, text-to-cell conversion or inferred calculator value occurs in this path. Existing physical dimensions and three-bar segment artwork are retained.
+`paint_segments()` takes a clipping rectangle, an optical centre and one pixels-per-millimetre factor. X and Y always use the same scale. Character centres are `(index - 7) * 3.81 mm`, so the complete fifteen-position pitch span is symmetric about the optical axis. The photographed display glass is deliberately not used as a scaling surface. Internal three-bar artwork dimensions are retained from the previous reviewed renderer but are explicitly treated as optical artwork rather than a new die-mask claim.

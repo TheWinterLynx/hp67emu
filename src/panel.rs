@@ -24,7 +24,15 @@ impl PxRect {
     }
 }
 
+// The glass is only the optical clipping aperture.  LED geometry is registered
+// independently to the projected calculator case so it cannot be stretched to
+// fit this rectangle.  Measurements are source-image pixels in assets/hp67.png.
 const DISPLAY_GLASS: PxRect = PxRect::new(178.0, 105.0, 750.0, 208.0);
+const HP67_CASE_WIDTH_MM: f32 = 81.0;
+const DISPLAY_CASE_CENTER_X: f32 = 453.0;
+const DISPLAY_CASE_WIDTH_SOURCE_PX: f32 = 792.0;
+const DISPLAY_LED_CENTER_Y: f32 = 156.0;
+const DISPLAY_SOURCE_PX_PER_MM: f32 = DISPLAY_CASE_WIDTH_SOURCE_PX / HP67_CASE_WIDTH_MM;
 
 #[derive(Clone, Copy)]
 struct PhotoKey {
@@ -277,11 +285,15 @@ impl Hp67Panel {
         }
 
         // hp67.png already contains the real filter, glass, bezel and reflections.
-        // Add only the physically calibrated 5082-7405 LED emission on top.
+        // Register the LED assembly to the calculator's projected case width with
+        // one uniform physical scale. DISPLAY_GLASS only clips emitted light.
         if state.power_on {
+            let photo_scale = photo_rect.width() / PHOTO_W;
             classic_display::paint_segments(
                 &painter,
                 source_to_screen(photo_rect, DISPLAY_GLASS),
+                source_point_to_screen(photo_rect, DISPLAY_CASE_CENTER_X, DISPLAY_LED_CENTER_Y),
+                DISPLAY_SOURCE_PX_PER_MM * photo_scale,
                 display.segments(),
             );
         }
@@ -301,6 +313,12 @@ fn source_to_screen(photo: Rect, src: PxRect) -> Rect {
         pos2(photo.left() + src.x0 * sx, photo.top() + src.y0 * sy),
         pos2(photo.left() + src.x1 * sx, photo.top() + src.y1 * sy),
     )
+}
+
+fn source_point_to_screen(photo: Rect, x: f32, y: f32) -> Pos2 {
+    let sx = photo.width() / PHOTO_W;
+    let sy = photo.height() / PHOTO_H;
+    pos2(photo.left() + x * sx, photo.top() + y * sy)
 }
 
 fn source_uv(src: PxRect) -> Rect {
@@ -397,5 +415,23 @@ mod tests {
     fn display_glass_stays_inside_source_photo() {
         assert!(DISPLAY_GLASS.x0 >= 0.0 && DISPLAY_GLASS.y0 >= 0.0);
         assert!(DISPLAY_GLASS.x1 <= PHOTO_W && DISPLAY_GLASS.y1 <= PHOTO_H);
+    }
+
+    #[test]
+    fn led_registration_uses_case_scale_and_keeps_all_centres_inside_glass() {
+        assert!((DISPLAY_SOURCE_PX_PER_MM - 9.777_778).abs() < 0.0001);
+        let half_span = 7.0 * classic_display::CHARACTER_PITCH_MM * DISPLAY_SOURCE_PX_PER_MM;
+        let leftmost = DISPLAY_CASE_CENTER_X - half_span;
+        let rightmost = DISPLAY_CASE_CENTER_X + half_span;
+        assert!((leftmost - 192.23).abs() < 0.05);
+        assert!((rightmost - 713.77).abs() < 0.05);
+        assert!(leftmost > DISPLAY_GLASS.x0);
+        assert!(rightmost < DISPLAY_GLASS.x1);
+
+        // Power-on 0.00 starts at physical position 2 (index 1).  This regression
+        // prevents the old, too-centred placement from returning.
+        let first_power_on_zero = DISPLAY_CASE_CENTER_X
+            + classic_display::character_offset_mm(1) * DISPLAY_SOURCE_PX_PER_MM;
+        assert!((first_power_on_zero - 229.48).abs() < 0.05);
     }
 }

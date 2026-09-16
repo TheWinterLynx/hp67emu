@@ -1,16 +1,16 @@
 # `src/panel.rs`
 
 ## Purpose
-Renders the embedded HP-67 photograph, maps photographed control coordinates to the current window, handles the main key/switch hit regions and places raw emulated LED emission into the photographed display glass.
+Renders the embedded HP-67 photograph, maps photographed control coordinates to the current window, handles key/switch hit regions and registers physical LED emission to the photographed calculator.
 
 ## Why it exists
-The production UI is image-based rather than a recreated vector chassis. This module centralizes source-photo registration so controls and the dynamic physical display remain aligned at any window size.
+The production UI is photo-based. Dynamic LEDs must align to the physical front plane of that photograph at every window size without inheriting distortion from the display-glass crop.
 
 ## Relationships
-Reads mechanical `Hp67State`, receives `HardwareDisplayFrame` from `app.rs`, emits `UiEvent` values, calls `ui::classic_display::paint_segments()` for raw A..G/DP masks, and shares the same 928x1695 coordinate system with `sliders.rs` and `top_keys.rs`.
+Reads mechanical `Hp67State`, receives `HardwareDisplayFrame` from `app.rs`, emits `UiEvent` values, and calls `ui::classic_display::paint_segments()` with the raw A..G/DP masks plus physical photo registration.
 
 ## Responsibilities
-Fit the source image without distortion, paint it, create hit boxes for 35 keys and two switch regions, animate generic key travel, locate the photographed display glass and forward raw hardware segment masks without converting them to characters or numbers.
+Fit the 928x1695 source photograph uniformly, map controls, animate key travel, provide the display clip aperture, derive the LED optical centre and pixels-per-millimetre scale from the projected HP-67 case, and forward raw hardware segment masks unchanged.
 
 ## Implementation
-All geometry is expressed in source-image pixels and transformed uniformly into the fitted photo rectangle. Pressed keys reuse cropped pixels from the source photograph plus small travel/shadow corrections. When the power switch is on, the display layer calls `paint_segments()` with the fifteen-position hardware frame; when power is off, no LED emission is painted. Key contacts are still semantic UI events pending electrical keyboard-matrix work.
+The source-photo display registration uses a projected case centre at x=453 px, an LED optical centre at y=156 px and a local case width of 792 px. With the documented 81.0 mm calculator width this yields 9.777778 source pixels/mm. `DISPLAY_GLASS` remains only the clipping aperture. Because the photo itself is uniformly scaled into the window, multiplying this source calibration by the photo scale preserves one isotropic physical transform at every UI size.
