@@ -2,24 +2,20 @@
 
 ## Purpose
 
-Implements an independent, instruction-boundary-complete Woodstock ACT core for HP-67 bring-up while the final pin/timing-accurate 1820-2530 is still being built.
+Implements the independent instruction-boundary Woodstock ACT core for HP-67 bring-up and now owns the ACT-side word serializer that emits ROM0 display bits directly from A/B nibbles.
 
 ## Why it exists
 
-Growing the real startup path one opcode at a time was useful to prove that the first serial fetch/execution chain was genuine, but it is too slow for continued development. The project already has a separately implemented semantic oracle, so the low-level HP-67 path can now implement the full architectural instruction set independently, verify it exhaustively against that oracle in tests, and reserve slow evidence-driven work for actual electrical timing and peripheral behavior.
+The architectural core is required for complete firmware execution while the final pin/timing-accurate 1820-2530 is still being built. The display path must nevertheless respect the real ACT chip boundary: production transport must not precompose `(B << 4) | A` outside the ACT and hand a finished byte to the bus.
 
 ## Relationships
 
-`fetch.rs` still reconstructs every 10-bit firmware word from resolved IS/ISA levels. `hp67_poweron_smoke.rs` feeds those words through the one-word pipeline into `ActArchitecturalCore`. `ActRamImage` is a temporary architectural RAM image kept outside the ACT state so the chip boundary remains explicit until physical 1818-* RAM devices are connected. Production code in this module does not import `reference::woodstock`; the reference model is used only by `tests/act_architectural_differential.rs` as an external oracle.
+`fetch.rs` uses `ActDisplayWordSerializer` through a single `ActSerialEndpoint` that owns the currently modeled ACT roles on IS. `display.rs` supplies the source-backed fifteen-slot role order. `display_snapshot.rs` retains a whole-byte composition helper only as an instruction-boundary diagnostic/reference bridge. Production UI and power-on smoke no longer use that helper. The semantic reference model remains test-only.
 
 ## Responsibilities
 
-Maintain all architecturally visible ACT state needed by HP-67 firmware: A/B/C/Y/Z/T/M1/M2, F, P and P-change history, status bits, decimal/binary mode, carry state, 12-bit PC, delayed-ROM selection, bank state, two-level return stack, THEN-GOTO state, key buffer, display state and RAM address. Implement all four Woodstock opcode classes, the 32 arithmetic/register operations across all eight fields, JSB/GOTO/THEN-GOTO, fixed specials, status/P/constant/select-ROM families, bank switching, RAM architectural access and display/key control. Unsupported ROM self-test remains an explicit hard stop.
+Maintain all architecturally visible ACT state needed by HP-67 firmware and implement Woodstock instruction-boundary behavior. For display transport, map the current physical scan slot to its ACT A/B register digit and emit b0..b3 directly from A bit 0..3 and b4..b7 directly from B bit 0..3 using the wired-high/release IS convention. Reject invalid scan slots rather than inventing data.
 
 ## Implementation
 
-`ActArchitecturalCore::execute_word()` performs the full instruction-boundary transition independently from the reference implementation. It preserves Woodstock's previous-carry branch convention, one-word delayed-ROM behavior, two-level return stack, P-wrap compatibility behavior, decimal/hex arithmetic and the documented invalid-P field semantics. Unsupported special operations are transactional so a diagnostic stop cannot consume architectural state.
-
-`ActRamImage` installs the HP-67's current architectural 0x00..0x3f RAM range for bring-up and differential testing. It is deliberately separate from `ActArchitecturalState`; it is not a claim that RAM is physically inside the ACT. `prepare_hp67_fetch()` applies the HP-67/Hawkeye rule that bank 1 cannot remain selected while fetching from the first 1K page.
-
-The module retains `PowerOnAct*` type aliases temporarily so existing bring-up tools remain source-compatible while moving to the broader architecture. Exhaustive differential tests compare every 10-bit word across multiple nontrivial states plus all 1024 THEN-GOTO payloads against the independent semantic oracle. Electrical PHI edges, bit-serial register/ALU timing, DATA-bus timing and physical RAM devices remain outside this module's current claim.
+`ActDisplayWordSerializer::from_state()` snapshots only the selected A and B nibbles at the structural word boundary. `drive_for_bit()` never constructs an eight-bit display code: it selects the corresponding source bit only when b0..b7 is visited. This removes the previous whole-byte production bridge while deliberately preserving a clear remaining boundary: A/B are still instruction-boundary arrays, not the final serial shift-register/ALU state evolving inside the 56-bit word. Exact PHI launch edges and true intra-word ACT mutation remain future work.

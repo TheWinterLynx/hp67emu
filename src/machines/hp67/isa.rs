@@ -9,7 +9,7 @@
 
 use crate::emulation::Drive;
 
-use super::timing::{display_data_serial_bit, isa_window_for_bit, IsaWindow};
+use super::timing::{isa_window_for_bit, IsaWindow};
 
 /// Mask for the 12-bit HP-67 ROM address space.
 pub const ROM_ADDRESS_MASK: u16 = 0x0fff;
@@ -38,16 +38,6 @@ pub const fn rom_address_serial_bit(address: u16, serial_bit: u8) -> bool {
 pub const fn rom_word_serial_bit(word: u16, serial_bit: u8) -> bool {
     debug_assert!(serial_bit < 10);
     ((word >> serial_bit) & 1) != 0
-}
-
-/// Drive contribution the ACT display path should make on IS for the eight-bit
-/// ROM0 display code at the given `b0..b55` coordinate. Outside b0..b7 this
-/// role releases the bus.
-pub const fn act_display_drive(display_byte: u8, word_bit: u8) -> Drive {
-    match display_data_serial_bit(word_bit) {
-        Some(serial_bit) => wired_high_drive(((display_byte >> serial_bit) & 1) != 0),
-        None => Drive::HighZ,
-    }
 }
 
 /// Drive contribution the ACT should make on IS for a ROM address at the given
@@ -82,20 +72,6 @@ mod tests {
     fn zero_is_release_and_one_is_active_high() {
         assert_eq!(wired_high_drive(false), Drive::HighZ);
         assert_eq!(wired_high_drive(true), Drive::High);
-    }
-
-    #[test]
-    fn eight_bit_display_code_is_emitted_lsb_first_on_b0_through_b7() {
-        let display_byte = 0x30;
-        let expected = [false, false, false, false, true, true, false, false];
-        for (serial_bit, expected_bit) in expected.into_iter().enumerate() {
-            assert_eq!(
-                act_display_drive(display_byte, serial_bit as u8),
-                wired_high_drive(expected_bit)
-            );
-        }
-        assert_eq!(act_display_drive(display_byte, 8), Drive::HighZ);
-        assert_eq!(act_display_drive(display_byte, 16), Drive::HighZ);
     }
 
     #[test]
@@ -135,16 +111,15 @@ mod tests {
     }
 
     #[test]
-    fn display_address_and_rom_response_roles_do_not_overlap() {
+    fn address_and_rom_response_roles_do_not_overlap() {
         for bit in 0..56 {
-            let display = act_display_drive(0xff, bit);
             let address = act_address_drive(0x0fff, bit);
             let rom = rom_word_drive(0x03ff, bit);
-            let active = [display, address, rom]
+            let active = [address, rom]
                 .into_iter()
                 .filter(|drive| *drive == Drive::High)
                 .count();
-            assert!(active <= 1, "multiple active IS roles at b{bit}");
+            assert!(active <= 1, "multiple active IS fetch roles at b{bit}");
         }
     }
 }

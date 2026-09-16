@@ -2,11 +2,11 @@ use std::{cell::Cell, env, fs, time::Duration};
 
 use hp67emu::{
     machines::hp67::{
-        decode_rom0_display_byte, display_byte_from_act_registers,
-        run_structural_display_fetch_cycle, ActFetchEndpoint, ActOperation, CathodeDriver1820_1749,
-        FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
-        Hp67ElectricalBackplane, Hp67RomWordSource, Hp67SegmentMask, Rom0DisplayEndpoint,
-        RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+        decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation,
+        ActSerialEndpoint, CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
+        Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67RomWordSource, Hp67SegmentMask,
+        Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+        HP67_OBSERVED_WORD_TIME_US,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -222,7 +222,7 @@ impl Hp67RomWordSource for UiCorpusRom {
 pub struct Hp67LiveMachine {
     source: UiCorpusRom,
     backplane: Hp67ElectricalBackplane,
-    fetch_act: ActFetchEndpoint,
+    act_serial: ActSerialEndpoint,
     fetch_rom: RomFetchEndpoint,
     display_rom0: Rom0DisplayEndpoint,
     cathode: CathodeDriver1820_1749,
@@ -248,7 +248,7 @@ impl Hp67LiveMachine {
         Ok(Self {
             source,
             backplane: Hp67ElectricalBackplane::default(),
-            fetch_act: ActFetchEndpoint::new(0),
+            act_serial: ActSerialEndpoint::new(0),
             fetch_rom: RomFetchEndpoint::default(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
@@ -276,7 +276,7 @@ impl Hp67LiveMachine {
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         self.source.select_bank(0);
         self.backplane = Hp67ElectricalBackplane::default();
-        self.fetch_act = ActFetchEndpoint::new(0);
+        self.act_serial = ActSerialEndpoint::new(0);
         self.fetch_rom = RomFetchEndpoint::default();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
@@ -372,30 +372,17 @@ impl Hp67LiveMachine {
         self.source.select_bank(requested_bank);
         let address = self.machine.pc();
         let scan_slot = self.cathode.scan_slot();
-        let display_byte = display_byte_from_act_registers(
-            scan_slot,
-            &self.machine.act.state.a,
-            &self.machine.act.state.b,
-        )
-        .map_err(|error| {
-            format!("live cycle {cycle} display byte composition failed: {error:?}")
-        })?;
         let result = run_structural_display_fetch_cycle(
             &mut self.backplane,
             address,
-            display_byte,
-            &mut self.fetch_act,
+            scan_slot,
+            &self.machine.act.state,
+            &mut self.act_serial,
             &mut self.fetch_rom,
             &mut self.display_rom0,
             &self.source,
         )
         .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?;
-        if result.display_byte != display_byte {
-            return Err(format!(
-                "live cycle {cycle} ROM0 reconstructed display byte 0x{:02x}, expected 0x{display_byte:02x}",
-                result.display_byte
-            ));
-        }
         self.pipeline.complete_cycle(result.fetched_word);
 
         // Before firmware executes its first display-control instruction, do not
@@ -421,7 +408,10 @@ impl Hp67LiveMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hp67emu::machines::hp67::HP67_DISPLAY_SCAN_SLOTS;
+    use hp67emu::{
+        emulation::Drive,
+        machines::hp67::{ActDisplayWordSerializer, HP67_DISPLAY_SCAN_SLOTS},
+    };
 
     #[test]
     fn ui_state_no_longer_contains_a_fake_display_value() {
@@ -473,17 +463,15 @@ mod tests {
     }
 
     #[test]
-    fn reset_act_registers_naturally_encode_zero_display_bytes() {
+    fn reset_act_registers_naturally_release_all_display_serial_bits() {
         let machine = Hp67ArchitecturalMachine::default();
         assert!(!machine.act.state.display_enable);
         for scan_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
-            let code = display_byte_from_act_registers(
-                scan_slot,
-                &machine.act.state.a,
-                &machine.act.state.b,
-            )
-            .unwrap();
-            assert_eq!(code, 0x00);
+            let serializer =
+                ActDisplayWordSerializer::from_state(scan_slot, &machine.act.state).unwrap();
+            for word_bit in 0..8 {
+                assert_eq!(serializer.drive_for_bit(word_bit), Drive::HighZ);
+            }
         }
     }
 }

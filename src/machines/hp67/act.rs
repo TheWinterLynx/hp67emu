@@ -8,7 +8,13 @@
 //! can proceed now; electrical PHI edges, bit-serial ALU timing, DATA timing and
 //! physical RAM devices remain separate later milestones.
 
-use super::isa::{ROM_ADDRESS_MASK, ROM_WORD_MASK};
+use crate::emulation::Drive;
+
+use super::{
+    display::{display_role_for_scan_slot, Hp67DisplayRole},
+    isa::{wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
+    timing::display_data_serial_bit,
+};
 
 pub const ACT_WORD_DIGITS: usize = 14;
 pub const ACT_STATUS_BITS: usize = 16;
@@ -21,6 +27,77 @@ const P_SET_MAP: [u8; 16] = [14, 4, 7, 8, 11, 2, 10, 12, 1, 3, 13, 6, 0, 9, 5, 1
 const P_TEST_MAP: [u8; 16] = [4, 8, 12, 2, 9, 1, 6, 3, 1, 13, 5, 0, 11, 10, 7, 4];
 
 pub type ActRegister = [u8; ACT_WORD_DIGITS];
+
+/// Map one observed HP-67 display scan slot to the ACT A/B register digit that
+/// supplies that slot's serial display data.
+///
+/// This mapping is structural and source-backed: exponent units/tens occupy
+/// register digits 0/1, the shared signs occupy digit 2, mantissa digits 1..11
+/// occupy digits 3..13, and scan slot 15 repeats exponent units.
+pub const fn display_register_index_for_scan_slot(scan_slot: u8) -> Option<usize> {
+    match display_role_for_scan_slot(scan_slot) {
+        Some(Hp67DisplayRole::ExponentUnits | Hp67DisplayRole::ExponentUnitsDuplicate) => Some(0),
+        Some(Hp67DisplayRole::ExponentTens) => Some(1),
+        Some(Hp67DisplayRole::SharedSigns) => Some(2),
+        Some(Hp67DisplayRole::MantissaDigit(digit)) => Some((digit + 2) as usize),
+        None => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActDisplaySerialError {
+    InvalidScanSlot(u8),
+}
+
+/// ACT-side source for the eight ROM0 display bits of one 56-bit machine word.
+///
+/// The endpoint snapshots only the two source nibbles for the selected scan
+/// position. It never composes an eight-bit display value. b0..b3 are emitted
+/// directly from A bit 0..3 and b4..b7 directly from B bit 0..3, using the
+/// observed wired-high/release IS convention.
+///
+/// This is still a word-boundary bridge: A/B are architectural register arrays,
+/// not the final intra-word shift-register/ALU implementation. Exact PHI launch
+/// edges remain intentionally unspecified.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActDisplayWordSerializer {
+    register_index: usize,
+    a_nibble: u8,
+    b_nibble: u8,
+}
+
+impl ActDisplayWordSerializer {
+    pub fn from_state(
+        scan_slot: u8,
+        state: &ActArchitecturalState,
+    ) -> Result<Self, ActDisplaySerialError> {
+        let register_index = display_register_index_for_scan_slot(scan_slot)
+            .ok_or(ActDisplaySerialError::InvalidScanSlot(scan_slot))?;
+        debug_assert!(register_index < ACT_WORD_DIGITS);
+        Ok(Self {
+            register_index,
+            a_nibble: state.a[register_index] & 0x0f,
+            b_nibble: state.b[register_index] & 0x0f,
+        })
+    }
+
+    pub const fn register_index(&self) -> usize {
+        self.register_index
+    }
+
+    /// Drive the ACT's display contribution for this word bit.
+    pub const fn drive_for_bit(&self, word_bit: u8) -> Drive {
+        let Some(serial_bit) = display_data_serial_bit(word_bit) else {
+            return Drive::HighZ;
+        };
+        let bit = if serial_bit < 4 {
+            ((self.a_nibble >> serial_bit) & 1) != 0
+        } else {
+            ((self.b_nibble >> (serial_bit - 4)) & 1) != 0
+        };
+        wired_high_drive(bit)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ActInstructionState {
@@ -842,6 +919,46 @@ pub type PowerOnOperation = ActOperation;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_scan_slots_select_the_evidenced_act_digits() {
+        assert_eq!(display_register_index_for_scan_slot(1), Some(0));
+        assert_eq!(display_register_index_for_scan_slot(2), Some(1));
+        assert_eq!(display_register_index_for_scan_slot(3), Some(2));
+        assert_eq!(display_register_index_for_scan_slot(4), Some(13));
+        assert_eq!(display_register_index_for_scan_slot(14), Some(3));
+        assert_eq!(display_register_index_for_scan_slot(15), Some(0));
+        assert_eq!(display_register_index_for_scan_slot(0), None);
+        assert_eq!(display_register_index_for_scan_slot(16), None);
+    }
+
+    #[test]
+    fn display_serializer_reads_a_then_b_without_composing_a_byte() {
+        let mut state = ActArchitecturalState::default();
+        state.a[13] = 0x0a;
+        state.b[13] = 0x05;
+        let serializer = ActDisplayWordSerializer::from_state(4, &state).unwrap();
+        assert_eq!(serializer.register_index(), 13);
+        let expected_high = [false, true, false, true, true, false, true, false];
+        for (word_bit, high) in expected_high.into_iter().enumerate() {
+            assert_eq!(
+                serializer.drive_for_bit(word_bit as u8),
+                wired_high_drive(high)
+            );
+        }
+        assert_eq!(serializer.drive_for_bit(8), Drive::HighZ);
+    }
+
+    #[test]
+    fn reset_act_nibbles_release_all_eight_display_bits() {
+        let state = ActArchitecturalState::default();
+        for scan_slot in 1..=15 {
+            let serializer = ActDisplayWordSerializer::from_state(scan_slot, &state).unwrap();
+            for word_bit in 0..8 {
+                assert_eq!(serializer.drive_for_bit(word_bit), Drive::HighZ);
+            }
+        }
+    }
 
     #[test]
     fn known_power_on_prefix_runs_without_special_cases() {

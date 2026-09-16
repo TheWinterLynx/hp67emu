@@ -10,11 +10,10 @@ use std::{cell::Cell, env, fs};
 
 use hp67emu::{
     machines::hp67::{
-        decode_rom0_display_byte, display_byte_from_act_registers,
-        run_structural_display_fetch_cycle, ActError, ActFetchEndpoint, CathodeDriver1820_1749,
-        FetchPipelineLatch, Hp67ArchitecturalError, Hp67ArchitecturalMachine,
-        Hp67ElectricalBackplane, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint,
-        HP67_DISPLAY_SCAN_SLOTS,
+        decode_rom0_display_byte, run_structural_display_fetch_cycle, ActError, ActSerialEndpoint,
+        CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalError,
+        Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67RomWordSource, Rom0DisplayEndpoint,
+        RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -157,7 +156,7 @@ fn format_byte_sequence(bytes: &[u8]) -> String {
 fn verify_boot_idle_display<S: Hp67RomWordSource>(
     machine: &Hp67ArchitecturalMachine,
     backplane: &mut Hp67ElectricalBackplane,
-    fetch_act: &mut ActFetchEndpoint,
+    act_serial: &mut ActSerialEndpoint,
     fetch_rom: &mut RomFetchEndpoint,
     display_rom0: &mut Rom0DisplayEndpoint,
     display_cathode: &mut CathodeDriver1820_1749,
@@ -180,18 +179,12 @@ fn verify_boot_idle_display<S: Hp67RomWordSource>(
             ));
         }
 
-        let code = display_byte_from_act_registers(
-            expected_slot,
-            &machine.act.state.a,
-            &machine.act.state.b,
-        )
-        .map_err(|error| format!("boot display byte composition failed: {error:?}"))?;
-
         let result = run_structural_display_fetch_cycle(
             backplane,
             address,
-            code,
-            fetch_act,
+            expected_slot,
+            &machine.act.state,
+            act_serial,
             fetch_rom,
             display_rom0,
             source,
@@ -199,13 +192,6 @@ fn verify_boot_idle_display<S: Hp67RomWordSource>(
         .map_err(|error| {
             format!("boot display shared word failed at scan slot {expected_slot}: {error:?}")
         })?;
-
-        if result.display_byte != code {
-            return Err(format!(
-                "boot display transport mismatch at slot {expected_slot}: got 0x{:02X}, expected 0x{code:02X}",
-                result.display_byte
-            ));
-        }
 
         let decoded = decode_rom0_display_byte(expected_slot, result.display_byte)
             .map_err(|error| format!("boot display ROM0 decode failed: {error:?}"))?;
@@ -231,7 +217,7 @@ fn verify_boot_idle_display<S: Hp67RomWordSource>(
     }
 
     println!(
-        "BOOT DISPLAY PASS: real firmware A/B -> shared resolved IS word cycle (display b0..b7 + fetch b16..b27/b46..b55) -> ROM0 decode -> 15-slot cathode scan produces the source-backed power-on 0.00 pattern."
+        "BOOT DISPLAY PASS: real firmware ACT A/B bits -> shared resolved IS word cycle (b0..b7 + fetch b16..b27/b46..b55) -> ROM0 decode -> 15-slot cathode scan produces the source-backed power-on 0.00 pattern."
     );
     println!("BOOT DISPLAY CODES: {}", format_byte_sequence(&codes));
     Ok(())
@@ -336,7 +322,7 @@ fn fetch_cycle(
     cycle: u64,
     backplane: &mut Hp67ElectricalBackplane,
     machine: &mut Hp67ArchitecturalMachine,
-    fetch_act: &mut ActFetchEndpoint,
+    act_serial: &mut ActSerialEndpoint,
     fetch_rom: &mut RomFetchEndpoint,
     display_rom0: &mut Rom0DisplayEndpoint,
     display_cathode: &mut CathodeDriver1820_1749,
@@ -348,31 +334,17 @@ fn fetch_cycle(
     source.select_bank(requested_bank);
     let address = machine.pc();
     let scan_slot = display_cathode.scan_slot();
-    let display_byte =
-        display_byte_from_act_registers(scan_slot, &machine.act.state.a, &machine.act.state.b)
-            .map_err(|error| {
-                format!(
-            "cycle {cycle} display byte composition failed at scan slot {scan_slot}: {error:?}"
-        )
-            })?;
-
     let result = run_structural_display_fetch_cycle(
         backplane,
         address,
-        display_byte,
-        fetch_act,
+        scan_slot,
+        &machine.act.state,
+        act_serial,
         fetch_rom,
         display_rom0,
         source,
     )
     .map_err(|error| format!("cycle {cycle} shared display/fetch word failed: {error:?}"))?;
-
-    if result.display_byte != display_byte {
-        return Err(format!(
-            "cycle {cycle} display transport mismatch at scan slot {scan_slot}: got 0x{:02X}, expected 0x{display_byte:02X}",
-            result.display_byte
-        ));
-    }
 
     let fetched = result.fetched_word;
     display_cathode.str_falling_edge();
@@ -427,7 +399,7 @@ fn main() -> Result<(), String> {
 
     let source = CorpusRom::new(&corpus);
     let mut backplane = Hp67ElectricalBackplane::default();
-    let mut fetch_act = ActFetchEndpoint::new(0);
+    let mut act_serial = ActSerialEndpoint::new(0);
     let mut fetch_rom = RomFetchEndpoint::default();
     let mut display_rom0 = Rom0DisplayEndpoint::default();
     let mut display_cathode = CathodeDriver1820_1749::default();
@@ -444,7 +416,7 @@ fn main() -> Result<(), String> {
         corpus.populated_words()
     );
     println!(
-        "word path: ACT display b0..b7 + address b16..b27 -> resolved IS -> ROM b46..b55 -> ACT"
+        "word path: ACT A/B bits b0..b7 + address b16..b27 -> resolved IS -> ROM b46..b55 -> ACT"
     );
     println!("machine path: independent ACT + CRC control architectural composition");
 
@@ -469,7 +441,7 @@ fn main() -> Result<(), String> {
             cycle,
             &mut backplane,
             &mut machine,
-            &mut fetch_act,
+            &mut act_serial,
             &mut fetch_rom,
             &mut display_rom0,
             &mut display_cathode,
@@ -550,7 +522,7 @@ fn main() -> Result<(), String> {
                 verify_boot_idle_display(
                     &machine,
                     &mut backplane,
-                    &mut fetch_act,
+                    &mut act_serial,
                     &mut fetch_rom,
                     &mut display_rom0,
                     &mut display_cathode,
@@ -574,7 +546,7 @@ fn main() -> Result<(), String> {
             cycle,
             &mut backplane,
             &mut machine,
-            &mut fetch_act,
+            &mut act_serial,
             &mut fetch_rom,
             &mut display_rom0,
             &mut display_cathode,
@@ -657,7 +629,7 @@ mod tests {
         ];
 
         let mut backplane = Hp67ElectricalBackplane::default();
-        let mut fetch_act = ActFetchEndpoint::new(0);
+        let mut act_serial = ActSerialEndpoint::new(0);
         let mut fetch_rom = RomFetchEndpoint::default();
         let mut display_rom0 = Rom0DisplayEndpoint::default();
         let mut display_cathode = CathodeDriver1820_1749::default();
@@ -665,7 +637,7 @@ mod tests {
         verify_boot_idle_display(
             &machine,
             &mut backplane,
-            &mut fetch_act,
+            &mut act_serial,
             &mut fetch_rom,
             &mut display_rom0,
             &mut display_cathode,

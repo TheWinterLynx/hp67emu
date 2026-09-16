@@ -9,7 +9,7 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
-    act::{ActRegister, ACT_WORD_DIGITS},
+    act::{display_register_index_for_scan_slot, ActRegister, ACT_WORD_DIGITS},
     display::{
         decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749,
         Hp67DisplayRole, Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError,
@@ -30,20 +30,6 @@ pub struct StructuralDisplaySlot {
     pub register_index: usize,
     pub code: u8,
     pub segments: Hp67SegmentMask,
-}
-
-/// Map the observed HP-67 display scan order back to the ACT's 14-nibble register layout.
-///
-/// Register digits 0/1 are exponent units/tens, digit 2 is the sign position, and digits
-/// 3..13 are mantissa digits 1..11. The fifteenth scan slot repeats exponent units.
-pub const fn display_register_index_for_scan_slot(scan_slot: u8) -> Option<usize> {
-    match display_role_for_scan_slot(scan_slot) {
-        Some(Hp67DisplayRole::ExponentUnits | Hp67DisplayRole::ExponentUnitsDuplicate) => Some(0),
-        Some(Hp67DisplayRole::ExponentTens) => Some(1),
-        Some(Hp67DisplayRole::SharedSigns) => Some(2),
-        Some(Hp67DisplayRole::MantissaDigit(digit)) => Some((digit + 2) as usize),
-        None => None,
-    }
 }
 
 /// Compose the ROM0 display byte from one A/B register position.

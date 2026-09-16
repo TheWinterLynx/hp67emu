@@ -11,8 +11,9 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
+    act::{ActArchitecturalState, ActDisplaySerialError, ActDisplayWordSerializer},
     display::{Rom0DisplayEndpoint, Rom0DisplayError},
-    isa::{act_address_drive, act_display_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
+    isa::{act_address_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     timing::{
         display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS,
@@ -50,6 +51,7 @@ pub enum SerialFetchError {
 pub enum StructuralWordError {
     Fetch(SerialFetchError),
     Display(Rom0DisplayError),
+    ActDisplay(ActDisplaySerialError),
 }
 
 impl From<SerialFetchError> for StructuralWordError {
@@ -61,6 +63,12 @@ impl From<SerialFetchError> for StructuralWordError {
 impl From<Rom0DisplayError> for StructuralWordError {
     fn from(error: Rom0DisplayError) -> Self {
         Self::Display(error)
+    }
+}
+
+impl From<ActDisplaySerialError> for StructuralWordError {
+    fn from(error: ActDisplaySerialError) -> Self {
+        Self::ActDisplay(error)
     }
 }
 
@@ -80,36 +88,68 @@ fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, SerialFetchError>
     }
 }
 
-/// ACT-side state for one 56-bit ROM fetch cycle.
+/// ACT-side state for one structural 56-bit machine word.
+///
+/// One endpoint owns every currently modeled ACT role on IS: optional display
+/// serialization at b0..b7, ROM address serialization at b16..b27, and ROM-word
+/// reception at b46..b55. This avoids representing the physical ACT as separate
+/// display and fetch drivers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ActFetchEndpoint {
+pub struct ActSerialEndpoint {
     address: u16,
+    display: Option<ActDisplayWordSerializer>,
     received_word: u16,
     received_mask: u16,
 }
 
-impl ActFetchEndpoint {
+impl ActSerialEndpoint {
     pub const fn new(address: u16) -> Self {
         Self {
             address: address & ROM_ADDRESS_MASK,
+            display: None,
             received_word: 0,
             received_mask: 0,
         }
     }
 
-    /// Start another fetch word while retaining no bits from the prior response.
-    pub fn begin_cycle(&mut self, address: u16) {
+    /// Start a fetch-only word, explicitly releasing the display window.
+    pub fn begin_fetch_cycle(&mut self, address: u16) {
         self.address = address & ROM_ADDRESS_MASK;
+        self.display = None;
         self.received_word = 0;
         self.received_mask = 0;
+    }
+
+    /// Start a combined display/fetch word from current ACT architectural state.
+    ///
+    /// The serializer snapshots only the selected A/B nibbles and emits their
+    /// individual bits later as b0..b7 are visited. No eight-bit display value is
+    /// assembled at this boundary.
+    pub fn begin_display_fetch_cycle(
+        &mut self,
+        address: u16,
+        scan_slot: u8,
+        state: &ActArchitecturalState,
+    ) -> Result<(), ActDisplaySerialError> {
+        self.address = address & ROM_ADDRESS_MASK;
+        self.display = Some(ActDisplayWordSerializer::from_state(scan_slot, state)?);
+        self.received_word = 0;
+        self.received_mask = 0;
+        Ok(())
     }
 
     pub const fn address(&self) -> u16 {
         self.address
     }
 
-    /// ACT fetch contribution to IS/ISA for the current bit cell.
+    /// ACT contribution to IS for the current bit cell.
     pub const fn drive_for_bit(&self, word_bit: u8) -> Drive {
+        if display_data_serial_bit(word_bit).is_some() {
+            return match self.display {
+                Some(serializer) => serializer.drive_for_bit(word_bit),
+                None => Drive::HighZ,
+            };
+        }
         act_address_drive(self.address, word_bit)
     }
 
@@ -246,14 +286,11 @@ impl FetchPipelineLatch {
 
 fn run_structural_word_transport<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
-    address: u16,
-    act: &mut ActFetchEndpoint,
+    act: &mut ActSerialEndpoint,
     rom: &mut RomFetchEndpoint,
     source: &S,
-    display_byte: Option<u8>,
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
 ) -> Result<u16, StructuralWordError> {
-    act.begin_cycle(address);
     rom.begin_cycle();
     if let Some(endpoint) = rom0.as_deref_mut() {
         endpoint.begin_word();
@@ -262,13 +299,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        let act_drive = match display_byte {
-            Some(code) if display_data_serial_bit(expected_bit).is_some() => {
-                act_display_drive(code, expected_bit)
-            }
-            _ => act.drive_for_bit(expected_bit),
-        };
-        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit));
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
         if let Some(endpoint) = rom0.as_deref_mut() {
@@ -312,14 +343,15 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
 pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     address: u16,
-    act: &mut ActFetchEndpoint,
+    act: &mut ActSerialEndpoint,
     rom: &mut RomFetchEndpoint,
     source: &S,
 ) -> Result<u16, SerialFetchError> {
-    match run_structural_word_transport(backplane, address, act, rom, source, None, None) {
+    act.begin_fetch_cycle(address);
+    match run_structural_word_transport(backplane, act, rom, source, None) {
         Ok(word) => Ok(word),
         Err(StructuralWordError::Fetch(error)) => Err(error),
-        Err(StructuralWordError::Display(_)) => {
+        Err(StructuralWordError::Display(_)) | Err(StructuralWordError::ActDisplay(_)) => {
             unreachable!("fetch-only structural cycle cannot produce a display error")
         }
     }
@@ -328,27 +360,26 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// Run one structural 56-bit word with ACT display traffic and instruction fetch
 /// sharing the same resolved HP-67 IS net and backplane timing coordinate.
 ///
+/// The caller supplies ACT architectural state and the current cathode scan slot;
+/// `ActSerialEndpoint` selects the appropriate A/B nibbles and serializes their
+/// bits directly as b0..b7. No precomposed display byte crosses this API.
+///
 /// This establishes simultaneous coarse word-level transport only. It does not
-/// claim final PHI-relative ACT launch edges, ROM0 sampling edges, or STR/RCD
-/// propagation timing.
+/// claim final intra-word ACT register/ALU timing, PHI-relative launch/sample
+/// edges, ROM0 sampling edges, or STR/RCD propagation timing.
 pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     address: u16,
-    display_byte: u8,
-    act: &mut ActFetchEndpoint,
+    scan_slot: u8,
+    act_state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
     rom: &mut RomFetchEndpoint,
     rom0: &mut Rom0DisplayEndpoint,
     source: &S,
 ) -> Result<StructuralWordResult, StructuralWordError> {
-    let fetched_word = run_structural_word_transport(
-        backplane,
-        address,
-        act,
-        rom,
-        source,
-        Some(display_byte),
-        Some(&mut *rom0),
-    )?;
+    act.begin_display_fetch_cycle(address, scan_slot, act_state)?;
+    let fetched_word =
+        run_structural_word_transport(backplane, act, rom, source, Some(&mut *rom0))?;
     Ok(StructuralWordResult {
         fetched_word,
         display_byte: rom0.display_byte()?,
@@ -378,7 +409,7 @@ mod tests {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut backplane = Hp67ElectricalBackplane::default();
-        let mut act = ActFetchEndpoint::new(0x07b);
+        let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
 
         let fetched =
@@ -397,14 +428,20 @@ mod tests {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut backplane = Hp67ElectricalBackplane::default();
-        let mut act = ActFetchEndpoint::new(0x07b);
+        let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
         let mut rom0 = Rom0DisplayEndpoint::default();
 
+        let mut act_state = ActArchitecturalState::default();
+        // Slot 4 is mantissa digit 11 -> ACT register digit 13.  A=0, B=3
+        // must therefore serialize 0,0,0,0,1,1,0,0 on b0..b7.
+        act_state.a[13] = 0x00;
+        act_state.b[13] = 0x03;
         let result = run_structural_display_fetch_cycle(
             &mut backplane,
             0x07b,
-            0x30,
+            4,
+            &act_state,
             &mut act,
             &mut rom,
             &mut rom0,
@@ -426,7 +463,7 @@ mod tests {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut backplane = Hp67ElectricalBackplane::default();
-        let mut act = ActFetchEndpoint::new(0x07b);
+        let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
         let mut pipeline = FetchPipelineLatch::default();
 
@@ -456,7 +493,7 @@ mod tests {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut rom = RomFetchEndpoint::default();
-        let address = ActFetchEndpoint::new(0x222);
+        let address = ActSerialEndpoint::new(0x222);
 
         for bit in 16..=27 {
             let level = match address.drive_for_bit(bit) {

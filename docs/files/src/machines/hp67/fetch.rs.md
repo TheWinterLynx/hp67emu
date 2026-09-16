@@ -2,24 +2,22 @@
 
 ## Purpose
 
-Provides the structural HP-67 shared-word transport for ACT display traffic and ACT-to-ROM-to-ACT instruction fetch over the resolved IS/ISA electrical net.
+Provides the structural HP-67 shared-word transport and a single ACT serial endpoint for display output, ROM-address output and ROM-word input on the resolved IS/ISA electrical net.
 
 ## Why it exists
 
-The instruction-boundary reference model can fetch a 10-bit word from a host array instantly, but the real HP-67 does not. Hardware evidence shows three separate serial windows within the same 56-bit machine word: the ACT emits the eight-bit ROM0 display code LSB-first at b0..b7, sends a 12-bit ROM address LSB-first during b16..b27, and the selected ROM returns a 10-bit word LSB-first during b46..b55. The emulator needs a transport layer that lets those evidenced roles coexist on one resolved bus and one word coordinate before physical ACT, ROM0 and generic 1818-* chip models are complete.
+Direct HP-67 evidence places ACT/ROM0 display traffic at b0..b7, ACT ROM address at b16..b27 and selected-ROM response at b46..b55 within the same 56-bit word. A maximum-fidelity transport must preserve both the shared physical bus and the physical ACT boundary; it must not accept a prebuilt display byte from the UI or smoke harness.
 
 ## Relationships
 
-Uses the evidence-backed windows and serializers in `timing.rs` and `isa.rs`, the ROM0 receiver in `display.rs`, and the generic `LogicLevel`/`Drive` electrical primitives. `Hp67ElectricalBackplane` supplies the pull-down-biased IS/ISA net. Future 1818-* ROM devices will implement `Hp67RomWordSource`; the current semantic `reference::rom` layer is deliberately not imported here. Bank selection is intentionally not encoded into the 12-bit wire protocol because it is separate physical state, not an additional address bit on IS. `hp67_poweron_smoke.rs` continues to use the fetch-only runner for long real-microcode execution while the combined runner is the structural bridge toward a single electrical word cycle.
+Uses `ActDisplayWordSerializer` from `act.rs`, evidence-backed windows from `timing.rs`, wired-high/address/ROM helpers from `isa.rs`, `Rom0DisplayEndpoint` from `display.rs`, and `Hp67ElectricalBackplane` for the weak-low resolved IS net. Firmware remains behind `Hp67RomWordSource` and is not embedded in this layer.
 
 ## Responsibilities
 
-Represent ACT-side display-byte and address transmission, ROM0-side display reception, ROM-side address reception and returned-word transmission, reject floating/contentious samples and missing ROM locations, preserve LSB-first 8-bit/12-bit/10-bit widths, model the one-word fetch/execution pipeline boundary without embedding any HP firmware payload, and prove that display and fetch can occupy their evidenced non-overlapping windows on one deterministic structural machine word.
+`ActSerialEndpoint` owns every currently modeled ACT role on IS: direct A/B display-bit drive at b0..b7, address drive at b16..b27 and returned-word sampling at b46..b55. `RomFetchEndpoint` reconstructs the twelve address bits and emits the selected ten-bit ROM word. ROM0 independently reconstructs the eight display bits from the same resolved line. Floating/contentious samples remain hard failures.
 
 ## Implementation
 
-`ActFetchEndpoint` owns the 12-bit address being sent and reconstructs a returned 10-bit word only from samples taken in b46..b55. `RomFetchEndpoint` reconstructs the address only from resolved IS/ISA samples in b16..b27; after all twelve bits are present it performs one lookup through the `Hp67RomWordSource` trait and serializes that latched word during b46..b55. `Rom0DisplayEndpoint` receives b0..b7 from the same resolved IS net. All contributors use the wired-high convention from `isa.rs`: one actively drives High and zero releases the bus to its passive low bias.
+`run_structural_display_fetch_cycle()` now receives the current ACT architectural state and scan slot, not a display byte. It asks `ActSerialEndpoint` to begin a combined word; the endpoint snapshots only the selected A/B nibbles and later emits each source bit when its real b0..b7 coordinate arrives. The API therefore has no `(B << 4) | A` display payload. The returned `StructuralWordResult.display_byte` is reconstructed only on the ROM0 side and exists for observation/testing, not as ACT input.
 
-`FetchPipelineLatch` has an explicit cycle boundary: `complete_cycle()` stores the word fetched during the current machine word, while `begin_cycle()` promotes the previously prefetched word to the executing slot. This makes a word fetched during cycle N eligible to execute during cycle N+1 rather than introducing an accidental two-cycle delay. `run_structural_fetch_cycle()` preserves the original fetch-only harness. `run_structural_display_fetch_cycle()` drives display b0..b7, ACT address b16..b27 and ROM response b46..b55 through the same `Hp67ElectricalBackplane` word and returns both the reconstructed display byte and fetched microinstruction. Tests pass the measured `0x07b -> 0x04c` fetch while simultaneously transporting display byte `0x30`, proving the two paths share one resolved 56-bit word without contention.
-
-The module intentionally stops at the bit-cell boundary: exact PHI launch/sample edges, ROM0 sampling edges, STR/RCD overlap ordering and propagation delay remain unimplemented until the waveform evidence is transcribed unambiguously.
+The remaining fidelity boundary is explicit: the serializer snapshots architectural nibbles at the word boundary, while a real ACT shifts and modifies serial register state inside the word. Exact intra-word ALU/register timing, PHI launch/sample edges, ROM0 edge timing and STR/RCD overlap ordering are not claimed here.

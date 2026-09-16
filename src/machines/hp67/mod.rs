@@ -17,7 +17,8 @@ pub mod timing;
 pub mod wiring;
 
 pub use act::{
-    ActArchitecturalCore, ActArchitecturalState, ActError, ActExecution, ActInstructionState,
+    display_register_index_for_scan_slot, ActArchitecturalCore, ActArchitecturalState,
+    ActDisplaySerialError, ActDisplayWordSerializer, ActError, ActExecution, ActInstructionState,
     ActOperation, ActRamImage, ActRegister, PowerOnActCore, PowerOnActError, PowerOnExecution,
     PowerOnOperation, ACT_RAM_WORDS, ACT_RETURN_STACK_DEPTH, ACT_STATUS_BITS, ACT_WORD_DIGITS,
 };
@@ -35,17 +36,16 @@ pub use display::{
     HP67_SHARED_SIGN_SLOT,
 };
 pub use display_snapshot::{
-    display_byte_from_act_registers, display_register_index_for_scan_slot,
-    structural_display_scan_from_act_registers, StructuralDisplaySlot,
+    display_byte_from_act_registers, structural_display_scan_from_act_registers,
+    StructuralDisplaySlot,
 };
 pub use fetch::{
-    run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActFetchEndpoint,
+    run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
     FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
     StructuralWordResult,
 };
 pub use isa::{
-    act_address_drive, act_display_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK,
-    ROM_WORD_MASK,
+    act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
 };
 pub use machine::Hp67ElectricalBackplane;
 pub use timing::{

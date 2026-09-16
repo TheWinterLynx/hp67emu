@@ -1,7 +1,7 @@
 //! End-to-end structural regression for the first physically observed HP-67 startup words.
 
 use hp67emu::machines::hp67::{
-    run_structural_fetch_cycle, ActFetchEndpoint, ActRamImage, FetchPipelineLatch,
+    run_structural_fetch_cycle, ActRamImage, ActSerialEndpoint, FetchPipelineLatch,
     Hp67ElectricalBackplane, Hp67RomWordSource, PowerOnActCore, RomFetchEndpoint,
 };
 
@@ -26,7 +26,7 @@ impl Hp67RomWordSource for StartupFixture {
 fn serial_power_on_executes_the_first_physical_startup_path() {
     let source = StartupFixture;
     let mut backplane = Hp67ElectricalBackplane::default();
-    let mut fetch_act = ActFetchEndpoint::new(0);
+    let mut fetch_act = ActSerialEndpoint::new(0);
     let mut fetch_rom = RomFetchEndpoint::default();
     let mut pipeline = FetchPipelineLatch::default();
     let mut act = PowerOnActCore::default();
