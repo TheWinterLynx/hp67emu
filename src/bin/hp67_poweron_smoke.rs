@@ -3,8 +3,8 @@
 //! Firmware stays external. Addresses and returned words still cross the
 //! resolved IS/ISA model bit by bit, while the independent architectural
 //! HP-67 bring-up machine resolves ACT versus CRC ownership at each instruction
-//! boundary. This lets one local run cover thousands of real firmware words and
-//! detect convergence into the documented no-key idle loop.
+//! boundary. The executing word is bound to the same b0..b55 structural cycle
+//! used for display and fetch transport.
 
 use std::{cell::Cell, env, fs};
 
@@ -270,9 +270,31 @@ fn parse_arguments() -> Result<Arguments, String> {
     })
 }
 
+fn verify_serial_execution_complete(
+    cycle: u64,
+    pipeline: &FetchPipelineLatch,
+    act_serial: &ActSerialEndpoint,
+) -> Result<(), String> {
+    let Some(word) = pipeline.executing_word() else {
+        return Ok(());
+    };
+    let execution = act_serial.serial_execution().ok_or_else(|| {
+        format!("cycle {cycle} lost serial execution for word 0x{word:03x}")
+    })?;
+    if execution.word() != word || !execution.is_complete() {
+        return Err(format!(
+            "cycle {cycle} serial execution incomplete: expected word 0x{word:03x}, got word 0x{:03x}, next_bit={:?}",
+            execution.word(),
+            execution.next_word_bit()
+        ));
+    }
+    Ok(())
+}
+
 fn execute_cycle(
     cycle: u64,
     machine: &mut Hp67ArchitecturalMachine,
+    act_serial: &mut ActSerialEndpoint,
     pipeline: &mut FetchPipelineLatch,
     milestones: &mut BootMilestones,
     stop_at_idle: bool,
@@ -286,6 +308,11 @@ fn execute_cycle(
         }
         return Ok(ProbeControl::Continue);
     };
+
+    let instruction_state = machine.act.state.instruction_state;
+    act_serial
+        .begin_execution(word, instruction_state)
+        .map_err(|error| format!("cycle {cycle} serial execution start failed: {error:?}"))?;
 
     match machine.execute_word(word) {
         Ok(execution) => {
@@ -425,6 +452,7 @@ fn main() -> Result<(), String> {
     println!(
         "word path: ACT A/B bits b0..b7 + address b16..b27 -> resolved IS -> ROM b46..b55 -> ACT"
     );
+    println!("execution path: current fetched word owns one complete b0..b55 ACT lifetime");
     println!("display control: ROM0 STR + ACT RCD -> downstream 1820-1749 cathode state");
     println!("machine path: independent ACT + CRC control architectural composition");
 
@@ -432,6 +460,12 @@ fn main() -> Result<(), String> {
         pipeline.begin_cycle();
 
         if let Some(word) = pipeline.executing_word() {
+            let instruction_state = machine.act.state.instruction_state;
+            act_serial
+                .begin_execution(word, instruction_state)
+                .map_err(|error| {
+                    format!("cycle {cycle} serial execution start failed: {error:?}")
+                })?;
             let execution = machine
                 .execute_word(word)
                 .map_err(|error| format!("cycle {cycle} execution failed: {error:?}"))?;
@@ -457,6 +491,7 @@ fn main() -> Result<(), String> {
             &source,
             true,
         )?;
+        verify_serial_execution_complete(cycle, &pipeline, &act_serial)?;
 
         if verified_fetches < STARTUP_FETCHES.len() {
             let (expected_address, expected_word) = STARTUP_FETCHES[verified_fetches];
@@ -484,7 +519,7 @@ fn main() -> Result<(), String> {
     }
 
     println!(
-        "PASS: serial microcode power-on reached 0x0f8, executed 0x11a, and advanced to 0x0f9."
+        "PASS: serial microcode power-on reached 0x0f8, executed 0x11a across b0..b55, and advanced to 0x0f9."
     );
 
     if arguments.probe_cycles == 0 {
@@ -506,46 +541,25 @@ fn main() -> Result<(), String> {
     for offset in 0..arguments.probe_cycles {
         let cycle = 4 + offset;
         let verbose = offset < arguments.trace_limit;
-        match execute_cycle(
+        let control = execute_cycle(
             cycle,
             &mut machine,
+            &mut act_serial,
             &mut pipeline,
             &mut milestones,
             arguments.stop_at_idle,
             verbose,
-        )? {
-            ProbeControl::Continue => {}
-            ProbeControl::BoundaryStop => {
-                println!(
-                    "PROBE SUMMARY: completed {completed_probe_cycles} additional cycles; executed_words={}; pc=0x{:03x}; bank={}",
-                    machine.executed_words(),
-                    machine.pc(),
-                    machine.bank()
-                );
-                print_boot_summary(&milestones, &machine);
-                return Ok(());
-            }
-            ProbeControl::IdleReached => {
-                source.select_bank(machine.bank());
-                verify_boot_idle_display(
-                    &machine,
-                    &mut backplane,
-                    &mut fetch_rom,
-                    &mut display_rom0,
-                    &source,
-                )?;
-                println!(
-                    "BOOT IDLE PASS: real firmware completed initialization and cycled through the documented no-key wait loop with display_enable=true."
-                );
-                println!(
-                    "BOOT IDLE: cycle={cycle}; executed_words={}; pc=0x{:03x}; bank={}",
-                    machine.executed_words(),
-                    machine.pc(),
-                    machine.bank()
-                );
-                print_boot_summary(&milestones, &machine);
-                return Ok(());
-            }
+        )?;
+
+        if control == ProbeControl::BoundaryStop {
+            println!(
+                "PROBE SUMMARY: completed {completed_probe_cycles} additional cycles; executed_words={}; pc=0x{:03x}; bank={}",
+                machine.executed_words(),
+                machine.pc(),
+                machine.bank()
+            );
+            print_boot_summary(&milestones, &machine);
+            return Ok(());
         }
 
         fetch_cycle(
@@ -560,7 +574,30 @@ fn main() -> Result<(), String> {
             &source,
             verbose,
         )?;
+        verify_serial_execution_complete(cycle, &pipeline, &act_serial)?;
         completed_probe_cycles += 1;
+
+        if control == ProbeControl::IdleReached {
+            source.select_bank(machine.bank());
+            verify_boot_idle_display(
+                &machine,
+                &mut backplane,
+                &mut fetch_rom,
+                &mut display_rom0,
+                &source,
+            )?;
+            println!(
+                "BOOT IDLE PASS: real firmware completed initialization and cycled through the documented no-key wait loop with display_enable=true."
+            );
+            println!(
+                "BOOT IDLE: cycle={cycle}; executed_words={}; pc=0x{:03x}; bank={}",
+                machine.executed_words(),
+                machine.pc(),
+                machine.bank()
+            );
+            print_boot_summary(&milestones, &machine);
+            return Ok(());
+        }
     }
 
     println!(
