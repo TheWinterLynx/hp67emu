@@ -22,6 +22,9 @@ jobs:
       - name: Integrate ACT-owned display scan
         run: python .github/scripts/integrate_act_owned_display_scan.py
 
+      - name: Apply const constructor fix
+        run: python .github/scripts/fix_act_display_scan_const.py
+
       - name: Format all Rust sources
         run: cargo fmt --all
 
