@@ -23,9 +23,9 @@ pub use act::{
     ActOperation, ActRamImage, ActRegister, PowerOnActCore, PowerOnActError, PowerOnExecution,
     PowerOnOperation, ACT_RAM_WORDS, ACT_RETURN_STACK_DEPTH, ACT_STATUS_BITS, ACT_WORD_DIGITS,
 };
-pub use act_serial_execution::{
-    ActSerialExecution, ActSerialExecutionError, ActSerialWordClass,
-};
+pub use act_serial_execution::ActSerialExecution;
+pub use act_serial_execution::ActSerialExecutionError;
+pub use act_serial_execution::ActSerialWordClass;
 pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
