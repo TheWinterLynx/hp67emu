@@ -7,7 +7,7 @@
 
 use super::act::ActInstructionState;
 use super::isa::ROM_WORD_MASK;
-use super::timing::{BITS_PER_DIGIT, BITS_PER_WORD};
+use super::timing::{BITS_PER_DIGIT, BITS_PER_WORD, DIGITS_PER_WORD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActSerialWordClass {
@@ -24,6 +24,21 @@ pub enum ActSerialExecutionError {
     UnexpectedWordBit { expected: u8, actual: u8 },
     ExecutionAlreadyComplete,
     ExecutionAlreadyActive { word: u16, next_word_bit: u8 },
+}
+
+/// Arithmetic meaning of the current serial bit coordinate.
+///
+/// `selected` is derived only from the Woodstock field code, P and the canonical
+/// 14x4 word geometry. It does not imply that a physical register write happens
+/// at this coordinate; exact ACT write/PHI timing remains a separate hardware
+/// question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActSerialArithmeticCoordinate {
+    pub operation: u8,
+    pub field: u8,
+    pub digit: u8,
+    pub bit_in_digit: u8,
+    pub selected: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +117,26 @@ impl ActSerialExecution {
         }
     }
 
+    /// Return the arithmetic field interpretation of the current bit cell.
+    ///
+    /// P is supplied by the caller because P is architectural ACT state, not a
+    /// property of the ten-bit instruction word. The returned selection follows
+    /// the same Woodstock field definitions used by the architectural core.
+    pub fn arithmetic_coordinate(&self, p: u8) -> Option<ActSerialArithmeticCoordinate> {
+        let ActSerialWordClass::Arithmetic { operation, field } = self.class else {
+            return None;
+        };
+        let word_bit = self.next_word_bit()?;
+        let digit = word_bit / BITS_PER_DIGIT;
+        Some(ActSerialArithmeticCoordinate {
+            operation,
+            field,
+            digit,
+            bit_in_digit: word_bit % BITS_PER_DIGIT,
+            selected: field_selects_digit(field, p, digit),
+        })
+    }
+
     pub fn advance_word_bit(&mut self, actual: u8) -> Result<(), ActSerialExecutionError> {
         if self.is_complete() {
             return Err(ActSerialExecutionError::ExecutionAlreadyComplete);
@@ -115,6 +150,24 @@ impl ActSerialExecution {
 
         self.next_word_bit += 1;
         Ok(())
+    }
+}
+
+const fn field_selects_digit(field: u8, p: u8, digit: u8) -> bool {
+    if digit >= DIGITS_PER_WORD {
+        return false;
+    }
+
+    match field & 7 {
+        0 => p < DIGITS_PER_WORD && digit == p,
+        1 => p >= DIGITS_PER_WORD || digit <= p,
+        2 => digit == 2,
+        3 => digit <= 2,
+        4 => digit == 13,
+        5 => digit >= 3 && digit <= 12,
+        6 => true,
+        7 => digit >= 3,
+        _ => unreachable!(),
     }
 }
 
@@ -144,6 +197,14 @@ mod tests {
                 execution.bit_in_digit(),
                 Some(expected_bit % BITS_PER_DIGIT)
             );
+            let arithmetic = execution
+                .arithmetic_coordinate(0)
+                .expect("arithmetic word must expose a serial field coordinate");
+            assert_eq!(arithmetic.operation, 8);
+            assert_eq!(arithmetic.field, 6);
+            assert_eq!(arithmetic.digit, expected_bit / BITS_PER_DIGIT);
+            assert_eq!(arithmetic.bit_in_digit, expected_bit % BITS_PER_DIGIT);
+            assert!(arithmetic.selected);
             execution
                 .advance_word_bit(expected_bit)
                 .expect("sequential bit coordinate must advance");
@@ -153,6 +214,53 @@ mod tests {
         assert_eq!(execution.next_word_bit(), None);
         assert_eq!(execution.digit_coordinate(), None);
         assert_eq!(execution.bit_in_digit(), None);
+        assert_eq!(execution.arithmetic_coordinate(0), None);
+    }
+
+    #[test]
+    fn mantissa_field_selects_only_digits_three_through_twelve() {
+        let mut execution = ActSerialExecution::new(0x116, ActInstructionState::Normal)
+            .expect("known arithmetic word must decode");
+
+        for expected_bit in 0..BITS_PER_WORD {
+            let coordinate = execution.arithmetic_coordinate(0).unwrap();
+            let expected_digit = expected_bit / BITS_PER_DIGIT;
+            assert_eq!(coordinate.digit, expected_digit);
+            assert_eq!(coordinate.selected, (3..=12).contains(&expected_digit));
+            execution.advance_word_bit(expected_bit).unwrap();
+        }
+    }
+
+    #[test]
+    fn p_and_wp_fields_follow_the_current_p_register() {
+        let mut p_field = ActSerialExecution::new(0x102, ActInstructionState::Normal).unwrap();
+        for expected_bit in 0..BITS_PER_WORD {
+            let coordinate = p_field.arithmetic_coordinate(7).unwrap();
+            assert_eq!(coordinate.selected, coordinate.digit == 7);
+            p_field.advance_word_bit(expected_bit).unwrap();
+        }
+
+        let mut wp_field = ActSerialExecution::new(0x106, ActInstructionState::Normal).unwrap();
+        for expected_bit in 0..BITS_PER_WORD {
+            let coordinate = wp_field.arithmetic_coordinate(7).unwrap();
+            assert_eq!(coordinate.selected, coordinate.digit <= 7);
+            wp_field.advance_word_bit(expected_bit).unwrap();
+        }
+    }
+
+    #[test]
+    fn invalid_p_matches_architectural_field_fallbacks() {
+        let p_field = ActSerialExecution::new(0x102, ActInstructionState::Normal).unwrap();
+        assert!(!p_field.arithmetic_coordinate(DIGITS_PER_WORD).unwrap().selected);
+
+        let wp_field = ActSerialExecution::new(0x106, ActInstructionState::Normal).unwrap();
+        assert!(wp_field.arithmetic_coordinate(DIGITS_PER_WORD).unwrap().selected);
+    }
+
+    #[test]
+    fn non_arithmetic_words_do_not_expose_arithmetic_coordinates() {
+        let execution = ActSerialExecution::new(0x3e3, ActInstructionState::Normal).unwrap();
+        assert_eq!(execution.arithmetic_coordinate(0), None);
     }
 
     #[test]
@@ -160,6 +268,7 @@ mod tests {
         let execution = ActSerialExecution::new(0x260, ActInstructionState::ThenGoto)
             .expect("ten-bit branch data must be accepted");
         assert_eq!(execution.class(), ActSerialWordClass::ThenGotoData);
+        assert_eq!(execution.arithmetic_coordinate(0), None);
     }
 
     #[test]
