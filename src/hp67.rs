@@ -80,7 +80,7 @@ pub struct Hp67State {
 impl Default for Hp67State {
     fn default() -> Self {
         Self {
-            power_on: true,
+            power_on: false,
             mode: RunMode::Run,
         }
     }
@@ -420,7 +420,7 @@ mod tests {
     fn ui_state_no_longer_contains_a_fake_display_value() {
         let mut state = Hp67State::default();
         state.handle(UiEvent::Key(KeyAction::Digit(7)));
-        assert!(state.power_on);
+        assert!(!state.power_on);
         assert_eq!(state.mode, RunMode::Run);
     }
 
@@ -430,7 +430,7 @@ mod tests {
         state.handle(UiEvent::ToggleMode);
         assert_eq!(state.mode, RunMode::Program);
         state.handle(UiEvent::TogglePower);
-        assert!(!state.power_on);
+        assert!(state.power_on);
     }
 
     #[test]
