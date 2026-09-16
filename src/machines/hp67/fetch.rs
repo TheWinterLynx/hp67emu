@@ -11,9 +11,13 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
-    act::{ActArchitecturalState, ActDisplaySerialError, ActDisplayWordSerializer},
+    act::{
+        display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError,
+    },
     display::{Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS},
-    isa::{act_address_drive, rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
+    isa::{
+        act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
+    },
     machine::Hp67ElectricalBackplane,
     timing::{
         display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS,
@@ -100,7 +104,7 @@ fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, SerialFetchError>
 pub struct ActSerialEndpoint {
     address: u16,
     display_scan_slot: u8,
-    display: Option<ActDisplayWordSerializer>,
+    display_register_index: Option<usize>,
     received_word: u16,
     received_mask: u16,
 }
@@ -110,7 +114,7 @@ impl ActSerialEndpoint {
         Self {
             address: address & ROM_ADDRESS_MASK,
             display_scan_slot: 1,
-            display: None,
+            display_register_index: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -119,27 +123,23 @@ impl ActSerialEndpoint {
     /// Start a fetch-only word, explicitly releasing the display window.
     pub fn begin_fetch_cycle(&mut self, address: u16) {
         self.address = address & ROM_ADDRESS_MASK;
-        self.display = None;
+        self.display_register_index = None;
         self.received_word = 0;
         self.received_mask = 0;
     }
 
-    /// Start a combined display/fetch word from current ACT architectural state.
+    /// Start a combined display/fetch word from the ACT-owned display phase.
     ///
-    /// The ACT-owned display phase chooses the A/B digit. The serializer snapshots
-    /// only those two source nibbles and emits their individual bits later as
-    /// b0..b7 are visited. No cathode-selected slot and no eight-bit display value
-    /// enters this boundary.
-    pub fn begin_display_fetch_cycle(
-        &mut self,
-        address: u16,
-        state: &ActArchitecturalState,
-    ) -> Result<(), ActDisplaySerialError> {
+    /// Only the source register index is latched here. A/B nibble contents are
+    /// not snapshotted: each b0..b7 drive reads the current architectural state
+    /// when that bit cell is visited. This prepares the transport for future
+    /// intra-word ACT register/ALU evolution without claiming that evolution yet.
+    pub fn begin_display_fetch_cycle(&mut self, address: u16) -> Result<(), ActDisplaySerialError> {
         self.address = address & ROM_ADDRESS_MASK;
-        self.display = Some(ActDisplayWordSerializer::from_state(
-            self.display_scan_slot,
-            state,
-        )?);
+        self.display_register_index = Some(
+            display_register_index_for_scan_slot(self.display_scan_slot)
+                .ok_or(ActDisplaySerialError::InvalidScanSlot(self.display_scan_slot))?,
+        );
         self.received_word = 0;
         self.received_mask = 0;
         Ok(())
@@ -165,17 +165,29 @@ impl ActSerialEndpoint {
         } else {
             self.display_scan_slot + 1
         };
-        self.display = None;
+        self.display_register_index = None;
         rcd_falling
     }
 
     /// ACT contribution to IS for the current bit cell.
-    pub const fn drive_for_bit(&self, word_bit: u8) -> Drive {
-        if display_data_serial_bit(word_bit).is_some() {
-            return match self.display {
-                Some(serializer) => serializer.drive_for_bit(word_bit),
-                None => Drive::HighZ,
+    ///
+    /// During b0..b7 the bit is read from the current A/B architectural state,
+    /// rather than from a nibble snapshot captured at the start of the word.
+    pub fn drive_for_bit(
+        &self,
+        word_bit: u8,
+        state: Option<&ActArchitecturalState>,
+    ) -> Drive {
+        if let Some(serial_bit) = display_data_serial_bit(word_bit) {
+            let (Some(register_index), Some(state)) = (self.display_register_index, state) else {
+                return Drive::HighZ;
             };
+            let bit = if serial_bit < 4 {
+                ((state.a[register_index] >> serial_bit) & 1) != 0
+            } else {
+                ((state.b[register_index] >> (serial_bit - 4)) & 1) != 0
+            };
+            return wired_high_drive(bit);
         }
         act_address_drive(self.address, word_bit)
     }
@@ -314,6 +326,7 @@ impl FetchPipelineLatch {
 fn run_structural_word_transport<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     act: &mut ActSerialEndpoint,
+    act_state: Option<&ActArchitecturalState>,
     rom: &mut RomFetchEndpoint,
     source: &S,
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
@@ -326,7 +339,11 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit));
+        backplane.drive(
+            Hp67Net::Isa,
+            ACT_IS_DRIVER,
+            act.drive_for_bit(expected_bit, act_state),
+        );
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
         if let Some(endpoint) = rom0.as_deref_mut() {
@@ -375,7 +392,7 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
     source: &S,
 ) -> Result<u16, SerialFetchError> {
     act.begin_fetch_cycle(address);
-    match run_structural_word_transport(backplane, act, rom, source, None) {
+    match run_structural_word_transport(backplane, act, None, rom, source, None) {
         Ok(word) => Ok(word),
         Err(StructuralWordError::Fetch(error)) => Err(error),
         Err(StructuralWordError::Display(_)) | Err(StructuralWordError::ActDisplay(_)) => {
@@ -388,13 +405,16 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// sharing the same resolved HP-67 IS net and backplane timing coordinate.
 ///
 /// `ActSerialEndpoint` owns the fifteen-word display phase and therefore chooses
-/// the A/B digit serialized at b0..b7. ROM0 reconstructs the same resolved bits
-/// and emits the returned `Rom0StrEvent`; ACT independently reports the coarse
-/// RCD falling boundary after slot 15. No cathode state enters this API.
+/// the A/B digit serialized at b0..b7. The contents of that source digit are read
+/// from the ACT state at each bit cell instead of being snapshotted at word start.
+/// ROM0 reconstructs the same resolved bits and emits the returned `Rom0StrEvent`;
+/// ACT independently reports the coarse RCD falling boundary after slot 15. No
+/// cathode state enters this API.
 ///
 /// This establishes source-backed ownership at word/bit granularity only. It
-/// does not claim final intra-word ACT register/ALU timing, PHI-relative
-/// launch/sample edges, ROM0 sampling edges, or exact STR/RCD overlap ordering.
+/// does not yet make architectural A/B evolve inside the word, nor claim final
+/// PHI-relative launch/sample edges, ROM0 sampling edges, or exact STR/RCD
+/// overlap ordering.
 pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     address: u16,
@@ -405,9 +425,15 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     source: &S,
 ) -> Result<StructuralWordResult, StructuralWordError> {
     let display_scan_slot = act.display_scan_slot();
-    act.begin_display_fetch_cycle(address, act_state)?;
-    let fetched_word =
-        run_structural_word_transport(backplane, act, rom, source, Some(&mut *rom0))?;
+    act.begin_display_fetch_cycle(address)?;
+    let fetched_word = run_structural_word_transport(
+        backplane,
+        act,
+        Some(act_state),
+        rom,
+        source,
+        Some(&mut *rom0),
+    )?;
     let display_byte = rom0.display_byte()?;
     let str_event = rom0.str_falling_event(display_scan_slot)?;
     let rcd_falling = act.complete_display_word();
@@ -493,6 +519,22 @@ mod tests {
     }
 
     #[test]
+    fn display_bits_are_read_live_instead_of_snapshotted_at_word_start() {
+        let mut act = ActSerialEndpoint::new(0);
+        let mut state = ActArchitecturalState::default();
+        act.begin_display_fetch_cycle(0)
+            .expect("slot 1 must select a valid ACT display digit");
+
+        assert_eq!(act.drive_for_bit(0, Some(&state)), Drive::HighZ);
+        state.a[0] = 0x01;
+        assert_eq!(act.drive_for_bit(0, Some(&state)), Drive::High);
+
+        assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::HighZ);
+        state.b[0] = 0x01;
+        assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::High);
+    }
+
+    #[test]
     fn act_owns_full_fifteen_word_display_phase_and_rcd_boundary() {
         struct ZeroRom;
         impl Hp67RomWordSource for ZeroRom {
@@ -565,7 +607,7 @@ mod tests {
         let address = ActSerialEndpoint::new(0x222);
 
         for bit in 16..=27 {
-            let level = match address.drive_for_bit(bit) {
+            let level = match address.drive_for_bit(bit, None) {
                 Drive::High => LogicLevel::High,
                 Drive::HighZ => LogicLevel::Low,
                 Drive::Low => unreachable!("IS zeros are represented by release"),
