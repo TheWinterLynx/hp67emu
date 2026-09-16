@@ -6,6 +6,7 @@
 //! pin/timing-accurate devices are completed.
 
 pub mod act;
+pub mod act_serial_execution;
 pub mod architectural;
 pub mod crc;
 pub mod display;
@@ -21,6 +22,9 @@ pub use act::{
     ActDisplaySerialError, ActDisplayWordSerializer, ActError, ActExecution, ActInstructionState,
     ActOperation, ActRamImage, ActRegister, PowerOnActCore, PowerOnActError, PowerOnExecution,
     PowerOnOperation, ACT_RAM_WORDS, ACT_RETURN_STACK_DEPTH, ACT_STATUS_BITS, ACT_WORD_DIGITS,
+};
+pub use act_serial_execution::{
+    ActSerialExecution, ActSerialExecutionError, ActSerialWordClass,
 };
 pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
