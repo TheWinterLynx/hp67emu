@@ -42,6 +42,14 @@ The HP-97 service manual describes the compatible ACT-generation arithmetic unit
 
 This establishes the architecture direction, but not the exact HP-67 PHI edge on which each internal bit is written.
 
+### Earlier HP serial-BCD evidence constrains hypotheses but does not prove ACT timing
+
+An earlier Hewlett-Packard calculator patent describes the predecessor serial BCD datapath in substantially more detail. It states that the arithmetic/register circuit uses fourteen-digit 56-bit registers and a serial BCD adder/subtracter. For decimal correction, the design cannot know whether correction is required until the first three bits of a digit's sum have been generated, so it uses a four-bit holding register before inserting the corrected result.
+
+This is valuable family-level evidence for **bit-serial activity within each four-bit digit**, and it argues strongly against a model that treats a whole BCD digit as an indivisible arithmetic event. However, it is not HP-67/1820-2530-specific evidence. hp67emu must not copy the predecessor's holding-register placement, correction edge, address timing or internal register topology into the ACT unless an ACT-generation source corroborates it.
+
+Reference: Hewlett-Packard patent material describing the 56-bit serial BCD arithmetic/register design, including the four-bit decimal-correction holding register. The project treats this as architecture-family evidence only.
+
 ### Existing HP-67 external windows stay fixed
 
 Moving arithmetic inside the word must preserve the already locked direct HP-67 bus facts:
@@ -65,7 +73,8 @@ The current source set does **not** yet prove any of the following for the HP-67
 - whether a clear/copy/exchange result becomes externally observable before or after the corresponding internal shift/capture edge;
 - exact DATA-line launch/sample timing for RAM transfers;
 - exact interaction between internal arithmetic updates and b0..b7 display serialization when they refer to the same register storage;
-- whether an operation-specific qualifier delays a write within a digit time.
+- whether an operation-specific qualifier delays a write within a digit time;
+- whether the predecessor serial-BCD holding-register/correction arrangement is physically unchanged in 1820-2530.
 
 Therefore code must not currently implement rules such as "commit every nibble on b3", "write A on PHI2", or "carry becomes visible on the next bN" merely because they are plausible.
 
