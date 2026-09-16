@@ -26,6 +26,194 @@ pub enum ActSerialExecutionError {
     ExecutionAlreadyActive { word: u16, next_word_bit: u8 },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActSerialRegister {
+    A,
+    B,
+    C,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActSerialOperand {
+    Zero,
+    Register(ActSerialRegister),
+}
+
+/// Source/destination routing implied by one Woodstock arithmetic operation.
+///
+/// This is instruction semantics only. It does not say when a physical ACT
+/// register changes inside the bit cell or on which PHI edge that change occurs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActSerialArithmeticAction {
+    Clear {
+        destination: ActSerialRegister,
+    },
+    Copy {
+        source: ActSerialRegister,
+        destination: ActSerialRegister,
+    },
+    Exchange {
+        left: ActSerialRegister,
+        right: ActSerialRegister,
+    },
+    Add {
+        left: ActSerialOperand,
+        right: ActSerialOperand,
+        destination: ActSerialRegister,
+        initial_carry: bool,
+    },
+    Subtract {
+        left: ActSerialOperand,
+        right: ActSerialOperand,
+        destination: Option<ActSerialRegister>,
+        initial_carry: bool,
+    },
+    ShiftLeft {
+        register: ActSerialRegister,
+    },
+    ShiftRight {
+        register: ActSerialRegister,
+    },
+    TestNonzero {
+        register: ActSerialRegister,
+    },
+    TestZero {
+        register: ActSerialRegister,
+    },
+}
+
+/// Decode the architectural Woodstock arithmetic opcode into serial datapath
+/// routing without assigning any intra-bit write edge.
+pub const fn decode_serial_arithmetic_action(
+    operation: u8,
+) -> Option<ActSerialArithmeticAction> {
+    use ActSerialArithmeticAction::{
+        Add, Clear, Copy, Exchange, ShiftLeft, ShiftRight, Subtract, TestNonzero, TestZero,
+    };
+    use ActSerialOperand::{Register, Zero};
+    use ActSerialRegister::{A, B, C};
+
+    match operation {
+        0x00 => Some(Clear { destination: A }),
+        0x01 => Some(Clear { destination: B }),
+        0x02 => Some(Exchange { left: A, right: B }),
+        0x03 => Some(Copy {
+            source: A,
+            destination: B,
+        }),
+        0x04 => Some(Exchange { left: A, right: C }),
+        0x05 => Some(Copy {
+            source: C,
+            destination: A,
+        }),
+        0x06 => Some(Copy {
+            source: B,
+            destination: C,
+        }),
+        0x07 => Some(Exchange { left: B, right: C }),
+        0x08 => Some(Clear { destination: C }),
+        0x09 => Some(Add {
+            left: Register(A),
+            right: Register(B),
+            destination: A,
+            initial_carry: false,
+        }),
+        0x0a => Some(Add {
+            left: Register(A),
+            right: Register(C),
+            destination: A,
+            initial_carry: false,
+        }),
+        0x0b => Some(Add {
+            left: Register(C),
+            right: Register(C),
+            destination: C,
+            initial_carry: false,
+        }),
+        0x0c => Some(Add {
+            left: Register(A),
+            right: Register(C),
+            destination: C,
+            initial_carry: false,
+        }),
+        0x0d => Some(Add {
+            left: Register(A),
+            right: Zero,
+            destination: A,
+            initial_carry: true,
+        }),
+        0x0e => Some(ShiftLeft { register: A }),
+        0x0f => Some(Add {
+            left: Register(C),
+            right: Zero,
+            destination: C,
+            initial_carry: true,
+        }),
+        0x10 => Some(Subtract {
+            left: Register(A),
+            right: Register(B),
+            destination: Some(A),
+            initial_carry: false,
+        }),
+        0x11 => Some(Subtract {
+            left: Register(A),
+            right: Register(C),
+            destination: Some(C),
+            initial_carry: false,
+        }),
+        0x12 => Some(Subtract {
+            left: Register(A),
+            right: Zero,
+            destination: Some(A),
+            initial_carry: true,
+        }),
+        0x13 => Some(Subtract {
+            left: Register(C),
+            right: Zero,
+            destination: Some(C),
+            initial_carry: true,
+        }),
+        0x14 => Some(Subtract {
+            left: Zero,
+            right: Register(C),
+            destination: Some(C),
+            initial_carry: false,
+        }),
+        0x15 => Some(Subtract {
+            left: Zero,
+            right: Register(C),
+            destination: Some(C),
+            initial_carry: true,
+        }),
+        0x16 => Some(TestNonzero { register: B }),
+        0x17 => Some(TestNonzero { register: C }),
+        0x18 => Some(Subtract {
+            left: Register(A),
+            right: Register(C),
+            destination: None,
+            initial_carry: false,
+        }),
+        0x19 => Some(Subtract {
+            left: Register(A),
+            right: Register(B),
+            destination: None,
+            initial_carry: false,
+        }),
+        0x1a => Some(TestZero { register: A }),
+        0x1b => Some(TestZero { register: C }),
+        0x1c => Some(Subtract {
+            left: Register(A),
+            right: Register(C),
+            destination: Some(A),
+            initial_carry: false,
+        }),
+        0x1d => Some(ShiftRight { register: A }),
+        0x1e => Some(ShiftRight { register: B }),
+        0x1f => Some(ShiftRight { register: C }),
+        _ => None,
+    }
+}
+
 /// Arithmetic meaning of the current serial bit coordinate.
 ///
 /// `selected` is derived only from the Woodstock field code, P and the canonical
@@ -36,6 +224,7 @@ pub enum ActSerialExecutionError {
 pub struct ActSerialArithmeticCoordinate {
     pub operation: u8,
     pub field: u8,
+    pub action: ActSerialArithmeticAction,
     pub digit: u8,
     pub bit_in_digit: u8,
     pub selected: bool,
@@ -128,9 +317,11 @@ impl ActSerialExecution {
         };
         let word_bit = self.next_word_bit()?;
         let digit = word_bit / BITS_PER_DIGIT;
+        let action = decode_serial_arithmetic_action(operation)?;
         Some(ActSerialArithmeticCoordinate {
             operation,
             field,
+            action,
             digit,
             bit_in_digit: word_bit % BITS_PER_DIGIT,
             selected: field_selects_digit(field, p, digit),
@@ -202,6 +393,12 @@ mod tests {
                 .expect("arithmetic word must expose a serial field coordinate");
             assert_eq!(arithmetic.operation, 8);
             assert_eq!(arithmetic.field, 6);
+            assert_eq!(
+                arithmetic.action,
+                ActSerialArithmeticAction::Clear {
+                    destination: ActSerialRegister::C,
+                }
+            );
             assert_eq!(arithmetic.digit, expected_bit / BITS_PER_DIGIT);
             assert_eq!(arithmetic.bit_in_digit, expected_bit % BITS_PER_DIGIT);
             assert!(arithmetic.selected);
@@ -215,6 +412,61 @@ mod tests {
         assert_eq!(execution.digit_coordinate(), None);
         assert_eq!(execution.bit_in_digit(), None);
         assert_eq!(execution.arithmetic_coordinate(0), None);
+    }
+
+    #[test]
+    fn every_five_bit_arithmetic_opcode_has_explicit_serial_routing() {
+        for operation in 0x00..=0x1f {
+            assert!(
+                decode_serial_arithmetic_action(operation).is_some(),
+                "missing serial routing for arithmetic operation 0x{operation:02x}"
+            );
+        }
+        assert_eq!(decode_serial_arithmetic_action(0x20), None);
+    }
+
+    #[test]
+    fn add_and_compare_routing_preserve_sources_and_destination() {
+        assert_eq!(
+            decode_serial_arithmetic_action(0x09),
+            Some(ActSerialArithmeticAction::Add {
+                left: ActSerialOperand::Register(ActSerialRegister::A),
+                right: ActSerialOperand::Register(ActSerialRegister::B),
+                destination: ActSerialRegister::A,
+                initial_carry: false,
+            })
+        );
+        assert_eq!(
+            decode_serial_arithmetic_action(0x18),
+            Some(ActSerialArithmeticAction::Subtract {
+                left: ActSerialOperand::Register(ActSerialRegister::A),
+                right: ActSerialOperand::Register(ActSerialRegister::C),
+                destination: None,
+                initial_carry: false,
+            })
+        );
+    }
+
+    #[test]
+    fn increment_and_decrement_preserve_the_architectural_carry_seed() {
+        assert_eq!(
+            decode_serial_arithmetic_action(0x0d),
+            Some(ActSerialArithmeticAction::Add {
+                left: ActSerialOperand::Register(ActSerialRegister::A),
+                right: ActSerialOperand::Zero,
+                destination: ActSerialRegister::A,
+                initial_carry: true,
+            })
+        );
+        assert_eq!(
+            decode_serial_arithmetic_action(0x13),
+            Some(ActSerialArithmeticAction::Subtract {
+                left: ActSerialOperand::Register(ActSerialRegister::C),
+                right: ActSerialOperand::Zero,
+                destination: Some(ActSerialRegister::C),
+                initial_carry: true,
+            })
+        );
     }
 
     #[test]
