@@ -11,7 +11,11 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
-    act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
+    act::{
+        display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError,
+        ActInstructionState,
+    },
+    act_serial_execution::{ActSerialExecution, ActSerialExecutionError},
     display::{Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS},
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
@@ -52,6 +56,7 @@ pub enum StructuralWordError {
     Fetch(SerialFetchError),
     Display(Rom0DisplayError),
     ActDisplay(ActDisplaySerialError),
+    ActExecution(ActSerialExecutionError),
 }
 
 impl From<SerialFetchError> for StructuralWordError {
@@ -69,6 +74,12 @@ impl From<Rom0DisplayError> for StructuralWordError {
 impl From<ActDisplaySerialError> for StructuralWordError {
     fn from(error: ActDisplaySerialError) -> Self {
         Self::ActDisplay(error)
+    }
+}
+
+impl From<ActSerialExecutionError> for StructuralWordError {
+    fn from(error: ActSerialExecutionError) -> Self {
+        Self::ActExecution(error)
     }
 }
 
@@ -93,14 +104,16 @@ fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, SerialFetchError>
 /// ACT-side state for structural 56-bit machine words.
 ///
 /// One endpoint owns every currently modeled ACT role on IS: display scan phase
-/// and serialization at b0..b7, ROM address serialization at b16..b27, and
-/// ROM-word reception at b46..b55. No downstream cathode state enters this
+/// and serialization at b0..b7, ROM address serialization at b16..b27,
+/// ROM-word reception at b46..b55, and the lifetime of the instruction executing
+/// concurrently with that shared word. No downstream cathode state enters this
 /// endpoint or chooses which A/B digit is emitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActSerialEndpoint {
     address: u16,
     display_scan_slot: u8,
     display_register_index: Option<usize>,
+    execution: Option<ActSerialExecution>,
     received_word: u16,
     received_mask: u16,
 }
@@ -111,9 +124,37 @@ impl ActSerialEndpoint {
             address: address & ROM_ADDRESS_MASK,
             display_scan_slot: 1,
             display_register_index: None,
+            execution: None,
             received_word: 0,
             received_mask: 0,
         }
+    }
+
+    /// Bind one already-fetched word to the following 56-bit execution cycle.
+    ///
+    /// The architectural fallback may still compute unsupported internal effects
+    /// at the instruction boundary, but the electrical endpoint now owns the
+    /// complete b0..b55 lifetime of the same executing word. A new instruction
+    /// cannot replace an execution that has not reached b55.
+    pub fn begin_execution(
+        &mut self,
+        word: u16,
+        instruction_state: ActInstructionState,
+    ) -> Result<(), ActSerialExecutionError> {
+        if let Some(execution) = self.execution {
+            if let Some(next_word_bit) = execution.next_word_bit() {
+                return Err(ActSerialExecutionError::ExecutionAlreadyActive {
+                    word: execution.word(),
+                    next_word_bit,
+                });
+            }
+        }
+        self.execution = Some(ActSerialExecution::new(word, instruction_state)?);
+        Ok(())
+    }
+
+    pub const fn serial_execution(&self) -> Option<ActSerialExecution> {
+        self.execution
     }
 
     /// Start a fetch-only word, explicitly releasing the display window.
@@ -201,6 +242,21 @@ impl ActSerialEndpoint {
             self.received_word &= !(1u16 << serial_bit);
         }
         self.received_mask |= 1u16 << serial_bit;
+        Ok(())
+    }
+
+    /// Advance the current instruction by one structural serial bit coordinate.
+    ///
+    /// This is a lifetime/coordinate update only. No internal register or carry
+    /// mutation is attached to this boundary until 1820-2530 timing evidence
+    /// identifies the real commit relation.
+    fn advance_execution_for_bit(
+        &mut self,
+        word_bit: u8,
+    ) -> Result<(), ActSerialExecutionError> {
+        if let Some(execution) = &mut self.execution {
+            execution.advance_word_bit(word_bit)?;
+        }
         Ok(())
     }
 
@@ -367,6 +423,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         for _ in 0..4 {
             backplane.advance_clock();
         }
+        act.advance_execution_for_bit(expected_bit)?;
     }
 
     Ok(act.fetched_word()?)
@@ -388,8 +445,10 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
     match run_structural_word_transport(backplane, act, None, rom, source, None) {
         Ok(word) => Ok(word),
         Err(StructuralWordError::Fetch(error)) => Err(error),
-        Err(StructuralWordError::Display(_)) | Err(StructuralWordError::ActDisplay(_)) => {
-            unreachable!("fetch-only structural cycle cannot produce a display error")
+        Err(StructuralWordError::Display(_))
+        | Err(StructuralWordError::ActDisplay(_))
+        | Err(StructuralWordError::ActExecution(_)) => {
+            unreachable!("fetch-only structural cycle cannot produce a non-fetch error")
         }
     }
 }
@@ -400,9 +459,10 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// `ActSerialEndpoint` owns the fifteen-word display phase and therefore chooses
 /// the A/B digit serialized at b0..b7. The contents of that source digit are read
 /// from the ACT state at each bit cell instead of being snapshotted at word start.
-/// ROM0 reconstructs the same resolved bits and emits the returned `Rom0StrEvent`;
-/// ACT independently reports the coarse RCD falling boundary after slot 15. No
-/// cathode state enters this API.
+/// If an executing word is bound to the endpoint, that same instruction advances
+/// through b0..b55 in lockstep with this transport. ROM0 reconstructs the same
+/// resolved bits and emits the returned `Rom0StrEvent`; ACT independently reports
+/// the coarse RCD falling boundary after slot 15. No cathode state enters this API.
 ///
 /// This establishes source-backed ownership at word/bit granularity only. It
 /// does not yet make architectural A/B evolve inside the word, nor claim final
@@ -441,7 +501,7 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machines::hp67::Hp67SegmentMask;
+    use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
 
     struct FixtureRom {
         words: [(u16, u16); 2],
@@ -525,6 +585,57 @@ mod tests {
         assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::HighZ);
         state.b[0] = 0x01;
         assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::High);
+    }
+
+    #[test]
+    fn active_instruction_advances_with_the_same_structural_word() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        let state = ActArchitecturalState::default();
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0x07b);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+
+        act.begin_execution(0x11a, ActInstructionState::Normal)
+            .expect("known arithmetic word must start execution");
+        run_structural_display_fetch_cycle(
+            &mut backplane,
+            0x07b,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("active instruction must span the shared structural word");
+
+        let execution = act
+            .serial_execution()
+            .expect("execution remains inspectable after b55");
+        assert!(execution.is_complete());
+        assert_eq!(
+            execution.class(),
+            ActSerialWordClass::Arithmetic {
+                operation: 8,
+                field: 6,
+            }
+        );
+    }
+
+    #[test]
+    fn incomplete_execution_cannot_be_replaced_by_another_word() {
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0x11a, ActInstructionState::Normal)
+            .expect("first execution must start");
+        assert_eq!(
+            act.begin_execution(0x000, ActInstructionState::Normal),
+            Err(ActSerialExecutionError::ExecutionAlreadyActive {
+                word: 0x11a,
+                next_word_bit: 0,
+            })
+        );
     }
 
     #[test]
