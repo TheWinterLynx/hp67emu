@@ -80,6 +80,24 @@ pub enum Rom0DisplayError {
     UnknownDisplayCode { scan_slot: u8, code: u8 },
 }
 
+/// Falling STR event produced by ROM0 after one complete b0..b7 display byte.
+///
+/// The event carries the ACT-owned display slot only as an annotation so the
+/// downstream cathode model can verify phase. Its existence represents STR;
+/// exact PHI-relative edge placement and pulse width remain intentionally open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rom0StrEvent {
+    pub scan_slot: u8,
+}
+
+/// Structural failures in the downstream 1820-1749 scan state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CathodeScanError {
+    PhaseMismatch { cathode_slot: u8, str_slot: u8 },
+    UnexpectedRcd { scan_slot: u8 },
+    MissingRcdAtFinalSlot,
+}
+
 fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, Rom0DisplayError> {
     match level {
         LogicLevel::Low => Ok(false),
@@ -127,6 +145,15 @@ impl Rom0DisplayEndpoint {
             });
         }
         Ok(self.received_byte)
+    }
+
+    /// Emit the structural falling-STR event for a completed display byte.
+    pub fn str_falling_event(&self, scan_slot: u8) -> Result<Rom0StrEvent, Rom0DisplayError> {
+        self.display_byte()?;
+        if display_role_for_scan_slot(scan_slot).is_none() {
+            return Err(Rom0DisplayError::InvalidScanSlot(scan_slot));
+        }
+        Ok(Rom0StrEvent { scan_slot })
     }
 
     pub fn decoded_anodes(&self, scan_slot: u8) -> Result<Hp67SegmentMask, Rom0DisplayError> {
@@ -187,11 +214,11 @@ pub fn decode_rom0_display_byte(
 
 /// Structural 1820-1749 cathode scan state.
 ///
-/// `rcd_falling_edge()` applies the directly observed reset-to-slot-1 behavior.
-/// `str_falling_edge()` returns the scan role associated with the current slot
-/// and advances the structural slot counter. Final RCD/STR overlap ordering and
-/// PHI-relative propagation remain responsibilities of the future electrical
-/// scheduler.
+/// ROM0 supplies STR and ACT supplies RCD. `apply_control_edges()` consumes those
+/// source-owned events and validates that the downstream cathode phase agrees;
+/// the cathode never feeds a slot selection back into the ACT. Final RCD/STR
+/// overlap ordering and PHI-relative propagation remain responsibilities of the
+/// future electrical scheduler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CathodeDriver1820_1749 {
     scan_slot: u8,
@@ -211,6 +238,38 @@ impl CathodeDriver1820_1749 {
     pub fn scan_role(&self) -> Hp67DisplayRole {
         display_role_for_scan_slot(self.scan_slot)
             .expect("cathode structural scan slot is always in 1..=15")
+    }
+
+    /// Consume one ROM0 STR event and the coarse ACT RCD state for the same word.
+    ///
+    /// At slot 15 the real captures show STR/RCD overlap; this method records
+    /// their shared word boundary without inventing which electrical edge wins
+    /// first inside that overlap.
+    pub fn apply_control_edges(
+        &mut self,
+        str_event: Rom0StrEvent,
+        rcd_falling: bool,
+    ) -> Result<Hp67DisplayRole, CathodeScanError> {
+        if str_event.scan_slot != self.scan_slot {
+            return Err(CathodeScanError::PhaseMismatch {
+                cathode_slot: self.scan_slot,
+                str_slot: str_event.scan_slot,
+            });
+        }
+
+        let final_slot = self.scan_slot == HP67_DISPLAY_SCAN_SLOTS;
+        if rcd_falling && !final_slot {
+            return Err(CathodeScanError::UnexpectedRcd {
+                scan_slot: self.scan_slot,
+            });
+        }
+        if final_slot && !rcd_falling {
+            return Err(CathodeScanError::MissingRcdAtFinalSlot);
+        }
+
+        let role = self.scan_role();
+        self.scan_slot = if rcd_falling { 1 } else { self.scan_slot + 1 };
+        Ok(role)
     }
 
     pub fn rcd_falling_edge(&mut self) {
@@ -252,6 +311,7 @@ mod tests {
         sample_byte(&mut endpoint, 0x20);
         assert_eq!(endpoint.display_byte(), Ok(0x20));
         assert_eq!(endpoint.decoded_anodes(1), Ok(Hp67SegmentMask::BLANK));
+        assert_eq!(endpoint.str_falling_event(1), Ok(Rom0StrEvent { scan_slot: 1 }));
     }
 
     #[test]
@@ -311,6 +371,42 @@ mod tests {
         assert_eq!(
             display_role_for_scan_slot(15),
             Some(Hp67DisplayRole::ExponentUnitsDuplicate)
+        );
+    }
+
+    #[test]
+    fn cathode_consumes_rom0_str_and_act_rcd_without_driving_upstream_phase() {
+        let mut driver = CathodeDriver1820_1749::default();
+        let mut roles = Vec::new();
+        for scan_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
+            roles.push(
+                driver
+                    .apply_control_edges(
+                        Rom0StrEvent { scan_slot },
+                        scan_slot == HP67_DISPLAY_SCAN_SLOTS,
+                    )
+                    .unwrap(),
+            );
+        }
+        assert_eq!(roles[0], Hp67DisplayRole::ExponentUnits);
+        assert_eq!(roles[2], Hp67DisplayRole::SharedSigns);
+        assert_eq!(roles[14], Hp67DisplayRole::ExponentUnitsDuplicate);
+        assert_eq!(driver.scan_slot(), 1);
+    }
+
+    #[test]
+    fn cathode_rejects_phase_or_rcd_mismatches() {
+        let mut driver = CathodeDriver1820_1749::default();
+        assert_eq!(
+            driver.apply_control_edges(Rom0StrEvent { scan_slot: 2 }, false),
+            Err(CathodeScanError::PhaseMismatch {
+                cathode_slot: 1,
+                str_slot: 2,
+            })
+        );
+        assert_eq!(
+            driver.apply_control_edges(Rom0StrEvent { scan_slot: 1 }, true),
+            Err(CathodeScanError::UnexpectedRcd { scan_slot: 1 })
         );
     }
 
