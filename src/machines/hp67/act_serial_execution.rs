@@ -5,11 +5,9 @@
 //! invent internal register-write or PHI-edge timing that is not yet supported
 //! by HP-67/1820-2530 evidence.
 
-use super::{
-    act::ActInstructionState,
-    isa::ROM_WORD_MASK,
-    timing::{BITS_PER_DIGIT, BITS_PER_WORD},
-};
+use super::act::ActInstructionState;
+use super::isa::ROM_WORD_MASK;
+use super::timing::{BITS_PER_DIGIT, BITS_PER_WORD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActSerialWordClass {
@@ -178,11 +176,10 @@ mod tests {
 
     #[test]
     fn execution_rejects_words_wider_than_the_physical_rom_word() {
+        let result = ActSerialExecution::new(ROM_WORD_MASK + 1, ActInstructionState::Normal);
         assert_eq!(
-            ActSerialExecution::new(ROM_WORD_MASK + 1, ActInstructionState::Normal),
-            Err(ActSerialExecutionError::OpcodeOutOfRange(
-                ROM_WORD_MASK + 1
-            ))
+            result,
+            Err(ActSerialExecutionError::OpcodeOutOfRange(ROM_WORD_MASK + 1))
         );
     }
 }
