@@ -31,9 +31,9 @@ pub use crc::{
     CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
 };
 pub use display::{
-    decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, Hp67DisplayRole,
-    Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError, HP67_DISPLAY_SCAN_SLOTS,
-    HP67_SHARED_SIGN_SLOT,
+    decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749,
+    CathodeScanError, Hp67DisplayRole, Hp67SegmentMask, Rom0DisplayEndpoint, Rom0DisplayError,
+    Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS, HP67_SHARED_SIGN_SLOT,
 };
 pub use display_snapshot::{
     display_byte_from_act_registers, structural_display_scan_from_act_registers,
