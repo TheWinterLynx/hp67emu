@@ -311,7 +311,10 @@ mod tests {
         sample_byte(&mut endpoint, 0x20);
         assert_eq!(endpoint.display_byte(), Ok(0x20));
         assert_eq!(endpoint.decoded_anodes(1), Ok(Hp67SegmentMask::BLANK));
-        assert_eq!(endpoint.str_falling_event(1), Ok(Rom0StrEvent { scan_slot: 1 }));
+        assert_eq!(
+            endpoint.str_falling_event(1),
+            Ok(Rom0StrEvent { scan_slot: 1 })
+        );
     }
 
     #[test]
