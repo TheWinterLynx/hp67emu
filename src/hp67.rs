@@ -218,8 +218,9 @@ impl Hp67RomWordSource for UiCorpusRom {
 ///
 /// The firmware remains external. Startup executes through the same combined
 /// display/fetch word transport used by the structural smoke test. ACT owns the
-/// display phase, ROM0 emits STR events, and the cathode driver only consumes
-/// downstream STR/RCD control events.
+/// display phase and the b0..b55 lifetime of the executing instruction, ROM0
+/// emits STR events, and the cathode driver only consumes downstream STR/RCD
+/// control events.
 pub struct Hp67LiveMachine {
     source: UiCorpusRom,
     backplane: Hp67ElectricalBackplane,
@@ -326,8 +327,16 @@ impl Hp67LiveMachine {
             ));
         }
 
+        let mut idle_after_word = false;
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
+            let instruction_state = self.machine.act.state.instruction_state;
+            self.act_serial
+                .begin_execution(word, instruction_state)
+                .map_err(|error| {
+                    format!("live boot cycle {cycle} serial execution start failed: {error:?}")
+                })?;
+
             let execution = self
                 .machine
                 .execute_word(word)
@@ -351,20 +360,32 @@ impl Hp67LiveMachine {
                 }
             }
 
-            if self.saw_display_init
+            idle_after_word = self.saw_display_init
                 && self.main_wait_visits >= 2
                 && self.card_poll_visits >= 1
                 && self.machine.act.state.display_enable
-                && self.machine.act.state.key_buffer.is_none()
-            {
-                self.phase = LiveBootPhase::Idle;
-                self.boot_cycle = cycle.saturating_add(1);
-                return Ok(());
-            }
+                && self.machine.act.state.key_buffer.is_none();
         }
 
         self.transport_fetch_word(cycle)?;
+
+        if let Some(word) = self.pipeline.executing_word() {
+            let serial_execution = self.act_serial.serial_execution().ok_or_else(|| {
+                format!("live boot cycle {cycle} lost serial execution for word 0x{word:03x}")
+            })?;
+            if serial_execution.word() != word || !serial_execution.is_complete() {
+                return Err(format!(
+                    "live boot cycle {cycle} serial execution incomplete: expected word 0x{word:03x}, got word 0x{:03x}, next_bit={:?}",
+                    serial_execution.word(),
+                    serial_execution.next_word_bit()
+                ));
+            }
+        }
+
         self.boot_cycle = cycle.saturating_add(1);
+        if idle_after_word {
+            self.phase = LiveBootPhase::Idle;
+        }
         Ok(())
     }
 
