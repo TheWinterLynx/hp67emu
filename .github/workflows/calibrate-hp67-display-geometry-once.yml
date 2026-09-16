@@ -1,0 +1,48 @@
+name: calibrate-hp67-display-geometry-once
+
+on:
+  push:
+    branches:
+      - foundation/cycle-accurate-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  calibrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: foundation/cycle-accurate-architecture
+          fetch-depth: 0
+
+      - name: Apply physical display calibration
+        run: python .github/scripts/calibrate_hp67_display_geometry.py
+
+      - name: Format all Rust sources
+        run: cargo fmt --all
+
+      - name: Verify rustfmt hard gate
+        run: cargo fmt --all -- --check
+
+      - name: Run locked tests with warnings denied
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo test --locked --all-targets
+
+      - name: Build locked release bins
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo build --locked --release --bins
+
+      - name: Commit validated physical display calibration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src docs
+          git commit -m "Calibrate HP-67 LED geometry to physical front plane"
+          git push origin HEAD:foundation/cycle-accurate-architecture
