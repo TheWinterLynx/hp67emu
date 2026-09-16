@@ -22,6 +22,28 @@ jobs:
       - name: Apply physical display calibration
         run: python .github/scripts/calibrate_hp67_display_geometry.py
 
+      - name: Keep module-count helpers test-local
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/ui/classic_display.rs')
+          text = path.read_text()
+          text = text.replace(
+              '''const MODULE_COUNT: usize = 3;\nconst CHARACTERS_PER_MODULE: usize = 5;\n''',
+              ''
+          )
+          text = text.replace(
+              '''const MODULE_WIDTH_MM: f32 = CHARACTER_PITCH_MM * CHARACTERS_PER_MODULE as f32;\nconst ASSEMBLY_WIDTH_MM: f32 = MODULE_WIDTH_MM * MODULE_COUNT as f32;\n''',
+              ''
+          )
+          text = text.replace(
+              '''        assert!((ASSEMBLY_WIDTH_MM - 57.15).abs() < 0.001);\n        assert_eq!(CHARACTER_COUNT, 15);\n        assert_eq!(MODULE_COUNT * CHARACTERS_PER_MODULE, CHARACTER_COUNT);\n''',
+              '''        let module_count = 3usize;\n        let characters_per_module = 5usize;\n        let assembly_width_mm =\n            CHARACTER_PITCH_MM * characters_per_module as f32 * module_count as f32;\n        assert!((assembly_width_mm - 57.15).abs() < 0.001);\n        assert_eq!(CHARACTER_COUNT, module_count * characters_per_module);\n'''
+          )
+          path.write_text(text)
+          PY
+
       - name: Format all Rust sources
         run: cargo fmt --all
 
