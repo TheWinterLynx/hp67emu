@@ -250,10 +250,7 @@ impl ActSerialEndpoint {
     /// This is a lifetime/coordinate update only. No internal register or carry
     /// mutation is attached to this boundary until 1820-2530 timing evidence
     /// identifies the real commit relation.
-    fn advance_execution_for_bit(
-        &mut self,
-        word_bit: u8,
-    ) -> Result<(), ActSerialExecutionError> {
+    fn advance_execution_for_bit(&mut self, word_bit: u8) -> Result<(), ActSerialExecutionError> {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
         }
