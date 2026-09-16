@@ -23,6 +23,7 @@ pub enum ActSerialExecutionError {
     OpcodeOutOfRange(u16),
     UnexpectedWordBit { expected: u8, actual: u8 },
     ExecutionAlreadyComplete,
+    ExecutionAlreadyActive { word: u16, next_word_bit: u8 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
