@@ -32,8 +32,9 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 - https://literature.hpcalc.org/community/classic-notes.pdf
 - The section headed **“Woodstock – HP-67”** contains HP-67-specific logic-analyser captures of PHI1, PHI2, Sync and Is.
 - Pages 64-66 establish exact instruction-fetch coordinates: the 12-bit ROM address is sent LSB-first during bit times `16..27`; the selected ROM returns its 10-bit word LSB-first during bit times `46..55`; a normal instruction has SYNC asserted over those final ten times, while after an `IF` the same 10-bit word arrives with SYNC low and is consumed as the implied-GOTO destination.
+- Page 73 shows HP-67 power-on behavior: signals start stabilizing at about 330 us and valid SYNC/fetch activity starts at about 35 ms after switch-on.
 - Page 74 records shared-bus behavior: IS is weakly/passively biased low and active participants pull it high rather than actively driving zero; only one device is intended to control the bus at a time.
-- Page 73 separately shows HP-67 power-on stabilization and the first valid SYNC activity. Use the bit windows and bus polarity as direct HP-67 evidence, while keeping exact launch/sample PHI edges and propagation delay open until the page-70 expanded waveforms are transcribed into a reviewed edge convention.
+- Page 76 reports an observed HP-67 56-bit word time of about 320 us and a fifteen-STR display refresh of about 4.8 ms; pages 76-77 also anchor ROM0 display byte `0x00` as digit `0` and document the shared-sign decode. These whole-interval measurements may pace visible startup behavior, but they do not settle exact PHI launch/sample edges, RCD/STR overlap ordering or propagation delay.
 - The implementation/evidence mapping is recorded in `docs/research/HP67_ISA_TIMING.md`.
 
 ### Tier B — detailed HP-family timing/service evidence

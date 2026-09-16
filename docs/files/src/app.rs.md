@@ -1,16 +1,16 @@
 # `src/app.rs`
 
 ## Purpose
-Owns the desktop application's top-level egui state, embedded HP-67 photograph texture and live structural HP-67 machine used as the display source.
+Owns the desktop egui state, embedded HP-67 photograph and wall-clock scheduling adapter for the live structural HP-67 display machine.
 
 ## Why it exists
-The emulator needs a presentation adapter that loads assets and connects headless emulation state to the photographed frontend without putting GUI concerns into the reusable emulation library. The display is no longer allowed to come from a formatted placeholder string.
+The emulator must show the physical power-on transient rather than constructing the machine at its final idle state. GUI frame timing belongs here, outside the reusable electrical and architectural modules.
 
 ## Relationships
-Uses `hp67::Hp67LiveMachine` to boot the external firmware and obtain `HardwareDisplayFrame`, `hp67::Hp67State` only for remaining mechanical UI controls, `panel::Hp67Panel` for the photographed body/input regions, and `ui::sliders` / `ui::top_keys` for visual corrections.
+Uses `Hp67LiveMachine::power_on_default()` and `advance()` for the external firmware, `Hp67State` for mechanical controls, `Hp67Panel` for input/body rendering and the photo overlay modules for visual corrections. `HardwareDisplayFrame` remains the only display payload passed to the panel.
 
 ## Responsibilities
-Embed/decode `assets/hp67.png`, configure egui visuals, boot the live machine when the app starts, pass raw display segment masks to the panel, dispatch UI events, and leave the LEDs blank rather than inventing a fallback display when the external corpus is unavailable.
+Decode the embedded photograph, load the external firmware source, measure elapsed host time between egui updates, advance the HP-67 startup only while power is on, replay the power-on state when the switch goes OFF->ON, and request repaints while boot is still progressing. If the external corpus or runtime fails, leave LED emission blank rather than synthesize a calculator value.
 
 ## Implementation
-`include_bytes!` compiles only the PNG into the executable; firmware remains external. `Hp67LiveMachine::boot_default()` is attempted once during application construction. A boot failure is reported to stderr and represented by `None`, which maps to `HardwareDisplayFrame::BLANK`. Each frame passes a copy of the current raw segment frame into the panel before drawing key/switch overlays.
+The first UI frame advances by zero elapsed time so the reset display can actually be seen. Subsequent frames pass monotonic `Instant` deltas into `Hp67LiveMachine`. While that machine reports `is_booting()`, egui requests another repaint after approximately one measured HP-67 display refresh (4.8 ms). Power-off stops advancement and suppresses LED painting in `panel.rs`; power-on resets the live machine and its UI clock so the transient repeats.

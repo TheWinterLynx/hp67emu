@@ -1,11 +1,13 @@
-use std::{cell::Cell, env, fs};
+use std::{cell::Cell, env, fs, time::Duration};
 
 use hp67emu::{
     machines::hp67::{
         decode_rom0_display_byte, display_byte_from_act_registers,
-        run_structural_display_fetch_cycle, ActFetchEndpoint, CathodeDriver1820_1749,
-        FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67RomWordSource,
-        Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS,
+        run_structural_display_fetch_cycle, ActFetchEndpoint, ActOperation, CathodeDriver1820_1749,
+        FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
+        Hp67ElectricalBackplane, Hp67RomWordSource, Hp67SegmentMask, Rom0DisplayEndpoint,
+        RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+        HP67_OBSERVED_WORD_TIME_US,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -16,6 +18,14 @@ const DISPLAY_INIT_PC: u16 = 0o0161;
 const MAIN_WAIT_PC: u16 = 0o0167;
 const CARD_POLL_PC: u16 = 0o0206;
 const BOOT_CYCLE_LIMIT: u64 = 2_000;
+const RESET_DISPLAY_CODE: u8 = 0x00;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LiveBootPhase {
+    ResetHold,
+    Firmware,
+    Idle,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunMode {
@@ -221,16 +231,35 @@ pub struct Hp67LiveMachine {
     pipeline: FetchPipelineLatch,
     machine: Hp67ArchitecturalMachine,
     display: HardwareDisplayFrame,
+    phase: LiveBootPhase,
+    pending_us: u64,
+    boot_cycle: u64,
+    saw_display_init: bool,
+    main_wait_visits: u64,
+    card_poll_visits: u64,
+    display_control_seen: bool,
+}
+
+fn power_on_reset_display_frame() -> Result<HardwareDisplayFrame, String> {
+    let mut frame = HardwareDisplayFrame::BLANK;
+    for scan_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
+        let anodes = decode_rom0_display_byte(scan_slot, RESET_DISPLAY_CODE).map_err(|error| {
+            format!("power-on reset ROM0 decode failed at slot {scan_slot}: {error:?}")
+        })?;
+        frame.capture_scan_slot(scan_slot, anodes)?;
+    }
+    Ok(frame)
 }
 
 impl Hp67LiveMachine {
-    pub fn boot_default() -> Result<Self, String> {
+    pub fn power_on_default() -> Result<Self, String> {
         let corpus_path =
             env::var("HP67_ROM_CORPUS").unwrap_or_else(|_| DEFAULT_CORPUS_PATH.to_owned());
         let input = fs::read_to_string(&corpus_path)
             .map_err(|error| format!("failed to read HP-67 ROM corpus {corpus_path}: {error}"))?;
         let source = UiCorpusRom::from_tsv(&input)?;
-        let mut live = Self {
+        let display = power_on_reset_display_frame()?;
+        Ok(Self {
             source,
             backplane: Hp67ElectricalBackplane::default(),
             fetch_act: ActFetchEndpoint::new(0),
@@ -239,51 +268,117 @@ impl Hp67LiveMachine {
             cathode: CathodeDriver1820_1749::default(),
             pipeline: FetchPipelineLatch::default(),
             machine: Hp67ArchitecturalMachine::default(),
-            display: HardwareDisplayFrame::BLANK,
-        };
-        live.boot_to_idle()?;
-        live.capture_idle_display()?;
-        Ok(live)
+            display,
+            phase: LiveBootPhase::ResetHold,
+            pending_us: 0,
+            boot_cycle: 0,
+            saw_display_init: false,
+            main_wait_visits: 0,
+            card_poll_visits: 0,
+            display_control_seen: false,
+        })
     }
 
     pub const fn display_frame(&self) -> HardwareDisplayFrame {
         self.display
     }
 
-    fn boot_to_idle(&mut self) -> Result<(), String> {
-        let mut saw_display_init = false;
-        let mut main_wait_visits = 0u64;
-        let mut card_poll_visits = 0u64;
+    pub const fn is_booting(&self) -> bool {
+        !matches!(self.phase, LiveBootPhase::Idle)
+    }
 
-        for cycle in 0..BOOT_CYCLE_LIMIT {
-            self.pipeline.begin_cycle();
-            if let Some(word) = self.pipeline.executing_word() {
-                let execution = self.machine.execute_word(word).map_err(|error| {
-                    format!("live boot cycle {cycle} execution failed: {error:?}")
-                })?;
-                match execution.pc {
-                    DISPLAY_INIT_PC => saw_display_init = true,
-                    MAIN_WAIT_PC => main_wait_visits = main_wait_visits.saturating_add(1),
-                    CARD_POLL_PC => card_poll_visits = card_poll_visits.saturating_add(1),
-                    _ => {}
-                }
+    pub fn reset_power_on(&mut self) -> Result<(), String> {
+        self.source.select_bank(0);
+        self.backplane = Hp67ElectricalBackplane::default();
+        self.fetch_act = ActFetchEndpoint::new(0);
+        self.fetch_rom = RomFetchEndpoint::default();
+        self.display_rom0 = Rom0DisplayEndpoint::default();
+        self.cathode = CathodeDriver1820_1749::default();
+        self.pipeline = FetchPipelineLatch::default();
+        self.machine = Hp67ArchitecturalMachine::default();
+        self.display = power_on_reset_display_frame()?;
+        self.phase = LiveBootPhase::ResetHold;
+        self.pending_us = 0;
+        self.boot_cycle = 0;
+        self.saw_display_init = false;
+        self.main_wait_visits = 0;
+        self.card_poll_visits = 0;
+        self.display_control_seen = false;
+        Ok(())
+    }
 
-                if saw_display_init
-                    && main_wait_visits >= 2
-                    && card_poll_visits >= 1
-                    && self.machine.act.state.display_enable
-                    && self.machine.act.state.key_buffer.is_none()
-                {
-                    return Ok(());
+    pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
+        if self.phase == LiveBootPhase::Idle {
+            return Ok(());
+        }
+
+        let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+        self.pending_us = self.pending_us.saturating_add(elapsed_us);
+
+        if self.phase == LiveBootPhase::ResetHold {
+            if self.pending_us < HP67_OBSERVED_POWER_ON_SYNC_DELAY_US {
+                return Ok(());
+            }
+            self.pending_us -= HP67_OBSERVED_POWER_ON_SYNC_DELAY_US;
+            self.phase = LiveBootPhase::Firmware;
+        }
+
+        while self.phase == LiveBootPhase::Firmware && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
+        {
+            self.pending_us -= HP67_OBSERVED_WORD_TIME_US;
+            self.step_firmware_cycle()?;
+        }
+        Ok(())
+    }
+
+    fn step_firmware_cycle(&mut self) -> Result<(), String> {
+        let cycle = self.boot_cycle;
+        if cycle >= BOOT_CYCLE_LIMIT {
+            return Err(format!(
+                "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
+            ));
+        }
+
+        self.pipeline.begin_cycle();
+        if let Some(word) = self.pipeline.executing_word() {
+            let execution = self
+                .machine
+                .execute_word(word)
+                .map_err(|error| format!("live boot cycle {cycle} execution failed: {error:?}"))?;
+
+            match execution.pc {
+                DISPLAY_INIT_PC => self.saw_display_init = true,
+                MAIN_WAIT_PC => self.main_wait_visits = self.main_wait_visits.saturating_add(1),
+                CARD_POLL_PC => self.card_poll_visits = self.card_poll_visits.saturating_add(1),
+                _ => {}
+            }
+
+            if let Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }) =
+                execution.operation
+            {
+                if matches!(opcode, 0o0210 | 0o0310) {
+                    self.display_control_seen = true;
+                    if !self.machine.act.state.display_enable {
+                        self.display.clear();
+                    }
                 }
             }
 
-            self.transport_fetch_word(cycle)?;
+            if self.saw_display_init
+                && self.main_wait_visits >= 2
+                && self.card_poll_visits >= 1
+                && self.machine.act.state.display_enable
+                && self.machine.act.state.key_buffer.is_none()
+            {
+                self.phase = LiveBootPhase::Idle;
+                self.boot_cycle = cycle.saturating_add(1);
+                return Ok(());
+            }
         }
 
-        Err(format!(
-            "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
-        ))
+        self.transport_fetch_word(cycle)?;
+        self.boot_cycle = cycle.saturating_add(1);
+        Ok(())
     }
 
     fn transport_fetch_word(&mut self, cycle: u64) -> Result<(), String> {
@@ -309,46 +404,29 @@ impl Hp67LiveMachine {
             &self.source,
         )
         .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?;
+        if result.display_byte != display_byte {
+            return Err(format!(
+                "live cycle {cycle} ROM0 reconstructed display byte 0x{:02x}, expected 0x{display_byte:02x}",
+                result.display_byte
+            ));
+        }
         self.pipeline.complete_cycle(result.fetched_word);
+
+        if self.display_control_seen {
+            if self.machine.act.state.display_enable {
+                let anodes =
+                    decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
+                        format!(
+                            "live cycle {cycle} ROM0 decode failed at slot {scan_slot}: {error:?}"
+                        )
+                    })?;
+                self.display.capture_scan_slot(scan_slot, anodes)?;
+            } else {
+                self.display.clear();
+            }
+        }
+
         self.cathode.str_falling_edge();
-        Ok(())
-    }
-
-    fn capture_idle_display(&mut self) -> Result<(), String> {
-        if !self.machine.act.state.display_enable {
-            self.display.clear();
-            return Ok(());
-        }
-
-        self.display.clear();
-        self.cathode.rcd_falling_edge();
-        self.source.select_bank(self.machine.bank());
-        let address = self.machine.pc();
-
-        for expected_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
-            let display_byte = display_byte_from_act_registers(
-                expected_slot,
-                &self.machine.act.state.a,
-                &self.machine.act.state.b,
-            )
-            .map_err(|error| format!("live idle display byte failed: {error:?}"))?;
-            let result = run_structural_display_fetch_cycle(
-                &mut self.backplane,
-                address,
-                display_byte,
-                &mut self.fetch_act,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
-            )
-            .map_err(|error| {
-                format!("live idle shared word failed at slot {expected_slot}: {error:?}")
-            })?;
-            let anodes = decode_rom0_display_byte(expected_slot, result.display_byte)
-                .map_err(|error| format!("live idle ROM0 decode failed: {error:?}"))?;
-            self.display.capture_scan_slot(expected_slot, anodes)?;
-            self.cathode.str_falling_edge();
-        }
         Ok(())
     }
 }
@@ -404,5 +482,17 @@ mod tests {
             .unwrap();
         assert_eq!(frame.segments()[0], Hp67SegmentMask::G.bits());
         assert_eq!(frame.segments()[12], Hp67SegmentMask::G.bits());
+    }
+
+    #[test]
+    fn reset_bus_zero_code_produces_observed_all_zero_power_on_pattern() {
+        let frame = power_on_reset_display_frame().unwrap();
+        assert_eq!(frame.segments()[0], Hp67SegmentMask::G.bits());
+        for index in 1..=11 {
+            assert_eq!(frame.segments()[index], 0x3f);
+        }
+        assert_eq!(frame.segments()[12], 0);
+        assert_eq!(frame.segments()[13], 0x3f);
+        assert_eq!(frame.segments()[14], 0x3f);
     }
 }

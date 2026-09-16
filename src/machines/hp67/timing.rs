@@ -15,6 +15,19 @@ pub const DIGITS_PER_WORD: u8 = 14;
 /// Number of serial bit times in one HP-67 machine word.
 pub const BITS_PER_WORD: u8 = BITS_PER_DIGIT * DIGITS_PER_WORD;
 
+/// Approximate whole-word duration measured on a physical HP-67 logic-analyser trace.
+///
+/// Tony Nixon's HP-67 capture reports 320 us for the complete 56-bit instruction
+/// cycle. This is a coarse observed duration, not a claim about exact PHI pulse
+/// widths or launch/sample edges.
+pub const HP67_OBSERVED_WORD_TIME_US: u64 = 320;
+/// Approximate full 15-STR display refresh measured on the same physical HP-67.
+pub const HP67_OBSERVED_DISPLAY_REFRESH_US: u64 = 4_800;
+/// Approximate delay from switch-on until SYNC becomes active on the measured HP-67.
+pub const HP67_OBSERVED_POWER_ON_SYNC_DELAY_US: u64 = 35_000;
+/// Approximate delay after switch-on at which the measured power-on signals start stabilizing.
+pub const HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US: u64 = 330;
+
 /// First HP-67 bit time carrying the eight-bit ROM0 display code on IS.
 pub const DISPLAY_DATA_FIRST_BIT: u8 = 0;
 /// Number of serial bits in one ROM0 display code, LSB first.
@@ -181,6 +194,18 @@ mod tests {
         assert_eq!(BITS_PER_DIGIT, 4);
         assert_eq!(DIGITS_PER_WORD, 14);
         assert_eq!(BITS_PER_WORD, 56);
+    }
+
+    #[test]
+    fn coarse_hp67_power_on_and_refresh_times_match_measured_trace() {
+        assert_eq!(HP67_OBSERVED_WORD_TIME_US, 320);
+        assert_eq!(HP67_OBSERVED_DISPLAY_REFRESH_US, 4_800);
+        assert_eq!(HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, 35_000);
+        assert_eq!(HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US, 330);
+        assert_eq!(
+            HP67_OBSERVED_DISPLAY_REFRESH_US,
+            HP67_OBSERVED_WORD_TIME_US * 15
+        );
     }
 
     #[test]
