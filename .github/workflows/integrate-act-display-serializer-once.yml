@@ -1,0 +1,48 @@
+name: integrate-act-display-serializer-once
+
+on:
+  push:
+    branches:
+      - foundation/cycle-accurate-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: foundation/cycle-accurate-architecture
+          fetch-depth: 0
+
+      - name: Integrate ACT-owned display serializer
+        run: python .github/scripts/integrate_act_display_serializer.py
+
+      - name: Format all Rust sources
+        run: cargo fmt --all
+
+      - name: Verify rustfmt hard gate
+        run: cargo fmt --all -- --check
+
+      - name: Run locked tests with warnings denied
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo test --locked --all-targets
+
+      - name: Build locked release bins
+        env:
+          RUSTFLAGS: -Dwarnings
+        run: cargo build --locked --release --bins
+
+      - name: Commit validated ACT display serializer
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src docs
+          git commit -m "Serialize HP-67 display bits inside ACT path"
+          git push origin HEAD:foundation/cycle-accurate-architecture
