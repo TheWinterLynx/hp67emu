@@ -2,24 +2,24 @@
 
 ## Purpose
 
-Provides the structural HP-67 shared-word transport and a single ACT serial endpoint for display output, ROM-address output and ROM-word input on the resolved IS/ISA electrical net.
+Provides the structural HP-67 shared-word transport and a single ACT serial endpoint for display output, ROM-address output, ROM-word input and the lifetime of the concurrently executing instruction on the resolved IS/ISA electrical net.
 
 ## Why it exists
 
-Direct HP-67 evidence places ACT/ROM0 display traffic at b0..b7, ACT ROM address at b16..b27 and selected-ROM response at b46..b55 within the same 56-bit word. A maximum-fidelity transport must preserve both the shared physical bus and the physical ACT boundary; it must not accept a prebuilt display byte from the UI, allow the downstream cathode driver to choose which ACT digit is emitted, or freeze A/B display data into a word-start snapshot when the future ACT model needs to evolve those registers intra-word.
+Direct HP-67 evidence places ACT/ROM0 display traffic at b0..b7, ACT ROM address at b16..b27 and selected-ROM response at b46..b55 within the same 56-bit word, while the word fetched in cycle N executes during cycle N+1. A maximum-fidelity transport must preserve that overlap: the executing instruction cannot remain an untimed action detached from the physical word, the UI cannot inject a display byte, and the downstream cathode driver cannot choose what the ACT emits.
 
 ## Relationships
 
-Uses `display_register_index_for_scan_slot()` and `ActArchitecturalState` from `act.rs`, evidence-backed windows from `timing.rs`, wired-high/address/ROM helpers from `isa.rs`, `Rom0DisplayEndpoint` and `Rom0StrEvent` from `display.rs`, and `Hp67ElectricalBackplane` for the weak-low resolved IS net. Firmware remains behind `Hp67RomWordSource` and is not embedded in this layer. The structural 1820-1749 cathode model is strictly downstream of this transport.
+Uses `display_register_index_for_scan_slot()`, `ActArchitecturalState` and `ActInstructionState` from `act.rs`; `ActSerialExecution` from `act_serial_execution.rs`; evidence-backed windows from `timing.rs`; wired-high/address/ROM helpers from `isa.rs`; `Rom0DisplayEndpoint` and `Rom0StrEvent` from `display.rs`; and `Hp67ElectricalBackplane` for the weak-low resolved IS net. Firmware remains behind `Hp67RomWordSource`. The 1820-1749 cathode model is strictly downstream.
 
 ## Responsibilities
 
-`ActSerialEndpoint` owns every currently modeled ACT role on IS: the fifteen-word display phase, direct A/B display-bit drive at b0..b7, address drive at b16..b27 and returned-word sampling at b46..b55. `RomFetchEndpoint` reconstructs the twelve address bits and emits the selected ten-bit ROM word. ROM0 independently reconstructs the eight display bits from the same resolved line and emits the STR event. Floating/contentious samples remain hard failures.
+`ActSerialEndpoint` owns every currently modeled ACT role on the structural word: the fifteen-word display phase, direct live A/B display-bit drive at b0..b7, address drive at b16..b27, returned-word sampling at b46..b55 and the b0..b55 lifetime of the word executing concurrently with the fetch. It rejects replacing an execution that has not completed. `RomFetchEndpoint` reconstructs the twelve address bits and emits the selected ten-bit ROM word. ROM0 independently reconstructs display data from the same resolved line. Floating/contentious samples remain hard failures.
 
 ## Implementation
 
-`ActSerialEndpoint` starts at display slot 1 and advances its own phase after every completed display/fetch word. Slot 15 is the evidenced duplicate exponent-units word; completing it wraps the ACT phase to slot 1 and returns a coarse `rcd_falling=true` event. `run_structural_display_fetch_cycle()` receives no cathode state. It derives the slot only from the ACT endpoint, lets ROM0 reconstruct the display byte from resolved IS, obtains a `Rom0StrEvent` from ROM0, then returns that STR event together with the ACT-owned RCD event.
+`begin_execution()` binds the already-prefetched instruction and its pre-execution `ActInstructionState` to the ACT endpoint. `run_structural_word_transport()` advances that execution exactly once per structural bit after the current four-subphase scheduler scaffold for b0, b1, through b55. After the word, `serial_execution()` remains inspectable and must report completion before another instruction can replace it.
 
-The endpoint now latches only the register index associated with the active display slot. It does **not** snapshot the source A/B nibbles. During each of b0..b7, `drive_for_bit()` reads the corresponding bit from the current `ActArchitecturalState`; a regression mutates A/B after the word begins and verifies that the subsequent drive changes, proving the old word-start nibble snapshot is gone. `StructuralWordResult.display_byte` remains an observation reconstructed only on the ROM0 side, never an ACT input.
+The display path remains ACT-owned. The endpoint latches only the register index associated with the active display slot and reads current A/B contents when each of b0..b7 is visited. Slot 15 wraps the display phase and emits the coarse ACT-owned RCD boundary; ROM0 supplies STR. `StructuralWordResult.display_byte` remains only a ROM0-side observation.
 
-The remaining fidelity boundary is explicit: although display transport now samples A/B at each bit cell, `ActArchitecturalState` itself still changes at instruction boundaries. A real 1820-2530 shifts and modifies register/ALU state inside the 56-bit word. True intra-word register/ALU evolution, exact PHI launch/sample edges, ROM0 sampling edge and the final STR/RCD overlap ordering remain unclaimed until hardware evidence fixes them.
+This slice makes instruction execution occupy the correct full-word lifetime without inventing internal 1820-2530 write edges. Register/ALU/carry mutation still comes from the architectural fallback at the instruction boundary until source-backed intra-word commit timing is available; exact PHI launch/sample edges and STR/RCD overlap ordering remain explicitly unclaimed.
