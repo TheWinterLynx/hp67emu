@@ -6,6 +6,7 @@ rust-version = "1.76"
 description = "Photorealistic HP-67 emulator front panel in Rust"
 repository = "https://github.com/TheWinterLynx/hp67emu"
 publish = false
+default-run = "hp67emu"
 
 [dependencies]
 eframe = { version = "=0.27.2", features = ["wgpu"] }
