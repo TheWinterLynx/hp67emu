@@ -278,9 +278,9 @@ fn verify_serial_execution_complete(
     let Some(word) = pipeline.executing_word() else {
         return Ok(());
     };
-    let execution = act_serial.serial_execution().ok_or_else(|| {
-        format!("cycle {cycle} lost serial execution for word 0x{word:03x}")
-    })?;
+    let execution = act_serial
+        .serial_execution()
+        .ok_or_else(|| format!("cycle {cycle} lost serial execution for word 0x{word:03x}"))?;
     if execution.word() != word || !execution.is_complete() {
         return Err(format!(
             "cycle {cycle} serial execution incomplete: expected word 0x{word:03x}, got word 0x{:03x}, next_bit={:?}",
