@@ -133,8 +133,9 @@ impl ActSerialEndpoint {
     pub fn begin_display_fetch_cycle(&mut self, address: u16) -> Result<(), ActDisplaySerialError> {
         self.address = address & ROM_ADDRESS_MASK;
         self.display_register_index = Some(
-            display_register_index_for_scan_slot(self.display_scan_slot)
-                .ok_or(ActDisplaySerialError::InvalidScanSlot(self.display_scan_slot))?,
+            display_register_index_for_scan_slot(self.display_scan_slot).ok_or(
+                ActDisplaySerialError::InvalidScanSlot(self.display_scan_slot),
+            )?,
         );
         self.received_word = 0;
         self.received_mask = 0;
@@ -331,7 +332,11 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act.drive_for_bit(expected_bit, act_state));
+        backplane.drive(
+            Hp67Net::Isa,
+            ACT_IS_DRIVER,
+            act.drive_for_bit(expected_bit, act_state),
+        );
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
         if let Some(endpoint) = rom0.as_deref_mut() {
