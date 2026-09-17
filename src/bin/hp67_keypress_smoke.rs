@@ -33,9 +33,7 @@ fn main() -> Result<(), String> {
     let mut machine = Hp67LiveMachine::power_on_default()?;
     machine.reset_power_on()?;
 
-    machine.advance(Duration::from_micros(
-        HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    ))?;
+    machine.advance(Duration::from_micros(HP67_OBSERVED_POWER_ON_SYNC_DELAY_US))?;
 
     let mut boot_words = 0u64;
     while machine.is_booting() && boot_words < BOOT_WORD_LIMIT {
@@ -89,7 +87,10 @@ fn main() -> Result<(), String> {
     }
 
     let settled_display = machine.display_frame();
-    println!("SETTLED DISPLAY SEGMENTS: {}", format_segments(settled_display));
+    println!(
+        "SETTLED DISPLAY SEGMENTS: {}",
+        format_segments(settled_display)
+    );
 
     if settled_display == idle_display {
         return Err(
