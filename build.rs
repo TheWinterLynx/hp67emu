@@ -32,10 +32,7 @@ fn main() {
     );
     assert_eq!(words[0], 0x000, "HP-67 reset vector mismatch");
     assert_eq!(words[1], 0x3e3, "HP-67 startup word 1 mismatch");
-    assert_eq!(
-        words[0x0f8], 0x11a,
-        "HP-67 startup word 0x0f8 mismatch"
-    );
+    assert_eq!(words[0x0f8], 0x11a, "HP-67 startup word 0x0f8 mismatch");
 
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR"));
     let generated = out_dir.join("hp67_embedded_rom.rs");
@@ -77,7 +74,8 @@ fn parse_corpus(input: &str) -> ([u16; PHYSICAL_ROM_WORDS], [u8; ROM_PAGES], usi
         }
         let fields: Vec<_> = line.split_whitespace().collect();
         assert_eq!(
-            fields.len(), 3,
+            fields.len(),
+            3,
             "invalid HP-67 corpus line {}: {raw_line}",
             line_index + 1
         );
@@ -125,8 +123,7 @@ fn parse_integer(token: &str) -> u16 {
         .strip_prefix("0o")
         .or_else(|| trimmed.strip_prefix("0O"))
     {
-        u16::from_str_radix(rest, 8)
-            .unwrap_or_else(|_| panic!("invalid octal ROM value {token}"))
+        u16::from_str_radix(rest, 8).unwrap_or_else(|_| panic!("invalid octal ROM value {token}"))
     } else {
         trimmed
             .parse::<u16>()
