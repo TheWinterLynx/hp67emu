@@ -1,18 +1,12 @@
-use std::{cell::Cell, env, fs, time::Duration};
+use std::time::Duration;
 
-use hp67emu::{
-    machines::hp67::{
-        decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation,
-        ActSerialEndpoint, CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
-        Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67RomWordSource, Hp67SegmentMask,
-        Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-        HP67_OBSERVED_WORD_TIME_US,
-    },
-    research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
+use hp67emu::machines::hp67::{
+    decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint,
+    CathodeDriver1820_1749, EmbeddedHp67Rom, FetchPipelineLatch, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67SegmentMask, Rom0DisplayEndpoint,
+    RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
-const EXPECTED_POPULATED_WORDS: usize = 5120;
-const DEFAULT_CORPUS_PATH: &str = ".research/teenix-2026-hp67.tsv";
 const DISPLAY_INIT_PC: u16 = 0o0161;
 const MAIN_WAIT_PC: u16 = 0o0167;
 const CARD_POLL_PC: u16 = 0o0206;
@@ -157,72 +151,15 @@ impl Default for HardwareDisplayFrame {
     }
 }
 
-struct UiCorpusRom {
-    corpus: RomCorpus,
-    requested_bank: Cell<u8>,
-    page_bank_mask: [u8; ROM_PAGES],
-}
-
-impl UiCorpusRom {
-    fn from_tsv(input: &str) -> Result<Self, String> {
-        let corpus = RomCorpus::from_normalized_tsv(input)
-            .map_err(|error| format!("failed to parse normalized ROM corpus: {error}"))?;
-        if corpus.populated_words() != EXPECTED_POPULATED_WORDS {
-            return Err(format!(
-                "corpus has {} populated words; expected {EXPECTED_POPULATED_WORDS}",
-                corpus.populated_words()
-            ));
-        }
-
-        let mut page_bank_mask = [0u8; ROM_PAGES];
-        for (page, mask) in page_bank_mask.iter_mut().enumerate() {
-            let page_base = page * WORDS_PER_PAGE;
-            for bank in 0..2usize {
-                if (page_base..page_base + WORDS_PER_PAGE)
-                    .any(|pc| corpus.get(bank, pc).ok().flatten().is_some())
-                {
-                    *mask |= 1u8 << bank;
-                }
-            }
-        }
-
-        Ok(Self {
-            corpus,
-            requested_bank: Cell::new(0),
-            page_bank_mask,
-        })
-    }
-
-    fn select_bank(&self, bank: u8) {
-        self.requested_bank.set(bank & 1);
-    }
-}
-
-impl Hp67RomWordSource for UiCorpusRom {
-    fn read_word(&self, address: u16) -> Option<u16> {
-        let requested = usize::from(self.requested_bank.get());
-        let page = usize::from(address) / WORDS_PER_PAGE;
-        let effective = if self.page_bank_mask[page] & (1u8 << requested) != 0 {
-            requested
-        } else {
-            0
-        };
-        self.corpus
-            .get(effective, usize::from(address))
-            .ok()
-            .flatten()
-    }
-}
-
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
 ///
-/// The firmware remains external. Startup executes through the same combined
-/// display/fetch word transport used by the structural smoke test. ACT owns the
-/// display phase and the b0..b55 lifetime of the executing instruction, ROM0
-/// emits STR events, and the cathode driver only consumes downstream STR/RCD
-/// control events.
+/// Firmware is compiled into the executable by `build.rs`. Startup executes
+/// through the same combined display/fetch word transport used by the structural
+/// smoke tests. ACT owns the display phase and the b0..b55 lifetime of the
+/// executing instruction, ROM0 emits STR events, and the cathode driver only
+/// consumes downstream STR/RCD control events.
 pub struct Hp67LiveMachine {
-    source: UiCorpusRom,
+    source: EmbeddedHp67Rom,
     backplane: Hp67ElectricalBackplane,
     act_serial: ActSerialEndpoint,
     fetch_rom: RomFetchEndpoint,
@@ -242,13 +179,8 @@ pub struct Hp67LiveMachine {
 
 impl Hp67LiveMachine {
     pub fn power_on_default() -> Result<Self, String> {
-        let corpus_path =
-            env::var("HP67_ROM_CORPUS").unwrap_or_else(|_| DEFAULT_CORPUS_PATH.to_owned());
-        let input = fs::read_to_string(&corpus_path)
-            .map_err(|error| format!("failed to read HP-67 ROM corpus {corpus_path}: {error}"))?;
-        let source = UiCorpusRom::from_tsv(&input)?;
         Ok(Self {
-            source,
+            source: EmbeddedHp67Rom::default(),
             backplane: Hp67ElectricalBackplane::default(),
             act_serial: ActSerialEndpoint::new(0),
             fetch_rom: RomFetchEndpoint::default(),
@@ -276,7 +208,7 @@ impl Hp67LiveMachine {
     }
 
     pub fn reset_power_on(&mut self) -> Result<(), String> {
-        self.source.select_bank(0);
+        self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
         self.act_serial = ActSerialEndpoint::new(0);
         self.fetch_rom = RomFetchEndpoint::default();
