@@ -1054,7 +1054,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_p_wrap_rule_replaces_nonpareil_pc_specific_hack() {
+    fn generic_p_wrap_rule_replaces_pc_specific_hack() {
         let mut machine = ReferenceMachine::default();
         machine.cpu.p = 13;
         machine.step_word(0o0720).expect("first inc P must execute");
