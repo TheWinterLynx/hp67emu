@@ -11,7 +11,8 @@ const MISSING_WORD: u16 = 0xffff;
 fn main() {
     println!("cargo:rerun-if-env-changed=HP67_ROM_CORPUS_BUILD");
 
-    let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    let manifest_dir =
+        PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let corpus_path = env::var_os("HP67_ROM_CORPUS_BUILD")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest_dir.join(".research/teenix-2026-hp67.tsv"));
@@ -31,7 +32,10 @@ fn main() {
     );
     assert_eq!(words[0], 0x000, "HP-67 reset vector mismatch");
     assert_eq!(words[1], 0x3e3, "HP-67 startup word 1 mismatch");
-    assert_eq!(words[0x0f8], 0x11a, "HP-67 startup word 0x0f8 mismatch");
+    assert_eq!(
+        words[0x0f8], 0x11a,
+        "HP-67 startup word 0x0f8 mismatch"
+    );
 
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR"));
     let generated = out_dir.join("hp67_embedded_rom.rs");
@@ -80,9 +84,21 @@ fn parse_corpus(input: &str) -> ([u16; PHYSICAL_ROM_WORDS], [u8; ROM_PAGES], usi
         let bank = parse_integer(fields[0]) as usize;
         let pc = parse_integer(fields[1]) as usize;
         let word = parse_integer(fields[2]);
-        assert!(bank < ROM_BANKS, "ROM bank out of range on line {}", line_index + 1);
-        assert!(pc < WORDS_PER_BANK, "ROM PC out of range on line {}", line_index + 1);
-        assert!(word <= 0x03ff, "ROM word out of range on line {}", line_index + 1);
+        assert!(
+            bank < ROM_BANKS,
+            "ROM bank out of range on line {}",
+            line_index + 1
+        );
+        assert!(
+            pc < WORDS_PER_BANK,
+            "ROM PC out of range on line {}",
+            line_index + 1
+        );
+        assert!(
+            word <= 0x03ff,
+            "ROM word out of range on line {}",
+            line_index + 1
+        );
 
         let flat = bank * WORDS_PER_BANK + pc;
         assert_eq!(
@@ -103,12 +119,14 @@ fn parse_integer(token: &str) -> u16 {
         .strip_prefix("0x")
         .or_else(|| trimmed.strip_prefix("0X"))
     {
-        u16::from_str_radix(rest, 16).unwrap_or_else(|_| panic!("invalid hexadecimal ROM value {token}"))
+        u16::from_str_radix(rest, 16)
+            .unwrap_or_else(|_| panic!("invalid hexadecimal ROM value {token}"))
     } else if let Some(rest) = trimmed
         .strip_prefix("0o")
         .or_else(|| trimmed.strip_prefix("0O"))
     {
-        u16::from_str_radix(rest, 8).unwrap_or_else(|_| panic!("invalid octal ROM value {token}"))
+        u16::from_str_radix(rest, 8)
+            .unwrap_or_else(|_| panic!("invalid octal ROM value {token}"))
     } else {
         trimmed
             .parse::<u16>()
