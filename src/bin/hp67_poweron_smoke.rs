@@ -288,6 +288,11 @@ fn verify_serial_execution_complete(
             execution.next_word_bit()
         ));
     }
+    if act_serial.serial_execution_state().is_none() {
+        return Err(format!(
+            "cycle {cycle} lost pre-instruction serial state for word 0x{word:03x}"
+        ));
+    }
     Ok(())
 }
 
@@ -309,9 +314,8 @@ fn execute_cycle(
         return Ok(ProbeControl::Continue);
     };
 
-    let instruction_state = machine.act.state.instruction_state;
     act_serial
-        .begin_execution(word, instruction_state)
+        .begin_execution(word, &machine.act.state)
         .map_err(|error| format!("cycle {cycle} serial execution start failed: {error:?}"))?;
 
     match machine.execute_word(word) {
@@ -452,7 +456,9 @@ fn main() -> Result<(), String> {
     println!(
         "word path: ACT A/B bits b0..b7 + address b16..b27 -> resolved IS -> ROM b46..b55 -> ACT"
     );
-    println!("execution path: current fetched word owns one complete b0..b55 ACT lifetime");
+    println!(
+        "execution path: current fetched word owns b0..b55 + pre-instruction ACT snapshot + ADD/SUB digit chain"
+    );
     println!("display control: ROM0 STR + ACT RCD -> downstream 1820-1749 cathode state");
     println!("machine path: independent ACT + CRC control architectural composition");
 
@@ -460,9 +466,8 @@ fn main() -> Result<(), String> {
         pipeline.begin_cycle();
 
         if let Some(word) = pipeline.executing_word() {
-            let instruction_state = machine.act.state.instruction_state;
             act_serial
-                .begin_execution(word, instruction_state)
+                .begin_execution(word, &machine.act.state)
                 .map_err(|error| {
                     format!("cycle {cycle} serial execution start failed: {error:?}")
                 })?;
