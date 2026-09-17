@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
 use crate::{
-    hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, UiEvent},
+    hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, UiEvent},
     panel::Hp67Panel,
     ui::{sliders, top_keys},
 };
@@ -54,25 +54,6 @@ impl Hp67App {
 impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
-        let elapsed = self
-            .last_live_tick
-            .replace(now)
-            .map_or(Duration::ZERO, |previous| {
-                now.saturating_duration_since(previous)
-            });
-
-        let mut live_error = None;
-        if self.state.power_on {
-            if let Some(machine) = self.live_machine.as_mut() {
-                if let Err(error) = machine.advance(elapsed) {
-                    live_error = Some(error);
-                }
-            }
-        }
-        if let Some(error) = live_error {
-            eprintln!("HP-67 live display disabled: {error}");
-            self.live_machine = None;
-        }
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
@@ -82,7 +63,8 @@ impl eframe::App for Hp67App {
                     .live_machine
                     .as_ref()
                     .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
-                for event in Hp67Panel::show(ui, &self.state, &display, &self.photo) {
+                let panel = Hp67Panel::show(ui, &self.state, &display, &self.photo);
+                for event in panel.events {
                     let was_power_on = self.state.power_on;
                     self.state.handle(event);
                     if matches!(event, UiEvent::TogglePower) {
@@ -99,19 +81,44 @@ impl eframe::App for Hp67App {
                         }
                     }
                 }
+
+                if let Some(machine) = self.live_machine.as_mut() {
+                    let contact = if self.state.power_on {
+                        panel.key_contact.and_then(KeyAction::physical_key)
+                    } else {
+                        None
+                    };
+                    machine.set_key_contact(contact);
+                }
+
                 top_keys::paint(ui, host, &self.photo);
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
-        if self.state.power_on
-            && self
-                .live_machine
-                .as_ref()
-                .is_some_and(Hp67LiveMachine::is_booting)
-        {
-            // One HP-67 display refresh is about 4.8 ms. Requesting another frame
-            // on that cadence makes the source-backed power-on transient visible
-            // without inventing extra display states.
+        let elapsed = self
+            .last_live_tick
+            .replace(now)
+            .map_or(Duration::ZERO, |previous| {
+                now.saturating_duration_since(previous)
+            });
+
+        let mut live_error = None;
+        if self.state.power_on {
+            if let Some(machine) = self.live_machine.as_mut() {
+                if let Err(error) = machine.advance(elapsed) {
+                    live_error = Some(error);
+                }
+            }
+        }
+        if let Some(error) = live_error {
+            eprintln!("HP-67 live machine disabled: {error}");
+            self.live_machine = None;
+        }
+
+        if self.state.power_on {
+            // Keep the physical firmware machine advancing after boot idle as well
+            // as during startup. The same cadence also samples held/released key
+            // contacts without introducing host-side calculator semantics.
             ctx.request_repaint_after(Duration::from_micros(4_800));
         }
         if ctx.input(|i| i.pointer.any_down()) {
