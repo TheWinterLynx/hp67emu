@@ -7,6 +7,7 @@
 
 pub mod act;
 pub mod act_serial_execution;
+pub mod act_serial_state;
 pub mod architectural;
 pub mod crc;
 pub mod display;
@@ -28,6 +29,7 @@ pub use act_serial_execution::{
     ActSerialExecution, ActSerialExecutionError, ActSerialOperand, ActSerialRegister,
     ActSerialWordClass,
 };
+pub use act_serial_state::ActSerialStateSnapshot;
 pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
