@@ -24,9 +24,6 @@ impl PxRect {
     }
 }
 
-// The glass is only the optical clipping aperture.  LED geometry is registered
-// independently to the projected calculator case so it cannot be stretched to
-// fit this rectangle.  Measurements are source-image pixels in assets/hp67.png.
 const DISPLAY_GLASS: PxRect = PxRect::new(178.0, 105.0, 750.0, 208.0);
 const HP67_CASE_WIDTH_MM: f32 = 81.0;
 const DISPLAY_CASE_CENTER_X: f32 = 453.0;
@@ -45,7 +42,7 @@ const fn key(id: &'static str, src: PxRect, action: KeyAction) -> PhotoKey {
     PhotoKey { id, src, action }
 }
 
-// Pixel measurements from hp67.png.  The hit regions deliberately follow the
+// Pixel measurements from hp67.png. The hit regions deliberately follow the
 // photographed keycaps instead of the legacy vector geometry, so the controls
 // remain aligned with the photo at every window size.
 const KEYS: &[PhotoKey] = &[
@@ -117,7 +114,7 @@ const KEYS: &[PhotoKey] = &[
     key(
         "eex",
         PxRect::new(547.0, 868.0, 637.0, 952.0),
-        KeyAction::Enter,
+        KeyAction::Exponent,
     ),
     key(
         "clx",
@@ -218,7 +215,7 @@ impl Hp67Panel {
         let available = ui.available_size();
         let (host, _) = ui.allocate_exact_size(available, Sense::hover());
         if host.width() <= 0.0 || host.height() <= 0.0 {
-            return Vec::new();
+            return vec![UiEvent::KeyContact(None)];
         }
 
         let photo_rect = fit_photo(host);
@@ -232,9 +229,6 @@ impl Hp67Panel {
 
         let mut events = Vec::new();
 
-        // The two mechanical slide switches remain part of the photograph, but
-        // retain their emulator hit areas.  The display state makes power changes
-        // immediately visible even before a later dedicated slider sprite pass.
         let power = ui.interact(
             source_to_screen(photo_rect, PxRect::new(150.0, 270.0, 386.0, 334.0)),
             ui.make_persistent_id("photo-power-switch"),
@@ -259,6 +253,7 @@ impl Hp67Panel {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
         }
 
+        let mut pressed_key = None;
         for key in KEYS {
             let rect = source_to_screen(photo_rect, key.src);
             let response = ui.interact(
@@ -274,6 +269,9 @@ impl Hp67Panel {
             }
 
             let down = response.is_pointer_button_down_on();
+            if down && pressed_key.is_none() {
+                pressed_key = Some(key.action);
+            }
             let press = ui.ctx().animate_bool_with_time(
                 response.id.with("travel"),
                 down,
@@ -283,10 +281,8 @@ impl Hp67Panel {
                 paint_pressed_key(&painter, photo, photo_rect, key.src, press);
             }
         }
+        events.push(UiEvent::KeyContact(pressed_key));
 
-        // hp67.png already contains the real filter, glass, bezel and reflections.
-        // Register the LED assembly to the calculator's projected case width with
-        // one uniform physical scale. DISPLAY_GLASS only clips emitted light.
         if state.power_on {
             let photo_scale = photo_rect.width() / PHOTO_W;
             classic_display::paint_segments(
@@ -337,14 +333,8 @@ fn paint_pressed_key(
 ) {
     let original = source_to_screen(photo_rect, src);
     let scale = photo_rect.height() / PHOTO_H;
-
-    // Classic-series keys have short, firm travel.  Keep the movement visible
-    // without opening the exaggerated rectangular cavity of the first pass.
     let travel = 3.8 * scale * press;
 
-    // Reconstruct the newly exposed strip from the photographed panel directly
-    // above the key.  This preserves the real texture and lighting instead of
-    // inventing a flat black slot, which looked artificial in motion.
     let gap_h = travel + 0.35 * scale;
     let gap = Rect::from_min_max(
         original.min,
@@ -359,7 +349,6 @@ fn paint_pressed_key(
         Color32::from_rgb(recess_shade, recess_shade, recess_shade),
     );
 
-    // Only a restrained contact/occlusion cue is needed at the top edge.
     let edge_y = original.top() + travel;
     p.line_segment(
         [
@@ -381,7 +370,6 @@ fn paint_pressed_key(
         Color32::from_rgb(shade, shade, shade),
     );
 
-    // A soft lower contact shadow gives depth without making the key look cut out.
     let shadow_alpha = (30.0 + 34.0 * press).round() as u8;
     p.line_segment(
         [
@@ -402,6 +390,12 @@ mod tests {
     #[test]
     fn photo_key_table_contains_all_35_keys() {
         assert_eq!(KEYS.len(), 35);
+    }
+
+    #[test]
+    fn eex_has_its_own_physical_action() {
+        let eex = KEYS.iter().find(|key| key.id == "eex").unwrap();
+        assert_eq!(eex.action, KeyAction::Exponent);
     }
 
     #[test]
@@ -428,8 +422,6 @@ mod tests {
         assert!(leftmost > DISPLAY_GLASS.x0);
         assert!(rightmost < DISPLAY_GLASS.x1);
 
-        // Power-on 0.00 starts at physical position 2 (index 1).  This regression
-        // prevents the old, too-centred placement from returning.
         let first_power_on_zero = DISPLAY_CASE_CENTER_X
             + classic_display::character_offset_mm(1) * DISPLAY_SOURCE_PX_PER_MM;
         assert!((first_power_on_zero - 229.48).abs() < 0.05);
