@@ -420,22 +420,22 @@ impl Hp67LiveMachine {
         self.transport_fetch_word(cycle)?;
 
         if let Some(word) = self.pipeline.executing_word() {
-            let execution = self
-                .act_serial
-                .serial_execution()
-                .ok_or_else(|| format!("live boot cycle {cycle} lost serial execution"))?;
-            if execution.word() != word || !execution.is_complete() {
+            let serial_execution = self.act_serial.serial_execution().ok_or_else(|| {
+                format!("live boot cycle {cycle} lost serial execution for word 0x{word:03x}")
+            })?;
+            if serial_execution.word() != word || !serial_execution.is_complete() {
                 return Err(format!(
-                    "live boot cycle {cycle} serial execution incomplete for word 0x{word:03x}"
+                    "live boot cycle {cycle} serial execution incomplete: expected word 0x{word:03x}, got word 0x{:03x}, next_bit={:?}",
+                    serial_execution.word(),
+                    serial_execution.next_word_bit()
                 ));
             }
         }
 
+        self.boot_cycle = cycle.saturating_add(1);
         if idle_after_word {
             self.phase = LiveBootPhase::Idle;
         }
-
-        self.boot_cycle = self.boot_cycle.saturating_add(1);
         Ok(())
     }
 
@@ -529,23 +529,25 @@ mod tests {
     fn shared_sign_anodes_are_split_into_two_physical_minus_positions() {
         let mut frame = HardwareDisplayFrame::BLANK;
         frame
-            .capture_scan_slot(3, Hp67SegmentMask::E | Hp67SegmentMask::G)
+            .capture_scan_slot(
+                3,
+                Hp67SegmentMask::from_bits(Hp67SegmentMask::E.bits() | Hp67SegmentMask::G.bits()),
+            )
             .unwrap();
         assert_eq!(frame.segments()[0], Hp67SegmentMask::G.bits());
         assert_eq!(frame.segments()[12], Hp67SegmentMask::G.bits());
     }
 
     #[test]
-    fn display_capture_uses_raw_rom0_anodes() {
-        let state = ActArchitecturalState::default();
-        let mut serializer = ActDisplayWordSerializer::default();
-        let event = serializer.emit_word(&state).unwrap();
-        let mut frame = HardwareDisplayFrame::BLANK;
-        for slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
-            frame
-                .capture_scan_slot(slot, Hp67SegmentMask::from_bits(event.display_byte))
-                .unwrap();
+    fn reset_act_registers_naturally_release_all_display_serial_bits() {
+        let machine = Hp67ArchitecturalMachine::default();
+        assert!(!machine.act.state.display_enable);
+        for scan_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
+            let serializer =
+                ActDisplayWordSerializer::from_state(scan_slot, &machine.act.state).unwrap();
+            for word_bit in 0..8 {
+                assert_eq!(serializer.drive_for_bit(word_bit), Drive::HighZ);
+            }
         }
-        assert_eq!(frame.segments().len(), 15);
     }
 }
