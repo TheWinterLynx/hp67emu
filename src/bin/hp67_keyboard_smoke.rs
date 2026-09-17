@@ -301,7 +301,10 @@ fn main() -> Result<(), String> {
     let idle_cycle = idle_cycle.ok_or_else(|| {
         format!("real firmware did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles")
     })?;
-    println!("BOOT IDLE PASS: cycle={idle_cycle}; words={}", machine.executed_words());
+    println!(
+        "BOOT IDLE PASS: cycle={idle_cycle}; words={}",
+        machine.executed_words()
+    );
 
     let mut keyboard = Hp67Keyboard::default();
     keyboard.press(Hp67Key::Digit1);
@@ -311,9 +314,7 @@ fn main() -> Result<(), String> {
             keyboard.code()
         ));
     }
-    println!(
-        "KEY CONTACT DOWN: digit 1, hardware code {DIGIT_ONE_KEYCODE:04o} octal"
-    );
+    println!("KEY CONTACT DOWN: digit 1, hardware code {DIGIT_ONE_KEYCODE:04o} octal");
 
     let mut saw_keys_to_a = false;
     for offset in 1..=KEY_PROBE_WORD_LIMIT {
