@@ -84,7 +84,18 @@ impl eframe::App for Hp67App {
                     .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
                 for event in Hp67Panel::show(ui, &self.state, &display, &self.photo) {
                     let was_power_on = self.state.power_on;
+                    let key_contact = match event {
+                        UiEvent::KeyContact(action) => Some(action),
+                        _ => None,
+                    };
                     self.state.handle(event);
+
+                    if let Some(action) = key_contact {
+                        if let Some(machine) = self.live_machine.as_mut() {
+                            machine.set_key_contact(action);
+                        }
+                    }
+
                     if matches!(event, UiEvent::TogglePower) {
                         self.last_live_tick = None;
                         if !was_power_on && self.state.power_on {
@@ -103,15 +114,11 @@ impl eframe::App for Hp67App {
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
-        if self.state.power_on
-            && self
-                .live_machine
-                .as_ref()
-                .is_some_and(Hp67LiveMachine::is_booting)
-        {
-            // One HP-67 display refresh is about 4.8 ms. Requesting another frame
-            // on that cadence makes the source-backed power-on transient visible
-            // without inventing extra display states.
+        if self.state.power_on && self.live_machine.is_some() {
+            // Once the no-key wait loop is reached the real calculator does not
+            // halt: firmware keeps polling the keyboard and refreshing display
+            // hardware. Keep advancing on approximately one display-refresh
+            // cadence so a held physical contact can be sampled by ACT.
             ctx.request_repaint_after(Duration::from_micros(4_800));
         }
         if ctx.input(|i| i.pointer.any_down()) {
