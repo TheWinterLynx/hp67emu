@@ -485,10 +485,11 @@ mod tests {
         }
         assert!(dispatched, "held Digit1 contact never reached firmware table 1440");
 
+        let wait_visits_before_release = live.main_wait_visits;
         live.set_key_contact(None);
         for _ in 0..512 {
             live.step_firmware_cycle().unwrap();
-            if live.machine.pc() == MAIN_WAIT_PC
+            if live.main_wait_visits > wait_visits_before_release
                 && !live.machine.act.state.status[15]
                 && live.display_frame().segments()
                     == &[0x00, 0x00, 0x00, 0x06, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
