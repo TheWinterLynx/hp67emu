@@ -84,9 +84,7 @@ pub enum ActSerialArithmeticAction {
 
 /// Decode the architectural Woodstock arithmetic opcode into serial datapath
 /// routing without assigning any intra-bit write edge.
-pub const fn decode_serial_arithmetic_action(
-    operation: u8,
-) -> Option<ActSerialArithmeticAction> {
+pub const fn decode_serial_arithmetic_action(operation: u8) -> Option<ActSerialArithmeticAction> {
     use ActSerialArithmeticAction::{
         Add, Clear, Copy, Exchange, ShiftLeft, ShiftRight, Subtract, TestNonzero, TestZero,
     };
