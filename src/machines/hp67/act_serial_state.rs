@@ -236,6 +236,11 @@ mod tests {
         state.p = 1;
         state.decimal = false;
 
+        assert_eq!(state.a[3], 0);
+        assert_eq!(state.b[3], 0);
+        assert_eq!(state.c[3], 0);
+        assert_eq!(state.p, 1);
+        assert!(!state.decimal);
         assert_eq!(snapshot.register_digit(ActSerialRegister::A, 3), Some(0x0d));
         assert_eq!(snapshot.register_digit(ActSerialRegister::B, 3), Some(0x06));
         assert_eq!(snapshot.register_digit(ActSerialRegister::C, 3), Some(0x09));
