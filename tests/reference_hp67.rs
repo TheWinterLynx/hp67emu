@@ -5,7 +5,7 @@ use hp67emu::reference::rom::RomImage;
 use hp67emu::reference::woodstock::InstructionState;
 
 #[test]
-fn hp67_label_search_p_wrap_regression_at_nonpareil_06132_target() {
+fn hp67_label_search_p_wrap_regression_at_06132_target() {
     let mut hp67 = Hp67Reference::default();
     hp67.core.cpu.pc = 0o6130;
     hp67.core.cpu.p = 13;
