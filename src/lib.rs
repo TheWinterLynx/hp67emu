@@ -7,4 +7,3 @@
 pub mod emulation;
 pub mod machines;
 pub mod reference;
-pub mod research;
