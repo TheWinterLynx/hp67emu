@@ -11,17 +11,15 @@
 use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
-    act::{
-        display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError,
-        ActInstructionState,
-    },
+    act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError},
+    act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
     display::{Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS},
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     timing::{
-        display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_WORD, ROM_ADDRESS_BITS,
-        ROM_WORD_BITS,
+        display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
+        ROM_ADDRESS_BITS, ROM_WORD_BITS,
     },
     wiring::Hp67Net,
 };
@@ -114,6 +112,9 @@ pub struct ActSerialEndpoint {
     display_scan_slot: u8,
     display_register_index: Option<usize>,
     execution: Option<ActSerialExecution>,
+    execution_state: Option<ActSerialStateSnapshot>,
+    arithmetic_chain: Option<bool>,
+    last_alu_digit_result: Option<ActSerialDigitAluResult>,
     received_word: u16,
     received_mask: u16,
 }
@@ -125,21 +126,25 @@ impl ActSerialEndpoint {
             display_scan_slot: 1,
             display_register_index: None,
             execution: None,
+            execution_state: None,
+            arithmetic_chain: None,
+            last_alu_digit_result: None,
             received_word: 0,
             received_mask: 0,
         }
     }
 
-    /// Bind one already-fetched word to the following 56-bit execution cycle.
+    /// Bind one already-fetched word and its pre-instruction ACT state to the
+    /// following 56-bit execution cycle.
     ///
     /// The architectural fallback may still compute unsupported internal effects
-    /// at the instruction boundary, but the electrical endpoint now owns the
-    /// complete b0..b55 lifetime of the same executing word. A new instruction
-    /// cannot replace an execution that has not reached b55.
+    /// at the instruction boundary, but the serial endpoint owns an immutable
+    /// source snapshot from before those effects. A new instruction cannot replace
+    /// an execution that has not reached b55.
     pub fn begin_execution(
         &mut self,
         word: u16,
-        instruction_state: ActInstructionState,
+        state: &ActArchitecturalState,
     ) -> Result<(), ActSerialExecutionError> {
         if let Some(execution) = self.execution {
             if let Some(next_word_bit) = execution.next_word_bit() {
@@ -149,12 +154,35 @@ impl ActSerialEndpoint {
                 });
             }
         }
-        self.execution = Some(ActSerialExecution::new(word, instruction_state)?);
+
+        let execution = ActSerialExecution::new(word, state.instruction_state)?;
+        self.execution = Some(execution);
+        self.execution_state = Some(ActSerialStateSnapshot::capture(state));
+        self.arithmetic_chain = None;
+        self.last_alu_digit_result = None;
         Ok(())
     }
 
     pub const fn serial_execution(&self) -> Option<ActSerialExecution> {
         self.execution
+    }
+
+    pub const fn serial_execution_state(&self) -> Option<ActSerialStateSnapshot> {
+        self.execution_state
+    }
+
+    pub fn serial_alu_inputs(&self) -> Option<ActSerialAluInputs> {
+        let execution = self.execution.as_ref()?;
+        let state = self.execution_state.as_ref()?;
+        state.alu_inputs(execution)
+    }
+
+    pub const fn serial_arithmetic_chain(&self) -> Option<bool> {
+        self.arithmetic_chain
+    }
+
+    pub const fn last_serial_alu_digit_result(&self) -> Option<ActSerialDigitAluResult> {
+        self.last_alu_digit_result
     }
 
     /// Start a fetch-only word, explicitly releasing the display window.
@@ -247,10 +275,28 @@ impl ActSerialEndpoint {
 
     /// Advance the current instruction by one structural serial bit coordinate.
     ///
-    /// This is a lifetime/coordinate update only. No internal register or carry
-    /// mutation is attached to this boundary until 1820-2530 timing evidence
-    /// identifies the real commit relation.
+    /// ADD/SUB execution keeps a source-backed carry/borrow chain between
+    /// successive selected four-bit digits. The chain is updated only after the
+    /// fourth bit coordinate of a digit has been traversed; this is a structural
+    /// digit boundary, not a claimed PHI-relative register-write edge.
     fn advance_execution_for_bit(&mut self, word_bit: u8) -> Result<(), ActSerialExecutionError> {
+        let digit_result = match (self.execution.as_ref(), self.execution_state.as_ref()) {
+            (Some(execution), Some(state))
+                if execution.bit_in_digit() == Some(BITS_PER_DIGIT - 1) =>
+            {
+                state.alu_inputs(execution).and_then(|inputs| {
+                    let chain_in = self.arithmetic_chain.unwrap_or(inputs.initial_carry);
+                    state.alu_digit_result(execution, chain_in)
+                })
+            }
+            _ => None,
+        };
+
+        if let Some(result) = digit_result {
+            self.arithmetic_chain = Some(result.chain_out);
+            self.last_alu_digit_result = Some(result);
+        }
+
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
         }
@@ -457,14 +503,16 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// the A/B digit serialized at b0..b7. The contents of that source digit are read
 /// from the ACT state at each bit cell instead of being snapshotted at word start.
 /// If an executing word is bound to the endpoint, that same instruction advances
-/// through b0..b55 in lockstep with this transport. ROM0 reconstructs the same
-/// resolved bits and emits the returned `Rom0StrEvent`; ACT independently reports
-/// the coarse RCD falling boundary after slot 15. No cathode state enters this API.
+/// through b0..b55 in lockstep with this transport. ADD/SUB operations also carry
+/// an immutable pre-instruction A/B/C/P/radix snapshot and a source-backed
+/// carry/borrow chain across selected digit boundaries. ROM0 reconstructs the
+/// same resolved bits and emits the returned `Rom0StrEvent`; ACT independently
+/// reports the coarse RCD falling boundary after slot 15. No cathode state enters
+/// this API.
 ///
-/// This establishes source-backed ownership at word/bit granularity only. It
-/// does not yet make architectural A/B evolve inside the word, nor claim final
-/// PHI-relative launch/sample edges, ROM0 sampling edges, or exact STR/RCD
-/// overlap ordering.
+/// This establishes source-backed ownership at word/bit and arithmetic-digit
+/// granularity. It still does not claim the PHI edge that commits a result bit to
+/// A/B/C, ROM0 sampling edges, or exact STR/RCD overlap ordering.
 pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     address: u16,
@@ -498,7 +546,7 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+    use crate::machines::hp67::{ActSerialRegister, ActSerialWordClass, Hp67SegmentMask};
 
     struct FixtureRom {
         words: [(u16, u16); 2],
@@ -595,7 +643,7 @@ mod tests {
         let mut rom = RomFetchEndpoint::default();
         let mut rom0 = Rom0DisplayEndpoint::default();
 
-        act.begin_execution(0x11a, ActInstructionState::Normal)
+        act.begin_execution(0x11a, &state)
             .expect("known arithmetic word must start execution");
         run_structural_display_fetch_cycle(
             &mut backplane,
@@ -619,15 +667,87 @@ mod tests {
                 field: 6,
             }
         );
+        assert!(act.serial_execution_state().is_some());
+    }
+
+    #[test]
+    fn execution_owns_pre_instruction_state_and_digit_chain() {
+        let mut state = ActArchitecturalState::default();
+        state.a[0] = 9;
+        state.b[0] = 1;
+        state.p = 0;
+        state.decimal = true;
+
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0x122, &state)
+            .expect("P-field A+B->A must start serial execution");
+
+        state.a[0] = 0;
+        state.b[0] = 0;
+        state.p = 7;
+        state.decimal = false;
+
+        let snapshot = act
+            .serial_execution_state()
+            .expect("pre-instruction serial snapshot must be retained");
+        assert_eq!(snapshot.register_digit(ActSerialRegister::A, 0), Some(9));
+        assert_eq!(snapshot.register_digit(ActSerialRegister::B, 0), Some(1));
+        assert_eq!(snapshot.p(), 0);
+        assert!(snapshot.decimal());
+
+        assert_eq!(act.serial_arithmetic_chain(), None);
+        for bit in 0..BITS_PER_DIGIT {
+            act.advance_execution_for_bit(bit)
+                .expect("first serial digit must advance");
+        }
+
+        let result = act
+            .last_serial_alu_digit_result()
+            .expect("selected ADD digit must produce a serial ALU result");
+        assert_eq!(result.coordinate.digit, 0);
+        assert_eq!(result.left_digit, 9);
+        assert_eq!(result.right_digit, 1);
+        assert_eq!(result.result_digit, 0);
+        assert!(result.chain_out);
+        assert_eq!(act.serial_arithmetic_chain(), Some(true));
+    }
+
+    #[test]
+    fn arithmetic_chain_uses_previous_selected_digit_as_next_chain_in() {
+        let mut state = ActArchitecturalState::default();
+        state.a[0] = 9;
+        state.b[0] = 1;
+        state.a[1] = 0;
+        state.b[1] = 0;
+        state.p = 1;
+        state.decimal = true;
+
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0x126, &state)
+            .expect("WP-field A+B->A must start serial execution");
+
+        for bit in 0..(BITS_PER_DIGIT * 2) {
+            act.advance_execution_for_bit(bit)
+                .expect("two selected digits must advance");
+        }
+
+        let result = act
+            .last_serial_alu_digit_result()
+            .expect("second selected ADD digit must produce a result");
+        assert_eq!(result.coordinate.digit, 1);
+        assert_eq!(result.result_digit, 1);
+        assert!(!result.chain_out);
+        assert_eq!(act.serial_arithmetic_chain(), Some(false));
     }
 
     #[test]
     fn incomplete_execution_cannot_be_replaced_by_another_word() {
+        let state = ActArchitecturalState::default();
         let mut act = ActSerialEndpoint::new(0);
-        act.begin_execution(0x11a, ActInstructionState::Normal)
+        act.begin_execution(0x11a, &state)
             .expect("first execution must start");
         assert_eq!(
-            act.begin_execution(0x000, ActInstructionState::Normal),
+            act.begin_execution(0x000, &state),
             Err(ActSerialExecutionError::ExecutionAlreadyActive {
                 word: 0x11a,
                 next_word_bit: 0,
