@@ -4,9 +4,9 @@ use hp67emu::{
     machines::hp67::{
         decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation,
         ActSerialEndpoint, CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
-        Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67RomWordSource, Hp67SegmentMask,
-        Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-        HP67_OBSERVED_WORD_TIME_US,
+        Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Key, Hp67Keyboard,
+        Hp67RomWordSource, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+        HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
     },
     research::rom_corpus::{RomCorpus, ROM_PAGES, WORDS_PER_PAGE},
 };
@@ -36,6 +36,7 @@ pub enum KeyAction {
     Digit(u8),
     Decimal,
     ChangeSign,
+    Exponent,
     ClearX,
     Enter,
     Add,
@@ -60,9 +61,53 @@ pub enum KeyAction {
     RunStop,
 }
 
+impl KeyAction {
+    pub const fn physical_key(self) -> Option<Hp67Key> {
+        match self {
+            Self::Digit(0) => Some(Hp67Key::Digit0),
+            Self::Digit(1) => Some(Hp67Key::Digit1),
+            Self::Digit(2) => Some(Hp67Key::Digit2),
+            Self::Digit(3) => Some(Hp67Key::Digit3),
+            Self::Digit(4) => Some(Hp67Key::Digit4),
+            Self::Digit(5) => Some(Hp67Key::Digit5),
+            Self::Digit(6) => Some(Hp67Key::Digit6),
+            Self::Digit(7) => Some(Hp67Key::Digit7),
+            Self::Digit(8) => Some(Hp67Key::Digit8),
+            Self::Digit(9) => Some(Hp67Key::Digit9),
+            Self::Digit(_) => None,
+            Self::Decimal => Some(Hp67Key::Decimal),
+            Self::ChangeSign => Some(Hp67Key::ChangeSign),
+            Self::Exponent => Some(Hp67Key::Exponent),
+            Self::ClearX => Some(Hp67Key::ClearX),
+            Self::Enter => Some(Hp67Key::Enter),
+            Self::Add => Some(Hp67Key::Add),
+            Self::Subtract => Some(Hp67Key::Subtract),
+            Self::Multiply => Some(Hp67Key::Multiply),
+            Self::Divide => Some(Hp67Key::Divide),
+            Self::FunctionF => Some(Hp67Key::FunctionF),
+            Self::FunctionG => Some(Hp67Key::FunctionG),
+            Self::FunctionH => Some(Hp67Key::FunctionH),
+            Self::SigmaPlus => Some(Hp67Key::SigmaPlus),
+            Self::Gto => Some(Hp67Key::Gto),
+            Self::Dsp => Some(Hp67Key::Dsp),
+            Self::Indirect => Some(Hp67Key::Indirect),
+            Self::Sst => Some(Hp67Key::Sst),
+            Self::Sto => Some(Hp67Key::Sto),
+            Self::Rcl => Some(Hp67Key::Rcl),
+            Self::A => Some(Hp67Key::A),
+            Self::B => Some(Hp67Key::B),
+            Self::C => Some(Hp67Key::C),
+            Self::D => Some(Hp67Key::D),
+            Self::E => Some(Hp67Key::E),
+            Self::RunStop => Some(Hp67Key::RunStop),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiEvent {
     Key(KeyAction),
+    KeyContact(Option<KeyAction>),
     TogglePower,
     ToggleMode,
 }
@@ -96,10 +141,9 @@ impl Hp67State {
                     RunMode::Program => RunMode::Run,
                 };
             }
-            UiEvent::Key(_) => {
-                // Key hit regions remain interactive, but no semantic key action
-                // is allowed to synthesize display contents. Electrical keyboard
-                // scanning will connect these contacts to the machine later.
+            UiEvent::Key(_) | UiEvent::KeyContact(_) => {
+                // Key semantics are owned by the real firmware. The live machine
+                // consumes only the physical contact state.
             }
         }
     }
@@ -130,9 +174,6 @@ impl HardwareDisplayFrame {
             1 | 15 => self.segments[14] = anodes.bits(),
             2 => self.segments[13] = anodes.bits(),
             3 => {
-                // The sign cathode is shared. ROM0 anode E selects the physical
-                // mantissa sign and anode G selects the exponent sign. At the UI
-                // glass both are horizontal minus emitters, not E/G digit shapes.
                 self.segments[0] = if anodes.contains(Hp67SegmentMask::E) {
                     Hp67SegmentMask::G.bits()
                 } else {
@@ -230,6 +271,7 @@ pub struct Hp67LiveMachine {
     cathode: CathodeDriver1820_1749,
     pipeline: FetchPipelineLatch,
     machine: Hp67ArchitecturalMachine,
+    keyboard: Hp67Keyboard,
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
@@ -256,6 +298,7 @@ impl Hp67LiveMachine {
             cathode: CathodeDriver1820_1749::default(),
             pipeline: FetchPipelineLatch::default(),
             machine: Hp67ArchitecturalMachine::default(),
+            keyboard: Hp67Keyboard::default(),
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
@@ -275,6 +318,13 @@ impl Hp67LiveMachine {
         !matches!(self.phase, LiveBootPhase::Idle)
     }
 
+    pub fn set_key_contact(&mut self, action: Option<KeyAction>) {
+        match action.and_then(KeyAction::physical_key) {
+            Some(key) => self.keyboard.press(key),
+            None => self.keyboard.release(),
+        }
+    }
+
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         self.source.select_bank(0);
         self.backplane = Hp67ElectricalBackplane::default();
@@ -284,6 +334,7 @@ impl Hp67LiveMachine {
         self.cathode = CathodeDriver1820_1749::default();
         self.pipeline = FetchPipelineLatch::default();
         self.machine = Hp67ArchitecturalMachine::default();
+        self.keyboard = Hp67Keyboard::default();
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
@@ -296,10 +347,6 @@ impl Hp67LiveMachine {
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
-        if self.phase == LiveBootPhase::Idle {
-            return Ok(());
-        }
-
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
 
@@ -311,7 +358,8 @@ impl Hp67LiveMachine {
             self.phase = LiveBootPhase::Firmware;
         }
 
-        while self.phase == LiveBootPhase::Firmware && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
+        while !matches!(self.phase, LiveBootPhase::ResetHold)
+            && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
         {
             self.pending_us -= HP67_OBSERVED_WORD_TIME_US;
             self.step_firmware_cycle()?;
@@ -321,11 +369,13 @@ impl Hp67LiveMachine {
 
     fn step_firmware_cycle(&mut self) -> Result<(), String> {
         let cycle = self.boot_cycle;
-        if cycle >= BOOT_CYCLE_LIMIT {
+        if matches!(self.phase, LiveBootPhase::Firmware) && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
                 "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
             ));
         }
+
+        self.keyboard.sample_into_act(&mut self.machine.act.state);
 
         let mut idle_after_word = false;
         self.pipeline.begin_cycle();
@@ -359,7 +409,8 @@ impl Hp67LiveMachine {
                 }
             }
 
-            idle_after_word = self.saw_display_init
+            idle_after_word = matches!(self.phase, LiveBootPhase::Firmware)
+                && self.saw_display_init
                 && self.main_wait_visits >= 2
                 && self.card_poll_visits >= 1
                 && self.machine.act.state.display_enable
@@ -406,11 +457,6 @@ impl Hp67LiveMachine {
 
         let scan_slot = result.str_event.scan_slot;
 
-        // Before firmware executes its first display-control instruction, do not
-        // use the architectural `display_enable` default as an electrical inhibit.
-        // A real HP-67 visibly emits during this interval, while the semantic
-        // model's reset value is not hardware evidence. The emitted CONTENT is
-        // still entirely derived from ACT A/B -> IS -> ROM0 for this word.
         if !self.display_control_seen || self.machine.act.state.display_enable {
             let anodes =
                 decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
@@ -451,6 +497,13 @@ mod tests {
         assert_eq!(state.mode, RunMode::Program);
         state.handle(UiEvent::TogglePower);
         assert!(state.power_on);
+    }
+
+    #[test]
+    fn ui_key_actions_map_to_source_backed_physical_contacts() {
+        assert_eq!(KeyAction::Digit(1).physical_key(), Some(Hp67Key::Digit1));
+        assert_eq!(KeyAction::Exponent.physical_key(), Some(Hp67Key::Exponent));
+        assert_eq!(KeyAction::Digit(10).physical_key(), None);
     }
 
     #[test]
