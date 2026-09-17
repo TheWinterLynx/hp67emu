@@ -117,7 +117,7 @@ const KEYS: &[PhotoKey] = &[
     key(
         "eex",
         PxRect::new(547.0, 868.0, 637.0, 952.0),
-        KeyAction::Enter,
+        KeyAction::Exponent,
     ),
     key(
         "clx",
@@ -206,6 +206,11 @@ const KEYS: &[PhotoKey] = &[
     ),
 ];
 
+pub struct Hp67PanelOutput {
+    pub events: Vec<UiEvent>,
+    pub key_contact: Option<KeyAction>,
+}
+
 pub struct Hp67Panel;
 
 impl Hp67Panel {
@@ -214,11 +219,14 @@ impl Hp67Panel {
         state: &Hp67State,
         display: &HardwareDisplayFrame,
         photo: &TextureHandle,
-    ) -> Vec<UiEvent> {
+    ) -> Hp67PanelOutput {
         let available = ui.available_size();
         let (host, _) = ui.allocate_exact_size(available, Sense::hover());
         if host.width() <= 0.0 || host.height() <= 0.0 {
-            return Vec::new();
+            return Hp67PanelOutput {
+                events: Vec::new(),
+                key_contact: None,
+            };
         }
 
         let photo_rect = fit_photo(host);
@@ -231,6 +239,7 @@ impl Hp67Panel {
         );
 
         let mut events = Vec::new();
+        let mut key_contact = None;
 
         // The two mechanical slide switches remain part of the photograph, but
         // retain their emulator hit areas.  The display state makes power changes
@@ -266,14 +275,14 @@ impl Hp67Panel {
                 ui.make_persistent_id(("photo-key", key.id)),
                 Sense::click(),
             );
-            if response.clicked() {
-                events.push(UiEvent::Key(key.action));
-            }
             if response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
 
             let down = response.is_pointer_button_down_on();
+            if down {
+                key_contact = Some(key.action);
+            }
             let press = ui.ctx().animate_bool_with_time(
                 response.id.with("travel"),
                 down,
@@ -297,7 +306,10 @@ impl Hp67Panel {
                 display.segments(),
             );
         }
-        events
+        Hp67PanelOutput {
+            events,
+            key_contact,
+        }
     }
 }
 
