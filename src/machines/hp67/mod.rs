@@ -15,6 +15,7 @@ pub mod display;
 pub mod display_snapshot;
 pub mod fetch;
 pub mod isa;
+pub mod keyboard;
 pub mod machine;
 pub mod timing;
 pub mod wiring;
@@ -57,6 +58,7 @@ pub use fetch::{
 pub use isa::{
     act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
 };
+pub use keyboard::{Hp67Key, Hp67Keyboard};
 pub use machine::Hp67ElectricalBackplane;
 pub use timing::{
     display_data_serial_bit, isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow,
