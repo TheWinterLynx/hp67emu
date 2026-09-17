@@ -88,12 +88,7 @@ impl ActSerialArithmeticResultImage {
         self.processed_digits
     }
 
-    fn write_digit(
-        &mut self,
-        register: ActSerialRegister,
-        digit: u8,
-        value: u8,
-    ) -> Option<()> {
+    fn write_digit(&mut self, register: ActSerialRegister, digit: u8, value: u8) -> Option<()> {
         let digit = usize::from(digit);
         if digit >= ACT_WORD_DIGITS {
             return None;
