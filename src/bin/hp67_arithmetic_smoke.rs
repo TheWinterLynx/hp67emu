@@ -8,9 +8,8 @@
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, run_structural_display_fetch_cycle, ActInstructionState,
     ActSerialEndpoint, CathodeDriver1820_1749, EmbeddedHp67Rom, FetchPipelineLatch,
-    Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67Key, Hp67Keyboard,
-    Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS,
-    HP67_KEY_PRESSED_STATUS_BIT,
+    Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67Key, Hp67Keyboard, Rom0DisplayEndpoint,
+    RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS, HP67_KEY_PRESSED_STATUS_BIT,
 };
 
 const BOOT_WORD_LIMIT: u64 = 2_000;
