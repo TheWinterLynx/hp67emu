@@ -16,6 +16,10 @@ Uses the same structural ACT/ROM shared-word transport, architectural ACT+CRC ma
 
 Re-prove M7 boot idle and the source-backed `0.00` display; reproduce the M8 Digit1 path through S15, `keys -> a`, remapping and `a -> rom address`; release the physical key while preserving the latched keycode and firmware-owned S15 clearing; continue real firmware through post-key display initialization and back to the no-key main wait loop; capture the resulting fifteen physical display segment slots and ACT A/B/C state.
 
+## Implementation
+
+The probe advances the same `Hp67ArchitecturalMachine` and structural shared-word transport used by the earlier firmware smokes. Before each instruction boundary it samples the external `Hp67Keyboard` into ACT state, executes the currently latched firmware word, then performs the full structural fetch/display cycle and verifies that the serial execution reached the end of the 56-bit word. After the source-backed Digit1 dispatch reaches octal `1440`, the contact is released without clearing the latched code or S15 directly. Firmware is then allowed to execute until it returns through display initialization to the no-key wait loop, where a fresh fifteen-slot ROM0/cathode scan is captured and printed together with ACT A/B/C state. No calculator-level digit or display state is written by the host.
+
 ## Non-goals
 
 This probe does not yet declare M9 passed and does not hard-code what the post-Digit1 display must look like. The observed source-derived segment pattern is intentionally printed first so the exact M9 assertion can be established from the real firmware path rather than guessed.
