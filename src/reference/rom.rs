@@ -1,8 +1,7 @@
 //! Host-independent Woodstock ROM image and HP-67 fetch helper.
 //!
 //! ROM bytes/words are supplied by the caller. This module deliberately does
-//! not perform filesystem I/O so copyrighted development dumps can remain
-//! external to the emulator repository and tests can construct tiny fixtures.
+//! not perform filesystem I/O so tests can construct tiny fixtures.
 
 use super::woodstock::{
     ArchitecturalState, ExecutionError, ReferenceMachine, BANK_COUNT, OPCODE_MASK, PAGE_COUNT,
@@ -119,7 +118,7 @@ impl RomImage {
 
     /// Fetches and executes one HP-67 microinstruction.
     ///
-    /// Hawkeye follows Woodstock's implicit rule that bank 1 cannot remain
+    /// The HP-67 path applies the machine rule that bank 1 cannot remain
     /// selected while executing page 0. The rule is applied before the fetch,
     /// matching the architectural boundary used by the semantic machine.
     pub fn step_hp67(&self, machine: &mut ReferenceMachine) -> Result<u16, RomRunError> {
