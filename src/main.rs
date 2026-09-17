@@ -1,9 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod hp67;
 mod panel;
 mod ui;
+
+pub use hp67emu::hp67;
 
 use eframe::egui;
 
