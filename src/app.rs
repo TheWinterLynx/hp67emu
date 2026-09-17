@@ -114,7 +114,12 @@ impl eframe::App for Hp67App {
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
-        if self.state.power_on && self.live_machine.is_some() {
+        let live_running = self.live_machine.as_ref().is_some_and(|machine| {
+            // Boot completion is now a checkpoint, not a halt.  Keep both the
+            // startup path and the post-boot keyboard polling path alive.
+            machine.is_booting() || !machine.is_booting()
+        });
+        if self.state.power_on && live_running {
             // Once the no-key wait loop is reached the real calculator does not
             // halt: firmware keeps polling the keyboard and refreshing display
             // hardware. Keep advancing on approximately one display-refresh
