@@ -14,7 +14,7 @@ pub mod crc;
 pub mod display;
 pub mod display_snapshot;
 pub mod fetch;
-pub mod firmware;
+pub mod hp67firmware;
 pub mod isa;
 pub mod keyboard;
 pub mod machine;
@@ -56,7 +56,7 @@ pub use fetch::{
     FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
     StructuralWordResult,
 };
-pub use firmware::EmbeddedHp67Rom;
+pub use hp67firmware::Hp67Firmware;
 pub use isa::{
     act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
 };
