@@ -100,9 +100,7 @@ impl ActSerialStateSnapshot {
 
     pub fn operand_digit(&self, operand: ActSerialOperand, digit: u8) -> Option<u8> {
         match operand {
-            ActSerialOperand::Zero => {
-                (usize::from(digit) < ACT_WORD_DIGITS).then_some(0)
-            }
+            ActSerialOperand::Zero => (usize::from(digit) < ACT_WORD_DIGITS).then_some(0),
             ActSerialOperand::Register(register) => self.register_digit(register, digit),
         }
     }
@@ -352,9 +350,7 @@ mod tests {
         let execution = ActSerialExecution::new(0x1ba, ActInstructionState::Normal).unwrap();
         let inputs = snapshot.alu_inputs(&execution).unwrap();
 
-        let result = snapshot
-            .alu_digit_result(&execution, inputs.initial_carry)
-            .unwrap();
+        let result = snapshot.alu_digit_result(&execution, inputs.initial_carry).unwrap();
         assert_eq!(result.result_digit, 0);
         assert!(result.chain_out);
     }
@@ -379,18 +375,12 @@ mod tests {
             snapshot.register_digit(ActSerialRegister::A, ACT_WORD_DIGITS as u8),
             None
         );
-        assert_eq!(
-            snapshot.operand_digit(ActSerialOperand::Zero, ACT_WORD_DIGITS as u8),
-            None
-        );
+        assert_eq!(snapshot.operand_digit(ActSerialOperand::Zero, ACT_WORD_DIGITS as u8), None);
         assert_eq!(
             snapshot.register_bit(ActSerialRegister::A, 0, BITS_PER_DIGIT),
             None
         );
-        assert_eq!(
-            snapshot.operand_bit(ActSerialOperand::Zero, 0, BITS_PER_DIGIT),
-            None
-        );
+        assert_eq!(snapshot.operand_bit(ActSerialOperand::Zero, 0, BITS_PER_DIGIT), None);
     }
 
     #[test]
