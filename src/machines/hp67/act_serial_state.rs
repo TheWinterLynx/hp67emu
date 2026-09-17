@@ -7,9 +7,21 @@
 
 use super::{
     act::{ActArchitecturalState, ActRegister, ACT_WORD_DIGITS},
-    act_serial_execution::{ActSerialOperand, ActSerialRegister},
+    act_serial_execution::{
+        ActSerialArithmeticAction, ActSerialArithmeticCoordinate, ActSerialExecution,
+        ActSerialOperand, ActSerialRegister,
+    },
     timing::BITS_PER_DIGIT,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActSerialAluInputs {
+    pub coordinate: ActSerialArithmeticCoordinate,
+    pub left_bit: bool,
+    pub right_bit: bool,
+    pub radix: u8,
+    pub initial_carry: bool,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActSerialStateSnapshot {
@@ -89,11 +101,54 @@ impl ActSerialStateSnapshot {
             }
         }
     }
+
+    pub fn arithmetic_coordinate(
+        &self,
+        execution: &ActSerialExecution,
+    ) -> Option<ActSerialArithmeticCoordinate> {
+        execution.arithmetic_coordinate(self.p)
+    }
+
+    /// Resolve the two serial operand bits required by an ADD/SUB bit cell.
+    ///
+    /// This exposes combinational ALU inputs only. It deliberately does not
+    /// compute BCD correction, propagate carry, or write a destination register;
+    /// those transitions require the still-unresolved physical ACT timing.
+    pub fn alu_inputs(&self, execution: &ActSerialExecution) -> Option<ActSerialAluInputs> {
+        let coordinate = self.arithmetic_coordinate(execution)?;
+        if !coordinate.selected {
+            return None;
+        }
+        let (left, right, initial_carry) = match coordinate.action {
+            ActSerialArithmeticAction::Add {
+                left,
+                right,
+                initial_carry,
+                ..
+            }
+            | ActSerialArithmeticAction::Subtract {
+                left,
+                right,
+                initial_carry,
+                ..
+            } => (left, right, initial_carry),
+            _ => return None,
+        };
+
+        Some(ActSerialAluInputs {
+            coordinate,
+            left_bit: self.operand_bit(left, coordinate.digit, coordinate.bit_in_digit)?,
+            right_bit: self.operand_bit(right, coordinate.digit, coordinate.bit_in_digit)?,
+            radix: self.radix(),
+            initial_carry,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::machines::hp67::ActInstructionState;
 
     #[test]
     fn snapshot_is_not_affected_by_later_architectural_mutation() {
@@ -130,6 +185,51 @@ mod tests {
         assert_eq!(snapshot.register_bit(ActSerialRegister::A, 5, 2), Some(false));
         assert_eq!(snapshot.register_bit(ActSerialRegister::A, 5, 3), Some(true));
         assert_eq!(snapshot.operand_bit(ActSerialOperand::Zero, 5, 2), Some(false));
+    }
+
+    #[test]
+    fn add_inputs_follow_the_current_serial_coordinate_and_snapshot_radix() {
+        let mut state = ActArchitecturalState::default();
+        state.a[0] = 0x01;
+        state.b[0] = 0x01;
+        state.decimal = true;
+        let snapshot = ActSerialStateSnapshot::capture(&state);
+        let execution = ActSerialExecution::new(0x13a, ActInstructionState::Normal).unwrap();
+
+        let inputs = snapshot.alu_inputs(&execution).unwrap();
+        assert_eq!(inputs.coordinate.operation, 0x09);
+        assert!(inputs.coordinate.selected);
+        assert!(inputs.left_bit);
+        assert!(inputs.right_bit);
+        assert_eq!(inputs.radix, 10);
+        assert!(!inputs.initial_carry);
+    }
+
+    #[test]
+    fn increment_uses_zero_rhs_and_source_backed_initial_carry() {
+        let mut state = ActArchitecturalState::default();
+        state.a[0] = 0x01;
+        state.decimal = false;
+        let snapshot = ActSerialStateSnapshot::capture(&state);
+        let execution = ActSerialExecution::new(0x1ba, ActInstructionState::Normal).unwrap();
+
+        let inputs = snapshot.alu_inputs(&execution).unwrap();
+        assert_eq!(inputs.coordinate.operation, 0x0d);
+        assert!(inputs.left_bit);
+        assert!(!inputs.right_bit);
+        assert_eq!(inputs.radix, 16);
+        assert!(inputs.initial_carry);
+    }
+
+    #[test]
+    fn non_selected_or_non_additive_cells_do_not_expose_alu_inputs() {
+        let state = ActArchitecturalState::default();
+        let snapshot = ActSerialStateSnapshot::capture(&state);
+        let mantissa_add = ActSerialExecution::new(0x136, ActInstructionState::Normal).unwrap();
+        assert_eq!(snapshot.alu_inputs(&mantissa_add), None);
+
+        let clear_c = ActSerialExecution::new(0x11a, ActInstructionState::Normal).unwrap();
+        assert_eq!(snapshot.alu_inputs(&clear_c), None);
     }
 
     #[test]
