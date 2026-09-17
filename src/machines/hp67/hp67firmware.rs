@@ -40,7 +40,10 @@ fn words() -> &'static [u16; FIRMWARE_WORDS] {
                 .split(|ch: char| ch == ',' || ch.is_whitespace())
                 .filter(|token| !token.is_empty())
             {
-                assert!(index < FIRMWARE_WORDS, "HP-67 firmware contains too many words");
+                assert!(
+                    index < FIRMWARE_WORDS,
+                    "HP-67 firmware contains too many words"
+                );
                 let word = u16::from_str_radix(token, 8)
                     .unwrap_or_else(|_| panic!("invalid HP-67 firmware word {token}"));
                 assert!(word <= WORD_MASK, "HP-67 firmware word exceeds 10 bits");
