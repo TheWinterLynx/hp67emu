@@ -295,7 +295,7 @@ impl ActArchitecturalCore {
         self.executed_words
     }
 
-    /// Apply the Hawkeye/HP-67 rule that bank 1 cannot remain selected in the
+    /// Apply the HP-67 rule that bank 1 cannot remain selected in the
     /// first 1K page, then return the bank to use for the pending ROM fetch.
     pub fn prepare_hp67_fetch(&mut self) -> u8 {
         if self.state.pc < 0x0400 {
