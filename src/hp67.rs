@@ -330,9 +330,8 @@ impl Hp67LiveMachine {
         let mut idle_after_word = false;
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
-            let instruction_state = self.machine.act.state.instruction_state;
             self.act_serial
-                .begin_execution(word, instruction_state)
+                .begin_execution(word, &self.machine.act.state)
                 .map_err(|error| {
                     format!("live boot cycle {cycle} serial execution start failed: {error:?}")
                 })?;
