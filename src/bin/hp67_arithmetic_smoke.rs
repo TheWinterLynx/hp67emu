@@ -1,4 +1,4 @@
-//! Proves real HP-67 arithmetic through physical keyboard contacts and embedded firmware.
+//! Proves real HP-67 arithmetic through physical keyboard contacts and versioned firmware.
 //!
 //! Sequence: `1 ENTER 2 +`. Every key is presented as a physical contact, held
 //! until real firmware executes `keys -> a` and dispatches through the unshifted
@@ -7,8 +7,8 @@
 
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, run_structural_display_fetch_cycle, ActInstructionState,
-    ActSerialEndpoint, CathodeDriver1820_1749, EmbeddedHp67Rom, FetchPipelineLatch,
-    Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67Key, Hp67Keyboard, Rom0DisplayEndpoint,
+    ActSerialEndpoint, CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
+    Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Rom0DisplayEndpoint,
     RomFetchEndpoint, HP67_DISPLAY_SCAN_SLOTS, HP67_KEY_PRESSED_STATUS_BIT,
 };
 
@@ -42,7 +42,7 @@ struct ExecutedWord {
 }
 
 struct Harness {
-    source: EmbeddedHp67Rom,
+    source: Hp67Firmware,
     keyboard: Hp67Keyboard,
     machine: Hp67ArchitecturalMachine,
     backplane: Hp67ElectricalBackplane,
@@ -57,7 +57,7 @@ struct Harness {
 impl Default for Harness {
     fn default() -> Self {
         Self {
-            source: EmbeddedHp67Rom::default(),
+            source: Hp67Firmware::default(),
             keyboard: Hp67Keyboard::default(),
             machine: Hp67ArchitecturalMachine::default(),
             backplane: Hp67ElectricalBackplane::default(),
@@ -161,7 +161,7 @@ impl Harness {
         }
 
         Err(format!(
-            "embedded firmware did not reach power-on idle within {BOOT_WORD_LIMIT} words; pc={:04o}",
+            "versioned firmware did not reach power-on idle within {BOOT_WORD_LIMIT} words; pc={:04o}",
             self.machine.pc()
         ))
     }
@@ -286,26 +286,26 @@ fn format_segments(segments: &[u8; 15]) -> String {
 }
 
 fn main() -> Result<(), String> {
-    if EmbeddedHp67Rom::populated_words() != 5120 {
+    if Hp67Firmware::populated_words() != 5120 {
         return Err(format!(
-            "embedded HP-67 firmware has {} populated words; expected 5120",
-            EmbeddedHp67Rom::populated_words()
+            "HP-67 firmware has {} populated words; expected 5120",
+            Hp67Firmware::populated_words()
         ));
     }
 
-    println!("HP-67 embedded-firmware physical arithmetic smoke");
-    println!("ROM SOURCE: embedded in executable; no runtime firmware file");
+    println!("HP-67 versioned-firmware physical arithmetic smoke");
+    println!("ROM SOURCE: hp67firmware embedded in executable; no runtime firmware file");
 
     let mut harness = Harness::default();
     let boot = harness.boot_to_idle()?;
     if boot != EXPECTED_BOOT_DISPLAY {
         return Err(format!(
-            "M7 embedded boot display mismatch: got [{}], expected [{}]",
+            "M7 firmware boot display mismatch: got [{}], expected [{}]",
             format_segments(&boot),
             format_segments(&EXPECTED_BOOT_DISPLAY)
         ));
     }
-    println!("M7 PASS: embedded real firmware reached physical 0.00 idle");
+    println!("M7 PASS: real hp67firmware reached physical 0.00 idle");
 
     let one = harness.press_and_settle(Hp67Key::Digit1, "1")?;
     if one != EXPECTED_DIGIT_ONE_DISPLAY {
@@ -330,7 +330,7 @@ fn main() -> Result<(), String> {
     }
 
     println!(
-        "M10 ARITHMETIC PASS: physical 1 -> ENTER -> 2 -> + traversed real embedded firmware and produced the ROM0/1820-1749 physical 3.00 display without host calculator semantics."
+        "M10 ARITHMETIC PASS: physical 1 -> ENTER -> 2 -> + traversed real hp67firmware and produced the ROM0/1820-1749 physical 3.00 display without host calculator semantics."
     );
     Ok(())
 }
