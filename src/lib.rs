@@ -5,6 +5,7 @@
 //! reusable by more than one calculator model.
 
 pub mod emulation;
+pub mod hp67;
 pub mod machines;
 pub mod reference;
 pub mod research;
