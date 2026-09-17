@@ -29,7 +29,9 @@ pub use act_serial_execution::{
     ActSerialExecution, ActSerialExecutionError, ActSerialOperand, ActSerialRegister,
     ActSerialWordClass,
 };
-pub use act_serial_state::{ActSerialAluInputs, ActSerialStateSnapshot};
+pub use act_serial_state::{
+    ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot,
+};
 pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
