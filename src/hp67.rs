@@ -2,9 +2,10 @@ use std::time::Duration;
 
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint,
-    CathodeDriver1820_1749, EmbeddedHp67Rom, FetchPipelineLatch, Hp67ArchitecturalMachine,
-    Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67SegmentMask, Rom0DisplayEndpoint,
-    RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware, Hp67SegmentMask,
+    Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -153,13 +154,13 @@ impl Default for HardwareDisplayFrame {
 
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
 ///
-/// Firmware is compiled into the executable by `build.rs`. Startup executes
-/// through the same combined display/fetch word transport used by the structural
-/// smoke tests. ACT owns the display phase and the b0..b55 lifetime of the
-/// executing instruction, ROM0 emits STR events, and the cathode driver only
-/// consumes downstream STR/RCD control events.
+/// `hp67firmware` is versioned with the emulator and embedded in the executable.
+/// Startup executes through the same combined display/fetch word transport used
+/// by the structural smoke tests. ACT owns the display phase and the b0..b55
+/// lifetime of the executing instruction, ROM0 emits STR events, and the cathode
+/// driver only consumes downstream STR/RCD control events.
 pub struct Hp67LiveMachine {
-    source: EmbeddedHp67Rom,
+    source: Hp67Firmware,
     backplane: Hp67ElectricalBackplane,
     act_serial: ActSerialEndpoint,
     fetch_rom: RomFetchEndpoint,
@@ -180,7 +181,7 @@ pub struct Hp67LiveMachine {
 impl Hp67LiveMachine {
     pub fn power_on_default() -> Result<Self, String> {
         Ok(Self {
-            source: EmbeddedHp67Rom::default(),
+            source: Hp67Firmware::default(),
             backplane: Hp67ElectricalBackplane::default(),
             act_serial: ActSerialEndpoint::new(0),
             fetch_rom: RomFetchEndpoint::default(),
