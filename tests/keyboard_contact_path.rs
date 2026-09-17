@@ -1,6 +1,4 @@
-use hp67emu::machines::hp67::{
-    Hp67ArchitecturalMachine, Hp67Key, Hp67Keyboard,
-};
+use hp67emu::machines::hp67::{Hp67ArchitecturalMachine, Hp67Key, Hp67Keyboard};
 
 #[test]
 fn digit_one_contact_reaches_act_key_dispatch_without_semantic_shortcut() {
