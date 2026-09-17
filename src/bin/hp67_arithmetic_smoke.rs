@@ -81,11 +81,12 @@ impl Harness {
             let prior_instruction_state = self.machine.act.state.instruction_state;
             self.act_serial
                 .begin_execution(word, &self.machine.act.state)
-                .map_err(|error| format!("cycle {cycle} serial execution start failed: {error:?}"))?;
-            let execution = self
-                .machine
-                .execute_word(word)
-                .map_err(|error| format!("cycle {cycle} architectural execution failed: {error:?}"))?;
+                .map_err(|error| {
+                    format!("cycle {cycle} serial execution start failed: {error:?}")
+                })?;
+            let execution = self.machine.execute_word(word).map_err(|error| {
+                format!("cycle {cycle} architectural execution failed: {error:?}")
+            })?;
             Some(ExecutedWord {
                 pc: execution.pc,
                 word,
