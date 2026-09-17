@@ -1,16 +1,21 @@
 # `src/app.rs`
 
 ## Purpose
-Owns the desktop egui state, embedded HP-67 photograph and wall-clock scheduling adapter for the live structural HP-67 display machine.
+
+Run the desktop HP-67 application loop around the photorealistic panel and live structural machine.
 
 ## Why it exists
-The emulator must expose startup over time rather than constructing the machine at its final idle state. GUI frame timing belongs here, outside the reusable electrical and architectural modules, and must not fabricate display contents.
+
+Input sampling, elapsed-time advancement and painting need one deterministic ordering. Physical key contact must reach the machine before the elapsed firmware work for the frame is executed.
 
 ## Relationships
-Uses `Hp67LiveMachine::power_on_default()` and `advance()` for the external firmware, `Hp67State` for mechanical controls, `Hp67Panel` for input/body rendering and the photo overlay modules for visual corrections. `HardwareDisplayFrame` remains the only display payload passed to the panel.
+
+Owns `Hp67State`, `Hp67LiveMachine`, the embedded front-panel texture, `Hp67Panel`, and the small visual correction layers for top keys and sliders.
 
 ## Responsibilities
-Decode the embedded photograph, load the external firmware source, measure elapsed host time between egui updates, advance HP-67 startup only while power is on, replay machine reset when the switch goes OFF->ON, and request repaints while boot is progressing. If the external corpus or runtime fails, leave LED emission blank rather than synthesize a calculator value.
+
+Create the versioned-firmware live machine; process power/mode switch events; reset on OFF-to-ON; translate the panel's held `KeyAction` into a physical `Hp67Key`; release the machine keyboard whenever no key is held or power is off; advance firmware from real elapsed time; and repaint continuously while powered so firmware, display scanning and contact/release polling continue after boot idle.
 
 ## Implementation
-The first UI frame advances by zero elapsed time and is blank because the pre-SYNC ROM0 sampling state is not yet established by reviewed evidence. Subsequent frames pass monotonic `Instant` deltas into `Hp67LiveMachine`. Once firmware transport starts, visible slots are filled by the structural machine itself. While `is_booting()` is true, egui requests another repaint after approximately one measured HP-67 display refresh (4.8 ms). Power-off stops advancement and suppresses LED painting in `panel.rs`; power-on resets the live machine and its UI clock so the natural transient repeats.
+
+The frame first paints the currently available hardware display and collects panel interaction. Mechanical events are applied, the current key contact is passed to `Hp67LiveMachine::set_key_contact()`, then elapsed time is calculated and the live machine advances. Resetting `last_live_tick` on power transitions preserves the original zero-elapsed first powered frame. No UI key callback performs calculator-level work.
