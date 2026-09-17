@@ -3,8 +3,9 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint,
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
-    Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware, Hp67SegmentMask,
-    Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
     HP67_OBSERVED_WORD_TIME_US,
 };
 
@@ -57,7 +58,6 @@ pub enum KeyAction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiEvent {
-    Key(KeyAction),
     TogglePower,
     ToggleMode,
 }
@@ -81,6 +81,48 @@ impl Default for Hp67State {
     }
 }
 
+impl KeyAction {
+    pub const fn physical_key(self) -> Option<Hp67Key> {
+        match self {
+            Self::Digit(0) => Some(Hp67Key::Digit0),
+            Self::Digit(1) => Some(Hp67Key::Digit1),
+            Self::Digit(2) => Some(Hp67Key::Digit2),
+            Self::Digit(3) => Some(Hp67Key::Digit3),
+            Self::Digit(4) => Some(Hp67Key::Digit4),
+            Self::Digit(5) => Some(Hp67Key::Digit5),
+            Self::Digit(6) => Some(Hp67Key::Digit6),
+            Self::Digit(7) => Some(Hp67Key::Digit7),
+            Self::Digit(8) => Some(Hp67Key::Digit8),
+            Self::Digit(9) => Some(Hp67Key::Digit9),
+            Self::Digit(_) => None,
+            Self::Decimal => Some(Hp67Key::Decimal),
+            Self::ChangeSign => Some(Hp67Key::ChangeSign),
+            Self::ClearX => Some(Hp67Key::ClearX),
+            Self::Enter => Some(Hp67Key::Enter),
+            Self::Add => Some(Hp67Key::Add),
+            Self::Subtract => Some(Hp67Key::Subtract),
+            Self::Multiply => Some(Hp67Key::Multiply),
+            Self::Divide => Some(Hp67Key::Divide),
+            Self::FunctionF => Some(Hp67Key::FunctionF),
+            Self::FunctionG => Some(Hp67Key::FunctionG),
+            Self::FunctionH => Some(Hp67Key::FunctionH),
+            Self::SigmaPlus => Some(Hp67Key::SigmaPlus),
+            Self::Gto => Some(Hp67Key::Gto),
+            Self::Dsp => Some(Hp67Key::Dsp),
+            Self::Indirect => Some(Hp67Key::Indirect),
+            Self::Sst => Some(Hp67Key::Sst),
+            Self::Sto => Some(Hp67Key::Sto),
+            Self::Rcl => Some(Hp67Key::Rcl),
+            Self::A => Some(Hp67Key::A),
+            Self::B => Some(Hp67Key::B),
+            Self::C => Some(Hp67Key::C),
+            Self::D => Some(Hp67Key::D),
+            Self::E => Some(Hp67Key::E),
+            Self::RunStop => Some(Hp67Key::RunStop),
+        }
+    }
+}
+
 impl Hp67State {
     pub fn handle(&mut self, event: UiEvent) {
         match event {
@@ -90,11 +132,6 @@ impl Hp67State {
                     RunMode::Run => RunMode::Program,
                     RunMode::Program => RunMode::Run,
                 };
-            }
-            UiEvent::Key(_) => {
-                // Key hit regions remain interactive, but no semantic key action
-                // is allowed to synthesize display contents. Electrical keyboard
-                // scanning will connect these contacts to the machine later.
             }
         }
     }
@@ -168,6 +205,7 @@ pub struct Hp67LiveMachine {
     cathode: CathodeDriver1820_1749,
     pipeline: FetchPipelineLatch,
     machine: Hp67ArchitecturalMachine,
+    keyboard: Hp67Keyboard,
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
@@ -189,6 +227,7 @@ impl Hp67LiveMachine {
             cathode: CathodeDriver1820_1749::default(),
             pipeline: FetchPipelineLatch::default(),
             machine: Hp67ArchitecturalMachine::default(),
+            keyboard: Hp67Keyboard::default(),
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
@@ -217,6 +256,7 @@ impl Hp67LiveMachine {
         self.cathode = CathodeDriver1820_1749::default();
         self.pipeline = FetchPipelineLatch::default();
         self.machine = Hp67ArchitecturalMachine::default();
+        self.keyboard = Hp67Keyboard::default();
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
@@ -228,11 +268,15 @@ impl Hp67LiveMachine {
         Ok(())
     }
 
-    pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
-        if self.phase == LiveBootPhase::Idle {
-            return Ok(());
+    pub fn set_key_contact(&mut self, key: Option<Hp67Key>) {
+        match key {
+            Some(key) if self.keyboard.pressed() != Some(key) => self.keyboard.press(key),
+            Some(_) => {}
+            None => self.keyboard.release(),
         }
+    }
 
+    pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
 
@@ -244,7 +288,8 @@ impl Hp67LiveMachine {
             self.phase = LiveBootPhase::Firmware;
         }
 
-        while self.phase == LiveBootPhase::Firmware && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
+        while self.phase != LiveBootPhase::ResetHold
+            && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
         {
             self.pending_us -= HP67_OBSERVED_WORD_TIME_US;
             self.step_firmware_cycle()?;
@@ -254,7 +299,7 @@ impl Hp67LiveMachine {
 
     fn step_firmware_cycle(&mut self) -> Result<(), String> {
         let cycle = self.boot_cycle;
-        if cycle >= BOOT_CYCLE_LIMIT {
+        if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
                 "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
             ));
@@ -263,6 +308,7 @@ impl Hp67LiveMachine {
         let mut idle_after_word = false;
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
+            self.keyboard.sample_into_act(&mut self.machine.act.state);
             self.act_serial
                 .begin_execution(word, &self.machine.act.state)
                 .map_err(|error| {
@@ -370,11 +416,84 @@ mod tests {
     };
 
     #[test]
-    fn ui_state_no_longer_contains_a_fake_display_value() {
-        let mut state = Hp67State::default();
-        state.handle(UiEvent::Key(KeyAction::Digit(7)));
-        assert!(!state.power_on);
-        assert_eq!(state.mode, RunMode::Run);
+    fn every_ui_key_used_by_the_panel_maps_to_a_physical_contact() {
+        for action in [
+            KeyAction::Digit(0),
+            KeyAction::Digit(1),
+            KeyAction::Digit(2),
+            KeyAction::Digit(3),
+            KeyAction::Digit(4),
+            KeyAction::Digit(5),
+            KeyAction::Digit(6),
+            KeyAction::Digit(7),
+            KeyAction::Digit(8),
+            KeyAction::Digit(9),
+            KeyAction::Decimal,
+            KeyAction::ChangeSign,
+            KeyAction::ClearX,
+            KeyAction::Enter,
+            KeyAction::Add,
+            KeyAction::Subtract,
+            KeyAction::Multiply,
+            KeyAction::Divide,
+            KeyAction::FunctionF,
+            KeyAction::FunctionG,
+            KeyAction::FunctionH,
+            KeyAction::SigmaPlus,
+            KeyAction::Gto,
+            KeyAction::Dsp,
+            KeyAction::Indirect,
+            KeyAction::Sst,
+            KeyAction::Sto,
+            KeyAction::Rcl,
+            KeyAction::A,
+            KeyAction::B,
+            KeyAction::C,
+            KeyAction::D,
+            KeyAction::E,
+            KeyAction::RunStop,
+        ] {
+            assert!(action.physical_key().is_some());
+        }
+        assert_eq!(KeyAction::Digit(10).physical_key(), None);
+    }
+
+    #[test]
+    fn live_machine_consumes_a_held_digit_contact_after_boot_idle() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+
+        while live.is_booting() {
+            live.step_firmware_cycle().unwrap();
+        }
+        assert_eq!(
+            live.display_frame().segments(),
+            &[0x00, 0x00, 0x00, 0x3f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+
+        live.set_key_contact(Some(Hp67Key::Digit1));
+        let mut dispatched = false;
+        for _ in 0..128 {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.pc() == 0o1440 {
+                dispatched = true;
+                break;
+            }
+        }
+        assert!(dispatched, "held Digit1 contact never reached firmware table 1440");
+
+        live.set_key_contact(None);
+        for _ in 0..512 {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.pc() == MAIN_WAIT_PC
+                && !live.machine.act.state.status[15]
+                && live.display_frame().segments()
+                    == &[0x00, 0x00, 0x00, 0x06, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            {
+                return;
+            }
+        }
+        panic!("released Digit1 did not settle to physical 1. display");
     }
 
     #[test]
