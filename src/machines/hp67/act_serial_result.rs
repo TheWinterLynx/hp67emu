@@ -123,18 +123,9 @@ mod tests {
             .execute_word(word)
             .expect("architectural arithmetic execution must succeed");
 
-        assert_eq!(
-            image.register(ActSerialRegister::A),
-            &machine.act.state.a
-        );
-        assert_eq!(
-            image.register(ActSerialRegister::B),
-            &machine.act.state.b
-        );
-        assert_eq!(
-            image.register(ActSerialRegister::C),
-            &machine.act.state.c
-        );
+        assert_eq!(image.register(ActSerialRegister::A), &machine.act.state.a);
+        assert_eq!(image.register(ActSerialRegister::B), &machine.act.state.b);
+        assert_eq!(image.register(ActSerialRegister::C), &machine.act.state.c);
         assert_eq!(image.final_chain(), machine.act.state.carry);
     }
 
@@ -193,18 +184,9 @@ mod tests {
             .execute_word(word)
             .expect("architectural compare execution must succeed");
 
-        assert_eq!(
-            image.register(ActSerialRegister::A),
-            snapshot.register(ActSerialRegister::A)
-        );
-        assert_eq!(
-            image.register(ActSerialRegister::B),
-            snapshot.register(ActSerialRegister::B)
-        );
-        assert_eq!(
-            image.register(ActSerialRegister::C),
-            snapshot.register(ActSerialRegister::C)
-        );
+        assert_eq!(image.register(ActSerialRegister::A), snapshot.register(ActSerialRegister::A));
+        assert_eq!(image.register(ActSerialRegister::B), snapshot.register(ActSerialRegister::B));
+        assert_eq!(image.register(ActSerialRegister::C), snapshot.register(ActSerialRegister::C));
         assert_eq!(image.final_chain(), machine.act.state.carry);
     }
 
@@ -212,9 +194,6 @@ mod tests {
     fn non_additive_arithmetic_has_no_add_sub_result_image() {
         let state = ActArchitecturalState::default();
         let snapshot = ActSerialStateSnapshot::capture(&state);
-        assert_eq!(
-            ActSerialArithmeticResultImage::evaluate(&snapshot, 0x11a),
-            None
-        );
+        assert_eq!(ActSerialArithmeticResultImage::evaluate(&snapshot, 0x11a), None);
     }
 }
