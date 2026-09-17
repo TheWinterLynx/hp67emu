@@ -687,6 +687,10 @@ mod tests {
         state.p = 7;
         state.decimal = false;
 
+        assert_eq!(state.a[0], 0);
+        assert_eq!(state.b[0], 0);
+        assert_eq!(state.p, 7);
+        assert!(!state.decimal);
         let snapshot = act
             .serial_execution_state()
             .expect("pre-instruction serial snapshot must be retained");
