@@ -42,8 +42,8 @@ impl ActSerialArithmeticResultImage {
             };
 
             if coordinate.selected && coordinate.bit_in_digit == BITS_PER_DIGIT - 1 {
-                let result = snapshot
-                    .alu_digit_result(&execution, chain.unwrap_or(initial_chain))?;
+                let result =
+                    snapshot.alu_digit_result(&execution, chain.unwrap_or(initial_chain))?;
 
                 match coordinate.action {
                     ActSerialArithmeticAction::Add { destination, .. } => {
@@ -179,9 +179,18 @@ mod tests {
             .execute_word(word)
             .expect("architectural compare execution must succeed");
 
-        assert_eq!(image.register(ActSerialRegister::A), snapshot.register(ActSerialRegister::A));
-        assert_eq!(image.register(ActSerialRegister::B), snapshot.register(ActSerialRegister::B));
-        assert_eq!(image.register(ActSerialRegister::C), snapshot.register(ActSerialRegister::C));
+        assert_eq!(
+            image.register(ActSerialRegister::A),
+            snapshot.register(ActSerialRegister::A)
+        );
+        assert_eq!(
+            image.register(ActSerialRegister::B),
+            snapshot.register(ActSerialRegister::B)
+        );
+        assert_eq!(
+            image.register(ActSerialRegister::C),
+            snapshot.register(ActSerialRegister::C)
+        );
         assert_eq!(image.final_chain(), machine.act.state.carry);
     }
 
@@ -189,6 +198,9 @@ mod tests {
     fn non_additive_arithmetic_has_no_add_sub_result_image() {
         let state = ActArchitecturalState::default();
         let snapshot = ActSerialStateSnapshot::capture(&state);
-        assert_eq!(ActSerialArithmeticResultImage::evaluate(&snapshot, 0x11a), None);
+        assert_eq!(
+            ActSerialArithmeticResultImage::evaluate(&snapshot, 0x11a),
+            None
+        );
     }
 }
