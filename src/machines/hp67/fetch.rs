@@ -678,7 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn display_bits_are_read_live_instead_of_snapshotted_at_word_start() {
+    fn fetch_only_display_bits_follow_live_a_and_recoded_b_state() {
         let mut act = ActSerialEndpoint::new(0);
         let mut state = ActArchitecturalState::default();
         state.display_enable = true;
@@ -689,9 +689,9 @@ mod tests {
         state.a[0] = 0x01;
         assert_eq!(act.drive_for_bit(0, Some(&state)).unwrap(), Drive::High);
 
-        assert_eq!(act.drive_for_bit(4, Some(&state)).unwrap(), Drive::HighZ);
         state.b[0] = 0x01;
-        assert_eq!(act.drive_for_bit(4, Some(&state)).unwrap(), Drive::High);
+        assert_eq!(act.drive_for_bit(4, Some(&state)).unwrap(), Drive::HighZ);
+        assert_eq!(act.drive_for_bit(6, Some(&state)).unwrap(), Drive::High);
     }
 
     #[test]
