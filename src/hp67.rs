@@ -415,7 +415,7 @@ mod tests {
     use super::*;
     use hp67emu::{
         emulation::Drive,
-        machines::hp67::{ActDisplayWordSerializer, HP67_DISPLAY_SCAN_SLOTS},
+        machines::hp67::{ActDisplayWordSerializer, ActRegister, HP67_DISPLAY_SCAN_SLOTS},
     };
 
     #[test]
@@ -534,6 +534,49 @@ mod tests {
         );
     }
 
+    fn live_ram_snapshot(live: &Hp67LiveMachine) -> Vec<Option<ActRegister>> {
+        (0u8..0x40)
+            .map(|address| live.machine.ram.read(address))
+            .collect()
+    }
+
+    fn press_program_key_and_require_ram_change(live: &mut Hp67LiveMachine, key: Hp67Key) {
+        let before = live_ram_snapshot(live);
+        live.set_key_contact(Some(key));
+
+        for _ in 0..512 {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.set_key_contact(None);
+        let mut released = false;
+        for _ in 0..4_096 {
+            live.step_firmware_cycle().unwrap();
+            if !live.machine.act.state.status[15] {
+                released = true;
+                break;
+            }
+        }
+        assert!(released, "PROGRAM {key:?} never released S15");
+
+        for _ in 0..128 {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let after = live_ram_snapshot(live);
+        let changed: Vec<_> = before
+            .iter()
+            .zip(&after)
+            .enumerate()
+            .filter_map(|(address, (before, after))| (before != after).then_some(address))
+            .collect();
+        assert!(
+            !changed.is_empty(),
+            "PROGRAM {key:?} did not leave a persistent RAM change; pc={:04o}",
+            live.machine.pc()
+        );
+    }
+
     fn press_live_key_to_target(live: &mut Hp67LiveMachine, key: Hp67Key, target: u16) {
         live.set_key_contact(Some(key));
         let mut dispatched = false;
@@ -568,12 +611,26 @@ mod tests {
             live.step_firmware_cycle().unwrap();
         }
 
+        let run_display = live.display_frame();
         live.set_program_mode(true).unwrap();
-        press_live_key_to_target(&mut live, Hp67Key::Digit1, 0o1440);
-        press_live_key_to_target(&mut live, Hp67Key::Enter, 0o1422);
-        press_live_key_to_target(&mut live, Hp67Key::Digit2, 0o1437);
-        press_live_key_to_target(&mut live, Hp67Key::Add, 0o1434);
-        press_live_key_to_target(&mut live, Hp67Key::RunStop, 0o1443);
+        let mut program_display_seen = false;
+        for _ in 0..4_096 {
+            live.step_firmware_cycle().unwrap();
+            if live.display_frame() != run_display {
+                program_display_seen = true;
+                break;
+            }
+        }
+        assert!(
+            program_display_seen,
+            "W/PRGM did not replace the RUN display with a program-step display"
+        );
+
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Enter);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit2);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Add);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::RunStop);
 
         live.set_program_mode(false).unwrap();
         press_live_key_to_target(&mut live, Hp67Key::ClearX, 0o1417);
