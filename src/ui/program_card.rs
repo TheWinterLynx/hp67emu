@@ -14,6 +14,7 @@ const HP67_CASE_WIDTH_SOURCE_PX: f32 = 792.0;
 const SOURCE_PX_PER_MM: f32 = HP67_CASE_WIDTH_SOURCE_PX / HP67_CASE_WIDTH_MM;
 const CARD_WIDTH_MM: f32 = 71.1;
 const CARD_HEIGHT_MM: f32 = 11.4;
+const CARD_CORNER_CHAMFER_MM: f32 = 0.9;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
@@ -192,14 +193,18 @@ fn paint_card(
         return;
     }
 
-    let tip = (19.0 * scale).min(rect.width() * 0.08);
-    let shoulder = (7.0 * scale).min(rect.height() * 0.18);
+    let chamfer = (CARD_CORNER_CHAMFER_MM * SOURCE_PX_PER_MM * scale)
+        .min(rect.width() * 0.08)
+        .min(rect.height() * 0.35);
     let points = vec![
-        rect.left_top(),
-        pos2(rect.right() - tip, rect.top()),
-        pos2(rect.right() - tip + shoulder, rect.center().y),
-        pos2(rect.right() - tip, rect.bottom()),
-        rect.left_bottom(),
+        pos2(rect.left() + chamfer, rect.top()),
+        pos2(rect.right() - chamfer, rect.top()),
+        pos2(rect.right(), rect.top() + chamfer),
+        pos2(rect.right(), rect.bottom() - chamfer),
+        pos2(rect.right() - chamfer, rect.bottom()),
+        pos2(rect.left() + chamfer, rect.bottom()),
+        pos2(rect.left(), rect.bottom() - chamfer),
+        pos2(rect.left(), rect.top() + chamfer),
     ];
     painter.add(Shape::convex_polygon(
         points,
@@ -479,6 +484,8 @@ mod tests {
         assert!((CARD_PHYSICAL_WIDTH - 695.2).abs() < 0.2);
         assert!((CARD_PHYSICAL_HEIGHT - 111.47).abs() < 0.2);
         assert!((CARD_PHYSICAL_WIDTH / CARD_PHYSICAL_HEIGHT - CARD_WIDTH_MM / CARD_HEIGHT_MM).abs() < 0.0001);
+        assert!(CARD_CORNER_CHAMFER_MM > 0.0);
+        assert!(CARD_CORNER_CHAMFER_MM < CARD_HEIGHT_MM * 0.25);
     }
 
     #[test]
