@@ -150,6 +150,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
 
     output
 }
+
 #[derive(Clone, Copy)]
 struct CardPalette {
     body: Color32,
@@ -377,6 +378,7 @@ fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
 fn source_x_to_screen(photo: Rect, x: f32) -> f32 {
     photo.left() + x * photo.width() / PHOTO_W
 }
+
 fn paint_reader_hint(painter: &Painter, photo: Rect, hit: Rect, scale: f32) {
     let x = photo.left() + CARD_READER_MOUTH_X * photo.width() / PHOTO_W;
     let y = hit.center().y;
@@ -462,6 +464,15 @@ mod tests {
         assert_eq!(visible.width(), CARD_LEFT_VISIBLE_WIDTH);
         assert_eq!(visible.right(), CARD_EXIT_MOUTH_X);
         assert!(parked.right() > CARD_EXIT_MOUTH_X);
+    }
+
+    #[test]
+    fn card_phase_animation_only_covers_motion_states() {
+        assert!(!ProgramCardPhase::Idle.is_animating());
+        assert!(ProgramCardPhase::ReadingFromRight.is_animating());
+        assert!(!ProgramCardPhase::ParkedLeft.is_animating());
+        assert!(ProgramCardPhase::MovingToWindow.is_animating());
+        assert!(!ProgramCardPhase::InWindow.is_animating());
     }
 
     #[test]
