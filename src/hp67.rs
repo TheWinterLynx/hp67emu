@@ -579,11 +579,7 @@ mod tests {
             .collect()
     }
 
-    fn wait_for_firmware_mode(
-        live: &mut Hp67LiveMachine,
-        program: bool,
-        label: &str,
-    ) {
+    fn wait_for_firmware_mode(live: &mut Hp67LiveMachine, program: bool, label: &str) {
         live.set_program_mode(program).unwrap();
         let wait_visits = live.main_wait_visits;
         for _ in 0..8_192 {
@@ -767,8 +763,7 @@ mod tests {
             live.step_firmware_cycle().unwrap();
 
             if normal && executing_word == Some(KEYS_TO_A_OPCODE) {
-                let observed =
-                    (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
+                let observed = (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
                 assert_eq!(
                     observed, expected_code,
                     "{key:?} keys -> A produced {observed:04o}, expected physical code {expected_code:04o}"
@@ -804,9 +799,7 @@ mod tests {
         let wait_visits = live.main_wait_visits;
         for _ in 0..4_096 {
             live.step_firmware_cycle().unwrap();
-            if live.main_wait_visits > wait_visits
-                && !live.machine.act.state.status[15]
-            {
+            if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
                 return;
             }
         }
@@ -816,11 +809,7 @@ mod tests {
         );
     }
 
-    fn press_live_key_and_settle(
-        live: &mut Hp67LiveMachine,
-        key: Hp67Key,
-        expected_target: u16,
-    ) {
+    fn press_live_key_and_settle(live: &mut Hp67LiveMachine, key: Hp67Key, expected_target: u16) {
         let target = press_live_key_to_dispatch(live, key, expected_target);
         settle_live_dispatch(live, key, target);
     }
