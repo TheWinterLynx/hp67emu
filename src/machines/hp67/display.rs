@@ -205,8 +205,9 @@ pub fn decode_rom0_display_byte(
         0x0c => 0x50, // r: E G
         0x0d => 0x5e, // d: B C D E G
         0x0e => 0x79, // E: A D E F G
-        0x0f | HP67_ROM0_BLANK_CODE => 0x00,
-        0x30 => Hp67SegmentMask::DP.bits(),
+        0x0f => 0x00,
+        0x20..=0x2f => 0x00,
+        0x30..=0x3f => Hp67SegmentMask::DP.bits(),
         0x40..=0x4f => 0x00,
         _ => return Err(Rom0DisplayError::UnknownDisplayCode { scan_slot, code }),
     };
@@ -319,10 +320,15 @@ mod tests {
     }
 
     #[test]
-    fn direct_hp67_digit_and_decimal_codes_decode_to_segments() {
+    fn direct_hp67_digit_and_modifier_classes_decode_to_segments() {
         assert_eq!(decode_rom0_display_byte(1, 0x00).unwrap().bits(), 0x3f);
         assert_eq!(decode_rom0_display_byte(4, 0x09).unwrap().bits(), 0x6f);
+        assert_eq!(
+            decode_rom0_display_byte(8, 0x25),
+            Ok(Hp67SegmentMask::BLANK)
+        );
         assert_eq!(decode_rom0_display_byte(8, 0x30), Ok(Hp67SegmentMask::DP));
+        assert_eq!(decode_rom0_display_byte(5, 0x33), Ok(Hp67SegmentMask::DP));
         assert_eq!(
             decode_rom0_display_byte(14, 0x4f),
             Ok(Hp67SegmentMask::BLANK)
@@ -436,10 +442,10 @@ mod tests {
     #[test]
     fn unknown_rom0_codes_fail_instead_of_being_guessed() {
         assert_eq!(
-            decode_rom0_display_byte(1, 0x21),
+            decode_rom0_display_byte(1, 0x50),
             Err(Rom0DisplayError::UnknownDisplayCode {
                 scan_slot: 1,
-                code: 0x21,
+                code: 0x50,
             })
         );
     }
