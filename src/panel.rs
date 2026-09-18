@@ -213,6 +213,7 @@ pub struct Hp67PanelOutput {
     pub events: Vec<UiEvent>,
     pub key_contact: Option<KeyAction>,
     pub card_reader_clicked: bool,
+    pub card_parked_left_clicked: bool,
     pub card_window_clicked: bool,
 }
 
@@ -233,6 +234,7 @@ impl Hp67Panel {
                 events: Vec::new(),
                 key_contact: None,
                 card_reader_clicked: false,
+                card_parked_left_clicked: false,
                 card_window_clicked: false,
             };
         }
@@ -320,6 +322,7 @@ impl Hp67Panel {
             events,
             key_contact,
             card_reader_clicked: card_ui.reader_clicked,
+            card_parked_left_clicked: card_ui.parked_left_clicked,
             card_window_clicked: card_ui.window_clicked,
         }
     }
