@@ -51,14 +51,15 @@ pub enum ActDisplaySerialError {
 
 /// ACT-side source for the eight ROM0 display bits of one 56-bit machine word.
 ///
-/// The endpoint snapshots only the two source nibbles for the selected scan
-/// position. It never composes an eight-bit display value. b0..b3 are emitted
-/// directly from A bit 0..3 and b4..b7 directly from B bit 0..3, using the
-/// observed wired-high/release IS convention.
+/// The endpoint snapshots the two architectural source nibbles for the selected
+/// scan position. The A-side b0..b3 transport is source-backed. The remaining
+/// B-derived display-modifier transport is still a bring-up bridge: HP Woodstock
+/// documentation describes a 4-to-3 recoding of B rather than raw four-bit B
+/// emission, so this helper must not be treated as the final electrical encoder.
 ///
 /// This is still a word-boundary bridge: A/B are architectural register arrays,
-/// not the final intra-word shift-register/ALU implementation. Exact PHI launch
-/// edges remain intentionally unspecified.
+/// not the final intra-word shift-register/ALU implementation. Exact B recoding
+/// and PHI launch edges remain intentionally unspecified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActDisplayWordSerializer {
     register_index: usize,
