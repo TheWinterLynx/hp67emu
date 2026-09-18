@@ -14,7 +14,10 @@ use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError},
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
-    display::{Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS},
+    display::{
+        Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS,
+        HP67_ROM0_BLANK_CODE,
+    },
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     timing::{
@@ -244,7 +247,9 @@ impl ActSerialEndpoint {
             let (Some(register_index), Some(state)) = (self.display_register_index, state) else {
                 return Drive::HighZ;
             };
-            let bit = if serial_bit < 4 {
+            let bit = if !state.display_enable {
+                ((HP67_ROM0_BLANK_CODE >> serial_bit) & 1) != 0
+            } else if serial_bit < 4 {
                 ((state.a[register_index] >> serial_bit) & 1) != 0
             } else {
                 ((state.b[register_index] >> (serial_bit - 4)) & 1) != 0
@@ -590,6 +595,7 @@ mod tests {
         let mut rom0 = Rom0DisplayEndpoint::default();
 
         let mut act_state = ActArchitecturalState::default();
+        act_state.display_enable = true;
         // ACT starts at slot 1 -> register digit 0. A=0, B=3 must serialize
         // 0,0,0,0,1,1,0,0 on b0..b7 without cathode selecting that digit.
         act_state.a[0] = 0x00;
@@ -620,6 +626,7 @@ mod tests {
     fn display_bits_are_read_live_instead_of_snapshotted_at_word_start() {
         let mut act = ActSerialEndpoint::new(0);
         let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
         act.begin_display_fetch_cycle(0)
             .expect("slot 1 must select a valid ACT display digit");
 
@@ -630,6 +637,36 @@ mod tests {
         assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::HighZ);
         state.b[0] = 0x01;
         assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::High);
+    }
+
+    #[test]
+    fn display_off_serializes_measured_rom0_blank_code() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = false;
+        state.a[0] = 0x00;
+        state.b[0] = 0x05;
+
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0x07b);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+
+        let result = run_structural_display_fetch_cycle(
+            &mut backplane,
+            0x07b,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("disabled display must still transport a legal ROM0 blank code");
+
+        assert_eq!(result.display_byte, HP67_ROM0_BLANK_CODE);
+        assert_eq!(rom0.decoded_anodes(1), Ok(Hp67SegmentMask::BLANK));
     }
 
     #[test]
