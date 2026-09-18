@@ -40,6 +40,7 @@ pub struct ActSerialStateSnapshot {
     c: ActRegister,
     p: u8,
     decimal: bool,
+    display_enable: bool,
 }
 
 impl ActSerialStateSnapshot {
@@ -50,6 +51,7 @@ impl ActSerialStateSnapshot {
             c: state.c,
             p: state.p,
             decimal: state.decimal,
+            display_enable: state.display_enable,
         }
     }
 
@@ -59,6 +61,10 @@ impl ActSerialStateSnapshot {
 
     pub const fn decimal(&self) -> bool {
         self.decimal
+    }
+
+    pub const fn display_enable(&self) -> bool {
+        self.display_enable
     }
 
     pub const fn radix(&self) -> u8 {
@@ -228,6 +234,7 @@ mod tests {
         state.c[3] = 0x09;
         state.p = 7;
         state.decimal = true;
+        state.display_enable = true;
 
         let snapshot = ActSerialStateSnapshot::capture(&state);
         state.a[3] = 0;
@@ -235,6 +242,7 @@ mod tests {
         state.c[3] = 0;
         state.p = 1;
         state.decimal = false;
+        state.display_enable = false;
 
         assert_eq!(state.a[3], 0);
         assert_eq!(state.b[3], 0);
@@ -246,6 +254,7 @@ mod tests {
         assert_eq!(snapshot.register_digit(ActSerialRegister::C, 3), Some(0x09));
         assert_eq!(snapshot.p(), 7);
         assert!(snapshot.decimal());
+        assert!(snapshot.display_enable());
         assert_eq!(snapshot.radix(), 10);
     }
 
