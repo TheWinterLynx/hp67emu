@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
 use crate::{
-    hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, UiEvent},
+    hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
     panel::Hp67Panel,
     ui::{sliders, top_keys},
 };
@@ -80,6 +80,16 @@ impl eframe::App for Hp67App {
                             }
                         }
                     }
+                }
+
+                let mode_error = self.live_machine.as_mut().and_then(|machine| {
+                    machine
+                        .set_program_mode(matches!(self.state.mode, RunMode::Program))
+                        .err()
+                });
+                if let Some(error) = mode_error {
+                    eprintln!("HP-67 live program-mode update failed: {error}");
+                    self.live_machine = None;
                 }
 
                 if let Some(machine) = self.live_machine.as_mut() {
