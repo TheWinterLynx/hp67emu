@@ -546,6 +546,7 @@ mod tests {
         let mut control_trace = Vec::new();
         live.set_key_contact(Some(key));
 
+        let mut release_wait_seen = false;
         for step in 0..512 {
             if step < 96 {
                 control_trace.push(format!(
@@ -571,8 +572,16 @@ mod tests {
                     ));
                 }
             }
+            if (0o0164..=0o0166).contains(&live.machine.pc()) {
+                release_wait_seen = true;
+                break;
+            }
             live.step_firmware_cycle().unwrap();
         }
+        assert!(
+            release_wait_seen,
+            "PROGRAM {key:?} never reached the firmware key-release wait"
+        );
 
         live.set_key_contact(None);
         let mut released = false;
@@ -669,7 +678,10 @@ mod tests {
         let mut program_switch_test_seen = false;
         let mut program_idle_seen = false;
         for _ in 0..8_192 {
-            if live.machine.pc() == 0o0174 && live.pipeline.executing_word() == Some(0o0300) {
+            if live.pipeline.executing_word() == Some(0o0300)
+                && live.machine.act.state.instruction_state
+                    == hp67emu::machines::hp67::ActInstructionState::Normal
+            {
                 program_switch_test_seen = true;
             }
             live.step_firmware_cycle().unwrap();
@@ -683,7 +695,7 @@ mod tests {
         }
         assert!(
             program_switch_test_seen,
-            "W/PRGM never reached the firmware RUN/PRGM switch test at 0174/0300"
+            "W/PRGM never executed the firmware RUN/PRGM switch-test opcode 0300"
         );
         assert!(
             program_idle_seen,
