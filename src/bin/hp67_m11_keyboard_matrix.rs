@@ -520,11 +520,7 @@ impl Harness {
         self.settle_after_dispatch(dispatch, label)
     }
 
-    fn press_relaxed_and_settle(
-        &mut self,
-        key: Hp67Key,
-        label: &str,
-    ) -> Result<[u8; 15], String> {
+    fn press_relaxed_and_settle(&mut self, key: Hp67Key, label: &str) -> Result<[u8; 15], String> {
         let dispatch = self.press_to_dispatch(key, label, false)?;
         self.settle_after_dispatch(dispatch, label)
     }
@@ -1058,8 +1054,7 @@ fn run_mode_family_matrix() -> Result<(), String> {
             (Hp67Key::Digit2, "2"),
         ],
     )?;
-    let display =
-        swap.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit7, "7")?;
+    let display = swap.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit7, "7")?;
     require_display("STACK X<->Y", display, EXPECTED_ONE_FIXED_TWO)?;
 
     let mut roll = boot_harness()?;
@@ -1073,11 +1068,9 @@ fn run_mode_family_matrix() -> Result<(), String> {
             (Hp67Key::Digit3, "3"),
         ],
     )?;
-    let display =
-        roll.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit8, "8")?;
+    let display = roll.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit8, "8")?;
     require_display("STACK R-DOWN", display, EXPECTED_TWO_FIXED_TWO)?;
-    let display =
-        roll.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit9, "9")?;
+    let display = roll.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit9, "9")?;
     require_display("STACK R-UP", display, EXPECTED_THREE_FIXED_TWO)?;
 
     let mut last_x = boot_harness()?;
@@ -1090,8 +1083,7 @@ fn run_mode_family_matrix() -> Result<(), String> {
             (Hp67Key::Add, "+"),
         ],
     )?;
-    let display =
-        last_x.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit0, "0")?;
+    let display = last_x.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit0, "0")?;
     require_display("LAST X", display, EXPECTED_TWO_FIXED_TWO)?;
 
     let mut percent = boot_harness()?;
@@ -1123,24 +1115,18 @@ fn run_mode_family_matrix() -> Result<(), String> {
             (Hp67Key::Digit0, "0"),
         ],
     )?;
-    let display = percent_change.press_shifted_and_settle(
-        Hp67Key::FunctionG,
-        "g",
-        Hp67Key::Digit0,
-        "0",
-    )?;
+    let display =
+        percent_change.press_shifted_and_settle(Hp67Key::FunctionG, "g", Hp67Key::Digit0, "0")?;
     require_display("PERCENT CHANGE 100->110", display, EXPECTED_TEN_FIXED_TWO)?;
 
     let mut pi = boot_harness()?;
-    let display =
-        pi.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit2, "2")?;
+    let display = pi.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit2, "2")?;
     require_display("PI CONSTANT", display, EXPECTED_PI_FIXED_TWO)?;
 
     let mut deg = boot_harness()?;
     deg.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Enter, "ENTER")?;
     enter_digits(&mut deg, &[(Hp67Key::Digit9, "9"), (Hp67Key::Digit0, "0")])?;
-    let display =
-        deg.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
+    let display = deg.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
     require_display("DEG MODE SIN 90", display, EXPECTED_ONE_FIXED_TWO)?;
 
     let mut rad = boot_harness()?;
@@ -1148,8 +1134,7 @@ fn run_mode_family_matrix() -> Result<(), String> {
     rad.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit2, "2")?;
     rad.press_and_settle(Hp67Key::Digit2, "2")?;
     rad.press_and_settle(Hp67Key::Divide, "/")?;
-    let display =
-        rad.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
+    let display = rad.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
     require_display("RAD MODE SIN PI/2", display, EXPECTED_ONE_FIXED_TWO)?;
 
     let mut grd = boot_harness()?;
@@ -1162,12 +1147,14 @@ fn run_mode_family_matrix() -> Result<(), String> {
             (Hp67Key::Digit0, "0"),
         ],
     )?;
-    let display =
-        grd.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
+    let display = grd.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
     require_display("GRD MODE SIN 100", display, EXPECTED_ONE_FIXED_TWO)?;
 
     let mut storage = boot_harness()?;
-    enter_digits(&mut storage, &[(Hp67Key::Digit4, "4"), (Hp67Key::Digit2, "2")])?;
+    enter_digits(
+        &mut storage,
+        &[(Hp67Key::Digit4, "4"), (Hp67Key::Digit2, "2")],
+    )?;
     storage.press_and_settle(Hp67Key::Sto, "STO")?;
     storage.press_relaxed_and_settle(Hp67Key::Digit1, "1")?;
     storage.press_and_settle(Hp67Key::ClearX, "CLX")?;
@@ -1192,12 +1179,8 @@ fn run_mode_family_matrix() -> Result<(), String> {
         ],
     )?;
     set_display_mode(&mut fixed_round, Hp67Key::FunctionF, "f", 2)?;
-    let display = fixed_round.press_shifted_and_settle(
-        Hp67Key::FunctionF,
-        "f",
-        Hp67Key::Indirect,
-        "IND",
-    )?;
+    let display =
+        fixed_round.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Indirect, "IND")?;
     require_display("FIX 2 + RND 1.236", display, EXPECTED_ONE_POINT_TWENTY_FOUR)?;
 
     let mut sci_round = boot_harness()?;
@@ -1266,19 +1249,18 @@ fn run_mode_family_matrix() -> Result<(), String> {
     sigma_minus.press_and_settle(Hp67Key::Digit5, "5")?;
     sigma_minus.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
     sigma_minus.press_and_settle(Hp67Key::Digit5, "5")?;
-    sigma_minus.press_shifted_and_settle(
-        Hp67Key::FunctionH,
-        "h",
-        Hp67Key::SigmaPlus,
-        "SIGMA+",
-    )?;
+    sigma_minus.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::SigmaPlus, "SIGMA+")?;
     let display = sigma_minus.press_shifted_and_settle(
         Hp67Key::FunctionF,
         "f",
         Hp67Key::SigmaPlus,
         "SIGMA+",
     )?;
-    require_display("STAT SIGMA- RESTORES MEAN", display, EXPECTED_THREE_FIXED_TWO)?;
+    require_display(
+        "STAT SIGMA- RESTORES MEAN",
+        display,
+        EXPECTED_THREE_FIXED_TWO,
+    )?;
 
     println!(
         "RUN-MODE FAMILY PASS: stack, percentage, pi, angle modes, storage, register clear, display rounding modes and basic statistics all matched independent exact expectations."
