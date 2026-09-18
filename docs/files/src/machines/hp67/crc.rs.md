@@ -14,8 +14,8 @@ Real HP-67 firmware reaches CRC opcodes during ordinary power-on/idle execution.
 
 ## Responsibilities
 
-Decode the documented CRC control opcode families, maintain twelve internal flags and twelve external flag inputs, implement set-flag and test-and-clear semantics, and expose the HP-67 program-mode external flag. Reject out-of-range opcodes and flags explicitly.
+Decode the documented CRC control opcode families, maintain twelve internal flags and twelve external flag inputs, implement set-flag and test-and-clear semantics, and expose the HP-67 PROGRAM switch plus card-present external contact and named firmware-visible buffer/motor/write flag identities. Reject out-of-range opcodes and flags explicitly.
 
 ## Implementation
 
-`decode_crc_opcode()` recognizes the two documented selector families that cover CRC flags 0 through 11. `CrcArchitecturalCore::execute_opcode()` sets internal flags or returns the combined internal/external condition for test-and-clear while clearing only the internal latch. The RUN/W-PRGM input is represented as external flag 1. Card data registers at addresses `0x99` and `0x9b` are declared here but intentionally not serviced by this module; crossing those ports remains a later physical-device milestone.
+`decode_crc_opcode()` recognizes the two documented selector families that cover CRC flags 0 through 11. `CrcArchitecturalCore::execute_opcode()` sets internal flags or returns the combined internal/external condition for test-and-clear while clearing only the internal latch. The RUN/W-PRGM input is external flag 1 and the physical card-present contact is external flag 10. Internal flag 9 remains the firmware-owned motor request; external contacts participate in `fs?c` tests without being cleared by the firmware test. Card data registers at addresses `0x99` and `0x9b` are declared here but intentionally not serviced by this module; crossing those ports remains a later physical-device milestone.
