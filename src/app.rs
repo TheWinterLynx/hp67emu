@@ -6,20 +6,21 @@ use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
     panel::Hp67Panel,
     ui::{
-        program_card::{ProgramCardView, MOON_ROCKET_LANDER_CARD},
+        program_card::{ProgramCardPhase, ProgramCardView, MOON_ROCKET_LANDER_CARD},
         sliders, top_keys,
     },
 };
 
 const PROGRAM_CARD_READ_DURATION: Duration = Duration::from_millis(900);
+const PROGRAM_CARD_TO_WINDOW_DURATION: Duration = Duration::from_millis(700);
 
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
     live_machine: Option<Hp67LiveMachine>,
     last_live_tick: Option<Instant>,
-    card_read_started: Option<Instant>,
-    card_in_window: bool,
+    card_phase: ProgramCardPhase,
+    card_phase_started: Option<Instant>,
 }
 
 impl Hp67App {
@@ -54,8 +55,8 @@ impl Hp67App {
             photo,
             live_machine,
             last_live_tick: None,
-            card_read_started: None,
-            card_in_window: false,
+            card_phase: ProgramCardPhase::Idle,
+            card_phase_started: None,
         }
     }
 }
@@ -64,18 +65,39 @@ impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
 
-        if self.card_read_started.is_some_and(|started| {
-            now.saturating_duration_since(started) >= PROGRAM_CARD_READ_DURATION
-        }) {
-            self.card_read_started = None;
-            self.card_in_window = true;
+        match self.card_phase {
+            ProgramCardPhase::ReadingFromRight
+                if self.card_phase_started.is_some_and(|started| {
+                    now.saturating_duration_since(started) >= PROGRAM_CARD_READ_DURATION
+                }) =>
+            {
+                self.card_phase = ProgramCardPhase::ParkedLeft;
+                self.card_phase_started = None;
+            }
+            ProgramCardPhase::MovingToWindow
+                if self.card_phase_started.is_some_and(|started| {
+                    now.saturating_duration_since(started) >= PROGRAM_CARD_TO_WINDOW_DURATION
+                }) =>
+            {
+                self.card_phase = ProgramCardPhase::InWindow;
+                self.card_phase_started = None;
+            }
+            _ => {}
         }
 
-        let reader_progress = self.card_read_started.map(|started| {
-            (now.saturating_duration_since(started).as_secs_f32()
-                / PROGRAM_CARD_READ_DURATION.as_secs_f32())
-            .clamp(0.0, 1.0)
-        });
+        let card_phase_progress = match (self.card_phase, self.card_phase_started) {
+            (ProgramCardPhase::ReadingFromRight, Some(started)) => {
+                (now.saturating_duration_since(started).as_secs_f32()
+                    / PROGRAM_CARD_READ_DURATION.as_secs_f32())
+                .clamp(0.0, 1.0)
+            }
+            (ProgramCardPhase::MovingToWindow, Some(started)) => {
+                (now.saturating_duration_since(started).as_secs_f32()
+                    / PROGRAM_CARD_TO_WINDOW_DURATION.as_secs_f32())
+                .clamp(0.0, 1.0)
+            }
+            _ => 0.0,
+        };
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
@@ -92,16 +114,21 @@ impl eframe::App for Hp67App {
                     &self.photo,
                     ProgramCardView {
                         artwork: &MOON_ROCKET_LANDER_CARD,
-                        in_window: self.card_in_window,
-                        reader_progress,
+                        phase: self.card_phase,
+                        phase_progress: card_phase_progress,
                     },
                 );
                 if panel.card_reader_clicked {
-                    self.card_in_window = false;
-                    self.card_read_started = Some(now);
+                    self.card_phase = ProgramCardPhase::ReadingFromRight;
+                    self.card_phase_started = Some(now);
+                }
+                if panel.card_parked_left_clicked {
+                    self.card_phase = ProgramCardPhase::MovingToWindow;
+                    self.card_phase_started = Some(now);
                 }
                 if panel.card_window_clicked {
-                    self.card_in_window = false;
+                    self.card_phase = ProgramCardPhase::Idle;
+                    self.card_phase_started = None;
                 }
 
                 for event in panel.events {
@@ -165,7 +192,7 @@ impl eframe::App for Hp67App {
             self.live_machine = None;
         }
 
-        if self.card_read_started.is_some() {
+        if self.card_phase.is_animating() {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
         if self.state.power_on {
