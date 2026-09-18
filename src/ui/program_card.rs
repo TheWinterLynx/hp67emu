@@ -483,7 +483,10 @@ mod tests {
         assert!((CARD_HEIGHT_MM - 11.4).abs() < 0.0001);
         assert!((CARD_PHYSICAL_WIDTH - 695.2).abs() < 0.2);
         assert!((CARD_PHYSICAL_HEIGHT - 111.47).abs() < 0.2);
-        assert!((CARD_PHYSICAL_WIDTH / CARD_PHYSICAL_HEIGHT - CARD_WIDTH_MM / CARD_HEIGHT_MM).abs() < 0.0001);
+        assert!(
+            (CARD_PHYSICAL_WIDTH / CARD_PHYSICAL_HEIGHT - CARD_WIDTH_MM / CARD_HEIGHT_MM).abs()
+                < 0.0001
+        );
         assert!(CARD_CORNER_CHAMFER_MM > 0.0);
         assert!(CARD_CORNER_CHAMFER_MM < CARD_HEIGHT_MM * 0.25);
     }
