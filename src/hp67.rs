@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use hp67emu::machines::hp67::{
-    decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint,
+    decode_rom0_display_byte, display_register_index_for_scan_slot,
+    run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
     Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
@@ -402,7 +403,29 @@ impl Hp67LiveMachine {
         if !self.display_control_seen || self.machine.act.state.display_enable {
             let anodes =
                 decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
-                    format!("live cycle {cycle} ROM0 decode failed at slot {scan_slot}: {error:?}")
+                    let register_index = display_register_index_for_scan_slot(scan_slot);
+                    let post = register_index.map(|index| {
+                        (
+                            self.machine.act.state.a[index],
+                            self.machine.act.state.b[index],
+                        )
+                    });
+                    let pre = register_index.and_then(|index| {
+                        self.act_serial.serial_execution_state().and_then(|state| {
+                            Some((
+                                state.register_digit(ActSerialRegister::A, index as u8)?,
+                                state.register_digit(ActSerialRegister::B, index as u8)?,
+                            ))
+                        })
+                    });
+                    format!(
+                        "live cycle {cycle} ROM0 decode failed at slot {scan_slot}: {error:?}; \
+                         executing_word={:?} post_pc={:04o} display_enable={} register_index={register_index:?} \
+                         pre_a_b={pre:?} post_a_b={post:?}",
+                        self.pipeline.executing_word(),
+                        self.machine.pc(),
+                        self.machine.act.state.display_enable,
+                    )
                 })?;
             self.display.capture_scan_slot(scan_slot, anodes)?;
         } else {
