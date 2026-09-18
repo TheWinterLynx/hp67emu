@@ -692,7 +692,7 @@ fn basic_function_matrix() -> Result<(), String> {
     Ok(())
 }
 
-fn shifted_function_frontier() -> Result<(), String> {
+fn shifted_function_coverage() -> Result<(), String> {
     println!("\n=== SHIFTED FUNCTION COVERAGE ===");
     for prefix in [
         KeySpec {
@@ -749,7 +749,7 @@ fn main() -> Result<(), String> {
     direct_keyboard_matrix()?;
     digit_matrix()?;
     basic_function_matrix()?;
-    shifted_function_frontier()?;
+    shifted_function_coverage()?;
 
     println!(
         "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle, exact digit/basic arithmetic/CHS/EEX paths pass, and all f/g/h shifted dispatch paths were exercised. Shifted-function semantic results remain un-certified until independently specified regressions are added."
