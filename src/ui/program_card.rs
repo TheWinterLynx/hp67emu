@@ -353,14 +353,9 @@ fn paint_window_insertion_from_right(
     // The passive reference-card holder is approached from the calculator's
     // right side. Keep the whole card visible throughout the transfer instead
     // of morphing a clipped left-exit fragment directly into the window.
-    paint_card(
-        ui.painter(),
-        rect,
-        card,
-        CardPalette::holder(),
-        scale,
-    );
+    paint_card(ui.painter(), rect, card, CardPalette::holder(), scale);
 }
+
 fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
     Rect::from_min_max(
         pos2(
