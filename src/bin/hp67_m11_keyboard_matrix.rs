@@ -627,10 +627,7 @@ fn basic_function_matrix() -> Result<(), String> {
 
     exact_sequence(
         "CHS",
-        &[
-            (Hp67Key::Digit1, "1"),
-            (Hp67Key::ChangeSign, "CHS"),
-        ],
+        &[(Hp67Key::Digit1, "1"), (Hp67Key::ChangeSign, "CHS")],
         EXPECTED_NEGATIVE_ONE,
     )?;
 
