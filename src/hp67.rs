@@ -320,22 +320,28 @@ impl Hp67LiveMachine {
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
-            let mut serial_pre_state = self.machine.act.state.clone();
-            if !self.display_control_seen {
+            let startup_serial_state = if self.display_control_seen {
+                None
+            } else {
                 // Direct power-on capture shows display traffic before firmware
                 // executes its first explicit DISPLAY control instruction.
-                serial_pre_state.display_enable = true;
-            }
+                let mut state = self.machine.act.state.clone();
+                state.display_enable = true;
+                Some(state)
+            };
+            let serial_state = startup_serial_state
+                .as_ref()
+                .unwrap_or(&self.machine.act.state);
             self.act_serial
-                .begin_execution(word, &serial_pre_state)
+                .begin_execution(word, serial_state)
                 .map_err(|error| {
-                    format!("live boot cycle {cycle} serial execution start failed: {error:?}")
+                    format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
 
             let execution = self
                 .machine
                 .execute_word(word)
-                .map_err(|error| format!("live boot cycle {cycle} execution failed: {error:?}"))?;
+                .map_err(|error| format!("live cycle {cycle} execution failed: {error:?}"))?;
             executed = Some(execution);
 
             match execution.pc {
@@ -367,11 +373,11 @@ impl Hp67LiveMachine {
 
         if let Some(word) = self.pipeline.executing_word() {
             let serial_execution = self.act_serial.serial_execution().ok_or_else(|| {
-                format!("live boot cycle {cycle} lost serial execution for word 0x{word:03x}")
+                format!("live cycle {cycle} lost serial execution for word 0x{word:03x}")
             })?;
             if serial_execution.word() != word || !serial_execution.is_complete() {
                 return Err(format!(
-                    "live boot cycle {cycle} serial execution incomplete: expected word 0x{word:03x}, got word 0x{:03x}, next_bit={:?}",
+                    "live cycle {cycle} serial execution incomplete: expected word 0x{word:03x}, got word 0x{:03x}, next_bit={:?}",
                     serial_execution.word(),
                     serial_execution.next_word_bit()
                 ));
@@ -389,14 +395,20 @@ impl Hp67LiveMachine {
         let requested_bank = self.machine.prepare_hp67_fetch();
         self.source.select_bank(requested_bank);
         let address = self.machine.pc();
-        let mut display_state = self.machine.act.state.clone();
-        if !self.display_control_seen {
-            display_state.display_enable = true;
-        }
+        let startup_display_state = if self.display_control_seen {
+            None
+        } else {
+            let mut state = self.machine.act.state.clone();
+            state.display_enable = true;
+            Some(state)
+        };
+        let display_state = startup_display_state
+            .as_ref()
+            .unwrap_or(&self.machine.act.state);
         let result = run_structural_display_fetch_cycle(
             &mut self.backplane,
             address,
-            &display_state,
+            display_state,
             &mut self.act_serial,
             &mut self.fetch_rom,
             &mut self.display_rom0,
