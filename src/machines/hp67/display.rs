@@ -13,6 +13,7 @@ use super::timing::{display_data_serial_bit, DISPLAY_DATA_BITS};
 
 pub const HP67_DISPLAY_SCAN_SLOTS: u8 = 15;
 pub const HP67_SHARED_SIGN_SLOT: u8 = 3;
+pub const HP67_ROM0_BLANK_CODE: u8 = 0x20;
 
 const COMPLETE_DISPLAY_MASK: u8 = ((1u16 << DISPLAY_DATA_BITS) - 1) as u8;
 
@@ -204,7 +205,7 @@ pub fn decode_rom0_display_byte(
         0x0c => 0x50, // r: E G
         0x0d => 0x5e, // d: B C D E G
         0x0e => 0x79, // E: A D E F G
-        0x0f | 0x20 => 0x00,
+        0x0f | HP67_ROM0_BLANK_CODE => 0x00,
         0x30 => Hp67SegmentMask::DP.bits(),
         0x40..=0x4f => 0x00,
         _ => return Err(Rom0DisplayError::UnknownDisplayCode { scan_slot, code }),
