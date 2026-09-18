@@ -7,7 +7,7 @@ Declares the small set of production UI helper modules used by the photographed 
 Keeping UI helpers in one module boundary prevents presentation code from spreading into the reusable emulation library.
 
 ## Relationships
-Exports `classic_display`, `sliders` and `top_keys` to `app.rs`/`panel.rs`.
+Exports `classic_display`, `program_card`, `sliders` and `top_keys` to `app.rs`/`panel.rs`.
 
 ## Responsibilities
 Be the namespace boundary for front-panel rendering helpers and contain no machine-emulation state.
