@@ -534,6 +534,94 @@ mod tests {
         );
     }
 
+    fn press_live_key_to_target(
+        live: &mut Hp67LiveMachine,
+        key: Hp67Key,
+        target: u16,
+    ) {
+        live.set_key_contact(Some(key));
+        let mut dispatched = false;
+        for _ in 0..512 {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.pc() == target {
+                dispatched = true;
+                break;
+            }
+        }
+        assert!(
+            dispatched,
+            "held {key:?} contact never reached firmware target {target:04o}"
+        );
+
+        let wait_visits = live.main_wait_visits;
+        live.set_key_contact(None);
+        for _ in 0..4_096 {
+            live.step_firmware_cycle().unwrap();
+            if live.main_wait_visits > wait_visits
+                && !live.machine.act.state.status[15]
+            {
+                return;
+            }
+        }
+        panic!(
+            "released {key:?} did not return to no-key firmware wait after target {target:04o}"
+        );
+    }
+
+    #[test]
+    fn live_program_mode_stores_and_executes_simple_program() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.set_program_mode(true).unwrap();
+        press_live_key_to_target(&mut live, Hp67Key::Digit1, 0o1440);
+        press_live_key_to_target(&mut live, Hp67Key::Enter, 0o1422);
+        press_live_key_to_target(&mut live, Hp67Key::Digit2, 0o1437);
+        press_live_key_to_target(&mut live, Hp67Key::Add, 0o1434);
+        press_live_key_to_target(&mut live, Hp67Key::RunStop, 0o1443);
+
+        live.set_program_mode(false).unwrap();
+        press_live_key_to_target(&mut live, Hp67Key::ClearX, 0o1417);
+        assert_eq!(
+            live.display_frame().segments(),
+            &[0x00, 0x3f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+
+        press_live_key_to_target(&mut live, Hp67Key::FunctionH, 0o1405);
+        press_live_key_to_target(&mut live, Hp67Key::Gto, 0o0560);
+
+        let wait_visits = live.main_wait_visits;
+        live.set_key_contact(Some(Hp67Key::RunStop));
+        let mut started = false;
+        for _ in 0..512 {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.pc() == 0o1443 {
+                started = true;
+                live.set_key_contact(None);
+                break;
+            }
+        }
+        assert!(started, "RUN R/S never reached firmware table 1443");
+
+        for _ in 0..20_000 {
+            live.step_firmware_cycle().unwrap();
+            if live.main_wait_visits > wait_visits
+                && !live.machine.act.state.status[15]
+                && live.display_frame().segments()
+                    == &[0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            {
+                return;
+            }
+        }
+
+        panic!(
+            "stored 1 ENTER 2 + R/S program did not execute to physical 3.00 and stop"
+        );
+    }
+
     #[test]
     fn raw_scan_slots_map_to_physical_left_to_right_positions() {
         let mut frame = HardwareDisplayFrame::BLANK;
