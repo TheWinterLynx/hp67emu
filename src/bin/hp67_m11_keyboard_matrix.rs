@@ -1265,6 +1265,7 @@ fn run_mode_family_matrix() -> Result<(), String> {
     sigma_minus.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
     sigma_minus.press_and_settle(Hp67Key::Digit5, "5")?;
     sigma_minus.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    sigma_minus.press_and_settle(Hp67Key::Digit5, "5")?;
     sigma_minus.press_shifted_and_settle(
         Hp67Key::FunctionH,
         "h",
