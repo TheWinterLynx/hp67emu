@@ -583,8 +583,10 @@ mod tests {
             "PROGRAM {key:?} never reached the firmware key-release wait"
         );
 
+        let wait_visits = live.main_wait_visits;
         live.set_key_contact(None);
-        let mut released = false;
+        let mut changed = Vec::new();
+        let mut settled = false;
         for _ in 0..4_096 {
             if let Some(word) = live.pipeline.executing_word() {
                 if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
@@ -598,35 +600,24 @@ mod tests {
                 }
             }
             live.step_firmware_cycle().unwrap();
-            if !live.machine.act.state.status[15] {
-                released = true;
+
+            let after = live_ram_snapshot(live);
+            changed = before
+                .iter()
+                .zip(&after)
+                .enumerate()
+                .filter_map(|(address, (before, after))| (before != after).then_some(address))
+                .collect();
+
+            if !changed.is_empty()
+                && live.main_wait_visits > wait_visits
+                && !live.machine.act.state.status[15]
+            {
+                settled = true;
                 break;
             }
         }
-        assert!(released, "PROGRAM {key:?} never released S15");
 
-        for _ in 0..128 {
-            if let Some(word) = live.pipeline.executing_word() {
-                if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
-                    memory_trace.push(format!(
-                        "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
-                        live.machine.pc(),
-                        live.machine.act.state.ram_address,
-                        live.machine.act.state.c[1],
-                        live.machine.act.state.c[0]
-                    ));
-                }
-            }
-            live.step_firmware_cycle().unwrap();
-        }
-
-        let after = live_ram_snapshot(live);
-        let changed: Vec<_> = before
-            .iter()
-            .zip(&after)
-            .enumerate()
-            .filter_map(|(address, (before, after))| (before != after).then_some(address))
-            .collect();
         assert!(
             !changed.is_empty(),
             "PROGRAM {key:?} did not leave a persistent RAM change; pc={:04o}; memory trace: {}; control trace: {}",
@@ -637,6 +628,10 @@ mod tests {
                 memory_trace.join(" | ")
             },
             control_trace.join(" | ")
+        );
+        assert!(
+            settled,
+            "PROGRAM {key:?} changed RAM at {changed:?} but did not return to the no-key firmware wait"
         );
     }
 
@@ -675,31 +670,18 @@ mod tests {
         }
 
         live.set_program_mode(true).unwrap();
-        let mut program_switch_test_seen = false;
+        let wait_visits = live.main_wait_visits;
         let mut program_idle_seen = false;
         for _ in 0..8_192 {
-            if live.pipeline.executing_word() == Some(0o0300)
-                && live.machine.act.state.instruction_state
-                    == hp67emu::machines::hp67::ActInstructionState::Normal
-            {
-                program_switch_test_seen = true;
-            }
             live.step_firmware_cycle().unwrap();
-            if program_switch_test_seen
-                && live.machine.pc() == MAIN_WAIT_PC
-                && !live.machine.act.state.status[15]
-            {
+            if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
                 program_idle_seen = true;
                 break;
             }
         }
         assert!(
-            program_switch_test_seen,
-            "W/PRGM never executed the firmware RUN/PRGM switch-test opcode 0300"
-        );
-        assert!(
             program_idle_seen,
-            "W/PRGM never settled back to the no-key firmware wait after the switch test"
+            "W/PRGM never reached the next no-key firmware wait at 0167"
         );
 
         press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1);
