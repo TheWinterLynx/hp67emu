@@ -739,8 +739,7 @@ mod tests {
             "PROGRAM {key:?} advanced state but did not return to the no-key firmware wait"
         );
 
-        let pc_register =
-            after_pc.expect("HP-67 program-counter register 0x3D must be installed");
+        let pc_register = after_pc.expect("HP-67 program-counter register 0x3D must be installed");
         assert_eq!(
             &pc_register[0..3],
             &[0x0f, 0x02, 7 - expected_step],
