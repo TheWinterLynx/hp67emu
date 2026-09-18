@@ -519,17 +519,17 @@ mod tests {
 
         live.set_program_mode(true).unwrap();
         assert_eq!(
-            live.machine.crc.external_flag(
-                hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE
-            ),
+            live.machine
+                .crc
+                .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE),
             Some(true)
         );
 
         live.set_program_mode(false).unwrap();
         assert_eq!(
-            live.machine.crc.external_flag(
-                hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE
-            ),
+            live.machine
+                .crc
+                .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE),
             Some(false)
         );
     }
@@ -557,9 +557,7 @@ mod tests {
                 return;
             }
         }
-        panic!(
-            "released {key:?} did not return to no-key firmware wait after target {target:04o}"
-        );
+        panic!("released {key:?} did not return to no-key firmware wait after target {target:04o}");
     }
 
     #[test]
