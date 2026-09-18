@@ -616,6 +616,7 @@ mod tests {
 
         let expected_code = key.scan_code();
         let mut keys_to_a_seen = false;
+        let mut dispatch_target = None;
         for step in 0..512 {
             if step < 96 {
                 control_trace.push(format!(
@@ -648,7 +649,7 @@ mod tests {
 
             live.step_firmware_cycle().unwrap();
 
-            if normal && executing_word == Some(0o0120) {
+            if normal && executing_word == Some(KEYS_TO_A_OPCODE) {
                 let observed_code =
                     (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
                 assert_eq!(
@@ -656,12 +657,25 @@ mod tests {
                     "PROGRAM {key:?} keys -> A produced {observed_code:04o}, expected physical code {expected_code:04o}"
                 );
                 keys_to_a_seen = true;
+            }
+
+            if normal && executing_word == Some(A_TO_ROM_ADDRESS_OPCODE) {
+                assert!(
+                    keys_to_a_seen,
+                    "PROGRAM {key:?} executed A -> ROM address before keys -> A"
+                );
+                let target = live.machine.pc();
+                assert!(
+                    (0o1405..=0o1466).contains(&target),
+                    "PROGRAM {key:?} dispatched outside the unshifted HP-67 key table: {target:04o}"
+                );
+                dispatch_target = Some(target);
                 break;
             }
         }
         assert!(
-            keys_to_a_seen,
-            "PROGRAM {key:?} never executed keys -> A; control trace: {}",
+            dispatch_target.is_some(),
+            "PROGRAM {key:?} never completed keys -> A / A -> ROM dispatch; control trace: {}",
             control_trace.join(" | ")
         );
 
@@ -706,7 +720,7 @@ mod tests {
         assert_ne!(
             live.machine.ram.read(HP67_PROGRAM_PC_RAM),
             before_pc,
-            "PROGRAM {key:?} did not advance the user-program counter in RAM 0x3D; pc={:04o}; program-RAM changes={changed:?}; memory trace: {}; control trace: {}",
+            "PROGRAM {key:?} did not advance the user-program counter in RAM 0x3D; dispatch={dispatch_target:?}; pc={:04o}; program-RAM changes={changed:?}; memory trace: {}; control trace: {}",
             live.machine.pc(),
             if memory_trace.is_empty() {
                 "<none>".to_owned()
