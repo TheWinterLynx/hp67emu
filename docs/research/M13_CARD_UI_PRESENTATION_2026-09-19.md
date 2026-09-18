@@ -2,7 +2,7 @@
 
 ## Scope
 
-This first M13 slice establishes the visual/mechanical presentation boundary for HP-67 magnetic cards before any CRC or magnetic-data implementation is connected.
+This M13 slice establishes the visual/mechanical presentation boundary and the first firmware-visible card-control contact while magnetic data transport remains deliberately unimplemented.
 
 The HP-67 has two physically distinct card uses:
 
@@ -40,11 +40,14 @@ This is intentionally artwork only. No magnetic payload is fabricated for this s
 
 This slice does not claim a working HP-67 card reader.
 
-Specifically it does not yet:
+Implemented control boundary:
 
-- assert CRC `card_present`;
-- drive `motor_on`;
-- provide `buffer_ready` data;
+- external CRC `card_present` (flag 10) is modeled as a persistent physical contact;
+- real HP-67 firmware detects it from the idle loop and issues internal CRC `motor_on` (flag 9), covered by a live-firmware regression.
+
+Still not implemented:
+
+- `buffer_ready` generation from card transport;
 - emulate the 1820-1751 CRC card path;
 - model sense-amplifier timing;
 - read/write card tracks;
@@ -60,7 +63,16 @@ The UI presentation uses five explicit states:
 - `Idle`: no card visible; the right-edge reader hotspot accepts insertion;
 - `ReadingFromRight`: the card traverses the hidden lateral reader path from right to left;
 - `ParkedLeft`: only the physically exposed left end remains visible and clickable;
-- `InsertingWindowFromRight`: the user-selected card animates from the left exit into the holder;
+- `InsertingWindowFromRight`: after the exposed left end is selected, the card is treated as picked up and reintroduced from the right; the case hides the travel until it appears through the holder aperture;
 - `InWindow`: the passive reference artwork remains above A-E until removed.
 
 These states are presentation only. They are deliberately separate from future CRC/card-electronics states so later M13 work can drive motor, card-presence and data timing without making the artwork layer authoritative.
+
+
+## Physical card geometry
+
+The visual card is locked to 71.1 mm × 11.4 mm (2.8 × 0.45 in). The renderer derives source pixels per millimetre from the HP-67 case width already calibrated in the project (81 mm represented by 792 source pixels), so the card is not independently scaled.
+
+The same fixed physical rectangle is used for reader insertion, left-side emergence, parked-left state, holder insertion and final holder display. `CARD_WINDOW` is only an aperture; it clips the physical card and never changes its width or height.
+
+Photographic references show a rectangular card with small rounded/chamfered corners. The previous arrow-shaped procedural nose was removed. The current 0.9 mm corner chamfer is an optical approximation to that photographed corner treatment, not a claim of a separately documented manufacturing radius.
