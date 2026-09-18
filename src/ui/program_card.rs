@@ -1,5 +1,5 @@
 use eframe::egui::{
-    pos2, Align2, Color32, CursorIcon, FontId, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui,
+    pos2, Align2, Color32, CursorIcon, FontId, Painter, Rect, Sense, Shape, Stroke, Ui,
 };
 
 const PHOTO_W: f32 = 928.0;
@@ -107,7 +107,7 @@ struct CardPalette {
 }
 
 impl CardPalette {
-    const fn holder() -> Self {
+    fn holder() -> Self {
         Self {
             body: Color32::from_rgb(83, 80, 57),
             edge: Color32::from_rgb(133, 126, 85),
