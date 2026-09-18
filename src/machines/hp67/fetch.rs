@@ -12,7 +12,7 @@ use crate::emulation::{Drive, DriverId, LogicLevel};
 
 use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
-    act_serial_execution::{ActSerialExecution, ActSerialExecutionError},
+    act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
     display::{
         Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS,
@@ -244,15 +244,39 @@ impl ActSerialEndpoint {
     /// rather than from a nibble snapshot captured at the start of the word.
     pub fn drive_for_bit(&self, word_bit: u8, state: Option<&ActArchitecturalState>) -> Drive {
         if let Some(serial_bit) = display_data_serial_bit(word_bit) {
-            let (Some(register_index), Some(state)) = (self.display_register_index, state) else {
+            let Some(register_index) = self.display_register_index else {
                 return Drive::HighZ;
             };
-            let bit = if !state.display_enable {
+
+            let (display_enable, a_nibble, b_nibble) =
+                if let Some(snapshot) = self.execution_state.as_ref() {
+                    let digit = register_index as u8;
+                    (
+                        snapshot.display_enable(),
+                        snapshot
+                            .register_digit(ActSerialRegister::A, digit)
+                            .expect("latched display register index must be valid"),
+                        snapshot
+                            .register_digit(ActSerialRegister::B, digit)
+                            .expect("latched display register index must be valid"),
+                    )
+                } else {
+                    let Some(state) = state else {
+                        return Drive::HighZ;
+                    };
+                    (
+                        state.display_enable,
+                        state.a[register_index] & 0x0f,
+                        state.b[register_index] & 0x0f,
+                    )
+                };
+
+            let bit = if !display_enable {
                 ((HP67_ROM0_BLANK_CODE >> serial_bit) & 1) != 0
             } else if serial_bit < 4 {
-                ((state.a[register_index] >> serial_bit) & 1) != 0
+                ((a_nibble >> serial_bit) & 1) != 0
             } else {
-                ((state.b[register_index] >> (serial_bit - 4)) & 1) != 0
+                ((b_nibble >> (serial_bit - 4)) & 1) != 0
             };
             return wired_high_drive(bit);
         }
@@ -505,9 +529,11 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// sharing the same resolved HP-67 IS net and backplane timing coordinate.
 ///
 /// `ActSerialEndpoint` owns the fifteen-word display phase and therefore chooses
-/// the A/B digit serialized at b0..b7. The contents of that source digit are read
-/// from the ACT state at each bit cell instead of being snapshotted at word start.
-/// If an executing word is bound to the endpoint, that same instruction advances
+/// the display source digit at b0..b7. When a word is executing, those early
+/// display cells are sourced from the immutable pre-instruction ACT snapshot so
+/// the instruction-boundary fallback cannot leak post-instruction A/B into the
+/// same physical word. Fetch-only display cycles fall back to the supplied live
+/// ACT state. If an executing word is bound to the endpoint, that same instruction advances
 /// through b0..b55 in lockstep with this transport. ADD/SUB operations also carry
 /// an immutable pre-instruction A/B/C/P/radix snapshot and a source-backed
 /// carry/borrow chain across selected digit boundaries. ROM0 reconstructs the
@@ -667,6 +693,45 @@ mod tests {
 
         assert_eq!(result.display_byte, HP67_ROM0_BLANK_CODE);
         assert_eq!(rom0.decoded_anodes(1), Ok(Hp67SegmentMask::BLANK));
+    }
+
+    #[test]
+    fn executing_word_display_uses_pre_instruction_a_b_state() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+        state.a[0] = 0x05;
+        state.b[0] = 0x00;
+
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0x07b);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+
+        act.begin_execution(0o0132, &state)
+            .expect("A/B exchange word must start serial execution");
+
+        // Architectural fallback has already committed the exchange before the
+        // structural b0..b7 window runs. Those post-state values must not leak
+        // into the display traffic for this same word.
+        state.a[0] = 0x00;
+        state.b[0] = 0x05;
+
+        let result = run_structural_display_fetch_cycle(
+            &mut backplane,
+            0x07b,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("display transport must use the pre-instruction serial snapshot");
+
+        assert_eq!(result.display_byte, 0x05);
+        assert_eq!(rom0.decoded_anodes(1).unwrap().bits(), 0x6d);
     }
 
     #[test]
