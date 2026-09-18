@@ -1021,8 +1021,8 @@ fn set_display_mode(
     prefix_label: &str,
     digits: u8,
 ) -> Result<(), String> {
-    harness.press_and_settle(prefix, prefix_label)?;
-    harness.press_relaxed_and_settle(Hp67Key::Dsp, "DSP")?;
+    harness.press_shifted_and_settle(prefix, prefix_label, Hp67Key::Dsp, "DSP")?;
+    harness.press_and_settle(Hp67Key::Dsp, "DSP")?;
     harness.press_relaxed_and_settle(digit_key(digits), &digits.to_string())?;
     Ok(())
 }
