@@ -11,7 +11,7 @@ use super::{
     },
     crc::{
         decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
-        CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
+        CRC_FLAG_CARD_PRESENT, CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
     },
     isa::ROM_WORD_MASK,
 };
@@ -90,6 +90,12 @@ impl Hp67ArchitecturalMachine {
     pub fn set_program_mode(&mut self, program: bool) -> Result<(), Hp67ArchitecturalError> {
         self.crc
             .set_external_flag(CRC_FLAG_PROGRAM_MODE as u8, program)?;
+        Ok(())
+    }
+
+    pub fn set_card_present(&mut self, present: bool) -> Result<(), Hp67ArchitecturalError> {
+        self.crc
+            .set_external_flag(CRC_FLAG_CARD_PRESENT as u8, present)?;
         Ok(())
     }
 
@@ -216,6 +222,20 @@ mod tests {
         machine.execute_word(0o300).expect("CRC test must execute");
         assert!(machine.act.state.status[3]);
         assert_eq!(machine.crc.external_flag(CRC_FLAG_PROGRAM_MODE), Some(true));
+    }
+
+    #[test]
+    fn crc_card_present_switch_pulses_act_s3_without_clearing_external_contact() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine
+            .set_card_present(true)
+            .expect("card-present switch must exist");
+        machine.execute_word(0o560).expect("CRC test must execute");
+        assert!(machine.act.state.status[3]);
+        assert_eq!(
+            machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(true)
+        );
     }
 
     #[test]
