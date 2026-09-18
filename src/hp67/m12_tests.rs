@@ -9,17 +9,13 @@ fn live_program_switch_drives_crc_external_flag() {
 
     live.set_program_mode(true).unwrap();
     assert_eq!(
-        live.machine
-            .crc
-            .external_flag(CRC_FLAG_PROGRAM_MODE),
+        live.machine.crc.external_flag(CRC_FLAG_PROGRAM_MODE),
         Some(true)
     );
 
     live.set_program_mode(false).unwrap();
     assert_eq!(
-        live.machine
-            .crc
-            .external_flag(CRC_FLAG_PROGRAM_MODE),
+        live.machine.crc.external_flag(CRC_FLAG_PROGRAM_MODE),
         Some(false)
     );
 }
@@ -27,8 +23,7 @@ fn live_program_switch_drives_crc_external_flag() {
 const HP67_PROGRAM_RAM_START: u8 = 0x10;
 const HP67_PROGRAM_RAM_END: u8 = 0x2f;
 const HP67_PROGRAM_PC_RAM: u8 = 0x3d;
-const HP67_PROGRAM_RAM_WORDS: usize =
-    (HP67_PROGRAM_RAM_END - HP67_PROGRAM_RAM_START + 1) as usize;
+const HP67_PROGRAM_RAM_WORDS: usize = (HP67_PROGRAM_RAM_END - HP67_PROGRAM_RAM_START + 1) as usize;
 const KEYS_TO_A_OPCODE: u16 = 0o0120;
 const A_TO_ROM_ADDRESS_OPCODE: u16 = 0o0220;
 const MODE_SWITCH_CYCLE_LIMIT: usize = 8_192;
@@ -37,19 +32,13 @@ const FIRMWARE_SETTLE_CYCLE_LIMIT: usize = 4_096;
 const PROGRAM_RUN_CYCLE_LIMIT: usize = 20_000;
 const EXPECTED_PROGRAM_PREFIX: [u8; 10] =
     [0x01, 0x01, 0x0b, 0x01, 0x02, 0x01, 0x07, 0x03, 0x00, 0x00];
-const EXPECTED_STEP_006_PC: ActRegister =
-    [0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-const EXPECTED_3_00_FRAME: [u8; 15] =
-    [0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const EXPECTED_STEP_006_PC: ActRegister = [0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const EXPECTED_3_00_FRAME: [u8; 15] = [0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 fn live_program_ram_snapshot(
     live: &Hp67LiveMachine,
 ) -> [Option<ActRegister>; HP67_PROGRAM_RAM_WORDS] {
-    std::array::from_fn(|offset| {
-        live.machine
-            .ram
-            .read(HP67_PROGRAM_RAM_START + offset as u8)
-    })
+    std::array::from_fn(|offset| live.machine.ram.read(HP67_PROGRAM_RAM_START + offset as u8))
 }
 
 fn wait_for_firmware_mode(live: &mut Hp67LiveMachine, program: bool, label: &str) {
