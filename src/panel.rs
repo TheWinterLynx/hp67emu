@@ -415,7 +415,9 @@ mod tests {
     fn photo_key_table_contains_all_35_keys() {
         assert_eq!(KEYS.len(), 35);
         assert_eq!(
-            KEYS.iter().find(|key| key.id == "eex").map(|key| key.action),
+            KEYS.iter()
+                .find(|key| key.id == "eex")
+                .map(|key| key.action),
             Some(KeyAction::Exponent)
         );
     }
