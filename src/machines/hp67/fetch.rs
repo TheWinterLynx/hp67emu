@@ -198,10 +198,10 @@ impl ActSerialEndpoint {
 
     /// Start a combined display/fetch word from the ACT-owned display phase.
     ///
-    /// Only the source register index is latched here. A/B nibble contents are
-    /// not snapshotted: each b0..b7 drive reads the current architectural state
-    /// when that bit cell is visited. This prepares the transport for future
-    /// intra-word ACT register/ALU evolution without claiming that evolution yet.
+    /// Only the source register index is latched here. For an executing word,
+    /// b0..b7 are sourced from the immutable pre-instruction ACT snapshot bound
+    /// by `begin_execution`; fetch-only cycles fall back to the supplied live
+    /// architectural state. No additional A/B snapshot is taken at this boundary.
     pub fn begin_display_fetch_cycle(&mut self, address: u16) -> Result<(), ActDisplaySerialError> {
         self.address = address & ROM_ADDRESS_MASK;
         self.display_register_index = Some(
