@@ -12,7 +12,7 @@ use crate::{
 };
 
 const PROGRAM_CARD_READ_DURATION: Duration = Duration::from_millis(900);
-const PROGRAM_CARD_TO_WINDOW_DURATION: Duration = Duration::from_millis(700);
+const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
 
 pub struct Hp67App {
     state: Hp67State,
@@ -74,9 +74,9 @@ impl eframe::App for Hp67App {
                 self.card_phase = ProgramCardPhase::ParkedLeft;
                 self.card_phase_started = None;
             }
-            ProgramCardPhase::MovingToWindow
+            ProgramCardPhase::InsertingWindowFromRight
                 if self.card_phase_started.is_some_and(|started| {
-                    now.saturating_duration_since(started) >= PROGRAM_CARD_TO_WINDOW_DURATION
+                    now.saturating_duration_since(started) >= PROGRAM_CARD_WINDOW_INSERT_DURATION
                 }) =>
             {
                 self.card_phase = ProgramCardPhase::InWindow;
@@ -91,9 +91,9 @@ impl eframe::App for Hp67App {
                     / PROGRAM_CARD_READ_DURATION.as_secs_f32())
                 .clamp(0.0, 1.0)
             }
-            (ProgramCardPhase::MovingToWindow, Some(started)) => {
+            (ProgramCardPhase::InsertingWindowFromRight, Some(started)) => {
                 (now.saturating_duration_since(started).as_secs_f32()
-                    / PROGRAM_CARD_TO_WINDOW_DURATION.as_secs_f32())
+                    / PROGRAM_CARD_WINDOW_INSERT_DURATION.as_secs_f32())
                 .clamp(0.0, 1.0)
             }
             _ => 0.0,
@@ -123,7 +123,7 @@ impl eframe::App for Hp67App {
                     self.card_phase_started = Some(now);
                 }
                 if panel.card_parked_left_clicked {
-                    self.card_phase = ProgramCardPhase::MovingToWindow;
+                    self.card_phase = ProgramCardPhase::InsertingWindowFromRight;
                     self.card_phase_started = Some(now);
                 }
                 if panel.card_window_clicked {
