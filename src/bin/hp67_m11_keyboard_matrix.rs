@@ -423,8 +423,11 @@ fn exact_sequence(
     expected: [u8; 15],
 ) -> Result<(), String> {
     let mut harness = boot_harness()?;
-    let mut display = EXPECTED_BOOT_DISPLAY;
-    for &(key, label) in sequence {
+    let (&(first_key, first_label), rest) = sequence
+        .split_first()
+        .ok_or_else(|| format!("{name}: empty key sequence"))?;
+    let mut display = harness.press_and_settle(first_key, first_label)?;
+    for &(key, label) in rest {
         display = harness.press_and_settle(key, label)?;
     }
     if display != expected {
