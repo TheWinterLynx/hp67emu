@@ -51,148 +51,184 @@ const DIGIT_SEGMENTS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07
 struct KeySpec {
     key: Hp67Key,
     label: &'static str,
+    expected_code: u8,
 }
 
 const ALL_KEYS: [KeySpec; 35] = [
     KeySpec {
         key: Hp67Key::A,
         label: "A",
+        expected_code: 0o244,
     },
     KeySpec {
         key: Hp67Key::B,
         label: "B",
+        expected_code: 0o243,
     },
     KeySpec {
         key: Hp67Key::C,
         label: "C",
+        expected_code: 0o242,
     },
     KeySpec {
         key: Hp67Key::D,
         label: "D",
+        expected_code: 0o241,
     },
     KeySpec {
         key: Hp67Key::E,
         label: "E",
+        expected_code: 0o240,
     },
     KeySpec {
         key: Hp67Key::SigmaPlus,
         label: "SIGMA+",
+        expected_code: 0o224,
     },
     KeySpec {
         key: Hp67Key::Gto,
         label: "GTO",
+        expected_code: 0o223,
     },
     KeySpec {
         key: Hp67Key::Dsp,
         label: "DSP",
+        expected_code: 0o222,
     },
     KeySpec {
         key: Hp67Key::Indirect,
         label: "IND",
+        expected_code: 0o221,
     },
     KeySpec {
         key: Hp67Key::Sst,
         label: "SST",
+        expected_code: 0o220,
     },
     KeySpec {
         key: Hp67Key::FunctionF,
         label: "f",
+        expected_code: 0o024,
     },
     KeySpec {
         key: Hp67Key::FunctionG,
         label: "g",
+        expected_code: 0o023,
     },
     KeySpec {
         key: Hp67Key::Sto,
         label: "STO",
+        expected_code: 0o022,
     },
     KeySpec {
         key: Hp67Key::Rcl,
         label: "RCL",
+        expected_code: 0o021,
     },
     KeySpec {
         key: Hp67Key::FunctionH,
         label: "h",
+        expected_code: 0o020,
     },
     KeySpec {
         key: Hp67Key::Enter,
         label: "ENTER",
+        expected_code: 0o063,
     },
     KeySpec {
         key: Hp67Key::ChangeSign,
         label: "CHS",
+        expected_code: 0o062,
     },
     KeySpec {
         key: Hp67Key::Exponent,
         label: "EEX",
+        expected_code: 0o061,
     },
     KeySpec {
         key: Hp67Key::ClearX,
         label: "CLX",
+        expected_code: 0o060,
     },
     KeySpec {
         key: Hp67Key::Subtract,
         label: "-",
+        expected_code: 0o103,
     },
     KeySpec {
         key: Hp67Key::Digit7,
         label: "7",
+        expected_code: 0o102,
     },
     KeySpec {
         key: Hp67Key::Digit8,
         label: "8",
+        expected_code: 0o101,
     },
     KeySpec {
         key: Hp67Key::Digit9,
         label: "9",
+        expected_code: 0o100,
     },
     KeySpec {
         key: Hp67Key::Add,
         label: "+",
+        expected_code: 0o123,
     },
     KeySpec {
         key: Hp67Key::Digit4,
         label: "4",
+        expected_code: 0o122,
     },
     KeySpec {
         key: Hp67Key::Digit5,
         label: "5",
+        expected_code: 0o121,
     },
     KeySpec {
         key: Hp67Key::Digit6,
         label: "6",
+        expected_code: 0o120,
     },
     KeySpec {
         key: Hp67Key::Multiply,
         label: "*",
+        expected_code: 0o143,
     },
     KeySpec {
         key: Hp67Key::Digit1,
         label: "1",
+        expected_code: 0o142,
     },
     KeySpec {
         key: Hp67Key::Digit2,
         label: "2",
+        expected_code: 0o141,
     },
     KeySpec {
         key: Hp67Key::Digit3,
         label: "3",
+        expected_code: 0o140,
     },
     KeySpec {
         key: Hp67Key::Divide,
         label: "/",
+        expected_code: 0o163,
     },
     KeySpec {
         key: Hp67Key::Digit0,
         label: "0",
+        expected_code: 0o162,
     },
     KeySpec {
         key: Hp67Key::Decimal,
         label: ".",
+        expected_code: 0o161,
     },
     KeySpec {
         key: Hp67Key::RunStop,
         label: "R/S",
+        expected_code: 0o160,
     },
 ];
 
@@ -423,22 +459,26 @@ impl Harness {
         Ok(())
     }
 
-    fn capture_display(&mut self) -> Result<[u8; 15], String> {
-        self.source.select_bank(self.machine.bank());
+    fn capture_display(&self) -> Result<[u8; 15], String> {
+        let source = Hp67Firmware::default();
+        source.select_bank(self.machine.bank());
         let address = self.machine.pc();
+        let mut backplane = Hp67ElectricalBackplane::default();
         let mut display_act = ActSerialEndpoint::new(address);
+        let mut fetch_rom = RomFetchEndpoint::default();
+        let mut display_rom0 = Rom0DisplayEndpoint::default();
         let mut cathode = CathodeDriver1820_1749::default();
         let mut segments = [0u8; 15];
 
         for expected_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
             let result = run_structural_display_fetch_cycle(
-                &mut self.backplane,
+                &mut backplane,
                 address,
                 &self.machine.act.state,
                 &mut display_act,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
+                &mut fetch_rom,
+                &mut display_rom0,
+                &source,
             )
             .map_err(|error| {
                 format!("display capture failed at slot {expected_slot}: {error:?}")
@@ -508,6 +548,14 @@ fn boot_harness() -> Result<Harness, String> {
 fn direct_keyboard_matrix() -> Result<(), String> {
     println!("\n=== DIRECT 35-KEY MATRIX ===");
     for spec in ALL_KEYS {
+        let actual_code = spec.key.scan_code();
+        if actual_code != spec.expected_code {
+            return Err(format!(
+                "{}: scan-code table has {:04o}, independent keyboard oracle requires {:04o}",
+                spec.label, actual_code, spec.expected_code
+            ));
+        }
+
         let mut harness = boot_harness()?;
         let dispatch = harness.press_to_dispatch(spec.key, spec.label, true)?;
         harness.wait_for_contact_release(spec.label)?;
@@ -645,19 +693,22 @@ fn basic_function_matrix() -> Result<(), String> {
 }
 
 fn shifted_function_frontier() -> Result<(), String> {
-    println!("\n=== SHIFTED FUNCTION FRONTIER ===");
+    println!("\n=== SHIFTED FUNCTION COVERAGE ===");
     for prefix in [
         KeySpec {
             key: Hp67Key::FunctionF,
             label: "f",
+            expected_code: 0o024,
         },
         KeySpec {
             key: Hp67Key::FunctionG,
             label: "g",
+            expected_code: 0o023,
         },
         KeySpec {
             key: Hp67Key::FunctionH,
             label: "h",
+            expected_code: 0o020,
         },
     ] {
         for target in ALL_KEYS {
@@ -668,7 +719,7 @@ fn shifted_function_frontier() -> Result<(), String> {
             harness.wait_for_contact_release(target.label)?;
             harness.run_words(SHIFT_EXERCISE_WORDS)?;
             println!(
-                "SHIFT PASS: {} + {:<7} code={:04o} -> target={:04o} pc={:04o}",
+                "SHIFT EXERCISED: {} + {:<7} code={:04o} -> target={:04o} pc={:04o}",
                 prefix.label,
                 target.label,
                 dispatch.code,
@@ -677,7 +728,9 @@ fn shifted_function_frontier() -> Result<(), String> {
             );
         }
     }
-    println!("SHIFT FRONTIER PASS: f/g/h paths executed without host-side semantics or execution errors.");
+    println!(
+        "SHIFT COVERAGE COMPLETE: all f/g/h + physical-key paths dispatched and ran the bounded observation window without execution errors; this is coverage, not semantic-result certification."
+    );
     Ok(())
 }
 
@@ -699,7 +752,7 @@ fn main() -> Result<(), String> {
     shifted_function_frontier()?;
 
     println!(
-        "\nM11 FRONTIER PASS: 35 direct keys, exact digit/basic arithmetic/CHS/EEX paths, and f/g/h shifted dispatch paths traversed real firmware. Shifted-function outputs remain a frontier for later exact-lock passes."
+        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle, exact digit/basic arithmetic/CHS/EEX paths pass, and all f/g/h shifted dispatch paths were exercised. Shifted-function semantic results remain un-certified until independently specified regressions are added."
     );
     Ok(())
 }
