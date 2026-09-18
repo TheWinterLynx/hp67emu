@@ -542,15 +542,38 @@ mod tests {
 
     fn press_program_key_and_require_ram_change(live: &mut Hp67LiveMachine, key: Hp67Key) {
         let before = live_ram_snapshot(live);
+        let mut memory_trace = Vec::new();
         live.set_key_contact(Some(key));
 
         for _ in 0..512 {
+            if let Some(word) = live.pipeline.executing_word() {
+                if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
+                    memory_trace.push(format!(
+                        "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
+                        live.machine.pc(),
+                        live.machine.act.state.ram_address,
+                        live.machine.act.state.c[1],
+                        live.machine.act.state.c[0]
+                    ));
+                }
+            }
             live.step_firmware_cycle().unwrap();
         }
 
         live.set_key_contact(None);
         let mut released = false;
         for _ in 0..4_096 {
+            if let Some(word) = live.pipeline.executing_word() {
+                if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
+                    memory_trace.push(format!(
+                        "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
+                        live.machine.pc(),
+                        live.machine.act.state.ram_address,
+                        live.machine.act.state.c[1],
+                        live.machine.act.state.c[0]
+                    ));
+                }
+            }
             live.step_firmware_cycle().unwrap();
             if !live.machine.act.state.status[15] {
                 released = true;
@@ -560,6 +583,17 @@ mod tests {
         assert!(released, "PROGRAM {key:?} never released S15");
 
         for _ in 0..128 {
+            if let Some(word) = live.pipeline.executing_word() {
+                if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
+                    memory_trace.push(format!(
+                        "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
+                        live.machine.pc(),
+                        live.machine.act.state.ram_address,
+                        live.machine.act.state.c[1],
+                        live.machine.act.state.c[0]
+                    ));
+                }
+            }
             live.step_firmware_cycle().unwrap();
         }
 
@@ -572,8 +606,13 @@ mod tests {
             .collect();
         assert!(
             !changed.is_empty(),
-            "PROGRAM {key:?} did not leave a persistent RAM change; pc={:04o}",
-            live.machine.pc()
+            "PROGRAM {key:?} did not leave a persistent RAM change; pc={:04o}; memory trace: {}",
+            live.machine.pc(),
+            if memory_trace.is_empty() {
+                "<none>".to_owned()
+            } else {
+                memory_trace.join(" | ")
+            }
         );
     }
 
