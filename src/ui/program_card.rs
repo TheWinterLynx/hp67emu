@@ -8,6 +8,10 @@ const PHOTO_H: f32 = 1695.0;
 const CARD_WINDOW: SourceRect = SourceRect::new(135.0, 365.0, 795.0, 448.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
+const CARD_EXIT_MOUTH_X: f32 = 64.0;
+const CARD_PHYSICAL_WIDTH: f32 = 820.0;
+const CARD_PHYSICAL_HEIGHT: f32 = 72.0;
+const CARD_LEFT_VISIBLE_WIDTH: f32 = 105.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCardArtwork {
@@ -24,16 +28,32 @@ pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
     shifted_labels: ["", "", "", "", ""],
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramCardPhase {
+    Idle,
+    ReadingFromRight,
+    ParkedLeft,
+    MovingToWindow,
+    InWindow,
+}
+
+impl ProgramCardPhase {
+    pub const fn is_animating(self) -> bool {
+        matches!(self, Self::ReadingFromRight | Self::MovingToWindow)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct ProgramCardView<'a> {
     pub artwork: &'a ProgramCardArtwork,
-    pub in_window: bool,
-    pub reader_progress: Option<f32>,
+    pub phase: ProgramCardPhase,
+    pub phase_progress: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ProgramCardUiOutput {
     pub reader_clicked: bool,
+    pub parked_left_clicked: bool,
     pub window_clicked: bool,
 }
 
@@ -56,48 +76,80 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
     let scale = photo.height() / PHOTO_H;
     let window = source_to_screen(photo, CARD_WINDOW);
 
-    if view.in_window {
-        let response = ui
-            .interact(
-                window,
-                ui.make_persistent_id("hp67-program-card-window"),
-                Sense::click(),
-            )
-            .on_hover_text("Remove program card from holder");
-        if response.hovered() {
-            ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+    match view.phase {
+        ProgramCardPhase::Idle => {
+            let reader_hit = source_to_screen(photo, CARD_READER_HIT);
+            let reader_response = ui
+                .interact(
+                    reader_hit,
+                    ui.make_persistent_id("hp67-magnetic-card-reader"),
+                    Sense::click(),
+                )
+                .on_hover_text("Insert program card into the magnetic reader");
+            if reader_response.hovered() {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+                paint_reader_hint(ui.painter(), photo, reader_hit, scale);
+            }
+            output.reader_clicked = reader_response.clicked();
         }
-        output.window_clicked = response.clicked();
-        paint_card(
-            &ui.painter_at(window),
-            window,
-            view.artwork,
-            CardPalette::holder(),
-            scale,
-        );
-    }
-
-    let reader_hit = source_to_screen(photo, CARD_READER_HIT);
-    let reader_response = ui
-        .interact(
-            reader_hit,
-            ui.make_persistent_id("hp67-magnetic-card-reader"),
-            Sense::click(),
-        )
-        .on_hover_text("Insert program card into the magnetic reader");
-    if reader_response.hovered() {
-        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
-        paint_reader_hint(ui.painter(), photo, reader_hit, scale);
-    }
-    output.reader_clicked = reader_response.clicked();
-
-    if let Some(progress) = view.reader_progress {
-        paint_reader_motion(ui, photo, view.artwork, progress.clamp(0.0, 1.0), scale);
+        ProgramCardPhase::ReadingFromRight => {
+            paint_reader_motion(
+                ui,
+                photo,
+                view.artwork,
+                view.phase_progress.clamp(0.0, 1.0),
+                scale,
+            );
+        }
+        ProgramCardPhase::ParkedLeft => {
+            let visible = parked_left_visible_rect(photo, scale);
+            let response = ui
+                .interact(
+                    visible,
+                    ui.make_persistent_id("hp67-program-card-left-exit"),
+                    Sense::click(),
+                )
+                .on_hover_text("Move program card to the holder above A-E");
+            if response.hovered() {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+            }
+            output.parked_left_clicked = response.clicked();
+            paint_parked_left(ui, photo, view.artwork, scale);
+        }
+        ProgramCardPhase::MovingToWindow => {
+            paint_move_to_window(
+                ui,
+                photo,
+                window,
+                view.artwork,
+                view.phase_progress.clamp(0.0, 1.0),
+                scale,
+            );
+        }
+        ProgramCardPhase::InWindow => {
+            let response = ui
+                .interact(
+                    window,
+                    ui.make_persistent_id("hp67-program-card-window"),
+                    Sense::click(),
+                )
+                .on_hover_text("Remove program card from holder");
+            if response.hovered() {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+            }
+            output.window_clicked = response.clicked();
+            paint_card(
+                &ui.painter_at(window),
+                window,
+                view.artwork,
+                CardPalette::holder(),
+                scale,
+            );
+        }
     }
 
     output
 }
-
 #[derive(Clone, Copy)]
 struct CardPalette {
     body: Color32,
@@ -204,30 +256,127 @@ fn paint_card(
     }
 }
 
-fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress: f32, scale: f32) {
-    let card_width = 600.0 * scale;
-    let card_height = 72.0 * scale;
-    let reader_mouth_x = photo.left() + CARD_READER_MOUTH_X * photo.width() / PHOTO_W;
+fn paint_reader_motion(
+    ui: &Ui,
+    photo: Rect,
+    card: &ProgramCardArtwork,
+    progress: f32,
+    scale: f32,
+) {
+    let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
+    let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
+    let card_width = CARD_PHYSICAL_WIDTH * scale;
+    let card_height = CARD_PHYSICAL_HEIGHT * scale;
     let start_left = reader_mouth_x + 42.0 * scale;
-    let end_left = reader_mouth_x - card_width;
+    let end_left = exit_mouth_x - CARD_LEFT_VISIBLE_WIDTH * scale;
     let left = start_left + (end_left - start_left) * ease_in_out(progress);
     let top = photo.top() + 370.0 * scale;
     let rect = Rect::from_min_max(pos2(left, top), pos2(left + card_width, top + card_height));
 
-    // A top-down view cannot expose the lateral reader itself. During insertion,
-    // keep the card visible all the way to the physical reader mouth and hide
-    // only the portion that has actually crossed that line into the calculator.
-    let outside_clip = Rect::from_min_max(
+    // The case hides the middle of the same physical card. Because the card is
+    // slightly longer than the distance between both mouths, the leading edge
+    // starts emerging on the left before the trailing edge vanishes on the right.
+    let right_clip = Rect::from_min_max(
         pos2(reader_mouth_x, ui.clip_rect().top()),
         ui.clip_rect().right_bottom(),
     );
-    if !outside_clip.intersects(rect) {
-        return;
+    let left_clip = Rect::from_min_max(
+        ui.clip_rect().left_top(),
+        pos2(exit_mouth_x, ui.clip_rect().bottom()),
+    );
+    if right_clip.intersects(rect) {
+        paint_card(
+            &ui.painter().with_clip_rect(right_clip),
+            rect,
+            card,
+            CardPalette::holder(),
+            scale,
+        );
     }
-    let painter = ui.painter().with_clip_rect(outside_clip);
-    paint_card(&painter, rect, card, CardPalette::holder(), scale);
+    if left_clip.intersects(rect) {
+        paint_card(
+            &ui.painter().with_clip_rect(left_clip),
+            rect,
+            card,
+            CardPalette::holder(),
+            scale,
+        );
+    }
 }
 
+fn parked_left_rect(photo: Rect, scale: f32) -> Rect {
+    let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
+    let left = exit_mouth_x - CARD_LEFT_VISIBLE_WIDTH * scale;
+    let top = photo.top() + 370.0 * scale;
+    Rect::from_min_max(
+        pos2(left, top),
+        pos2(
+            left + CARD_PHYSICAL_WIDTH * scale,
+            top + CARD_PHYSICAL_HEIGHT * scale,
+        ),
+    )
+}
+
+fn parked_left_visible_rect(photo: Rect, scale: f32) -> Rect {
+    let parked = parked_left_rect(photo, scale);
+    let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
+    Rect::from_min_max(parked.min, pos2(exit_mouth_x, parked.bottom()))
+}
+
+fn paint_parked_left(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, scale: f32) {
+    let rect = parked_left_rect(photo, scale);
+    let visible = parked_left_visible_rect(photo, scale);
+    paint_card(
+        &ui.painter().with_clip_rect(visible),
+        rect,
+        card,
+        CardPalette::holder(),
+        scale,
+    );
+}
+
+fn paint_move_to_window(
+    ui: &Ui,
+    photo: Rect,
+    window: Rect,
+    card: &ProgramCardArtwork,
+    progress: f32,
+    scale: f32,
+) {
+    let t = ease_in_out(progress);
+    let start = parked_left_rect(photo, scale);
+    let rect = lerp_rect(start, window, t);
+    let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
+    let reveal_right = exit_mouth_x + (window.right() - exit_mouth_x) * t;
+    let reveal_clip = Rect::from_min_max(
+        ui.clip_rect().left_top(),
+        pos2(reveal_right, ui.clip_rect().bottom()),
+    );
+    paint_card(
+        &ui.painter().with_clip_rect(reveal_clip),
+        rect,
+        card,
+        CardPalette::holder(),
+        scale,
+    );
+}
+
+fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
+    Rect::from_min_max(
+        pos2(
+            from.left() + (to.left() - from.left()) * t,
+            from.top() + (to.top() - from.top()) * t,
+        ),
+        pos2(
+            from.right() + (to.right() - from.right()) * t,
+            from.bottom() + (to.bottom() - from.bottom()) * t,
+        ),
+    )
+}
+
+fn source_x_to_screen(photo: Rect, x: f32) -> f32 {
+    photo.left() + x * photo.width() / PHOTO_W
+}
 fn paint_reader_hint(painter: &Painter, photo: Rect, hit: Rect, scale: f32) {
     let x = photo.left() + CARD_READER_MOUTH_X * photo.width() / PHOTO_W;
     let y = hit.center().y;
@@ -291,8 +440,28 @@ mod tests {
         assert!(CARD_READER_HIT.x0 >= 775.0);
         assert!(CARD_READER_HIT.x1 < PHOTO_W);
         assert_eq!(CARD_READER_MOUTH_X, CARD_READER_HIT.x1);
+        assert!(CARD_EXIT_MOUTH_X < CARD_WINDOW.x0);
         assert!(CARD_READER_HIT.y0 < CARD_WINDOW.y1);
         assert!(CARD_READER_HIT.y1 > CARD_WINDOW.y0);
+    }
+
+    #[test]
+    fn physical_card_is_long_enough_to_bridge_reader_and_exit_mouths() {
+        assert!(CARD_PHYSICAL_WIDTH > CARD_READER_MOUTH_X - CARD_EXIT_MOUTH_X);
+        assert!(CARD_LEFT_VISIBLE_WIDTH < CARD_PHYSICAL_WIDTH);
+    }
+
+    #[test]
+    fn parked_card_exposes_only_a_clickable_left_tab() {
+        let photo = Rect::from_min_size(
+            pos2(0.0, 0.0),
+            eframe::egui::vec2(PHOTO_W, PHOTO_H),
+        );
+        let parked = parked_left_rect(photo, 1.0);
+        let visible = parked_left_visible_rect(photo, 1.0);
+        assert_eq!(visible.width(), CARD_LEFT_VISIBLE_WIDTH);
+        assert_eq!(visible.right(), CARD_EXIT_MOUTH_X);
+        assert!(parked.right() > CARD_EXIT_MOUTH_X);
     }
 
     #[test]
