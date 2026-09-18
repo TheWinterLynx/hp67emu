@@ -128,6 +128,14 @@ Reference: https://docs.rs/egui/latest/egui/response/struct.Response.html#method
 
 The final M11 candidate batch exact-locks major RUN-mode families beyond the earlier mathematical cases: X/Y exchange, roll-down/roll-up, LAST X, percent and percent-change, the pi constant, DEG/RAD/GRD mode selection through exact quarter-turn sine identities, direct STO/RCL plus CLREG, display-dependent RND under FIX/SCI/ENG, and basic statistics (mean, sample standard deviation, and sigma-minus restoration). Program-control and card-reader semantics remain outside this milestone.
 
+## Final closure evidence
+
+The final M11 closure executable completed successfully on 2026-09-18 and ended with:
+
+`M11 CANDIDATE COMPLETE: all 35 direct keycodes match the independent oracle; all 105 f/g/h dispatch paths execute; exact regressions cover numeric entry, arithmetic, CHS/EEX, core math, trig/inverse trig, stack, percentages, pi/angle modes, STO/RCL/CLREG, FIX/SCI/ENG rounding behavior and basic statistics. Program-control/card functions are explicitly deferred to M12/M13.`
+
+That successful run satisfies the M11 exit criterion. The wording in the executable remains `CANDIDATE COMPLETE` only because the binary predates this documentation commit; the milestone status is now CLOSED.
+
 ## Known fidelity gaps
 
 ### RUN/PRGM switch
@@ -168,4 +176,4 @@ None of these changes alters ACT, CRC, firmware, keyboard, fetch, display, or UI
 
 There is no evidence that production behavior has been patched opportunistically to satisfy M11. The currently proven RUN-mode numeric path is strong: real versioned firmware, physical key contacts, real firmware dispatch, architectural ACT/CRC execution and structural ROM0/cathode display generation all participate without host calculator semantics.
 
-M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x` and six degree-mode trigonometric/inverse-trigonometric identities. M11 is a candidate for completion once the closure batch passes unchanged: all physical direct/shifted dispatch paths are covered, major RUN-mode families are exact-locked, and program-control/card families are explicitly moved to M12/M13 with documented scope.
+M11 is **complete** as of 2026-09-18. The final closure run passed unchanged: all 35 direct physical keycodes match the independent oracle; all 105 `f/g/h` shifted dispatch paths execute without architectural/serial errors; exact regressions cover numeric entry, arithmetic, CHS/EEX, core mathematics, trig/inverse trig, stack manipulation, percentages, pi and DEG/RAD/GRD modes, STO/RCL/CLREG, FIX/SCI/ENG-dependent rounding, and basic statistics. Program-control behavior is explicitly moved to M12 and magnetic-card behavior to M13.
