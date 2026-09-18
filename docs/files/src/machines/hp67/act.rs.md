@@ -19,3 +19,6 @@ Maintain all architecturally visible ACT state needed by HP-67 firmware and impl
 ## Implementation
 
 `ActDisplayWordSerializer::from_state()` snapshots only the selected A and B nibbles at the structural word boundary. `drive_for_bit()` never constructs an eight-bit display code: it selects the corresponding source bit only when b0..b7 is visited. This removes the previous whole-byte production bridge while deliberately preserving a clear remaining boundary: A/B are still instruction-boundary arrays, not the final serial shift-register/ALU state evolving inside the 56-bit word. Exact PHI launch edges and true intra-word ACT mutation remain future work.
+
+
+M12 display audit: `ActDisplaySerialError` now includes `UnsupportedModifier { scan_slot, b_nibble }`. This keeps undocumented HP-67 B-register display formats as hard structural failures rather than silently treating B as a raw ROM0 high nibble. The legacy `ActDisplayWordSerializer` remains a bring-up helper and is explicitly not the final Woodstock B-recoding implementation.
