@@ -466,7 +466,7 @@ mod tests {
         }
         assert_eq!(
             live.display_frame().segments(),
-            &[0x00, 0x00, 0x00, 0x3f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0]
+            &[0x00, 0x3f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         );
 
         live.set_key_contact(Some(Hp67Key::Digit1));
@@ -490,7 +490,7 @@ mod tests {
             if live.main_wait_visits > wait_visits_before_release
                 && !live.machine.act.state.status[15]
                 && live.display_frame().segments()
-                    == &[0x00, 0x00, 0x00, 0x06, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                    == &[0x00, 0x06, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             {
                 return;
             }
