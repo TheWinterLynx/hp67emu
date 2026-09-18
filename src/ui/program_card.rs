@@ -168,7 +168,10 @@ fn paint_card(
         palette.title,
     );
     painter.text(
-        pos2(rect.right() - 28.0 * scale, rect.top() + rect.height() * 0.29),
+        pos2(
+            rect.right() - 28.0 * scale,
+            rect.top() + rect.height() * 0.29,
+        ),
         Align2::RIGHT_CENTER,
         card.reference,
         reference_font,
@@ -200,23 +203,14 @@ fn paint_card(
     }
 }
 
-fn paint_reader_motion(
-    ui: &Ui,
-    photo: Rect,
-    card: &ProgramCardArtwork,
-    progress: f32,
-    scale: f32,
-) {
+fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress: f32, scale: f32) {
     let card_width = 600.0 * scale;
     let card_height = 72.0 * scale;
     let start_left = photo.right() + 26.0 * scale;
     let end_left = photo.right() - card_width + 30.0 * scale;
     let left = start_left + (end_left - start_left) * ease_in_out(progress);
     let top = photo.top() + 370.0 * scale;
-    let rect = Rect::from_min_max(
-        pos2(left, top),
-        pos2(left + card_width, top + card_height),
-    );
+    let rect = Rect::from_min_max(pos2(left, top), pos2(left + card_width, top + card_height));
 
     // A top-down view cannot expose the lateral reader itself.  During insertion,
     // render only the portion of the physical card still outside the right edge
