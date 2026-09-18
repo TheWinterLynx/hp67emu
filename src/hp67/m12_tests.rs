@@ -21,16 +21,64 @@ fn live_program_switch_drives_crc_external_flag() {
 }
 
 const HP67_PROGRAM_PC_RAM: u8 = 0x3d;
+const HP67_FIRST_PROGRAM_REGISTER: u8 = 0x2f;
 const KEYS_TO_A_OPCODE: u16 = 0o0120;
 const A_TO_ROM_ADDRESS_OPCODE: u16 = 0o0220;
+const USER_INSTRUCTION_EXECUTE_PC: u16 = 0o6021;
+const UNSHIFTED_KEY_TABLE_FIRST: u16 = 0o1405;
+const UNSHIFTED_KEY_TABLE_LAST: u16 = 0o1466;
+const H_SHIFTED_KEY_TABLE_FIRST: u16 = 0o0505;
+const H_SHIFTED_KEY_TABLE_LAST: u16 = 0o0566;
 const MODE_SWITCH_CYCLE_LIMIT: usize = 8_192;
 const KEY_DISPATCH_CYCLE_LIMIT: usize = 512;
 const FIRMWARE_SETTLE_CYCLE_LIMIT: usize = 4_096;
 const PROGRAM_RUN_CYCLE_LIMIT: usize = 20_000;
 const EXPECTED_PROGRAM_PREFIX: [u8; 10] =
     [0x01, 0x01, 0x0b, 0x01, 0x02, 0x01, 0x07, 0x03, 0x00, 0x00];
-const EXPECTED_STEP_006_PC: ActRegister = [0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const EXPECTED_DELETED_STEP_003_PREFIX: [u8; 10] =
+    [0x01, 0x01, 0x0b, 0x01, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00];
+const EXPECTED_EDITED_PROGRAM_PREFIX: [u8; 10] =
+    [0x01, 0x01, 0x0b, 0x01, 0x03, 0x01, 0x07, 0x03, 0x00, 0x00];
 const EXPECTED_3_00_FRAME: [u8; 15] = [0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const EXPECTED_4_00_FRAME: [u8; 15] = [0x00, 0x66, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+fn boot_live_to_idle() -> Hp67LiveMachine {
+    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    live.phase = LiveBootPhase::Firmware;
+    while !matches!(live.phase, LiveBootPhase::Idle) {
+        live.step_firmware_cycle().unwrap();
+    }
+    live
+}
+
+fn first_page_program_pc(step: u8) -> ActRegister {
+    assert!(step <= 7, "first-page M12 PC oracle covers steps 000..007");
+    if step == 0 {
+        return [0; 14];
+    }
+    let mut pc = [0; 14];
+    pc[0] = 0x0f;
+    pc[1] = 0x02;
+    pc[2] = 7 - step;
+    pc
+}
+
+fn assert_program_pc(live: &Hp67LiveMachine, step: u8, label: &str) {
+    assert_eq!(
+        live.machine.ram.read(HP67_PROGRAM_PC_RAM),
+        Some(first_page_program_pc(step)),
+        "{label}: user-program PC is not at step {step:03}"
+    );
+}
+
+fn assert_program_prefix(live: &Hp67LiveMachine, expected: &[u8; 10], label: &str) {
+    let register = live
+        .machine
+        .ram
+        .read(HP67_FIRST_PROGRAM_REGISTER)
+        .expect("HP-67 RAM 0x2F must hold program steps 001..007");
+    assert_eq!(&register[0..10], expected, "{label}");
+}
 
 fn wait_for_firmware_mode(live: &mut Hp67LiveMachine, program: bool, label: &str) {
     live.set_program_mode(program).unwrap();
@@ -127,7 +175,7 @@ fn press_program_key_and_require_step_advance(
     let before_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
     let dispatch_target = press_live_key_to_dispatch(live, key);
     assert!(
-        (0o1405..=0o1466).contains(&dispatch_target),
+        (UNSHIFTED_KEY_TABLE_FIRST..=UNSHIFTED_KEY_TABLE_LAST).contains(&dispatch_target),
         "PROGRAM {key:?} dispatched outside the unshifted HP-67 key table: {dispatch_target:04o}"
     );
 
@@ -163,12 +211,26 @@ fn press_program_key_and_require_step_advance(
     );
 }
 
-fn settle_live_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key, target: u16) {
+#[derive(Debug, Clone, Copy, Default)]
+struct SettleObservation {
+    saw_single_step: bool,
+    saw_user_instruction_execute: bool,
+}
+
+fn settle_live_dispatch_observing(
+    live: &mut Hp67LiveMachine,
+    key: Hp67Key,
+    target: u16,
+) -> SettleObservation {
     let wait_visits = live.main_wait_visits;
+    let mut observation = SettleObservation::default();
     for _ in 0..FIRMWARE_SETTLE_CYCLE_LIMIT {
-        live.step_firmware_cycle().unwrap();
+        if let Some(execution) = live.step_firmware_cycle_with_execution().unwrap() {
+            observation.saw_user_instruction_execute |= execution.pc == USER_INSTRUCTION_EXECUTE_PC;
+        }
+        observation.saw_single_step |= live.machine.act.state.status[1];
         if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
-            return;
+            return observation;
         }
     }
     panic!(
@@ -177,61 +239,78 @@ fn settle_live_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key, target: u16) {
     );
 }
 
+fn settle_live_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key, target: u16) {
+    let _ = settle_live_dispatch_observing(live, key, target);
+}
+
 fn press_live_key_and_settle(live: &mut Hp67LiveMachine, key: Hp67Key, expected_target: u16) {
     let target = press_live_key_to_expected_dispatch(live, key, expected_target);
     settle_live_dispatch(live, key, target);
 }
 
-#[test]
-fn live_program_mode_stores_and_executes_simple_program() {
-    let mut live = Hp67LiveMachine::power_on_default().unwrap();
-    live.phase = LiveBootPhase::Firmware;
-    while !matches!(live.phase, LiveBootPhase::Idle) {
-        live.step_firmware_cycle().unwrap();
-    }
+fn press_unshifted_key_and_observe(
+    live: &mut Hp67LiveMachine,
+    key: Hp67Key,
+) -> SettleObservation {
+    let target = press_live_key_to_dispatch(live, key);
+    assert!(
+        (UNSHIFTED_KEY_TABLE_FIRST..=UNSHIFTED_KEY_TABLE_LAST).contains(&target),
+        "{key:?} dispatched outside the unshifted HP-67 key table: {target:04o}"
+    );
+    settle_live_dispatch_observing(live, key, target)
+}
 
-    wait_for_firmware_mode(&mut live, true, "RUN -> PRGM");
+fn press_h_shifted_key_and_observe(
+    live: &mut Hp67LiveMachine,
+    key: Hp67Key,
+) -> SettleObservation {
+    press_live_key_and_settle(live, Hp67Key::FunctionH, UNSHIFTED_KEY_TABLE_FIRST);
+    let target = press_live_key_to_dispatch(live, key);
+    assert!(
+        (H_SHIFTED_KEY_TABLE_FIRST..=H_SHIFTED_KEY_TABLE_LAST).contains(&target),
+        "h + {key:?} dispatched outside the h-shifted HP-67 key table: {target:04o}"
+    );
+    settle_live_dispatch_observing(live, key, target)
+}
+
+fn enter_reference_program(live: &mut Hp67LiveMachine) {
+    wait_for_firmware_mode(live, true, "RUN -> PRGM");
     assert!(
         live.machine.act.state.status[11],
         "firmware did not latch PROGRAM mode in S11"
     );
 
-    press_program_key_and_require_step_advance(&mut live, Hp67Key::Digit1, 1);
-    press_program_key_and_require_step_advance(&mut live, Hp67Key::Enter, 2);
-    press_program_key_and_require_step_advance(&mut live, Hp67Key::Digit2, 3);
-    press_program_key_and_require_step_advance(&mut live, Hp67Key::Add, 4);
-    press_program_key_and_require_step_advance(&mut live, Hp67Key::RunStop, 5);
+    press_program_key_and_require_step_advance(live, Hp67Key::Digit1, 1);
+    press_program_key_and_require_step_advance(live, Hp67Key::Enter, 2);
+    press_program_key_and_require_step_advance(live, Hp67Key::Digit2, 3);
+    press_program_key_and_require_step_advance(live, Hp67Key::Add, 4);
+    press_program_key_and_require_step_advance(live, Hp67Key::RunStop, 5);
 
-    let first_program_register = live
-        .machine
-        .ram
-        .read(0x2f)
-        .expect("HP-67 RAM 0x2F must hold program steps 001..007");
-    assert_eq!(
-        &first_program_register[0..10],
+    assert_program_prefix(
+        live,
         &EXPECTED_PROGRAM_PREFIX,
-        "PROGRAM steps 001..005 are not the expected 11 1B 12 37 00 byte sequence"
+        "PROGRAM steps 001..005 are not the expected 11 1B 12 37 00 byte sequence",
     );
+}
 
-    wait_for_firmware_mode(&mut live, false, "PRGM -> RUN");
+fn return_to_run_step_zero(live: &mut Hp67LiveMachine) {
+    wait_for_firmware_mode(live, false, "PRGM -> RUN");
     assert!(
         !live.machine.act.state.status[11],
         "firmware retained PROGRAM-mode latch S11 after returning to RUN"
     );
+    press_live_key_and_settle(live, Hp67Key::FunctionH, UNSHIFTED_KEY_TABLE_FIRST);
+    press_live_key_and_settle(live, Hp67Key::Gto, 0o0560);
+    assert_program_pc(live, 0, "RUN-mode h RTN");
+}
 
-    // HP-67 RUN-mode RTN with no program running clears the return stack and
-    // sets the user-program counter to step 000. Use the real h -> RTN key
-    // path and verify the physical counter register rather than normalizing X.
-    press_live_key_and_settle(&mut live, Hp67Key::FunctionH, 0o1405);
-    press_live_key_and_settle(&mut live, Hp67Key::Gto, 0o0560);
-    assert_eq!(
-        live.machine.ram.read(HP67_PROGRAM_PC_RAM),
-        Some([0; 14]),
-        "RUN-mode RTN did not clear RAM 0x3D to user-program step 000"
-    );
-
+fn run_program_to_halt(
+    live: &mut Hp67LiveMachine,
+    expected_frame: &[u8; 15],
+    label: &str,
+) {
     let wait_visits = live.main_wait_visits;
-    press_live_key_to_expected_dispatch(&mut live, Hp67Key::RunStop, 0o1443);
+    press_live_key_to_expected_dispatch(live, Hp67Key::RunStop, 0o1443);
 
     let mut saw_running = false;
     for _ in 0..PROGRAM_RUN_CYCLE_LIMIT {
@@ -241,19 +320,15 @@ fn live_program_mode_stores_and_executes_simple_program() {
             && !live.machine.act.state.status[2]
             && live.main_wait_visits > wait_visits
             && !live.machine.act.state.status[15]
-            && live.display_frame().segments() == &EXPECTED_3_00_FRAME
+            && live.display_frame().segments() == expected_frame
         {
-            assert_eq!(
-                live.machine.ram.read(HP67_PROGRAM_PC_RAM),
-                Some(EXPECTED_STEP_006_PC),
-                "stored R/S halted without advancing the user-program counter to step 006"
-            );
+            assert_program_pc(live, 6, label);
             return;
         }
     }
 
     panic!(
-        "stored 11 1B 12 37 00 program did not run and halt at physical 3.00; pc={:04o} \
+        "{label} did not run and halt at the expected physical frame; pc={:04o} \
          saw_running={} s2={} s11={} s15={} wait_visits_before={} wait_visits_after={} \
          ram3d={:?} display={:02x?} A={:x?} B={:x?} C={:x?}",
         live.machine.pc(),
@@ -268,5 +343,119 @@ fn live_program_mode_stores_and_executes_simple_program() {
         live.machine.act.state.a,
         live.machine.act.state.b,
         live.machine.act.state.c,
+    );
+}
+
+#[test]
+fn live_program_mode_stores_and_executes_simple_program() {
+    let mut live = boot_live_to_idle();
+    enter_reference_program(&mut live);
+    return_to_run_step_zero(&mut live);
+    run_program_to_halt(
+        &mut live,
+        &EXPECTED_3_00_FRAME,
+        "stored 11 1B 12 37 00 program",
+    );
+}
+
+#[test]
+fn live_program_mode_sst_bst_del_edit_real_program_memory() {
+    let mut live = boot_live_to_idle();
+    enter_reference_program(&mut live);
+    assert_program_pc(&live, 5, "reference program entry");
+
+    let sst = press_unshifted_key_and_observe(&mut live, Hp67Key::Sst);
+    assert!(sst.saw_single_step, "PROGRAM SST never asserted firmware S1");
+    assert!(
+        !sst.saw_user_instruction_execute,
+        "PROGRAM SST incorrectly entered the RUN-mode user-instruction executor"
+    );
+    assert_program_pc(&live, 6, "PROGRAM SST");
+
+    for expected_step in [5, 4, 3] {
+        let bst = press_h_shifted_key_and_observe(&mut live, Hp67Key::Sst);
+        assert!(
+            !bst.saw_user_instruction_execute,
+            "PROGRAM h BST executed a user instruction"
+        );
+        assert_program_pc(&live, expected_step, "PROGRAM h BST");
+    }
+
+    let del = press_h_shifted_key_and_observe(&mut live, Hp67Key::ClearX);
+    assert!(
+        !del.saw_user_instruction_execute,
+        "PROGRAM h DEL executed a user instruction"
+    );
+    assert_program_pc(&live, 2, "PROGRAM h DEL");
+    assert_program_prefix(
+        &live,
+        &EXPECTED_DELETED_STEP_003_PREFIX,
+        "PROGRAM h DEL did not remove step 003 and shift subsequent instructions upward",
+    );
+
+    press_program_key_and_require_step_advance(&mut live, Hp67Key::Digit3, 3);
+    assert_program_prefix(
+        &live,
+        &EXPECTED_EDITED_PROGRAM_PREFIX,
+        "PROGRAM reinsertion did not produce 11 1B 13 37 00",
+    );
+
+    return_to_run_step_zero(&mut live);
+    run_program_to_halt(
+        &mut live,
+        &EXPECTED_4_00_FRAME,
+        "edited 11 1B 13 37 00 program",
+    );
+}
+
+#[test]
+fn live_run_mode_sst_executes_one_step_and_bst_only_backs_up() {
+    let mut live = boot_live_to_idle();
+    enter_reference_program(&mut live);
+    return_to_run_step_zero(&mut live);
+
+    for expected_pc in [2, 3, 4, 5] {
+        let sst = press_unshifted_key_and_observe(&mut live, Hp67Key::Sst);
+        assert!(sst.saw_single_step, "RUN SST never asserted firmware S1");
+        assert!(
+            sst.saw_user_instruction_execute,
+            "RUN SST did not enter the real user-instruction executor"
+        );
+        assert!(
+            !live.machine.act.state.status[1],
+            "RUN SST left firmware single-step flag S1 set"
+        );
+        assert!(
+            !live.machine.act.state.status[2],
+            "RUN SST incorrectly left continuous-run flag S2 set"
+        );
+        assert_program_pc(&live, expected_pc, "RUN SST");
+    }
+
+    assert_eq!(
+        live.display_frame().segments(),
+        &EXPECTED_3_00_FRAME,
+        "four RUN SST operations did not execute 1 ENTER 2 + to physical 3.00"
+    );
+
+    let before_bst_display = live.display_frame().segments().to_owned();
+    let bst = press_h_shifted_key_and_observe(&mut live, Hp67Key::Sst);
+    assert!(
+        !bst.saw_single_step,
+        "RUN h BST incorrectly asserted single-step flag S1"
+    );
+    assert!(
+        !bst.saw_user_instruction_execute,
+        "RUN h BST entered the user-instruction executor"
+    );
+    assert!(
+        !live.machine.act.state.status[1] && !live.machine.act.state.status[2],
+        "RUN h BST left S1 or S2 active"
+    );
+    assert_program_pc(&live, 4, "RUN h BST");
+    assert_eq!(
+        live.display_frame().segments(),
+        before_bst_display.as_slice(),
+        "RUN h BST did not restore the original X display after release"
     );
 }
