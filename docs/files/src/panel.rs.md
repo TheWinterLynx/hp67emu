@@ -14,7 +14,7 @@ Uses `Hp67State` for the two slide-switch positions, `HardwareDisplayFrame` for 
 
 ## Responsibilities
 
-Render the source photograph; map all 35 key rectangles; animate key travel; report at most one currently held key contact; emit only power/mode switch events; render the hardware display; expose the lateral card-reader/window UI interactions without changing machine state; and keep the EEX key mapped to `KeyAction::Exponent`.
+Render the source photograph; map all 35 key rectangles; animate key travel; report at most one currently held key contact; emit only power/mode switch events; render the hardware display; expose the lateral reader, left-exit tab and holder-card interactions without changing machine state; and keep the EEX key mapped to `KeyAction::Exponent`.
 
 ## Implementation
 
