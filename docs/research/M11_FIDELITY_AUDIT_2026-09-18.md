@@ -97,6 +97,12 @@ This is **coverage**, not semantic-result certification. A path ending at an arb
 
 The executable therefore reports `SHIFT EXERCISED` and `SHIFT COVERAGE COMPLETE`, not `SHIFT PASS`.
 
+## UI contact semantics
+
+The front panel uses egui `Response::is_pointer_button_down_on()`, not `clicked()`. egui documents this state as true from the press frame onward, without the click-versus-drag decision delay, and as remaining true for the widget while the pointer is held/dragged even outside its rectangle. This matches the emulator abstraction of closing one key contact until release and prevents a drag across the panel from synthesizing keyboard rollover.
+
+Reference: https://docs.rs/egui/latest/egui/response/struct.Response.html#method.is_pointer_button_down_on
+
 ## Known fidelity gaps
 
 ### RUN/PRGM switch
