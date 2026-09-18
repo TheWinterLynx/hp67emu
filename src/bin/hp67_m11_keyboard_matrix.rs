@@ -68,6 +68,33 @@ const EXPECTED_FORTY_FIVE_FIXED_TWO: [u8; 15] = [
 const EXPECTED_SIXTY_FIXED_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x7d, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+const EXPECTED_TWO_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x5b, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_TEN_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_TWENTY_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x5b, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_FORTY_TWO_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x66, 0x5b, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_PI_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x4f, 0x80, 0x06, 0x66, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_ONE_POINT_TWENTY_FOUR: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x80, 0x5b, 0x66, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_ONE_HUNDRED_TWENTY_THREE_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x5b, 0x4f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x5b, 0x4f, 0x3f, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIFTY_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x5b, 0x4f, 0x6d, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00,
+];
 const EXPECTED_CLEAR_DISPLAY: [u8; 15] = EXPECTED_BOOT_DISPLAY;
 const EXPECTED_ONE_POINT_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x06, 0x80, 0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -490,6 +517,15 @@ impl Harness {
 
     fn press_and_settle(&mut self, key: Hp67Key, label: &str) -> Result<[u8; 15], String> {
         let dispatch = self.press_to_dispatch(key, label, true)?;
+        self.settle_after_dispatch(dispatch, label)
+    }
+
+    fn press_relaxed_and_settle(
+        &mut self,
+        key: Hp67Key,
+        label: &str,
+    ) -> Result<[u8; 15], String> {
+        let dispatch = self.press_to_dispatch(key, label, false)?;
         self.settle_after_dispatch(dispatch, label)
     }
 
@@ -979,6 +1015,276 @@ fn shifted_function_exact_matrix() -> Result<(), String> {
     Ok(())
 }
 
+fn enter_digits(harness: &mut Harness, digits: &[(Hp67Key, &str)]) -> Result<(), String> {
+    for &(key, label) in digits {
+        harness.press_and_settle(key, label)?;
+    }
+    Ok(())
+}
+
+fn set_display_mode(
+    harness: &mut Harness,
+    prefix: Hp67Key,
+    prefix_label: &str,
+    digits: u8,
+) -> Result<(), String> {
+    harness.press_and_settle(prefix, prefix_label)?;
+    harness.press_relaxed_and_settle(Hp67Key::Dsp, "DSP")?;
+    harness.press_relaxed_and_settle(digit_key(digits), &digits.to_string())?;
+    Ok(())
+}
+
+fn require_display(name: &str, got: [u8; 15], expected: [u8; 15]) -> Result<(), String> {
+    if got != expected {
+        return Err(format!(
+            "{name}: got [{}], expected [{}]",
+            format_segments(&got),
+            format_segments(&expected)
+        ));
+    }
+    println!("{name} PASS: {}", format_segments(&got));
+    Ok(())
+}
+
+fn run_mode_family_matrix() -> Result<(), String> {
+    println!("\n=== RUN-MODE FAMILY EXACT REGRESSIONS ===");
+
+    let mut swap = boot_harness()?;
+    enter_digits(
+        &mut swap,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit2, "2"),
+        ],
+    )?;
+    let display =
+        swap.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit7, "7")?;
+    require_display("STACK X<->Y", display, EXPECTED_ONE_FIXED_TWO)?;
+
+    let mut roll = boot_harness()?;
+    enter_digits(
+        &mut roll,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit3, "3"),
+        ],
+    )?;
+    let display =
+        roll.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit8, "8")?;
+    require_display("STACK R-DOWN", display, EXPECTED_TWO_FIXED_TWO)?;
+    let display =
+        roll.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit9, "9")?;
+    require_display("STACK R-UP", display, EXPECTED_THREE_FIXED_TWO)?;
+
+    let mut last_x = boot_harness()?;
+    enter_digits(
+        &mut last_x,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Add, "+"),
+        ],
+    )?;
+    let display =
+        last_x.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit0, "0")?;
+    require_display("LAST X", display, EXPECTED_TWO_FIXED_TWO)?;
+
+    let mut percent = boot_harness()?;
+    enter_digits(
+        &mut percent,
+        &[
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit0, "0"),
+        ],
+    )?;
+    let display =
+        percent.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit0, "0")?;
+    require_display("PERCENT 10% OF 200", display, EXPECTED_TWENTY_FIXED_TWO)?;
+
+    let mut percent_change = boot_harness()?;
+    enter_digits(
+        &mut percent_change,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit0, "0"),
+        ],
+    )?;
+    let display = percent_change.press_shifted_and_settle(
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit0,
+        "0",
+    )?;
+    require_display("PERCENT CHANGE 100->110", display, EXPECTED_TEN_FIXED_TWO)?;
+
+    let mut pi = boot_harness()?;
+    let display =
+        pi.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit2, "2")?;
+    require_display("PI CONSTANT", display, EXPECTED_PI_FIXED_TWO)?;
+
+    let mut deg = boot_harness()?;
+    deg.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Enter, "ENTER")?;
+    enter_digits(&mut deg, &[(Hp67Key::Digit9, "9"), (Hp67Key::Digit0, "0")])?;
+    let display =
+        deg.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
+    require_display("DEG MODE SIN 90", display, EXPECTED_ONE_FIXED_TWO)?;
+
+    let mut rad = boot_harness()?;
+    rad.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::ChangeSign, "CHS")?;
+    rad.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Digit2, "2")?;
+    rad.press_and_settle(Hp67Key::Digit2, "2")?;
+    rad.press_and_settle(Hp67Key::Divide, "/")?;
+    let display =
+        rad.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
+    require_display("RAD MODE SIN PI/2", display, EXPECTED_ONE_FIXED_TWO)?;
+
+    let mut grd = boot_harness()?;
+    grd.press_shifted_and_settle(Hp67Key::FunctionH, "h", Hp67Key::Exponent, "EEX")?;
+    enter_digits(
+        &mut grd,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Digit0, "0"),
+        ],
+    )?;
+    let display =
+        grd.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Digit4, "4")?;
+    require_display("GRD MODE SIN 100", display, EXPECTED_ONE_FIXED_TWO)?;
+
+    let mut storage = boot_harness()?;
+    enter_digits(&mut storage, &[(Hp67Key::Digit4, "4"), (Hp67Key::Digit2, "2")])?;
+    storage.press_and_settle(Hp67Key::Sto, "STO")?;
+    storage.press_relaxed_and_settle(Hp67Key::Digit1, "1")?;
+    storage.press_and_settle(Hp67Key::ClearX, "CLX")?;
+    storage.press_and_settle(Hp67Key::Rcl, "RCL")?;
+    let display = storage.press_relaxed_and_settle(Hp67Key::Digit1, "1")?;
+    require_display("STO/RCL R1", display, EXPECTED_FORTY_TWO_FIXED_TWO)?;
+
+    storage.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Exponent, "EEX")?;
+    storage.press_and_settle(Hp67Key::Rcl, "RCL")?;
+    let display = storage.press_relaxed_and_settle(Hp67Key::Digit1, "1")?;
+    require_display("CLREG CLEARS R1", display, EXPECTED_CLEAR_DISPLAY)?;
+
+    let mut fixed_round = boot_harness()?;
+    enter_digits(
+        &mut fixed_round,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Decimal, "."),
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Digit3, "3"),
+            (Hp67Key::Digit6, "6"),
+        ],
+    )?;
+    set_display_mode(&mut fixed_round, Hp67Key::FunctionF, "f", 2)?;
+    let display = fixed_round.press_shifted_and_settle(
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Indirect,
+        "IND",
+    )?;
+    require_display("FIX 2 + RND 1.236", display, EXPECTED_ONE_POINT_TWENTY_FOUR)?;
+
+    let mut sci_round = boot_harness()?;
+    enter_digits(
+        &mut sci_round,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Digit3, "3"),
+            (Hp67Key::Digit4, "4"),
+            (Hp67Key::Digit5, "5"),
+        ],
+    )?;
+    set_display_mode(&mut sci_round, Hp67Key::FunctionG, "g", 2)?;
+    sci_round.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Indirect, "IND")?;
+    set_display_mode(&mut sci_round, Hp67Key::FunctionF, "f", 2)?;
+    let display = sci_round.capture_display()?;
+    require_display(
+        "SCI 2 + RND 12345",
+        display,
+        EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIXED_TWO,
+    )?;
+
+    let mut eng_round = boot_harness()?;
+    enter_digits(
+        &mut eng_round,
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Digit3, "3"),
+            (Hp67Key::Digit4, "4"),
+            (Hp67Key::Digit5, "5"),
+        ],
+    )?;
+    set_display_mode(&mut eng_round, Hp67Key::FunctionH, "h", 2)?;
+    eng_round.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::Indirect, "IND")?;
+    set_display_mode(&mut eng_round, Hp67Key::FunctionF, "f", 2)?;
+    let display = eng_round.capture_display()?;
+    require_display(
+        "ENG 2 + RND 12345",
+        display,
+        EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIFTY_FIXED_TWO,
+    )?;
+
+    let mut mean = boot_harness()?;
+    mean.press_and_settle(Hp67Key::Digit3, "3")?;
+    mean.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    mean.press_and_settle(Hp67Key::Digit3, "3")?;
+    mean.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    let display =
+        mean.press_shifted_and_settle(Hp67Key::FunctionF, "f", Hp67Key::SigmaPlus, "SIGMA+")?;
+    require_display("STAT MEAN 3,3", display, EXPECTED_THREE_FIXED_TWO)?;
+
+    let mut sdev = boot_harness()?;
+    sdev.press_and_settle(Hp67Key::Digit3, "3")?;
+    sdev.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    sdev.press_and_settle(Hp67Key::Digit3, "3")?;
+    sdev.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    let display =
+        sdev.press_shifted_and_settle(Hp67Key::FunctionG, "g", Hp67Key::SigmaPlus, "SIGMA+")?;
+    require_display("STAT SDEV 3,3", display, EXPECTED_CLEAR_DISPLAY)?;
+
+    let mut sigma_minus = boot_harness()?;
+    sigma_minus.press_and_settle(Hp67Key::Digit3, "3")?;
+    sigma_minus.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    sigma_minus.press_and_settle(Hp67Key::Digit5, "5")?;
+    sigma_minus.press_and_settle(Hp67Key::SigmaPlus, "SIGMA+")?;
+    sigma_minus.press_shifted_and_settle(
+        Hp67Key::FunctionH,
+        "h",
+        Hp67Key::SigmaPlus,
+        "SIGMA+",
+    )?;
+    let display = sigma_minus.press_shifted_and_settle(
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::SigmaPlus,
+        "SIGMA+",
+    )?;
+    require_display("STAT SIGMA- RESTORES MEAN", display, EXPECTED_THREE_FIXED_TWO)?;
+
+    println!(
+        "RUN-MODE FAMILY PASS: stack, percentage, pi, angle modes, storage, register clear, display rounding modes and basic statistics all matched independent exact expectations."
+    );
+    Ok(())
+}
+
 fn shifted_function_coverage() -> Result<(), String> {
     println!("\n=== SHIFTED FUNCTION COVERAGE ===");
     for prefix in [
@@ -1037,10 +1343,11 @@ fn main() -> Result<(), String> {
     digit_matrix()?;
     basic_function_matrix()?;
     shifted_function_exact_matrix()?;
+    run_mode_family_matrix()?;
     shifted_function_coverage()?;
 
     println!(
-        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle; digit/basic arithmetic/CHS/EEX plus SQRT, reciprocal, ABS, INT, FRAC, LN, EXP, LOG, 10^x, x^2, factorial, y^x and six DEG trigonometric/inverse-trigonometric identities are exact raw-display regressions; all f/g/h shifted dispatch paths were exercised. Remaining shifted functions stay coverage-only until independently specified regressions are added."
+        "\nM11 CANDIDATE COMPLETE: all 35 direct keycodes match the independent oracle; all 105 f/g/h dispatch paths execute; exact regressions cover numeric entry, arithmetic, CHS/EEX, core math, trig/inverse trig, stack, percentages, pi/angle modes, STO/RCL/CLREG, FIX/SCI/ENG rounding behavior and basic statistics. Program-control/card functions are explicitly deferred to M12/M13."
     );
     Ok(())
 }
