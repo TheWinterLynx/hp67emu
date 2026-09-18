@@ -1,6 +1,6 @@
 use super::{Hp67LiveMachine, LiveBootPhase};
 use hp67emu::machines::hp67::{
-    ActOperation, ActRegister, Hp67ArchitecturalOperation, Hp67Key,
+    ActOperation, ActRegister, Hp67ArchitecturalOperation, Hp67Key, CRC_FLAG_PROGRAM_MODE,
 };
 
 #[test]
@@ -11,7 +11,7 @@ fn live_program_switch_drives_crc_external_flag() {
     assert_eq!(
         live.machine
             .crc
-            .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE),
+            .external_flag(CRC_FLAG_PROGRAM_MODE),
         Some(true)
     );
 
@@ -19,7 +19,7 @@ fn live_program_switch_drives_crc_external_flag() {
     assert_eq!(
         live.machine
             .crc
-            .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE),
+            .external_flag(CRC_FLAG_PROGRAM_MODE),
         Some(false)
     );
 }
@@ -35,6 +35,12 @@ const MODE_SWITCH_CYCLE_LIMIT: usize = 8_192;
 const KEY_DISPATCH_CYCLE_LIMIT: usize = 512;
 const FIRMWARE_SETTLE_CYCLE_LIMIT: usize = 4_096;
 const PROGRAM_RUN_CYCLE_LIMIT: usize = 20_000;
+const EXPECTED_PROGRAM_PREFIX: [u8; 10] =
+    [0x01, 0x01, 0x0b, 0x01, 0x02, 0x01, 0x07, 0x03, 0x00, 0x00];
+const EXPECTED_STEP_006_PC: ActRegister =
+    [0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const EXPECTED_3_00_FRAME: [u8; 15] =
+    [0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 fn live_program_ram_snapshot(
     live: &Hp67LiveMachine,
@@ -230,7 +236,7 @@ fn live_program_mode_stores_and_executes_simple_program() {
         .expect("HP-67 RAM 0x2F must hold program steps 001..007");
     assert_eq!(
         &first_program_register[0..10],
-        &[0x01, 0x01, 0x0b, 0x01, 0x02, 0x01, 0x07, 0x03, 0x00, 0x00],
+        &EXPECTED_PROGRAM_PREFIX,
         "PROGRAM steps 001..005 are not the expected 11 1B 12 37 00 byte sequence"
     );
 
@@ -262,12 +268,11 @@ fn live_program_mode_stores_and_executes_simple_program() {
             && !live.machine.act.state.status[2]
             && live.main_wait_visits > wait_visits
             && !live.machine.act.state.status[15]
-            && live.display_frame().segments()
-                == &[0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            && live.display_frame().segments() == &EXPECTED_3_00_FRAME
         {
             assert_eq!(
                 live.machine.ram.read(HP67_PROGRAM_PC_RAM),
-                Some([0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                Some(EXPECTED_STEP_006_PC),
                 "stored R/S halted without advancing the user-program counter to step 006"
             );
             return;
