@@ -18,7 +18,4 @@ Route THEN-GOTO target words to the ACT regardless of bit pattern, route recogni
 
 ## Implementation
 
-For an ordinary ACT word, `execute_word()` delegates to `ActArchitecturalCore`. For a CRC control opcode it executes an ACT NOP-equivalent boundary cycle so PC/carry/P-history/delayed-ROM behavior still advances correctly, then applies the CRC side effect and, for a true test-and-clear result, sets ACT S3. A pending THEN-GOTO state bypasses CRC decode because that 10-bit ROM word is branch data rather than an opcode. Accesses targeting CRC data addresses `0x99` or `0x9b` return `CrcDataPortNotModeled` transactionally, making the next genuine hardware boundary visible instead of silently treating the ports as ordinary RAM.
-
-
-M12 correction: CRC test opcodes drive ACT status S3 on both true and false outcomes. Leaving S3 unchanged on a false peripheral test is incorrect and can preserve a stale PROGRAM-mode result across the subsequent key-present test.
+For an ordinary ACT word, `execute_word()` delegates to `ActArchitecturalCore`. For a CRC control opcode it executes an ACT NOP-equivalent boundary cycle so PC/carry/P-history/delayed-ROM behavior still advances correctly, then applies the CRC side effect. A true CRC test represents the CRC pulsing the ACT F2 input, which the architectural composition latches into S3; a false CRC test does not clear S3, because firmware explicitly owns the preceding `0 -> s 3` where required. A pending THEN-GOTO state bypasses CRC decode because that 10-bit ROM word is branch data rather than an opcode. Accesses targeting CRC data addresses `0x99` or `0x9b` return `CrcDataPortNotModeled` transactionally, making the next genuine hardware boundary visible instead of silently treating the ports as ordinary RAM.
