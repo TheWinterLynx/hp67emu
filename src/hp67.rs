@@ -699,8 +699,7 @@ mod tests {
                 .zip(&after_program)
                 .enumerate()
                 .filter_map(|(offset, (before, after))| {
-                    (before != after)
-                        .then_some(usize::from(HP67_PROGRAM_RAM_START) + offset)
+                    (before != after).then_some(usize::from(HP67_PROGRAM_RAM_START) + offset)
                 })
                 .collect();
 
@@ -880,7 +879,9 @@ mod tests {
                 && live.main_wait_visits > wait_visits
                 && !live.machine.act.state.status[15]
                 && live.display_frame().segments()
-                    == &[0x00, 0x00, 0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0]
+                    == &[
+                        0x00, 0x00, 0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0,
+                    ]
             {
                 return;
             }
