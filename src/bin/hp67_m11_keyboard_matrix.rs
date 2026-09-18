@@ -35,6 +35,18 @@ const EXPECTED_THREE_FIXED_TWO: [u8; 15] = [
 const EXPECTED_SIX_FIXED_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x7d, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+const EXPECTED_ONE_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_FIVE_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x6d, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_ZERO_POINT_TWENTY: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x3f, 0x80, 0x5b, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_ZERO_POINT_TWENTY_FIVE: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x3f, 0x80, 0x5b, 0x6d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
 const EXPECTED_CLEAR_DISPLAY: [u8; 15] = EXPECTED_BOOT_DISPLAY;
 const EXPECTED_ONE_POINT_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x06, 0x80, 0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -432,8 +444,11 @@ impl Harness {
         ))
     }
 
-    fn press_and_settle(&mut self, key: Hp67Key, label: &str) -> Result<[u8; 15], String> {
-        let dispatch = self.press_to_dispatch(key, label, true)?;
+    fn settle_after_dispatch(
+        &mut self,
+        dispatch: Dispatch,
+        label: &str,
+    ) -> Result<[u8; 15], String> {
         for _ in 0..KEY_SETTLE_WORD_LIMIT {
             if let Some(executed) = self.step()? {
                 if executed.pc == MAIN_WAIT_PC
@@ -450,6 +465,23 @@ impl Harness {
             dispatch.target,
             self.machine.pc()
         ))
+    }
+
+    fn press_and_settle(&mut self, key: Hp67Key, label: &str) -> Result<[u8; 15], String> {
+        let dispatch = self.press_to_dispatch(key, label, true)?;
+        self.settle_after_dispatch(dispatch, label)
+    }
+
+    fn press_shifted_and_settle(
+        &mut self,
+        prefix: Hp67Key,
+        prefix_label: &str,
+        key: Hp67Key,
+        label: &str,
+    ) -> Result<[u8; 15], String> {
+        self.press_and_settle(prefix, prefix_label)?;
+        let dispatch = self.press_to_dispatch(key, label, false)?;
+        self.settle_after_dispatch(dispatch, label)
     }
 
     fn run_words(&mut self, count: usize) -> Result<(), String> {
@@ -692,6 +724,105 @@ fn basic_function_matrix() -> Result<(), String> {
     Ok(())
 }
 
+fn exact_shifted_sequence(
+    name: &str,
+    input: &[(Hp67Key, &str)],
+    prefix: Hp67Key,
+    prefix_label: &str,
+    function_key: Hp67Key,
+    function_label: &str,
+    expected: [u8; 15],
+) -> Result<(), String> {
+    let mut harness = boot_harness()?;
+    for &(key, label) in input {
+        harness.press_and_settle(key, label)?;
+    }
+
+    let display = harness.press_shifted_and_settle(
+        prefix,
+        prefix_label,
+        function_key,
+        function_label,
+    )?;
+    if display != expected {
+        return Err(format!(
+            "{name}: got [{}], expected [{}]",
+            format_segments(&display),
+            format_segments(&expected)
+        ));
+    }
+
+    println!("{name} PASS: {}", format_segments(&display));
+    Ok(())
+}
+
+fn shifted_function_exact_matrix() -> Result<(), String> {
+    println!("\n=== SHIFTED FUNCTION EXACT REGRESSIONS ===");
+
+    exact_shifted_sequence(
+        "SQRT 9",
+        &[(Hp67Key::Digit9, "9")],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Digit9,
+        "9",
+        EXPECTED_THREE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "RECIPROCAL 4",
+        &[(Hp67Key::Digit4, "4")],
+        Hp67Key::FunctionH,
+        "h",
+        Hp67Key::Digit4,
+        "4",
+        EXPECTED_ZERO_POINT_TWENTY_FIVE,
+    )?;
+
+    exact_shifted_sequence(
+        "ABS -5",
+        &[
+            (Hp67Key::Digit5, "5"),
+            (Hp67Key::ChangeSign, "CHS"),
+        ],
+        Hp67Key::FunctionH,
+        "h",
+        Hp67Key::Digit6,
+        "6",
+        EXPECTED_FIVE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "INT 1.2",
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Decimal, "."),
+            (Hp67Key::Digit2, "2"),
+        ],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Decimal,
+        ".",
+        EXPECTED_ONE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "FRAC 1.2",
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Decimal, "."),
+            (Hp67Key::Digit2, "2"),
+        ],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Decimal,
+        ".",
+        EXPECTED_ZERO_POINT_TWENTY,
+    )?;
+
+    Ok(())
+}
+
 fn shifted_function_coverage() -> Result<(), String> {
     println!("\n=== SHIFTED FUNCTION COVERAGE ===");
     for prefix in [
@@ -749,10 +880,11 @@ fn main() -> Result<(), String> {
     direct_keyboard_matrix()?;
     digit_matrix()?;
     basic_function_matrix()?;
+    shifted_function_exact_matrix()?;
     shifted_function_coverage()?;
 
     println!(
-        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle, exact digit/basic arithmetic/CHS/EEX paths pass, and all f/g/h shifted dispatch paths were exercised. Shifted-function semantic results remain un-certified until independently specified regressions are added."
+        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle; digit/basic arithmetic/CHS/EEX plus SQRT, reciprocal, ABS, INT and FRAC are exact raw-display regressions; all f/g/h shifted dispatch paths were exercised. Remaining shifted functions stay coverage-only until independently specified regressions are added."
     );
     Ok(())
 }
