@@ -257,13 +257,7 @@ fn paint_card(
     }
 }
 
-fn paint_reader_motion(
-    ui: &Ui,
-    photo: Rect,
-    card: &ProgramCardArtwork,
-    progress: f32,
-    scale: f32,
-) {
+fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress: f32, scale: f32) {
     let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
     let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
     let card_width = CARD_PHYSICAL_WIDTH * scale;
@@ -455,10 +449,7 @@ mod tests {
 
     #[test]
     fn parked_card_exposes_only_a_clickable_left_tab() {
-        let photo = Rect::from_min_size(
-            pos2(0.0, 0.0),
-            eframe::egui::vec2(PHOTO_W, PHOTO_H),
-        );
+        let photo = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(PHOTO_W, PHOTO_H));
         let parked = parked_left_rect(photo, 1.0);
         let visible = parked_left_visible_rect(photo, 1.0);
         assert_eq!(visible.width(), CARD_LEFT_VISIBLE_WIDTH);
