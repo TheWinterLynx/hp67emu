@@ -6,8 +6,7 @@ use hp67emu::machines::hp67::{
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware,
     Hp67Key, Hp67Keyboard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
-    CRC_FLAG_CARD_PRESENT, CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    HP67_OBSERVED_WORD_TIME_US,
+    CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -482,7 +481,9 @@ mod tests {
     use super::*;
     use hp67emu::{
         emulation::Drive,
-        machines::hp67::{ActDisplayWordSerializer, HP67_DISPLAY_SCAN_SLOTS},
+        machines::hp67::{
+            ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, HP67_DISPLAY_SCAN_SLOTS,
+        },
     };
 
     #[test]
