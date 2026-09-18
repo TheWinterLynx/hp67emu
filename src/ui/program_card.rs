@@ -9,9 +9,14 @@ const CARD_WINDOW: SourceRect = SourceRect::new(135.0, 365.0, 795.0, 448.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
-const CARD_PHYSICAL_WIDTH: f32 = 820.0;
-const CARD_PHYSICAL_HEIGHT: f32 = 72.0;
-const CARD_LEFT_VISIBLE_WIDTH: f32 = 105.0;
+const HP67_CASE_WIDTH_MM: f32 = 81.0;
+const HP67_CASE_WIDTH_SOURCE_PX: f32 = 792.0;
+const SOURCE_PX_PER_MM: f32 = HP67_CASE_WIDTH_SOURCE_PX / HP67_CASE_WIDTH_MM;
+const CARD_WIDTH_MM: f32 = 71.1;
+const CARD_HEIGHT_MM: f32 = 11.4;
+const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
+const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
+const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCardArtwork {
@@ -141,9 +146,10 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
             output.window_clicked = response.clicked();
+            let card_rect = holder_card_rect(window, scale);
             paint_card(
-                &ui.painter_at(window),
-                window,
+                &ui.painter().with_clip_rect(window),
+                card_rect,
                 view.artwork,
                 CardPalette::holder(),
                 scale,
@@ -302,6 +308,12 @@ fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress
     }
 }
 
+fn holder_card_rect(window: Rect, scale: f32) -> Rect {
+    let width = CARD_PHYSICAL_WIDTH * scale;
+    let height = CARD_PHYSICAL_HEIGHT * scale;
+    Rect::from_center_size(window.center(), eframe::egui::vec2(width, height))
+}
+
 fn parked_left_rect(photo: Rect, scale: f32) -> Rect {
     let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
     let left = exit_mouth_x - CARD_LEFT_VISIBLE_WIDTH * scale;
@@ -342,16 +354,17 @@ fn paint_window_insertion_from_right(
     scale: f32,
 ) {
     let t = ease_in_out(progress);
-    let card_width = window.width();
-    let card_height = window.height();
+    let final_rect = holder_card_rect(window, scale);
+    let card_width = final_rect.width();
+    let card_height = final_rect.height();
     let holder_mouth_x = window.right();
     let case_right_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
     let start_left = case_right_x + 28.0 * scale;
-    let end_left = window.left();
+    let end_left = final_rect.left();
     let left = start_left + (end_left - start_left) * t;
     let rect = Rect::from_min_max(
-        pos2(left, window.top()),
-        pos2(left + card_width, window.top() + card_height),
+        pos2(left, final_rect.top()),
+        pos2(left + card_width, final_rect.top() + card_height),
     );
 
     // The card does not travel over the calculator shell. From the top-down
@@ -457,6 +470,26 @@ mod tests {
         assert!(CARD_EXIT_MOUTH_X < CARD_WINDOW.x0);
         assert!(CARD_READER_HIT.y0 < CARD_WINDOW.y1);
         assert!(CARD_READER_HIT.y1 > CARD_WINDOW.y0);
+    }
+
+    #[test]
+    fn physical_card_matches_hp_magnetic_card_dimensions() {
+        assert!((CARD_WIDTH_MM - 71.1).abs() < 0.0001);
+        assert!((CARD_HEIGHT_MM - 11.4).abs() < 0.0001);
+        assert!((CARD_PHYSICAL_WIDTH - 695.2).abs() < 0.2);
+        assert!((CARD_PHYSICAL_HEIGHT - 111.47).abs() < 0.2);
+        assert!((CARD_PHYSICAL_WIDTH / CARD_PHYSICAL_HEIGHT - CARD_WIDTH_MM / CARD_HEIGHT_MM).abs() < 0.0001);
+    }
+
+    #[test]
+    fn holder_is_an_aperture_not_a_card_resizer() {
+        let photo = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(PHOTO_W, PHOTO_H));
+        let window = source_to_screen(photo, CARD_WINDOW);
+        let card = holder_card_rect(window, 1.0);
+        assert!((card.width() - CARD_PHYSICAL_WIDTH).abs() < 0.001);
+        assert!((card.height() - CARD_PHYSICAL_HEIGHT).abs() < 0.001);
+        assert!(card.width() > window.width());
+        assert!(card.height() > window.height());
     }
 
     #[test]
