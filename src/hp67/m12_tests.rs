@@ -248,10 +248,7 @@ fn press_live_key_and_settle(live: &mut Hp67LiveMachine, key: Hp67Key, expected_
     settle_live_dispatch(live, key, target);
 }
 
-fn press_unshifted_key_and_observe(
-    live: &mut Hp67LiveMachine,
-    key: Hp67Key,
-) -> SettleObservation {
+fn press_unshifted_key_and_observe(live: &mut Hp67LiveMachine, key: Hp67Key) -> SettleObservation {
     let target = press_live_key_to_dispatch(live, key);
     assert!(
         (UNSHIFTED_KEY_TABLE_FIRST..=UNSHIFTED_KEY_TABLE_LAST).contains(&target),
@@ -260,10 +257,7 @@ fn press_unshifted_key_and_observe(
     settle_live_dispatch_observing(live, key, target)
 }
 
-fn press_h_shifted_key_and_observe(
-    live: &mut Hp67LiveMachine,
-    key: Hp67Key,
-) -> SettleObservation {
+fn press_h_shifted_key_and_observe(live: &mut Hp67LiveMachine, key: Hp67Key) -> SettleObservation {
     press_live_key_and_settle(live, Hp67Key::FunctionH, UNSHIFTED_KEY_TABLE_FIRST);
     let target = press_live_key_to_dispatch(live, key);
     assert!(
@@ -304,11 +298,7 @@ fn return_to_run_step_zero(live: &mut Hp67LiveMachine) {
     assert_program_pc(live, 0, "RUN-mode h RTN");
 }
 
-fn run_program_to_halt(
-    live: &mut Hp67LiveMachine,
-    expected_frame: &[u8; 15],
-    label: &str,
-) {
+fn run_program_to_halt(live: &mut Hp67LiveMachine, expected_frame: &[u8; 15], label: &str) {
     let wait_visits = live.main_wait_visits;
     press_live_key_to_expected_dispatch(live, Hp67Key::RunStop, 0o1443);
 
@@ -365,7 +355,10 @@ fn live_program_mode_sst_bst_del_edit_real_program_memory() {
     assert_program_pc(&live, 5, "reference program entry");
 
     let sst = press_unshifted_key_and_observe(&mut live, Hp67Key::Sst);
-    assert!(sst.saw_single_step, "PROGRAM SST never asserted firmware S1");
+    assert!(
+        sst.saw_single_step,
+        "PROGRAM SST never asserted firmware S1"
+    );
     assert!(
         !sst.saw_user_instruction_execute,
         "PROGRAM SST incorrectly entered the RUN-mode user-instruction executor"
