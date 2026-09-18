@@ -45,41 +45,146 @@ struct KeySpec {
 }
 
 const ALL_KEYS: [KeySpec; 35] = [
-    KeySpec { key: Hp67Key::A, label: "A" },
-    KeySpec { key: Hp67Key::B, label: "B" },
-    KeySpec { key: Hp67Key::C, label: "C" },
-    KeySpec { key: Hp67Key::D, label: "D" },
-    KeySpec { key: Hp67Key::E, label: "E" },
-    KeySpec { key: Hp67Key::SigmaPlus, label: "SIGMA+" },
-    KeySpec { key: Hp67Key::Gto, label: "GTO" },
-    KeySpec { key: Hp67Key::Dsp, label: "DSP" },
-    KeySpec { key: Hp67Key::Indirect, label: "IND" },
-    KeySpec { key: Hp67Key::Sst, label: "SST" },
-    KeySpec { key: Hp67Key::FunctionF, label: "f" },
-    KeySpec { key: Hp67Key::FunctionG, label: "g" },
-    KeySpec { key: Hp67Key::Sto, label: "STO" },
-    KeySpec { key: Hp67Key::Rcl, label: "RCL" },
-    KeySpec { key: Hp67Key::FunctionH, label: "h" },
-    KeySpec { key: Hp67Key::Enter, label: "ENTER" },
-    KeySpec { key: Hp67Key::ChangeSign, label: "CHS" },
-    KeySpec { key: Hp67Key::Exponent, label: "EEX" },
-    KeySpec { key: Hp67Key::ClearX, label: "CLX" },
-    KeySpec { key: Hp67Key::Subtract, label: "-" },
-    KeySpec { key: Hp67Key::Digit7, label: "7" },
-    KeySpec { key: Hp67Key::Digit8, label: "8" },
-    KeySpec { key: Hp67Key::Digit9, label: "9" },
-    KeySpec { key: Hp67Key::Add, label: "+" },
-    KeySpec { key: Hp67Key::Digit4, label: "4" },
-    KeySpec { key: Hp67Key::Digit5, label: "5" },
-    KeySpec { key: Hp67Key::Digit6, label: "6" },
-    KeySpec { key: Hp67Key::Multiply, label: "*" },
-    KeySpec { key: Hp67Key::Digit1, label: "1" },
-    KeySpec { key: Hp67Key::Digit2, label: "2" },
-    KeySpec { key: Hp67Key::Digit3, label: "3" },
-    KeySpec { key: Hp67Key::Divide, label: "/" },
-    KeySpec { key: Hp67Key::Digit0, label: "0" },
-    KeySpec { key: Hp67Key::Decimal, label: "." },
-    KeySpec { key: Hp67Key::RunStop, label: "R/S" },
+    KeySpec {
+        key: Hp67Key::A,
+        label: "A",
+    },
+    KeySpec {
+        key: Hp67Key::B,
+        label: "B",
+    },
+    KeySpec {
+        key: Hp67Key::C,
+        label: "C",
+    },
+    KeySpec {
+        key: Hp67Key::D,
+        label: "D",
+    },
+    KeySpec {
+        key: Hp67Key::E,
+        label: "E",
+    },
+    KeySpec {
+        key: Hp67Key::SigmaPlus,
+        label: "SIGMA+",
+    },
+    KeySpec {
+        key: Hp67Key::Gto,
+        label: "GTO",
+    },
+    KeySpec {
+        key: Hp67Key::Dsp,
+        label: "DSP",
+    },
+    KeySpec {
+        key: Hp67Key::Indirect,
+        label: "IND",
+    },
+    KeySpec {
+        key: Hp67Key::Sst,
+        label: "SST",
+    },
+    KeySpec {
+        key: Hp67Key::FunctionF,
+        label: "f",
+    },
+    KeySpec {
+        key: Hp67Key::FunctionG,
+        label: "g",
+    },
+    KeySpec {
+        key: Hp67Key::Sto,
+        label: "STO",
+    },
+    KeySpec {
+        key: Hp67Key::Rcl,
+        label: "RCL",
+    },
+    KeySpec {
+        key: Hp67Key::FunctionH,
+        label: "h",
+    },
+    KeySpec {
+        key: Hp67Key::Enter,
+        label: "ENTER",
+    },
+    KeySpec {
+        key: Hp67Key::ChangeSign,
+        label: "CHS",
+    },
+    KeySpec {
+        key: Hp67Key::Exponent,
+        label: "EEX",
+    },
+    KeySpec {
+        key: Hp67Key::ClearX,
+        label: "CLX",
+    },
+    KeySpec {
+        key: Hp67Key::Subtract,
+        label: "-",
+    },
+    KeySpec {
+        key: Hp67Key::Digit7,
+        label: "7",
+    },
+    KeySpec {
+        key: Hp67Key::Digit8,
+        label: "8",
+    },
+    KeySpec {
+        key: Hp67Key::Digit9,
+        label: "9",
+    },
+    KeySpec {
+        key: Hp67Key::Add,
+        label: "+",
+    },
+    KeySpec {
+        key: Hp67Key::Digit4,
+        label: "4",
+    },
+    KeySpec {
+        key: Hp67Key::Digit5,
+        label: "5",
+    },
+    KeySpec {
+        key: Hp67Key::Digit6,
+        label: "6",
+    },
+    KeySpec {
+        key: Hp67Key::Multiply,
+        label: "*",
+    },
+    KeySpec {
+        key: Hp67Key::Digit1,
+        label: "1",
+    },
+    KeySpec {
+        key: Hp67Key::Digit2,
+        label: "2",
+    },
+    KeySpec {
+        key: Hp67Key::Digit3,
+        label: "3",
+    },
+    KeySpec {
+        key: Hp67Key::Divide,
+        label: "/",
+    },
+    KeySpec {
+        key: Hp67Key::Digit0,
+        label: "0",
+    },
+    KeySpec {
+        key: Hp67Key::Decimal,
+        label: ".",
+    },
+    KeySpec {
+        key: Hp67Key::RunStop,
+        label: "R/S",
+    },
 ];
 
 #[derive(Debug, Clone, Copy)]
