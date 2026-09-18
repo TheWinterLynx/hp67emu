@@ -15,12 +15,12 @@ This is the active vertical integration track used by the current implementation
 - **M9 — complete:** real entered number on physical display.
 - **M10 — complete:** real arithmetic through physical keyboard/firmware/display.
 - **M11 — complete (2026-09-18):** all 35 direct keycodes independently cross-checked, all 105 shifted `f/g/h` dispatch paths exercised, and major RUN-mode numeric/function families exact-locked through real firmware without host calculator semantics.
-- **M12 — next:** RUN/PRGM hardware flag, program entry, editing, stepping and execution.
+- **M12 — in progress (2026-09-18):** RUN/PRGM hardware flag, real PROGRAM entry and stored-program execution are validated end-to-end through firmware; editing and single-step/back-step behavior remain to close the milestone.
 - **M13 — planned:** magnetic-card reader/writer physical path.
 - **M14 — planned:** power/timing fidelity.
 - **M15 — planned:** full hardware validation suite.
 
-M11 closure evidence is recorded in `docs/research/M11_FIDELITY_AUDIT_2026-09-18.md`.
+M11 closure evidence is recorded in `docs/research/M11_FIDELITY_AUDIT_2026-09-18.md`. M12 program-entry/execution evidence is recorded in `docs/research/M12_PROGRAM_EXECUTION_AUDIT_2026-09-18.md`; the code-cleanup review is recorded in `docs/research/M12_CODE_AUDIT_2026-09-18.md`.
 
 ## Development rule
 
