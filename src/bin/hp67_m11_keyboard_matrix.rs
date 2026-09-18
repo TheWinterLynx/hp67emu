@@ -41,6 +41,15 @@ const EXPECTED_ONE_FIXED_TWO: [u8; 15] = [
 const EXPECTED_FIVE_FIXED_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x6d, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+const EXPECTED_EIGHT_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x7f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_NINE_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x6f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_ONE_HUNDRED_TWENTY_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x06, 0x5b, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
 const EXPECTED_ZERO_POINT_TWENTY: [u8; 15] = [
     0x00, 0x00, 0x00, 0x3f, 0x80, 0x5b, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
@@ -813,6 +822,80 @@ fn shifted_function_exact_matrix() -> Result<(), String> {
         EXPECTED_ZERO_POINT_TWENTY,
     )?;
 
+    exact_shifted_sequence(
+        "LN 1",
+        &[(Hp67Key::Digit1, "1")],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Digit7,
+        "7",
+        EXPECTED_CLEAR_DISPLAY,
+    )?;
+
+    exact_shifted_sequence(
+        "EXP 0",
+        &[(Hp67Key::Digit0, "0")],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit7,
+        "7",
+        EXPECTED_ONE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "LOG 1",
+        &[(Hp67Key::Digit1, "1")],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Digit8,
+        "8",
+        EXPECTED_CLEAR_DISPLAY,
+    )?;
+
+    exact_shifted_sequence(
+        "TEN-POWER 0",
+        &[(Hp67Key::Digit0, "0")],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit8,
+        "8",
+        EXPECTED_ONE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "SQUARE 3",
+        &[(Hp67Key::Digit3, "3")],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit9,
+        "9",
+        EXPECTED_NINE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "FACTORIAL 5",
+        &[(Hp67Key::Digit5, "5")],
+        Hp67Key::FunctionH,
+        "h",
+        Hp67Key::Divide,
+        "/",
+        EXPECTED_ONE_HUNDRED_TWENTY_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "Y-POWER-X 2^3",
+        &[
+            (Hp67Key::Digit2, "2"),
+            (Hp67Key::Enter, "ENTER"),
+            (Hp67Key::Digit3, "3"),
+        ],
+        Hp67Key::FunctionH,
+        "h",
+        Hp67Key::Digit5,
+        "5",
+        EXPECTED_EIGHT_FIXED_TWO,
+    )?;
+
     Ok(())
 }
 
@@ -877,7 +960,7 @@ fn main() -> Result<(), String> {
     shifted_function_coverage()?;
 
     println!(
-        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle; digit/basic arithmetic/CHS/EEX plus SQRT, reciprocal, ABS, INT and FRAC are exact raw-display regressions; all f/g/h shifted dispatch paths were exercised. Remaining shifted functions stay coverage-only until independently specified regressions are added."
+        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle; digit/basic arithmetic/CHS/EEX plus SQRT, reciprocal, ABS, INT, FRAC, LN, EXP, LOG, 10^x, x^2, factorial and y^x are exact raw-display regressions; all f/g/h shifted dispatch paths were exercised. Remaining shifted functions stay coverage-only until independently specified regressions are added."
     );
     Ok(())
 }
