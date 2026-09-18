@@ -39,7 +39,10 @@ pub enum ProgramCardPhase {
 
 impl ProgramCardPhase {
     pub const fn is_animating(self) -> bool {
-        matches!(self, Self::ReadingFromRight | Self::InsertingWindowFromRight)
+        matches!(
+            self,
+            Self::ReadingFromRight | Self::InsertingWindowFromRight
+        )
     }
 }
 
