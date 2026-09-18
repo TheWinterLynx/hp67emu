@@ -3,8 +3,9 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
-    CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
-    Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
+    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware,
+    Hp67Key, Hp67Keyboard,
     Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
     HP67_OBSERVED_WORD_TIME_US,
 };
@@ -302,6 +303,12 @@ impl Hp67LiveMachine {
     }
 
     fn step_firmware_cycle(&mut self) -> Result<(), String> {
+        self.step_firmware_cycle_with_execution().map(|_| ())
+    }
+
+    fn step_firmware_cycle_with_execution(
+        &mut self,
+    ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
@@ -310,6 +317,7 @@ impl Hp67LiveMachine {
         }
 
         let mut idle_after_word = false;
+        let mut executed = None;
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
@@ -329,6 +337,7 @@ impl Hp67LiveMachine {
                 .machine
                 .execute_word(word)
                 .map_err(|error| format!("live boot cycle {cycle} execution failed: {error:?}"))?;
+            executed = Some(execution);
 
             match execution.pc {
                 DISPLAY_INIT_PC => self.saw_display_init = true,
@@ -374,7 +383,7 @@ impl Hp67LiveMachine {
         if idle_after_word {
             self.phase = LiveBootPhase::Idle;
         }
-        Ok(())
+        Ok(executed)
     }
 
     fn transport_fetch_word(&mut self, cycle: u64) -> Result<(), String> {
@@ -628,45 +637,53 @@ mod tests {
                 ));
             }
 
-            let executing_word = live.pipeline.executing_word();
-            let normal = live.machine.act.state.instruction_state
-                == hp67emu::machines::hp67::ActInstructionState::Normal;
-            if let Some(word) = executing_word {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+
+            if let Some(execution) = execution {
+                let word = execution.word;
                 if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
                     memory_trace.push(format!(
                         "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
-                        live.machine.pc(),
+                        execution.pc,
                         live.machine.act.state.ram_address,
                         live.machine.act.state.c[1],
                         live.machine.act.state.c[0]
                     ));
                 }
-            }
 
-            live.step_firmware_cycle().unwrap();
+                if matches!(
+                    execution.operation,
+                    Hp67ArchitecturalOperation::Act(ActOperation::Special {
+                        opcode: KEYS_TO_A_OPCODE
+                    })
+                ) {
+                    let observed_code =
+                        (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
+                    assert_eq!(
+                        observed_code, expected_code,
+                        "PROGRAM {key:?} keys -> A produced {observed_code:04o}, expected physical code {expected_code:04o}"
+                    );
+                    keys_to_a_seen = true;
+                }
 
-            if normal && executing_word == Some(KEYS_TO_A_OPCODE) {
-                let observed_code =
-                    (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
-                assert_eq!(
-                    observed_code, expected_code,
-                    "PROGRAM {key:?} keys -> A produced {observed_code:04o}, expected physical code {expected_code:04o}"
-                );
-                keys_to_a_seen = true;
-            }
-
-            if normal && executing_word == Some(A_TO_ROM_ADDRESS_OPCODE) {
-                assert!(
-                    keys_to_a_seen,
-                    "PROGRAM {key:?} executed A -> ROM address before keys -> A"
-                );
-                let target = live.machine.pc();
-                assert!(
-                    (0o1405..=0o1466).contains(&target),
-                    "PROGRAM {key:?} dispatched outside the unshifted HP-67 key table: {target:04o}"
-                );
-                dispatch_target = Some(target);
-                break;
+                if matches!(
+                    execution.operation,
+                    Hp67ArchitecturalOperation::Act(ActOperation::Special {
+                        opcode: A_TO_ROM_ADDRESS_OPCODE
+                    })
+                ) {
+                    assert!(
+                        keys_to_a_seen,
+                        "PROGRAM {key:?} executed A -> ROM address before keys -> A"
+                    );
+                    let target = execution.next_pc;
+                    assert!(
+                        (0o1405..=0o1466).contains(&target),
+                        "PROGRAM {key:?} dispatched outside the unshifted HP-67 key table: {target:04o}"
+                    );
+                    dispatch_target = Some(target);
+                    break;
+                }
             }
         }
         assert!(
@@ -680,18 +697,19 @@ mod tests {
         let mut changed = Vec::new();
         let mut settled = false;
         for _ in 0..4_096 {
-            if let Some(word) = live.pipeline.executing_word() {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(execution) = execution {
+                let word = execution.word;
                 if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
                     memory_trace.push(format!(
                         "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
-                        live.machine.pc(),
+                        execution.pc,
                         live.machine.act.state.ram_address,
                         live.machine.act.state.c[1],
                         live.machine.act.state.c[0]
                     ));
                 }
             }
-            live.step_firmware_cycle().unwrap();
 
             let after_program = live_program_ram_snapshot(live);
             changed = before_program
@@ -755,13 +773,17 @@ mod tests {
         let mut saw_keys_to_a = false;
 
         for _ in 0..512 {
-            let executing_word = live.pipeline.executing_word();
-            let normal = live.machine.act.state.instruction_state
-                == hp67emu::machines::hp67::ActInstructionState::Normal;
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            let Some(execution) = execution else {
+                continue;
+            };
 
-            live.step_firmware_cycle().unwrap();
-
-            if normal && executing_word == Some(KEYS_TO_A_OPCODE) {
+            if matches!(
+                execution.operation,
+                Hp67ArchitecturalOperation::Act(ActOperation::Special {
+                    opcode: KEYS_TO_A_OPCODE
+                })
+            ) {
                 let observed = (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
                 assert_eq!(
                     observed, expected_code,
@@ -770,12 +792,17 @@ mod tests {
                 saw_keys_to_a = true;
             }
 
-            if normal && executing_word == Some(A_TO_ROM_ADDRESS_OPCODE) {
+            if matches!(
+                execution.operation,
+                Hp67ArchitecturalOperation::Act(ActOperation::Special {
+                    opcode: A_TO_ROM_ADDRESS_OPCODE
+                })
+            ) {
                 assert!(
                     saw_keys_to_a,
                     "{key:?} executed A -> ROM address before keys -> A"
                 );
-                let target = live.machine.pc();
+                let target = execution.next_pc;
                 assert_eq!(
                     target, expected_target,
                     "{key:?} firmware dispatch target mismatch"
