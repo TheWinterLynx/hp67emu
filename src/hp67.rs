@@ -273,6 +273,12 @@ impl Hp67LiveMachine {
         }
     }
 
+    pub fn set_program_mode(&mut self, program: bool) -> Result<(), String> {
+        self.machine
+            .set_program_mode(program)
+            .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
+    }
+
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
@@ -499,12 +505,33 @@ mod tests {
     }
 
     #[test]
-    fn mode_and_power_controls_remain_ui_owned() {
+    fn ui_state_tracks_mechanical_switch_positions() {
         let mut state = Hp67State::default();
         state.handle(UiEvent::ToggleMode);
         assert_eq!(state.mode, RunMode::Program);
         state.handle(UiEvent::TogglePower);
         assert!(state.power_on);
+    }
+
+    #[test]
+    fn live_program_switch_drives_crc_external_flag() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+
+        live.set_program_mode(true).unwrap();
+        assert_eq!(
+            live.machine.crc.external_flag(
+                hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE
+            ),
+            Some(true)
+        );
+
+        live.set_program_mode(false).unwrap();
+        assert_eq!(
+            live.machine.crc.external_flag(
+                hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE
+            ),
+            Some(false)
+        );
     }
 
     #[test]
