@@ -374,10 +374,16 @@ impl Hp67LiveMachine {
         let requested_bank = self.machine.prepare_hp67_fetch();
         self.source.select_bank(requested_bank);
         let address = self.machine.pc();
+        let mut display_state = self.machine.act.state.clone();
+        if !self.display_control_seen {
+            // Power-on capture shows visible output before firmware has executed
+            // its first explicit display-control instruction.
+            display_state.display_enable = true;
+        }
         let result = run_structural_display_fetch_cycle(
             &mut self.backplane,
             address,
-            &self.machine.act.state,
+            &display_state,
             &mut self.act_serial,
             &mut self.fetch_rom,
             &mut self.display_rom0,
