@@ -671,7 +671,7 @@ fn shifted_function_frontier() -> Result<(), String> {
             harness.wait_for_contact_release(target.label)?;
             harness.run_words(SHIFT_EXERCISE_WORDS)?;
             println!(
-                "SHIFT PASS: {} + {:<7} code={:04o} -> table={:04o} pc={:04o}",
+                "SHIFT PASS: {} + {:<7} code={:04o} -> target={:04o} pc={:04o}",
                 prefix.label,
                 target.label,
                 dispatch.code,
