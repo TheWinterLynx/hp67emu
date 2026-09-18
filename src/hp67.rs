@@ -603,7 +603,11 @@ mod tests {
         );
     }
 
-    fn press_program_key_and_require_ram_change(live: &mut Hp67LiveMachine, key: Hp67Key) {
+    fn press_program_key_and_require_ram_change(
+        live: &mut Hp67LiveMachine,
+        key: Hp67Key,
+        expected_step: u8,
+    ) {
         let before_program = live_program_ram_snapshot(live);
         let before_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
         let mut memory_trace = Vec::new();
@@ -715,6 +719,21 @@ mod tests {
             settled,
             "PROGRAM {key:?} advanced RAM 0x3D but did not return to the no-key firmware wait; program-RAM changes={changed:?}"
         );
+
+        let pc_register = live
+            .machine
+            .ram
+            .read(HP67_PROGRAM_PC_RAM)
+            .expect("HP-67 program-counter register 0x3D must be installed");
+        assert!(
+            (1..=7).contains(&expected_step),
+            "this M12 oracle covers the first seven program steps"
+        );
+        assert_eq!(
+            &pc_register[0..3],
+            &[0x0f, 0x02, 7 - expected_step],
+            "PROGRAM {key:?} did not leave RAM 0x3D at expected user step {expected_step:03}"
+        );
     }
 
     fn press_live_key_to_dispatch(
@@ -807,15 +826,26 @@ mod tests {
         );
 
         let program_before = live_program_ram_snapshot(&live);
-        press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1);
-        press_program_key_and_require_ram_change(&mut live, Hp67Key::Enter);
-        press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit2);
-        press_program_key_and_require_ram_change(&mut live, Hp67Key::Add);
-        press_program_key_and_require_ram_change(&mut live, Hp67Key::RunStop);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1, 1);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Enter, 2);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit2, 3);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::Add, 4);
+        press_program_key_and_require_ram_change(&mut live, Hp67Key::RunStop, 5);
         let program_after = live_program_ram_snapshot(&live);
         assert_ne!(
             program_after, program_before,
             "PROGRAM entry advanced RAM 0x3D but left the entire 0x10..0x2F program store unchanged"
+        );
+
+        let first_program_register = live
+            .machine
+            .ram
+            .read(0x2f)
+            .expect("HP-67 RAM 0x2F must hold program steps 001..007");
+        assert_eq!(
+            &first_program_register[0..10],
+            &[0x01, 0x01, 0x0b, 0x01, 0x02, 0x01, 0x07, 0x03, 0x00, 0x00],
+            "PROGRAM steps 001..005 are not the expected 11 1B 12 37 00 byte sequence"
         );
 
         wait_for_firmware_mode(&mut live, false, "PRGM -> RUN");
@@ -838,18 +868,28 @@ mod tests {
         let wait_visits = live.main_wait_visits;
         press_live_key_to_dispatch(&mut live, Hp67Key::RunStop, 0o1443);
 
+        let mut saw_running = false;
         for _ in 0..20_000 {
             live.step_firmware_cycle().unwrap();
-            if live.main_wait_visits > wait_visits
+            saw_running |= live.machine.act.state.status[2];
+            if saw_running
+                && !live.machine.act.state.status[2]
+                && live.main_wait_visits > wait_visits
                 && !live.machine.act.state.status[15]
                 && live.display_frame().segments()
-                    == &[0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                    == &[0x00, 0x00, 0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0]
             {
                 return;
             }
         }
 
-        panic!("stored 1 ENTER 2 + R/S program did not execute to physical 3.00 and stop");
+        panic!(
+            "stored 11 1B 12 37 00 program did not run and halt at physical 3.00; pc={:04o} s2={} s11={} ram3d={:?}",
+            live.machine.pc(),
+            live.machine.act.state.status[2],
+            live.machine.act.state.status[11],
+            live.machine.ram.read(HP67_PROGRAM_PC_RAM)
+        );
     }
 
     #[test]
