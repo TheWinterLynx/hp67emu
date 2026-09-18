@@ -328,7 +328,12 @@ impl Harness {
         ))
     }
 
-    fn press_to_dispatch(&mut self, key: Hp67Key, label: &str) -> Result<Dispatch, String> {
+    fn press_to_dispatch(
+        &mut self,
+        key: Hp67Key,
+        label: &str,
+        require_unshifted_table: bool,
+    ) -> Result<Dispatch, String> {
         let code = key.scan_code();
         self.keyboard.press(key);
         let mut saw_keys_to_a = false;
@@ -352,9 +357,11 @@ impl Harness {
                         ));
                     }
                     let target = self.machine.pc();
-                    if !(UNSHIFTED_KEY_TABLE_FIRST..=UNSHIFTED_KEY_TABLE_LAST).contains(&target) {
+                    if require_unshifted_table
+                        && !(UNSHIFTED_KEY_TABLE_FIRST..=UNSHIFTED_KEY_TABLE_LAST).contains(&target)
+                    {
                         return Err(format!(
-                            "{label}: key dispatched to {target:04o}, outside {UNSHIFTED_KEY_TABLE_FIRST:04o}..={UNSHIFTED_KEY_TABLE_LAST:04o}"
+                            "{label}: unshifted key dispatched to {target:04o}, outside {UNSHIFTED_KEY_TABLE_FIRST:04o}..={UNSHIFTED_KEY_TABLE_LAST:04o}"
                         ));
                     }
                     self.keyboard.release();
@@ -384,7 +391,7 @@ impl Harness {
     }
 
     fn press_and_settle(&mut self, key: Hp67Key, label: &str) -> Result<[u8; 15], String> {
-        let dispatch = self.press_to_dispatch(key, label)?;
+        let dispatch = self.press_to_dispatch(key, label, true)?;
         for _ in 0..KEY_SETTLE_WORD_LIMIT {
             if let Some(executed) = self.step()? {
                 if executed.pc == MAIN_WAIT_PC
@@ -496,7 +503,7 @@ fn direct_keyboard_matrix() -> Result<(), String> {
     println!("\n=== DIRECT 35-KEY MATRIX ===");
     for spec in ALL_KEYS {
         let mut harness = boot_harness()?;
-        let dispatch = harness.press_to_dispatch(spec.key, spec.label)?;
+        let dispatch = harness.press_to_dispatch(spec.key, spec.label, true)?;
         harness.wait_for_contact_release(spec.label)?;
         println!(
             "DIRECT PASS: {:<7} code={:04o} -> table={:04o}",
@@ -646,7 +653,7 @@ fn shifted_function_frontier() -> Result<(), String> {
             let mut harness = boot_harness()?;
             harness.press_and_settle(Hp67Key::Digit1, "1")?;
             harness.press_and_settle(prefix.key, prefix.label)?;
-            let dispatch = harness.press_to_dispatch(target.key, target.label)?;
+            let dispatch = harness.press_to_dispatch(target.key, target.label, false)?;
             harness.wait_for_contact_release(target.label)?;
             harness.run_words(SHIFT_EXERCISE_WORDS)?;
             println!(
