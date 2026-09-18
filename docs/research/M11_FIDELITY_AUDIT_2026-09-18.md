@@ -124,6 +124,10 @@ The front panel uses egui `Response::is_pointer_button_down_on()`, not `clicked(
 
 Reference: https://docs.rs/egui/latest/egui/response/struct.Response.html#method.is_pointer_button_down_on
 
+## M11 closure batch
+
+The final M11 candidate batch exact-locks major RUN-mode families beyond the earlier mathematical cases: X/Y exchange, roll-down/roll-up, LAST X, percent and percent-change, the pi constant, DEG/RAD/GRD mode selection through exact quarter-turn sine identities, direct STO/RCL plus CLREG, display-dependent RND under FIX/SCI/ENG, and basic statistics (mean, sample standard deviation, and sigma-minus restoration). Program-control and card-reader semantics remain outside this milestone.
+
 ## Known fidelity gaps
 
 ### RUN/PRGM switch
@@ -162,4 +166,4 @@ None of these changes alters ACT, CRC, firmware, keyboard, fetch, display, or UI
 
 There is no evidence that production behavior has been patched opportunistically to satisfy M11. The currently proven RUN-mode numeric path is strong: real versioned firmware, physical key contacts, real firmware dispatch, architectural ACT/CRC execution and structural ROM0/cathode display generation all participate without host calculator semantics.
 
-M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x` and six degree-mode trigonometric/inverse-trigonometric identities. M11 becomes complete only when the remaining RUN-mode mathematical/display/storage functions in scope are systematically exact-locked and program-control families are explicitly moved to M12 with documented scope.
+M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x` and six degree-mode trigonometric/inverse-trigonometric identities. M11 is a candidate for completion once the closure batch passes unchanged: all physical direct/shifted dispatch paths are covered, major RUN-mode families are exact-locked, and program-control/card families are explicitly moved to M12/M13 with documented scope.
