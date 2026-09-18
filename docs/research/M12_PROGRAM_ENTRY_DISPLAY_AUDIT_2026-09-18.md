@@ -46,3 +46,14 @@ Greg Sydney-Smith's HP67u microcode notes independently show the HP-67 wait loop
 ## Still not claimed
 
 This remains a structural word/bit model. The exact PHI-relative launch/sample edge for display data, the intra-word instant at which an ACT result bit commits, and exact STR/RCD overlap timing remain M14/M15 electrical-fidelity work. The M12 correction does not claim those unresolved timings.
+
+
+## Follow-up after repeated cycle-4430 failure
+
+The first DISPLAY-off correction was insufficient: the M12 regression still produced the same `slot 6 / 0x50` ROM0 error at live cycle 4430. That repeated result disproves DISPLAY-off as the complete explanation because the failing transport is occurring with the display path active.
+
+A stronger hardware discrepancy was then found in Hewlett-Packard's HP-29C Service Manual, paragraph 2-45. The Woodstock ACT does **not** transmit four A bits followed by four B bits. HP states that it sends the four A bits for a character and then **three bits recoded from the four-bit B-register character modifier**. Therefore the current structural serializer's direct high-nibble composition from B is not source-backed and can manufacture impossible ROM0 bytes such as `0x50`.
+
+Independent high-level Woodstock implementations agree on the role of B rather than treating it as a raw character-code high nibble: Nonpareil and NP25 decode B as display-format/punctuation state, while x11-calc's HP-67 renderer accepts only specific B formats for number, blank and decimal output.
+
+The exact Woodstock B(4)->display(3) recoding table has not yet been established from a primary source. Production behavior is therefore not being guessed. Commit `9172d3b` adds diagnostics only: on a ROM0 decode failure it reports the executing word, post-execution PC, DISPLAY latch, selected display register index, and the selected A/B nibbles from both the pre-instruction serial snapshot and post-instruction architectural state. One rerun can then distinguish missing B recoding from an instruction-boundary timing error, or show that both are present.
