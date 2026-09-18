@@ -286,4 +286,3 @@ fn live_program_mode_stores_and_executes_simple_program() {
         live.machine.act.state.c,
     );
 }
-
