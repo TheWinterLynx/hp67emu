@@ -665,19 +665,31 @@ mod tests {
             live.step_firmware_cycle().unwrap();
         }
 
-        let run_display = live.display_frame();
         live.set_program_mode(true).unwrap();
-        let mut program_display_seen = false;
-        for _ in 0..4_096 {
+        let mut program_switch_test_seen = false;
+        let mut program_idle_seen = false;
+        for _ in 0..8_192 {
+            if live.machine.pc() == 0o0174
+                && live.pipeline.executing_word() == Some(0o0300)
+            {
+                program_switch_test_seen = true;
+            }
             live.step_firmware_cycle().unwrap();
-            if live.display_frame() != run_display {
-                program_display_seen = true;
+            if program_switch_test_seen
+                && live.machine.pc() == MAIN_WAIT_PC
+                && !live.machine.act.state.status[15]
+            {
+                program_idle_seen = true;
                 break;
             }
         }
         assert!(
-            program_display_seen,
-            "W/PRGM did not replace the RUN display with a program-step display"
+            program_switch_test_seen,
+            "W/PRGM never reached the firmware RUN/PRGM switch test at 0174/0300"
+        );
+        assert!(
+            program_idle_seen,
+            "W/PRGM never settled back to the no-key firmware wait after the switch test"
         );
 
         press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1);
