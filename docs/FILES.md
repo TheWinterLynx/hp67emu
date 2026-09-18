@@ -7,6 +7,7 @@ The documentation regression uses these companion files as the source-level owne
 - [src/main.rs](files/src/main.rs.md)
 - [src/app.rs](files/src/app.rs.md)
 - [src/hp67.rs](files/src/hp67.rs.md)
+- [src/hp67/m12_tests.rs](files/src/hp67/m12_tests.rs.md)
 - [src/panel.rs](files/src/panel.rs.md)
 - [src/ui/mod.rs](files/src/ui/mod.rs.md)
 - [src/ui/classic_display.rs](files/src/ui/classic_display.rs.md)
