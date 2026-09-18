@@ -121,3 +121,14 @@ The first RUN-SST regression reached the correct arithmetic result but observed 
 The HP quick-reference and owner's handbook explicitly describe RUN-mode SST as displaying the executed result; published examples retain the active display format (for example results ending in `.00`). The permanent harness therefore keeps the `3.00` oracle and, after firmware has settled to the no-key wait, advances one complete `HP67_DISPLAY_SCAN_SLOTS` refresh before inspecting the physical frame.
 
 This changes only the test observation boundary. It does not alter emulator display production or firmware timing.
+
+
+## Closure status
+
+The focused M12 edit/step checkpoint passed on 2026-09-18, followed by the full repository closure gate:
+
+- `cargo fmt --all -- --check`;
+- `RUSTFLAGS=-Dwarnings cargo test --locked --all-targets`;
+- `cargo build --locked --release --bin hp67emu`.
+
+With PROGRAM editing, RUN/PRGM, stored-program execution, SST and BST all covered by source-backed firmware regressions, M12 is complete.
