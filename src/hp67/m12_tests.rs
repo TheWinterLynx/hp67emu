@@ -438,7 +438,7 @@ fn live_run_mode_sst_executes_one_step_and_bst_only_backs_up() {
         "four RUN SST operations did not execute 1 ENTER 2 + to physical 3.00"
     );
 
-    let before_bst_display = live.display_frame().segments().to_owned();
+    let before_bst_display = *live.display_frame().segments();
     let bst = press_h_shifted_key_and_observe(&mut live, Hp67Key::Sst);
     assert!(
         !bst.saw_single_step,
@@ -455,7 +455,7 @@ fn live_run_mode_sst_executes_one_step_and_bst_only_backs_up() {
     assert_program_pc(&live, 4, "RUN h BST");
     assert_eq!(
         live.display_frame().segments(),
-        before_bst_display.as_slice(),
+        &before_bst_display,
         "RUN h BST did not restore the original X display after release"
     );
 }
