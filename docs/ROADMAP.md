@@ -16,7 +16,7 @@ This is the active vertical integration track used by the current implementation
 - **M10 — complete:** real arithmetic through physical keyboard/firmware/display.
 - **M11 — complete (2026-09-18):** all 35 direct keycodes independently cross-checked, all 105 shifted `f/g/h` dispatch paths exercised, and major RUN-mode numeric/function families exact-locked through real firmware without host calculator semantics.
 - **M12 — complete (2026-09-18):** RUN/PRGM hardware flag, real PROGRAM entry, SST/BST navigation, h DEL editing, stored-program execution and RUN-mode single-step/back-step behavior are validated end-to-end through real firmware and the physical display path.
-- **M13 — in progress (2026-09-19):** top-down card presentation is separated into lateral reader interaction plus passive holder artwork above A-E; CRC/motor/data timing and real read/write remain to implement.
+- **M13 — in progress (2026-09-19):** top-down card presentation now uses one 71.1 × 11.4 mm physical card geometry across reader transit, left exit and passive holder insertion; holder travel is correctly occluded by the case. CRC external `card_present` is modeled and real firmware is regression-locked through its `motor_on` request. `buffer_ready`, timed magnetic transport, CRC data ports and real read/write remain to implement.
 - **M14 — planned:** power/timing fidelity.
 - **M15 — planned:** full hardware validation suite.
 
