@@ -5,14 +5,21 @@ use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
     panel::Hp67Panel,
-    ui::{sliders, top_keys},
+    ui::{
+        program_card::{ProgramCardView, MOON_ROCKET_LANDER_CARD},
+        sliders, top_keys,
+    },
 };
+
+const PROGRAM_CARD_READ_DURATION: Duration = Duration::from_millis(900);
 
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
     live_machine: Option<Hp67LiveMachine>,
     last_live_tick: Option<Instant>,
+    card_read_started: Option<Instant>,
+    card_in_window: bool,
 }
 
 impl Hp67App {
@@ -47,6 +54,8 @@ impl Hp67App {
             photo,
             live_machine,
             last_live_tick: None,
+            card_read_started: None,
+            card_in_window: false,
         }
     }
 }
@@ -54,6 +63,20 @@ impl Hp67App {
 impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
+
+        if self
+            .card_read_started
+            .is_some_and(|started| now.saturating_duration_since(started) >= PROGRAM_CARD_READ_DURATION)
+        {
+            self.card_read_started = None;
+            self.card_in_window = true;
+        }
+
+        let reader_progress = self.card_read_started.map(|started| {
+            (now.saturating_duration_since(started).as_secs_f32()
+                / PROGRAM_CARD_READ_DURATION.as_secs_f32())
+            .clamp(0.0, 1.0)
+        });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
@@ -63,7 +86,25 @@ impl eframe::App for Hp67App {
                     .live_machine
                     .as_ref()
                     .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
-                let panel = Hp67Panel::show(ui, &self.state, &display, &self.photo);
+                let panel = Hp67Panel::show(
+                    ui,
+                    &self.state,
+                    &display,
+                    &self.photo,
+                    ProgramCardView {
+                        artwork: &MOON_ROCKET_LANDER_CARD,
+                        in_window: self.card_in_window,
+                        reader_progress,
+                    },
+                );
+                if panel.card_reader_clicked {
+                    self.card_in_window = false;
+                    self.card_read_started = Some(now);
+                }
+                if panel.card_window_clicked {
+                    self.card_in_window = false;
+                }
+
                 for event in panel.events {
                     let was_power_on = self.state.power_on;
                     self.state.handle(event);
@@ -125,6 +166,9 @@ impl eframe::App for Hp67App {
             self.live_machine = None;
         }
 
+        if self.card_read_started.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(16));
+        }
         if self.state.power_on {
             // Keep the physical firmware machine advancing after boot idle as well
             // as during startup. The same cadence also samples held/released key
