@@ -1,6 +1,7 @@
 use super::{Hp67LiveMachine, LiveBootPhase};
 use hp67emu::machines::hp67::{
     ActOperation, ActRegister, Hp67ArchitecturalOperation, Hp67Key, CRC_FLAG_PROGRAM_MODE,
+    HP67_DISPLAY_SCAN_SLOTS,
 };
 
 #[test]
@@ -230,6 +231,13 @@ fn settle_live_dispatch_observing(
         }
         observation.saw_single_step |= live.machine.act.state.status[1];
         if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
+            for _ in 0..HP67_DISPLAY_SCAN_SLOTS {
+                if let Some(execution) = live.step_firmware_cycle_with_execution().unwrap() {
+                    observation.saw_user_instruction_execute |=
+                        execution.pc == USER_INSTRUCTION_EXECUTE_PC;
+                }
+                observation.saw_single_step |= live.machine.act.state.status[1];
+            }
             return observation;
         }
     }
