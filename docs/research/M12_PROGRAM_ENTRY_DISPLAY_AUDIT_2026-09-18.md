@@ -107,3 +107,28 @@ Independent emulator cross-check: pinned x11-calc's HP-67 renderer treats B `0,4
 - any other B value -> hard `UnsupportedModifier` error.
 
 This closes the immediate raw-B serializer defect without claiming a transistor/PLA-level reconstruction of every mathematically possible B nibble.
+
+
+## ROM0 modifier-class decode closure after cycle 6349
+
+After the pipeline-observer fix, the end-to-end M12 regression advanced through PROGRAM entry, RUN transition, RTN normalization and into real stored-program execution. At live cycle 6349 it stopped on:
+
+```text
+UnknownDisplayCode { scan_slot: 5, code: 51 }
+pre_a_b=Some((3, 3))
+post_a_b=Some((3, 3))
+```
+
+Decimal 51 is hexadecimal `0x33`. This is not state corruption: the pre- and post-instruction display source agree on A/B `(3,3)`.
+
+The already-audited ACT display encoder maps B=3 to the measured ROM0 `$3x` modifier class while retaining A in the low nibble. Independent HP-67 rendering in pinned x11-calc `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983` resolves the class semantics: for HP-67, B=3 means **decimal point**, and the A nibble is ignored for that display position. Likewise B=2/1/F are blank/space formats.
+
+Therefore ROM0 decoding must operate on the class, not only on the single boot examples `$20` and `$30`:
+
+- `$2x` -> blank;
+- `$3x` -> decimal point only;
+- `$4x` -> blank;
+- `$0x` retains the direct digit/letter decode;
+- `$5x` remains invalid and is still a hard failure.
+
+The regression now explicitly locks `0x25 -> blank` and the observed failing case `0x33 -> decimal point`. No arbitrary unknown code was accepted.
