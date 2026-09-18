@@ -112,3 +112,12 @@ This proves that editing changes the stored program that firmware subsequently e
 ## Fidelity boundary
 
 These regressions validate firmware-visible PROGRAM and RUN control behavior at instruction/word boundaries. They do not claim exact key-hold display duration, LED persistence or PHI-relative timing; those remain in the electrical timing milestones.
+
+
+## Physical-display settle requirement
+
+The first RUN-SST regression reached the correct arithmetic result but observed the physical frame as `3.` rather than `3.00`. This was not an arithmetic or firmware-formatting failure. The live display model updates one physical scan slot per structural word, so reaching the no-key firmware wait can precede completion of the first full 15-position refresh after the result is made visible.
+
+The HP quick-reference and owner's handbook explicitly describe RUN-mode SST as displaying the executed result; published examples retain the active display format (for example results ending in `.00`). The permanent harness therefore keeps the `3.00` oracle and, after firmware has settled to the no-key wait, advances one complete `HP67_DISPLAY_SCAN_SLOTS` refresh before inspecting the physical frame.
+
+This changes only the test observation boundary. It does not alter emulator display production or firmware timing.
