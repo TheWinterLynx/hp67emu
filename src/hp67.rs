@@ -244,10 +244,6 @@ impl Hp67LiveMachine {
         self.display
     }
 
-    pub const fn is_booting(&self) -> bool {
-        !matches!(self.phase, LiveBootPhase::Idle)
-    }
-
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
@@ -465,7 +461,7 @@ mod tests {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.phase = LiveBootPhase::Firmware;
 
-        while live.is_booting() {
+        while !matches!(live.phase, LiveBootPhase::Idle) {
             live.step_firmware_cycle().unwrap();
         }
         assert_eq!(
