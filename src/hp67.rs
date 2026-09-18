@@ -914,11 +914,21 @@ mod tests {
         }
 
         panic!(
-            "stored 11 1B 12 37 00 program did not run and halt at physical 3.00; pc={:04o} s2={} s11={} ram3d={:?}",
+            "stored 11 1B 12 37 00 program did not run and halt at physical 3.00; pc={:04o} \
+             saw_running={} s2={} s11={} s15={} wait_visits_before={} wait_visits_after={} \
+             ram3d={:?} display={:02x?} A={:x?} B={:x?} C={:x?}",
             live.machine.pc(),
+            saw_running,
             live.machine.act.state.status[2],
             live.machine.act.state.status[11],
-            live.machine.ram.read(HP67_PROGRAM_PC_RAM)
+            live.machine.act.state.status[15],
+            wait_visits,
+            live.main_wait_visits,
+            live.machine.ram.read(HP67_PROGRAM_PC_RAM),
+            live.display_frame().segments(),
+            live.machine.act.state.a,
+            live.machine.act.state.b,
+            live.machine.act.state.c,
         );
     }
 
