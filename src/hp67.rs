@@ -4,8 +4,7 @@ use hp67emu::machines::hp67::{
     decode_rom0_display_byte, run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint,
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
-    Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
-    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
     HP67_OBSERVED_WORD_TIME_US,
 };
 
@@ -483,7 +482,10 @@ mod tests {
                 break;
             }
         }
-        assert!(dispatched, "held Digit1 contact never reached firmware table 1440");
+        assert!(
+            dispatched,
+            "held Digit1 contact never reached firmware table 1440"
+        );
 
         let wait_visits_before_release = live.main_wait_visits;
         live.set_key_contact(None);
