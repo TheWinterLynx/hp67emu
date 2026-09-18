@@ -738,12 +738,8 @@ fn exact_shifted_sequence(
         harness.press_and_settle(key, label)?;
     }
 
-    let display = harness.press_shifted_and_settle(
-        prefix,
-        prefix_label,
-        function_key,
-        function_label,
-    )?;
+    let display =
+        harness.press_shifted_and_settle(prefix, prefix_label, function_key, function_label)?;
     if display != expected {
         return Err(format!(
             "{name}: got [{}], expected [{}]",
@@ -781,10 +777,7 @@ fn shifted_function_exact_matrix() -> Result<(), String> {
 
     exact_shifted_sequence(
         "ABS -5",
-        &[
-            (Hp67Key::Digit5, "5"),
-            (Hp67Key::ChangeSign, "CHS"),
-        ],
+        &[(Hp67Key::Digit5, "5"), (Hp67Key::ChangeSign, "CHS")],
         Hp67Key::FunctionH,
         "h",
         Hp67Key::Digit6,
