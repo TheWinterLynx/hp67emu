@@ -906,9 +906,14 @@ mod tests {
                 && !live.machine.act.state.status[15]
                 && live.display_frame().segments()
                     == &[
-                        0x00, 0x00, 0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     ]
             {
+                assert_eq!(
+                    live.machine.ram.read(HP67_PROGRAM_PC_RAM),
+                    Some([0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                    "stored R/S halted without advancing the user-program counter to step 006"
+                );
                 return;
             }
         }
