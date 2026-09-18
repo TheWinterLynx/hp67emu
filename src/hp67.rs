@@ -590,19 +590,29 @@ mod tests {
     const HP67_PROGRAM_RAM_START: u8 = 0x10;
     const HP67_PROGRAM_RAM_END: u8 = 0x2f;
     const HP67_PROGRAM_PC_RAM: u8 = 0x3d;
+    const HP67_PROGRAM_RAM_WORDS: usize =
+        (HP67_PROGRAM_RAM_END - HP67_PROGRAM_RAM_START + 1) as usize;
     const KEYS_TO_A_OPCODE: u16 = 0o0120;
     const A_TO_ROM_ADDRESS_OPCODE: u16 = 0o0220;
+    const MODE_SWITCH_CYCLE_LIMIT: usize = 8_192;
+    const KEY_DISPATCH_CYCLE_LIMIT: usize = 512;
+    const FIRMWARE_SETTLE_CYCLE_LIMIT: usize = 4_096;
+    const PROGRAM_RUN_CYCLE_LIMIT: usize = 20_000;
 
-    fn live_program_ram_snapshot(live: &Hp67LiveMachine) -> Vec<Option<ActRegister>> {
-        (HP67_PROGRAM_RAM_START..=HP67_PROGRAM_RAM_END)
-            .map(|address| live.machine.ram.read(address))
-            .collect()
+    fn live_program_ram_snapshot(
+        live: &Hp67LiveMachine,
+    ) -> [Option<ActRegister>; HP67_PROGRAM_RAM_WORDS] {
+        std::array::from_fn(|offset| {
+            live.machine
+                .ram
+                .read(HP67_PROGRAM_RAM_START + offset as u8)
+        })
     }
 
     fn wait_for_firmware_mode(live: &mut Hp67LiveMachine, program: bool, label: &str) {
         live.set_program_mode(program).unwrap();
         let wait_visits = live.main_wait_visits;
-        for _ in 0..8_192 {
+        for _ in 0..MODE_SWITCH_CYCLE_LIMIT {
             live.step_firmware_cycle().unwrap();
             if live.main_wait_visits > wait_visits
                 && !live.machine.act.state.status[15]
@@ -619,171 +629,12 @@ mod tests {
         );
     }
 
-    fn press_program_key_and_require_ram_change(
-        live: &mut Hp67LiveMachine,
-        key: Hp67Key,
-        expected_step: u8,
-    ) {
-        let before_program = live_program_ram_snapshot(live);
-        let before_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
-        let mut memory_trace = Vec::new();
-        let mut control_trace = Vec::new();
-        live.set_key_contact(Some(key));
-
-        let expected_code = key.scan_code();
-        let mut keys_to_a_seen = false;
-        let mut dispatch_target = None;
-        for step in 0..512 {
-            if step < 96 {
-                control_trace.push(format!(
-                    "#{step:03} pc={:04o} word={} s15={} s3={} key={:?}",
-                    live.machine.pc(),
-                    live.pipeline
-                        .executing_word()
-                        .map(|word| format!("{word:04o}"))
-                        .unwrap_or_else(|| "----".to_owned()),
-                    live.machine.act.state.status[15],
-                    live.machine.act.state.status[3],
-                    live.keyboard.code()
-                ));
-            }
-
-            let execution = live.step_firmware_cycle_with_execution().unwrap();
-
-            if let Some(execution) = execution {
-                let word = execution.word;
-                if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
-                    memory_trace.push(format!(
-                        "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
-                        execution.pc,
-                        live.machine.act.state.ram_address,
-                        live.machine.act.state.c[1],
-                        live.machine.act.state.c[0]
-                    ));
-                }
-
-                if matches!(
-                    execution.operation,
-                    Hp67ArchitecturalOperation::Act(ActOperation::Special {
-                        opcode: KEYS_TO_A_OPCODE
-                    })
-                ) {
-                    let observed_code =
-                        (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
-                    assert_eq!(
-                        observed_code, expected_code,
-                        "PROGRAM {key:?} keys -> A produced {observed_code:04o}, expected physical code {expected_code:04o}"
-                    );
-                    keys_to_a_seen = true;
-                }
-
-                if matches!(
-                    execution.operation,
-                    Hp67ArchitecturalOperation::Act(ActOperation::Special {
-                        opcode: A_TO_ROM_ADDRESS_OPCODE
-                    })
-                ) {
-                    assert!(
-                        keys_to_a_seen,
-                        "PROGRAM {key:?} executed A -> ROM address before keys -> A"
-                    );
-                    let target = execution.next_pc;
-                    assert!(
-                        (0o1405..=0o1466).contains(&target),
-                        "PROGRAM {key:?} dispatched outside the unshifted HP-67 key table: {target:04o}"
-                    );
-                    dispatch_target = Some(target);
-                    break;
-                }
-            }
-        }
-        assert!(
-            dispatch_target.is_some(),
-            "PROGRAM {key:?} never completed keys -> A / A -> ROM dispatch; control trace: {}",
-            control_trace.join(" | ")
-        );
-
-        let wait_visits = live.main_wait_visits;
-        live.set_key_contact(None);
-        let mut changed = Vec::new();
-        let mut settled = false;
-        for _ in 0..4_096 {
-            let execution = live.step_firmware_cycle_with_execution().unwrap();
-            if let Some(execution) = execution {
-                let word = execution.word;
-                if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
-                    memory_trace.push(format!(
-                        "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
-                        execution.pc,
-                        live.machine.act.state.ram_address,
-                        live.machine.act.state.c[1],
-                        live.machine.act.state.c[0]
-                    ));
-                }
-            }
-
-            let after_program = live_program_ram_snapshot(live);
-            changed = before_program
-                .iter()
-                .zip(&after_program)
-                .enumerate()
-                .filter_map(|(offset, (before, after))| {
-                    (before != after).then_some(usize::from(HP67_PROGRAM_RAM_START) + offset)
-                })
-                .collect();
-
-            if live.machine.ram.read(HP67_PROGRAM_PC_RAM) != before_pc
-                && live.main_wait_visits > wait_visits
-                && !live.machine.act.state.status[15]
-            {
-                settled = true;
-                break;
-            }
-        }
-
-        assert_ne!(
-            live.machine.ram.read(HP67_PROGRAM_PC_RAM),
-            before_pc,
-            "PROGRAM {key:?} did not advance the user-program counter in RAM 0x3D; dispatch={dispatch_target:?}; pc={:04o}; program-RAM changes={changed:?}; memory trace: {}; control trace: {}",
-            live.machine.pc(),
-            if memory_trace.is_empty() {
-                "<none>".to_owned()
-            } else {
-                memory_trace.join(" | ")
-            },
-            control_trace.join(" | ")
-        );
-        assert!(
-            settled,
-            "PROGRAM {key:?} advanced RAM 0x3D but did not return to the no-key firmware wait; program-RAM changes={changed:?}"
-        );
-
-        let pc_register = live
-            .machine
-            .ram
-            .read(HP67_PROGRAM_PC_RAM)
-            .expect("HP-67 program-counter register 0x3D must be installed");
-        assert!(
-            (1..=7).contains(&expected_step),
-            "this M12 oracle covers the first seven program steps"
-        );
-        assert_eq!(
-            &pc_register[0..3],
-            &[0x0f, 0x02, 7 - expected_step],
-            "PROGRAM {key:?} did not leave RAM 0x3D at expected user step {expected_step:03}"
-        );
-    }
-
-    fn press_live_key_to_dispatch(
-        live: &mut Hp67LiveMachine,
-        key: Hp67Key,
-        expected_target: u16,
-    ) -> u16 {
+    fn press_live_key_to_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key) -> u16 {
         let expected_code = key.scan_code();
         live.set_key_contact(Some(key));
         let mut saw_keys_to_a = false;
 
-        for _ in 0..512 {
+        for _ in 0..KEY_DISPATCH_CYCLE_LIMIT {
             let execution = live.step_firmware_cycle_with_execution().unwrap();
             let Some(execution) = execution else {
                 continue;
@@ -813,13 +664,8 @@ mod tests {
                     saw_keys_to_a,
                     "{key:?} executed A -> ROM address before keys -> A"
                 );
-                let target = execution.next_pc;
-                assert_eq!(
-                    target, expected_target,
-                    "{key:?} firmware dispatch target mismatch"
-                );
                 live.set_key_contact(None);
-                return target;
+                return execution.next_pc;
             }
         }
 
@@ -832,9 +678,79 @@ mod tests {
         );
     }
 
+    fn press_live_key_to_expected_dispatch(
+        live: &mut Hp67LiveMachine,
+        key: Hp67Key,
+        expected_target: u16,
+    ) -> u16 {
+        let target = press_live_key_to_dispatch(live, key);
+        assert_eq!(
+            target, expected_target,
+            "{key:?} firmware dispatch target mismatch"
+        );
+        target
+    }
+
+    fn press_program_key_and_require_ram_change(
+        live: &mut Hp67LiveMachine,
+        key: Hp67Key,
+        expected_step: u8,
+    ) {
+        assert!(
+            (1..=7).contains(&expected_step),
+            "this M12 oracle covers the first seven program steps"
+        );
+
+        let before_program = live_program_ram_snapshot(live);
+        let before_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
+        let dispatch_target = press_live_key_to_dispatch(live, key);
+        assert!(
+            (0o1405..=0o1466).contains(&dispatch_target),
+            "PROGRAM {key:?} dispatched outside the unshifted HP-67 key table: {dispatch_target:04o}"
+        );
+
+        let wait_visits = live.main_wait_visits;
+        let mut settled = false;
+        for _ in 0..FIRMWARE_SETTLE_CYCLE_LIMIT {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.ram.read(HP67_PROGRAM_PC_RAM) != before_pc
+                && live.main_wait_visits > wait_visits
+                && !live.machine.act.state.status[15]
+            {
+                settled = true;
+                break;
+            }
+        }
+
+        let after_program = live_program_ram_snapshot(live);
+        assert_ne!(
+            after_program, before_program,
+            "PROGRAM {key:?} advanced no program RAM after dispatch {dispatch_target:04o}"
+        );
+
+        let after_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
+        assert_ne!(
+            after_pc, before_pc,
+            "PROGRAM {key:?} did not advance the user-program counter in RAM 0x3D after dispatch {dispatch_target:04o}; pc={:04o}",
+            live.machine.pc()
+        );
+        assert!(
+            settled,
+            "PROGRAM {key:?} advanced state but did not return to the no-key firmware wait"
+        );
+
+        let pc_register =
+            after_pc.expect("HP-67 program-counter register 0x3D must be installed");
+        assert_eq!(
+            &pc_register[0..3],
+            &[0x0f, 0x02, 7 - expected_step],
+            "PROGRAM {key:?} did not leave RAM 0x3D at expected user step {expected_step:03}"
+        );
+    }
+
     fn settle_live_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key, target: u16) {
         let wait_visits = live.main_wait_visits;
-        for _ in 0..4_096 {
+        for _ in 0..FIRMWARE_SETTLE_CYCLE_LIMIT {
             live.step_firmware_cycle().unwrap();
             if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
                 return;
@@ -847,7 +763,7 @@ mod tests {
     }
 
     fn press_live_key_and_settle(live: &mut Hp67LiveMachine, key: Hp67Key, expected_target: u16) {
-        let target = press_live_key_to_dispatch(live, key, expected_target);
+        let target = press_live_key_to_expected_dispatch(live, key, expected_target);
         settle_live_dispatch(live, key, target);
     }
 
@@ -906,10 +822,10 @@ mod tests {
         );
 
         let wait_visits = live.main_wait_visits;
-        press_live_key_to_dispatch(&mut live, Hp67Key::RunStop, 0o1443);
+        press_live_key_to_expected_dispatch(&mut live, Hp67Key::RunStop, 0o1443);
 
         let mut saw_running = false;
-        for _ in 0..20_000 {
+        for _ in 0..PROGRAM_RUN_CYCLE_LIMIT {
             live.step_firmware_cycle().unwrap();
             saw_running |= live.machine.act.state.status[2];
             if saw_running
