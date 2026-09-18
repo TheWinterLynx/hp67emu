@@ -5,9 +5,8 @@ use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard,
-    Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    HP67_OBSERVED_WORD_TIME_US,
+    Hp67Key, Hp67Keyboard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
