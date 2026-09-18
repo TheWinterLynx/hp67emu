@@ -127,9 +127,9 @@ impl Hp67ArchitecturalMachine {
         if let Some(instruction) = decode_crc_opcode(word)? {
             let boundary = self.act.execute_word(&mut self.ram, 0o0000)?;
             let condition = self.crc.execute_opcode(word)?;
-            if let Some(condition) = condition {
-                // CRC flag-test output drives ACT status S3 on both outcomes.
-                self.act.state.status[3] = condition;
+            if condition == Some(true) {
+                // A true CRC flag test pulses ACT F2; the ACT latches that pulse into S3.
+                self.act.state.status[3] = true;
             }
             return Ok(Hp67ArchitecturalExecution {
                 pc,
@@ -216,17 +216,6 @@ mod tests {
         machine.execute_word(0o300).expect("CRC test must execute");
         assert!(machine.act.state.status[3]);
         assert_eq!(machine.crc.external_flag(CRC_FLAG_PROGRAM_MODE), Some(true));
-    }
-
-    #[test]
-    fn crc_false_test_clears_act_s3() {
-        let mut machine = Hp67ArchitecturalMachine::default();
-        machine.act.state.status[3] = true;
-        machine
-            .set_program_mode(false)
-            .expect("program switch must exist");
-        machine.execute_word(0o300).expect("CRC test must execute");
-        assert!(!machine.act.state.status[3]);
     }
 
     #[test]
