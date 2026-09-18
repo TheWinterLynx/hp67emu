@@ -31,3 +31,6 @@ M12 source audit: the HP-29C service manual documents the Woodstock ACT sending 
 
 
 M12 cycle-4430 evidence: executing `0132` had pre-state A/B `(5,0)` and post-state `(0,5)` at the selected display digit. The previous transport read the post-state and emitted undocumented ROM0 byte `$50`; the same-word display source now comes from the already-existing serial pre-state snapshot. The separate HP-documented B-modifier recoding remains an explicit open electrical-fidelity item and is not guessed here.
+
+
+M12 ROM0 modifier recoding: the HP-29C Service Manual states that Woodstock sends four A bits followed by three bits recoded from the four-bit B display modifier, so raw `B<<4 | A` is not a valid hardware model. Direct HP-67 captures identify the ROM0 classes `$0x` for characters, `$20` blank/sign-class traffic, `$30` decimal-point traffic and `$4x` blank traffic. The pinned x11-calc HP-67 display path independently accepts only B formats `0,4,9` as number, `3` as decimal point, and `1,2,F` as blank/sign-related formats. Production now recodes only those known B values into the measured ROM0 classes and returns `ActDisplaySerialError::UnsupportedModifier` for any other B nibble instead of emitting an invented byte.
