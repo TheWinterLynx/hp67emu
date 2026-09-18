@@ -534,11 +534,7 @@ mod tests {
         );
     }
 
-    fn press_live_key_to_target(
-        live: &mut Hp67LiveMachine,
-        key: Hp67Key,
-        target: u16,
-    ) {
+    fn press_live_key_to_target(live: &mut Hp67LiveMachine, key: Hp67Key, target: u16) {
         live.set_key_contact(Some(key));
         let mut dispatched = false;
         for _ in 0..512 {
@@ -557,9 +553,7 @@ mod tests {
         live.set_key_contact(None);
         for _ in 0..4_096 {
             live.step_firmware_cycle().unwrap();
-            if live.main_wait_visits > wait_visits
-                && !live.machine.act.state.status[15]
-            {
+            if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
                 return;
             }
         }
@@ -617,9 +611,7 @@ mod tests {
             }
         }
 
-        panic!(
-            "stored 1 ENTER 2 + R/S program did not execute to physical 3.00 and stop"
-        );
+        panic!("stored 1 ENTER 2 + R/S program did not execute to physical 3.00 and stop");
     }
 
     #[test]
