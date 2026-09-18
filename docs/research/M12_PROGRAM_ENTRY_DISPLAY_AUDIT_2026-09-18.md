@@ -57,3 +57,23 @@ A stronger hardware discrepancy was then found in Hewlett-Packard's HP-29C Servi
 Independent high-level Woodstock implementations agree on the role of B rather than treating it as a raw character-code high nibble: Nonpareil and NP25 decode B as display-format/punctuation state, while x11-calc's HP-67 renderer accepts only specific B formats for number, blank and decimal output.
 
 The exact Woodstock B(4)->display(3) recoding table has not yet been established from a primary source. Production behavior is therefore not being guessed. Commit `9172d3b` adds diagnostics only: on a ROM0 decode failure it reports the executing word, post-execution PC, DISPLAY latch, selected display register index, and the selected A/B nibbles from both the pre-instruction serial snapshot and post-instruction architectural state. One rerun can then distinguish missing B recoding from an instruction-boundary timing error, or show that both are present.
+
+
+## Cycle 4430 decisive trace
+
+The diagnostic rerun produced:
+
+```text
+executing_word=Some(90)
+post_pc=0152
+display_enable=true
+register_index=Some(11)
+pre_a_b=Some((5, 0))
+post_a_b=Some((0, 5))
+```
+
+Rust printed the word as decimal 90, which is octal `0132`. The selected digit changes from A/B `(5,0)` before the instruction to `(0,5)` after it. The observed bad ROM0 byte `$50` is therefore exactly the post-instruction pair serialized backward into the same word's b0..b7 display window.
+
+This distinguishes the immediate M12 failure from the separate B-recoding gap. Regardless of the final B(4)->modifier(3) network, the same-word display source cannot be the fully committed post-instruction architectural A/B state. The existing `ActSerialStateSnapshot` already exists specifically to prevent that temporal inversion for arithmetic; M12 now extends that ownership to display A/B and DISPLAY-enable state.
+
+A regression reproduces the exact `0132` condition: snapshot A/B `(5,0)`, mutate architectural A/B to `(0,5)`, then require the structural display transport to emit the pre-instruction value. The HP-documented B recoding remains open and is not inferred from this trace.
