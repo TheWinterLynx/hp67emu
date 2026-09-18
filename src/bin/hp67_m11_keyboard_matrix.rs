@@ -89,9 +89,7 @@ const EXPECTED_ONE_POINT_TWENTY_FOUR: [u8; 15] = [
 const EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIXED_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x06, 0x5b, 0x4f, 0x3f, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00,
 ];
-const EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIFTY_FIXED_TWO: [u8; 15] = [
-    0x00, 0x00, 0x00, 0x06, 0x5b, 0x4f, 0x6d, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00,
-];
+
 const EXPECTED_CLEAR_DISPLAY: [u8; 15] = EXPECTED_BOOT_DISPLAY;
 const EXPECTED_ONE_POINT_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x06, 0x80, 0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1219,7 +1217,7 @@ fn run_mode_family_matrix() -> Result<(), String> {
     require_display(
         "ENG 2 + RND 12345",
         display,
-        EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIFTY_FIXED_TWO,
+        EXPECTED_TWELVE_THOUSAND_THREE_HUNDRED_FIXED_TWO,
     )?;
 
     let mut mean = boot_harness()?;
