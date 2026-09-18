@@ -344,19 +344,46 @@ fn paint_window_insertion_from_right(
     let t = ease_in_out(progress);
     let card_width = window.width();
     let card_height = window.height();
-    let start = Rect::from_min_max(
-        pos2(photo.right() + 28.0 * scale, window.top()),
-        pos2(
-            photo.right() + 28.0 * scale + card_width,
-            window.top() + card_height,
-        ),
+    let holder_mouth_x = window.right();
+    let start_left = photo.right() + 28.0 * scale;
+    let end_left = window.left();
+    let left = start_left + (end_left - start_left) * t;
+    let rect = Rect::from_min_max(
+        pos2(left, window.top()),
+        pos2(left + card_width, window.top() + card_height),
     );
-    let rect = lerp_rect(start, window, t);
 
-    // The passive reference-card holder is approached from the calculator's
-    // right side. Keep the whole card visible throughout the transfer instead
-    // of morphing a clipped left-exit fragment directly into the window.
-    paint_card(ui.painter(), rect, card, CardPalette::holder(), scale);
+    // The card does not travel over the calculator shell. From the top-down
+    // view, the right-hand part remains visible only while it is still outside
+    // the case; after crossing the case edge it is hidden beneath the body/lip.
+    // It becomes visible again only inside the passive holder window.
+    let outside_right = Rect::from_min_max(
+        pos2(photo.right(), ui.clip_rect().top()),
+        ui.clip_rect().right_bottom(),
+    );
+    let holder_window = window.intersect(ui.clip_rect());
+
+    if outside_right.intersects(rect) {
+        paint_card(
+            &ui.painter().with_clip_rect(outside_right),
+            rect,
+            card,
+            CardPalette::holder(),
+            scale,
+        );
+    }
+
+    if holder_window.intersects(rect) {
+        paint_card(
+            &ui.painter().with_clip_rect(holder_window),
+            rect,
+            card,
+            CardPalette::holder(),
+            scale,
+        );
+    }
+
+    debug_assert!(holder_mouth_x <= photo.right());
 }
 
 fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
@@ -467,6 +494,12 @@ mod tests {
         assert!(!ProgramCardPhase::ParkedLeft.is_animating());
         assert!(ProgramCardPhase::InsertingWindowFromRight.is_animating());
         assert!(!ProgramCardPhase::InWindow.is_animating());
+    }
+
+    #[test]
+    fn holder_window_stays_inside_the_case_and_occludes_shell_travel() {
+        assert!(CARD_WINDOW.x1 < PHOTO_W);
+        assert!(CARD_WINDOW.x0 < CARD_WINDOW.x1);
     }
 
     #[test]
