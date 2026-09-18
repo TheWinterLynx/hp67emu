@@ -56,6 +56,18 @@ const EXPECTED_ZERO_POINT_TWENTY: [u8; 15] = [
 const EXPECTED_ZERO_POINT_TWENTY_FIVE: [u8; 15] = [
     0x00, 0x00, 0x00, 0x3f, 0x80, 0x5b, 0x6d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+const EXPECTED_ZERO_POINT_FIFTY: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x3f, 0x80, 0x6d, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_THIRTY_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x4f, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_FORTY_FIVE_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x66, 0x6d, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_SIXTY_FIXED_TWO: [u8; 15] = [
+    0x00, 0x00, 0x00, 0x7d, 0x3f, 0x80, 0x3f, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
 const EXPECTED_CLEAR_DISPLAY: [u8; 15] = EXPECTED_BOOT_DISPLAY;
 const EXPECTED_ONE_POINT_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x06, 0x80, 0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -896,6 +908,74 @@ fn shifted_function_exact_matrix() -> Result<(), String> {
         EXPECTED_EIGHT_FIXED_TWO,
     )?;
 
+    exact_shifted_sequence(
+        "SIN 30 DEG",
+        &[(Hp67Key::Digit3, "3"), (Hp67Key::Digit0, "0")],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Digit4,
+        "4",
+        EXPECTED_ZERO_POINT_FIFTY,
+    )?;
+
+    exact_shifted_sequence(
+        "COS 60 DEG",
+        &[(Hp67Key::Digit6, "6"), (Hp67Key::Digit0, "0")],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Digit5,
+        "5",
+        EXPECTED_ZERO_POINT_FIFTY,
+    )?;
+
+    exact_shifted_sequence(
+        "TAN 45 DEG",
+        &[(Hp67Key::Digit4, "4"), (Hp67Key::Digit5, "5")],
+        Hp67Key::FunctionF,
+        "f",
+        Hp67Key::Digit6,
+        "6",
+        EXPECTED_ONE_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "ASIN 0.50 DEG",
+        &[
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Decimal, "."),
+            (Hp67Key::Digit5, "5"),
+        ],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit4,
+        "4",
+        EXPECTED_THIRTY_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "ACOS 0.50 DEG",
+        &[
+            (Hp67Key::Digit0, "0"),
+            (Hp67Key::Decimal, "."),
+            (Hp67Key::Digit5, "5"),
+        ],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit5,
+        "5",
+        EXPECTED_SIXTY_FIXED_TWO,
+    )?;
+
+    exact_shifted_sequence(
+        "ATAN 1 DEG",
+        &[(Hp67Key::Digit1, "1")],
+        Hp67Key::FunctionG,
+        "g",
+        Hp67Key::Digit6,
+        "6",
+        EXPECTED_FORTY_FIVE_FIXED_TWO,
+    )?;
+
     Ok(())
 }
 
@@ -960,7 +1040,7 @@ fn main() -> Result<(), String> {
     shifted_function_coverage()?;
 
     println!(
-        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle; digit/basic arithmetic/CHS/EEX plus SQRT, reciprocal, ABS, INT, FRAC, LN, EXP, LOG, 10^x, x^2, factorial and y^x are exact raw-display regressions; all f/g/h shifted dispatch paths were exercised. Remaining shifted functions stay coverage-only until independently specified regressions are added."
+        "\nM11 COVERAGE PASS: all 35 direct keycodes match the independent keyboard oracle; digit/basic arithmetic/CHS/EEX plus SQRT, reciprocal, ABS, INT, FRAC, LN, EXP, LOG, 10^x, x^2, factorial, y^x and six DEG trigonometric/inverse-trigonometric identities are exact raw-display regressions; all f/g/h shifted dispatch paths were exercised. Remaining shifted functions stay coverage-only until independently specified regressions are added."
     );
     Ok(())
 }
