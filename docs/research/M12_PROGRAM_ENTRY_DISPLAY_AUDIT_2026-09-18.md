@@ -1,0 +1,48 @@
+# M12 program-entry and display-path audit — 2026-09-18
+
+## Scope
+
+This audit was triggered by the M12 end-to-end PROGRAM regression reaching a structural ROM0 error `UnknownDisplayCode { scan_slot: 6, code: 80 }` (`0x50`). No new ROM0 character code was accepted merely to make the regression pass. The program-entry path and display transport were rechecked against HP documentation, direct HP-67 measurements and independent microcode emulators before changing production code.
+
+## What the failing run had already proven
+
+The failure occurred after the M12 helper had entered `1 ENTER 2 + R/S` in PROGRAM mode. For each of those five physical keys the helper had already required:
+
+- real firmware execution of `keys -> a`;
+- the exact physical key scan code in ACT A[2:1];
+- a persistent change in the modeled HP-67 RAM image; and
+- return to the no-key firmware wait.
+
+The `0x50` failure occurred later, after switching back toward RUN and entering `press_live_key_to_target()`. It is therefore not evidence that PROGRAM storage failed.
+
+## HP and hardware evidence
+
+The HP-29C service manual describes the same Woodstock ACT family and states that once per 56-bit word time the ACT sends ROM0 a character code over IS/IA; ROM0 decodes digits, decimal/minus, blank and the Error letters.
+
+Tony Nixon's direct HP-67 logic-analyser measurements in *Notes on HP's Classic Calculators* place the ROM0 display byte on IS at b0..b7, LSB first. The capture explicitly identifies `$20` as **Blank** and records the HP-67 ROM0 decode set, including `$00..$0F`, `$30` and `$4x`. `$50` is not in the measured decode set.
+
+The same hardware material shows ACT, ROM0 and the cathode driver connected through IS/ISA, STR and RCD without a separate ACT-to-ROM0 DISPLAY-enable pin. DISPLAY-off therefore cannot be modeled as permission for arbitrary A/B working-register contents to become a visible ROM0 character.
+
+## Independent emulator cross-checks
+
+Pinned Nonpareil `c347bc1ab20170c253512042f7aac0d952f304ea`:
+
+- `ncd/67-97/67.ncd.tmpl` maps HP-67 RAM as four 16-register blocks, `0x00..0x3F`, and maps PRGM/RUN to CRC flag 1.
+- `src/proc_woodstock.c` applies `display off` and `display toggle` directly to the ACT display-enable latch before the display scan executed later in the same cycle. With DISPLAY disabled its scan emits no visible segments.
+- `src/crc.c` implements a successful CRC flag test as a pulse on ACT F2. A false result does not directly clear ACT S3.
+- `ncd/67-97/67.asm` explicitly executes `0 -> s 3` before relevant CRC tests and routes a key through `display off`, `keys -> a`, program-code construction and the `insert` path.
+
+Pinned x11-calc `9599ba6b8dc9eb55a4501ec2171a43d7ab5f9983` independently defines HP-67 `MEMORY_SIZE 64`, corroborating the `0x00..0x3F` RAM map.
+
+Greg Sydney-Smith's HP67u microcode notes independently show the HP-67 wait loop, program RAM layout and real microcode paths, including DISPLAY OFF around key/function processing.
+
+## Corrections made
+
+1. The earlier M12 experiment that made a false CRC test forcibly clear ACT S3 was reverted. Source-backed behavior is: a true CRC test pulses ACT F2 and therefore sets S3; false produces no F2 pulse. Firmware owns explicit `0 -> s 3` instructions.
+2. ROM0 `0x50` remains invalid. No decoder relaxation was made.
+3. ACT structural display serialization now emits the measured HP-67 ROM0 blank code `$20` while `display_enable == false`, instead of serializing arbitrary live A/B nibbles.
+4. The already documented power-on exception is retained: before firmware has executed its first explicit display-control instruction, the live machine permits the observed startup display traffic despite the architectural reset value of the DISPLAY latch.
+
+## Still not claimed
+
+This remains a structural word/bit model. The exact PHI-relative launch/sample edge for display data, the intra-word instant at which an ACT result bit commits, and exact STR/RCD overlap timing remain M14/M15 electrical-fidelity work. The M12 correction does not claim those unresolved timings.
