@@ -77,3 +77,33 @@ Rust printed the word as decimal 90, which is octal `0132`. The selected digit c
 This distinguishes the immediate M12 failure from the separate B-recoding gap. Regardless of the final B(4)->modifier(3) network, the same-word display source cannot be the fully committed post-instruction architectural A/B state. The existing `ActSerialStateSnapshot` already exists specifically to prevent that temporal inversion for arithmetic; M12 now extends that ownership to display A/B and DISPLAY-enable state.
 
 A regression reproduces the exact `0132` condition: snapshot A/B `(5,0)`, mutate architectural A/B to `(0,5)`, then require the structural display transport to emit the pre-instruction value. The HP-documented B recoding remains open and is not inferred from this trace.
+
+
+## HP-67 B modifier recoding closure for M12
+
+After the pre/post-state timing fix, the next run advanced from cycle 4430 to 4431 and failed with:
+
+```text
+executing_word=Some(122)
+post_pc=0153
+display_enable=true
+register_index=Some(10)
+pre_a_b=Some((0, 15))
+post_a_b=Some((0, 0))
+```
+
+Decimal 122 is octal `0172`, the full-word `a -> b[w]` operation. The pre-instruction B nibble is therefore deliberately `F` until that operation commits; it is not random post-state contamination.
+
+Primary HP evidence: the HP-29C Service Manual, paragraph 2-45, states that Woodstock outputs four A bits and then **three B-derived bits recoded from the preceding four-bit B modifier**. Therefore `B=F` must not appear on IS as raw high nibble `$F0`.
+
+Direct HP-67 capture evidence: Tony Nixon's *Notes on HP's Classic Calculators* records ROM0 display classes `$00..$0F`, `$20` blank, `$30` decimal point and `$4x` blank.
+
+Independent emulator cross-check: pinned x11-calc's HP-67 renderer treats B `0,4,9` as numeric output, B `3` as decimal-point output, and B `1,2,F` as blank/sign-related output. These values are now mapped only into the measured ROM0 classes:
+
+- `B=0,4,9` -> `$0x` with A as the low nibble;
+- `B=2` -> `$2x`;
+- `B=3` -> `$3x`;
+- `B=1,F` -> `$4x`;
+- any other B value -> hard `UnsupportedModifier` error.
+
+This closes the immediate raw-B serializer defect without claiming a transistor/PLA-level reconstruction of every mathematically possible B nibble.
