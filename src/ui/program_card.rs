@@ -7,6 +7,7 @@ const PHOTO_H: f32 = 1695.0;
 
 const CARD_WINDOW: SourceRect = SourceRect::new(135.0, 365.0, 795.0, 448.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
+const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCardArtwork {
@@ -206,17 +207,18 @@ fn paint_card(
 fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress: f32, scale: f32) {
     let card_width = 600.0 * scale;
     let card_height = 72.0 * scale;
-    let start_left = photo.right() + 26.0 * scale;
-    let end_left = photo.right() - card_width + 30.0 * scale;
+    let reader_mouth_x = photo.left() + CARD_READER_MOUTH_X * photo.width() / PHOTO_W;
+    let start_left = reader_mouth_x + 42.0 * scale;
+    let end_left = reader_mouth_x - card_width;
     let left = start_left + (end_left - start_left) * ease_in_out(progress);
     let top = photo.top() + 370.0 * scale;
     let rect = Rect::from_min_max(pos2(left, top), pos2(left + card_width, top + card_height));
 
-    // A top-down view cannot expose the lateral reader itself.  During insertion,
-    // render only the portion of the physical card still outside the right edge
-    // of the calculator; the rest is hidden by the case.
+    // A top-down view cannot expose the lateral reader itself. During insertion,
+    // keep the card visible all the way to the physical reader mouth and hide
+    // only the portion that has actually crossed that line into the calculator.
     let outside_clip = Rect::from_min_max(
-        pos2(photo.right(), ui.clip_rect().top()),
+        pos2(reader_mouth_x, ui.clip_rect().top()),
         ui.clip_rect().right_bottom(),
     );
     if !outside_clip.intersects(rect) {
@@ -227,7 +229,7 @@ fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress
 }
 
 fn paint_reader_hint(painter: &Painter, photo: Rect, hit: Rect, scale: f32) {
-    let x = photo.right() - 2.0 * scale;
+    let x = photo.left() + CARD_READER_MOUTH_X * photo.width() / PHOTO_W;
     let y = hit.center().y;
     let color = Color32::from_rgba_unmultiplied(210, 184, 93, 165);
     painter.line_segment(
@@ -288,6 +290,7 @@ mod tests {
     fn reader_hotspot_is_at_the_right_edge_not_a_second_front_slot() {
         assert!(CARD_READER_HIT.x0 >= 775.0);
         assert!(CARD_READER_HIT.x1 < PHOTO_W);
+        assert_eq!(CARD_READER_MOUTH_X, CARD_READER_HIT.x1);
         assert!(CARD_READER_HIT.y0 < CARD_WINDOW.y1);
         assert!(CARD_READER_HIT.y1 > CARD_WINDOW.y0);
     }
