@@ -546,7 +546,8 @@ mod tests {
         let mut control_trace = Vec::new();
         live.set_key_contact(Some(key));
 
-        let mut release_wait_seen = false;
+        let expected_code = key.scan_code();
+        let mut keys_to_a_seen = false;
         for step in 0..512 {
             if step < 96 {
                 control_trace.push(format!(
@@ -561,7 +562,11 @@ mod tests {
                     live.keyboard.code()
                 ));
             }
-            if let Some(word) = live.pipeline.executing_word() {
+
+            let executing_word = live.pipeline.executing_word();
+            let normal = live.machine.act.state.instruction_state
+                == hp67emu::machines::hp67::ActInstructionState::Normal;
+            if let Some(word) = executing_word {
                 if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
                     memory_trace.push(format!(
                         "pc={:04o} word={word:04o} addr=0x{:02x} c01={:x}{:x}",
@@ -572,15 +577,24 @@ mod tests {
                     ));
                 }
             }
-            if (0o0164..=0o0166).contains(&live.machine.pc()) {
-                release_wait_seen = true;
+
+            live.step_firmware_cycle().unwrap();
+
+            if normal && executing_word == Some(0o0120) {
+                let observed_code =
+                    (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
+                assert_eq!(
+                    observed_code, expected_code,
+                    "PROGRAM {key:?} keys -> A produced {observed_code:04o}, expected physical code {expected_code:04o}"
+                );
+                keys_to_a_seen = true;
                 break;
             }
-            live.step_firmware_cycle().unwrap();
         }
         assert!(
-            release_wait_seen,
-            "PROGRAM {key:?} never reached the firmware key-release wait"
+            keys_to_a_seen,
+            "PROGRAM {key:?} never executed keys -> A; control trace: {}",
+            control_trace.join(" | ")
         );
 
         let wait_visits = live.main_wait_visits;
