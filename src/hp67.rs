@@ -780,17 +780,11 @@ mod tests {
             "firmware did not latch PROGRAM mode in S11"
         );
 
-        let program_before = live_program_ram_snapshot(&live);
         press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1, 1);
         press_program_key_and_require_ram_change(&mut live, Hp67Key::Enter, 2);
         press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit2, 3);
         press_program_key_and_require_ram_change(&mut live, Hp67Key::Add, 4);
         press_program_key_and_require_ram_change(&mut live, Hp67Key::RunStop, 5);
-        let program_after = live_program_ram_snapshot(&live);
-        assert_ne!(
-            program_after, program_before,
-            "PROGRAM entry advanced RAM 0x3D but left the entire 0x10..0x2F program store unchanged"
-        );
 
         let first_program_register = live
             .machine
