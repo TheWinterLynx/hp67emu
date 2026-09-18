@@ -239,22 +239,26 @@ impl Harness {
         ))
     }
 
-    fn capture_display(&mut self) -> Result<[u8; 15], String> {
-        self.source.select_bank(self.machine.bank());
+    fn capture_display(&self) -> Result<[u8; 15], String> {
+        let source = Hp67Firmware::default();
+        source.select_bank(self.machine.bank());
         let address = self.machine.pc();
+        let mut backplane = Hp67ElectricalBackplane::default();
         let mut display_act = ActSerialEndpoint::new(address);
+        let mut fetch_rom = RomFetchEndpoint::default();
+        let mut display_rom0 = Rom0DisplayEndpoint::default();
         let mut cathode = CathodeDriver1820_1749::default();
         let mut segments = [0u8; 15];
 
         for expected_slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
             let result = run_structural_display_fetch_cycle(
-                &mut self.backplane,
+                &mut backplane,
                 address,
                 &self.machine.act.state,
                 &mut display_act,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
+                &mut fetch_rom,
+                &mut display_rom0,
+                &source,
             )
             .map_err(|error| {
                 format!("display capture failed at slot {expected_slot}: {error:?}")
