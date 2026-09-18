@@ -33,13 +33,13 @@ pub enum ProgramCardPhase {
     Idle,
     ReadingFromRight,
     ParkedLeft,
-    MovingToWindow,
+    InsertingWindowFromRight,
     InWindow,
 }
 
 impl ProgramCardPhase {
     pub const fn is_animating(self) -> bool {
-        matches!(self, Self::ReadingFromRight | Self::MovingToWindow)
+        matches!(self, Self::ReadingFromRight | Self::InsertingWindowFromRight)
     }
 }
 
@@ -116,8 +116,8 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
             output.parked_left_clicked = response.clicked();
             paint_parked_left(ui, photo, view.artwork, scale);
         }
-        ProgramCardPhase::MovingToWindow => {
-            paint_move_to_window(
+        ProgramCardPhase::InsertingWindowFromRight => {
+            paint_window_insertion_from_right(
                 ui,
                 photo,
                 window,
@@ -330,7 +330,7 @@ fn paint_parked_left(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, scale: f32
     );
 }
 
-fn paint_move_to_window(
+fn paint_window_insertion_from_right(
     ui: &Ui,
     photo: Rect,
     window: Rect,
@@ -339,23 +339,28 @@ fn paint_move_to_window(
     scale: f32,
 ) {
     let t = ease_in_out(progress);
-    let start = parked_left_rect(photo, scale);
-    let rect = lerp_rect(start, window, t);
-    let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
-    let reveal_right = exit_mouth_x + (window.right() - exit_mouth_x) * t;
-    let reveal_clip = Rect::from_min_max(
-        ui.clip_rect().left_top(),
-        pos2(reveal_right, ui.clip_rect().bottom()),
+    let card_width = window.width();
+    let card_height = window.height();
+    let start = Rect::from_min_max(
+        pos2(photo.right() + 28.0 * scale, window.top()),
+        pos2(
+            photo.right() + 28.0 * scale + card_width,
+            window.top() + card_height,
+        ),
     );
+    let rect = lerp_rect(start, window, t);
+
+    // The passive reference-card holder is approached from the calculator's
+    // right side. Keep the whole card visible throughout the transfer instead
+    // of morphing a clipped left-exit fragment directly into the window.
     paint_card(
-        &ui.painter().with_clip_rect(reveal_clip),
+        ui.painter(),
         rect,
         card,
         CardPalette::holder(),
         scale,
     );
 }
-
 fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
     Rect::from_min_max(
         pos2(
@@ -462,7 +467,7 @@ mod tests {
         assert!(!ProgramCardPhase::Idle.is_animating());
         assert!(ProgramCardPhase::ReadingFromRight.is_animating());
         assert!(!ProgramCardPhase::ParkedLeft.is_animating());
-        assert!(ProgramCardPhase::MovingToWindow.is_animating());
+        assert!(ProgramCardPhase::InsertingWindowFromRight.is_animating());
         assert!(!ProgramCardPhase::InWindow.is_animating());
     }
 
