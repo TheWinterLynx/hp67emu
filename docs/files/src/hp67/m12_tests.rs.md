@@ -18,4 +18,4 @@ Drive the mechanical RUN/PRGM flag, hold real key contacts through firmware `key
 
 ## Implementation
 
-The harness uses one common physical-dispatch helper for PROGRAM and RUN paths. PROGRAM RAM snapshots are fixed-size arrays captured once before and after an insertion rather than repeatedly allocated inside settle loops. Named cycle limits bound mode transitions, key dispatch, firmware settle and program execution. The tests do not implement calculator semantics or normalize machine state in host code.
+The harness uses one common physical-dispatch helper for PROGRAM and RUN paths. Per PROGRAM key, it verifies the real firmware dispatch and exact user-PC step advance; it deliberately does not require the underlying program RAM bits to change because a valid stored byte such as `R/S = 0x00` can equal the pre-existing zero-filled memory. Exact storage is checked independently by the final `11 1B 12 37 00` byte assertion. Named cycle limits bound mode transitions, key dispatch, firmware settle and program execution. The tests do not implement calculator semantics or normalize machine state in host code.
