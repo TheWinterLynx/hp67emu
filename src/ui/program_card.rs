@@ -387,19 +387,6 @@ fn paint_window_insertion_from_right(
     debug_assert!(holder_mouth_x <= case_right_x);
 }
 
-fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
-    Rect::from_min_max(
-        pos2(
-            from.left() + (to.left() - from.left()) * t,
-            from.top() + (to.top() - from.top()) * t,
-        ),
-        pos2(
-            from.right() + (to.right() - from.right()) * t,
-            from.bottom() + (to.bottom() - from.bottom()) * t,
-        ),
-    )
-}
-
 fn source_x_to_screen(photo: Rect, x: f32) -> f32 {
     photo.left() + x * photo.width() / PHOTO_W
 }
