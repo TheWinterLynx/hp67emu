@@ -39,6 +39,12 @@ const EXPECTED_CLEAR_DISPLAY: [u8; 15] = EXPECTED_BOOT_DISPLAY;
 const EXPECTED_ONE_POINT_TWO: [u8; 15] = [
     0x00, 0x00, 0x00, 0x06, 0x80, 0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+const EXPECTED_NEGATIVE_ONE: [u8; 15] = [
+    0x00, 0x00, 0x10, 0x06, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const EXPECTED_ONE_EEX_TWO: [u8; 15] = [
+    0x5b, 0x3f, 0x00, 0x06, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5b,
+];
 const DIGIT_SEGMENTS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
 #[derive(Debug, Clone, Copy)]
@@ -619,16 +625,24 @@ fn basic_function_matrix() -> Result<(), String> {
         EXPECTED_THREE_FIXED_TWO,
     )?;
 
-    let mut chs = boot_harness()?;
-    chs.press_and_settle(Hp67Key::Digit1, "1")?;
-    let chs_display = chs.press_and_settle(Hp67Key::ChangeSign, "CHS")?;
-    println!("CHS FRONTIER: {}", format_segments(&chs_display));
+    exact_sequence(
+        "CHS",
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::ChangeSign, "CHS"),
+        ],
+        EXPECTED_NEGATIVE_ONE,
+    )?;
 
-    let mut eex = boot_harness()?;
-    eex.press_and_settle(Hp67Key::Digit1, "1")?;
-    eex.press_and_settle(Hp67Key::Exponent, "EEX")?;
-    let eex_display = eex.press_and_settle(Hp67Key::Digit2, "2")?;
-    println!("EEX FRONTIER: {}", format_segments(&eex_display));
+    exact_sequence(
+        "EEX",
+        &[
+            (Hp67Key::Digit1, "1"),
+            (Hp67Key::Exponent, "EEX"),
+            (Hp67Key::Digit2, "2"),
+        ],
+        EXPECTED_ONE_EEX_TWO,
+    )?;
 
     Ok(())
 }
@@ -688,7 +702,7 @@ fn main() -> Result<(), String> {
     shifted_function_frontier()?;
 
     println!(
-        "\nM11 FRONTIER PASS: 35 direct keys, exact digit/basic arithmetic paths, and f/g/h shifted dispatch paths traversed real firmware. CHS/EEX and shifted-function outputs are intentionally reported as frontiers for the next exact-lock pass."
+        "\nM11 FRONTIER PASS: 35 direct keys, exact digit/basic arithmetic/CHS/EEX paths, and f/g/h shifted dispatch paths traversed real firmware. Shifted-function outputs remain a frontier for later exact-lock passes."
     );
     Ok(())
 }
