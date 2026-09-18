@@ -24,7 +24,7 @@ The visible card artwork is UI metadata only:
 
 It does not alter key identities. A-E continue to generate their existing physical HP-67 keycodes and firmware remains responsible for deciding default-function versus user-label behavior.
 
-The lateral reader is represented as a right-edge interaction. During the temporary read animation, only the part of the card still outside the calculator case is rendered. Once the animation completes, the same artwork is placed in the passive holder above A-E.
+The lateral reader is represented as a right-edge interaction. During reading, the same physical card moves from right to left behind the top-down case: only the portions outside the right reader mouth or left exit mouth are rendered. The card is longer than the distance between both mouths, so the leading edge starts emerging on the left before the trailing edge fully disappears on the right. When reading completes, a small clickable tab remains protruding from the left side. The user must click that exposed end to animate the card into the passive holder above A-E.
 
 ## Initial fixture
 
@@ -51,3 +51,16 @@ Specifically it does not yet:
 - mutate program RAM from the UI.
 
 Those are the next M13 electrical/firmware slices. This presentation layer exists so real card data can later be attached without conflating metadata with machine state.
+
+
+## Presentation phase machine
+
+The UI presentation uses five explicit states:
+
+- `Idle`: no card visible; the right-edge reader hotspot accepts insertion;
+- `ReadingFromRight`: the card traverses the hidden lateral reader path from right to left;
+- `ParkedLeft`: only the physically exposed left end remains visible and clickable;
+- `MovingToWindow`: the user-selected card animates from the left exit into the holder;
+- `InWindow`: the passive reference artwork remains above A-E until removed.
+
+These states are presentation only. They are deliberately separate from future CRC/card-electronics states so later M13 work can drive motor, card-presence and data timing without making the artwork layer authoritative.
