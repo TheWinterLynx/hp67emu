@@ -313,8 +313,14 @@ impl Hp67LiveMachine {
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
+            let mut serial_pre_state = self.machine.act.state.clone();
+            if !self.display_control_seen {
+                // Direct power-on capture shows display traffic before firmware
+                // executes its first explicit DISPLAY control instruction.
+                serial_pre_state.display_enable = true;
+            }
             self.act_serial
-                .begin_execution(word, &self.machine.act.state)
+                .begin_execution(word, &serial_pre_state)
                 .map_err(|error| {
                     format!("live boot cycle {cycle} serial execution start failed: {error:?}")
                 })?;
@@ -377,8 +383,6 @@ impl Hp67LiveMachine {
         let address = self.machine.pc();
         let mut display_state = self.machine.act.state.clone();
         if !self.display_control_seen {
-            // Power-on capture shows visible output before firmware has executed
-            // its first explicit display-control instruction.
             display_state.display_enable = true;
         }
         let result = run_structural_display_fetch_cycle(
