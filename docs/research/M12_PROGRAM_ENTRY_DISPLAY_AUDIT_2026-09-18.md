@@ -132,3 +132,25 @@ Therefore ROM0 decoding must operate on the class, not only on the single boot e
 - `$5x` remains invalid and is still a hard failure.
 
 The regression now explicitly locks `0x25 -> blank` and the observed failing case `0x33 -> decimal point`. No arbitrary unknown code was accepted.
+
+
+## Final 3.00 frame oracle correction
+
+The next M12 rerun completed the stored program and reported:
+
+```text
+saw_running=true
+s2=false
+s11=false
+s15=false
+ram3d=Some([15, 2, 1, 0, ...])
+display=[00, 4f, 80, 3f, 3f, 00, ...]
+A=[0,0,1,f,f,f,f,f,f,f,0,0,0,3]
+B=[2,2,0,0,0,0,0,0,0,0,0,0,3,0]
+```
+
+This proves that the program-control path completed: S2 was observed high while running and false after the stored R/S, while RAM 0x3D had advanced to the encoding for user step 006.
+
+The displayed result was also already correct. `HP67_DISPLAY_GEOMETRY.md` fixes physical display index 1 as the first mantissa position after the shared sign position. Therefore `[00,4f,80,3f,3f,...]` is the physical frame for `3.00`: digit 3 at index 1, decimal point at index 2, then two zero digits. The previous M12 test oracle incorrectly expected the same pattern two positions to the right.
+
+The production display path was not changed. The test expectation was corrected to the source-backed physical geometry, and the successful terminal condition now also requires RAM 0x3D to contain the step-006 encoding `[F,2,1]`.
