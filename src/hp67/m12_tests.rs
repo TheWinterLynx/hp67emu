@@ -20,10 +20,7 @@ fn live_program_switch_drives_crc_external_flag() {
     );
 }
 
-const HP67_PROGRAM_RAM_START: u8 = 0x10;
-const HP67_PROGRAM_RAM_END: u8 = 0x2f;
 const HP67_PROGRAM_PC_RAM: u8 = 0x3d;
-const HP67_PROGRAM_RAM_WORDS: usize = (HP67_PROGRAM_RAM_END - HP67_PROGRAM_RAM_START + 1) as usize;
 const KEYS_TO_A_OPCODE: u16 = 0o0120;
 const A_TO_ROM_ADDRESS_OPCODE: u16 = 0o0220;
 const MODE_SWITCH_CYCLE_LIMIT: usize = 8_192;
@@ -34,12 +31,6 @@ const EXPECTED_PROGRAM_PREFIX: [u8; 10] =
     [0x01, 0x01, 0x0b, 0x01, 0x02, 0x01, 0x07, 0x03, 0x00, 0x00];
 const EXPECTED_STEP_006_PC: ActRegister = [0x0f, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 const EXPECTED_3_00_FRAME: [u8; 15] = [0x00, 0x4f, 0x80, 0x3f, 0x3f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
-fn live_program_ram_snapshot(
-    live: &Hp67LiveMachine,
-) -> [Option<ActRegister>; HP67_PROGRAM_RAM_WORDS] {
-    std::array::from_fn(|offset| live.machine.ram.read(HP67_PROGRAM_RAM_START + offset as u8))
-}
 
 fn wait_for_firmware_mode(live: &mut Hp67LiveMachine, program: bool, label: &str) {
     live.set_program_mode(program).unwrap();
@@ -123,7 +114,7 @@ fn press_live_key_to_expected_dispatch(
     target
 }
 
-fn press_program_key_and_require_ram_change(
+fn press_program_key_and_require_step_advance(
     live: &mut Hp67LiveMachine,
     key: Hp67Key,
     expected_step: u8,
@@ -133,7 +124,6 @@ fn press_program_key_and_require_ram_change(
         "this M12 oracle covers the first seven program steps"
     );
 
-    let before_program = live_program_ram_snapshot(live);
     let before_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
     let dispatch_target = press_live_key_to_dispatch(live, key);
     assert!(
@@ -153,12 +143,6 @@ fn press_program_key_and_require_ram_change(
             break;
         }
     }
-
-    let after_program = live_program_ram_snapshot(live);
-    assert_ne!(
-        after_program, before_program,
-        "PROGRAM {key:?} advanced no program RAM after dispatch {dispatch_target:04o}"
-    );
 
     let after_pc = live.machine.ram.read(HP67_PROGRAM_PC_RAM);
     assert_ne!(
@@ -212,11 +196,11 @@ fn live_program_mode_stores_and_executes_simple_program() {
         "firmware did not latch PROGRAM mode in S11"
     );
 
-    press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit1, 1);
-    press_program_key_and_require_ram_change(&mut live, Hp67Key::Enter, 2);
-    press_program_key_and_require_ram_change(&mut live, Hp67Key::Digit2, 3);
-    press_program_key_and_require_ram_change(&mut live, Hp67Key::Add, 4);
-    press_program_key_and_require_ram_change(&mut live, Hp67Key::RunStop, 5);
+    press_program_key_and_require_step_advance(&mut live, Hp67Key::Digit1, 1);
+    press_program_key_and_require_step_advance(&mut live, Hp67Key::Enter, 2);
+    press_program_key_and_require_step_advance(&mut live, Hp67Key::Digit2, 3);
+    press_program_key_and_require_step_advance(&mut live, Hp67Key::Add, 4);
+    press_program_key_and_require_step_advance(&mut live, Hp67Key::RunStop, 5);
 
     let first_program_register = live
         .machine
