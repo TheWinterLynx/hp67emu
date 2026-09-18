@@ -47,6 +47,7 @@ pub const fn display_register_index_for_scan_slot(scan_slot: u8) -> Option<usize
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActDisplaySerialError {
     InvalidScanSlot(u8),
+    UnsupportedModifier { scan_slot: u8, b_nibble: u8 },
 }
 
 /// ACT-side source for the eight ROM0 display bits of one 56-bit machine word.
