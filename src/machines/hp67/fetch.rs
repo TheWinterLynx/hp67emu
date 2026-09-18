@@ -999,7 +999,7 @@ mod tests {
         let address = ActSerialEndpoint::new(0x222);
 
         for bit in 16..=27 {
-            let level = match address.drive_for_bit(bit, None) {
+            let level = match address.drive_for_bit(bit, None).unwrap() {
                 Drive::High => LogicLevel::High,
                 Drive::HighZ => LogicLevel::Low,
                 Drive::Low => unreachable!("IS zeros are represented by release"),
