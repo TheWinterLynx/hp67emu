@@ -238,49 +238,78 @@ impl ActSerialEndpoint {
         rcd_falling
     }
 
+    fn encoded_display_byte(
+        &self,
+        state: Option<&ActArchitecturalState>,
+    ) -> Result<Option<u8>, ActDisplaySerialError> {
+        let Some(register_index) = self.display_register_index else {
+            return Ok(None);
+        };
+
+        let (display_enable, a_nibble, b_nibble) =
+            if let Some(snapshot) = self.execution_state.as_ref() {
+                let digit = register_index as u8;
+                (
+                    snapshot.display_enable(),
+                    snapshot
+                        .register_digit(ActSerialRegister::A, digit)
+                        .expect("latched display register index must be valid"),
+                    snapshot
+                        .register_digit(ActSerialRegister::B, digit)
+                        .expect("latched display register index must be valid"),
+                )
+            } else {
+                let Some(state) = state else {
+                    return Ok(None);
+                };
+                (
+                    state.display_enable,
+                    state.a[register_index] & 0x0f,
+                    state.b[register_index] & 0x0f,
+                )
+            };
+
+        if !display_enable {
+            return Ok(Some(HP67_ROM0_BLANK_CODE));
+        }
+
+        let code = match b_nibble {
+            // HP-67 numeric formats accepted by the independent firmware-level
+            // renderer all reach ROM0 as the measured $0x character class.
+            0x00 | 0x04 | 0x09 => a_nibble,
+            // B=2 is the sign/blank modifier class; B=3 adds the DP class.
+            0x02 => 0x20 | a_nibble,
+            0x03 => 0x30 | a_nibble,
+            // B=1/F are blank formats; physical HP-67 capture identifies $4x
+            // as the ROM0 blank class.
+            0x01 | 0x0f => 0x40 | a_nibble,
+            _ => {
+                return Err(ActDisplaySerialError::UnsupportedModifier {
+                    scan_slot: self.display_scan_slot,
+                    b_nibble,
+                });
+            }
+        };
+        Ok(Some(code))
+    }
+
     /// ACT contribution to IS for the current bit cell.
     ///
-    /// During b0..b7 the bit is read from the current A/B architectural state,
-    /// rather than from a nibble snapshot captured at the start of the word.
-    pub fn drive_for_bit(&self, word_bit: u8, state: Option<&ActArchitecturalState>) -> Drive {
+    /// During b0..b7 the selected pre-instruction A/B state is converted through
+    /// the HP-67's observed ROM0 code classes. The B register is a display-format
+    /// modifier and is not emitted as a raw high nibble.
+    pub fn drive_for_bit(
+        &self,
+        word_bit: u8,
+        state: Option<&ActArchitecturalState>,
+    ) -> Result<Drive, ActDisplaySerialError> {
         if let Some(serial_bit) = display_data_serial_bit(word_bit) {
-            let Some(register_index) = self.display_register_index else {
-                return Drive::HighZ;
+            let Some(code) = self.encoded_display_byte(state)? else {
+                return Ok(Drive::HighZ);
             };
-
-            let (display_enable, a_nibble, b_nibble) =
-                if let Some(snapshot) = self.execution_state.as_ref() {
-                    let digit = register_index as u8;
-                    (
-                        snapshot.display_enable(),
-                        snapshot
-                            .register_digit(ActSerialRegister::A, digit)
-                            .expect("latched display register index must be valid"),
-                        snapshot
-                            .register_digit(ActSerialRegister::B, digit)
-                            .expect("latched display register index must be valid"),
-                    )
-                } else {
-                    let Some(state) = state else {
-                        return Drive::HighZ;
-                    };
-                    (
-                        state.display_enable,
-                        state.a[register_index] & 0x0f,
-                        state.b[register_index] & 0x0f,
-                    )
-                };
-
-            let bit = if !display_enable {
-                ((HP67_ROM0_BLANK_CODE >> serial_bit) & 1) != 0
-            } else if serial_bit < 4 {
-                ((a_nibble >> serial_bit) & 1) != 0
-            } else {
-                ((b_nibble >> (serial_bit - 4)) & 1) != 0
-            };
-            return wired_high_drive(bit);
+            return Ok(wired_high_drive(((code >> serial_bit) & 1) != 0));
         }
-        act_address_drive(self.address, word_bit)
+        Ok(act_address_drive(self.address, word_bit))
     }
 
     /// Sample a resolved IS/ISA level during the ROM return window.
@@ -463,7 +492,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         backplane.drive(
             Hp67Net::Isa,
             ACT_IS_DRIVER,
-            act.drive_for_bit(expected_bit, act_state),
+            act.drive_for_bit(expected_bit, act_state)?,
         );
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
@@ -656,13 +685,49 @@ mod tests {
         act.begin_display_fetch_cycle(0)
             .expect("slot 1 must select a valid ACT display digit");
 
-        assert_eq!(act.drive_for_bit(0, Some(&state)), Drive::HighZ);
+        assert_eq!(act.drive_for_bit(0, Some(&state)).unwrap(), Drive::HighZ);
         state.a[0] = 0x01;
-        assert_eq!(act.drive_for_bit(0, Some(&state)), Drive::High);
+        assert_eq!(act.drive_for_bit(0, Some(&state)).unwrap(), Drive::High);
 
-        assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::HighZ);
+        assert_eq!(act.drive_for_bit(4, Some(&state)).unwrap(), Drive::HighZ);
         state.b[0] = 0x01;
-        assert_eq!(act.drive_for_bit(4, Some(&state)), Drive::High);
+        assert_eq!(act.drive_for_bit(4, Some(&state)).unwrap(), Drive::High);
+    }
+
+    #[test]
+    fn hp67_b_modifier_is_recoded_into_measured_rom0_classes() {
+        let mut act = ActSerialEndpoint::new(0);
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+        state.a[0] = 0x05;
+        act.begin_display_fetch_cycle(0)
+            .expect("slot 1 must select exponent-units source");
+
+        for (b_nibble, expected) in [
+            (0x00, 0x05),
+            (0x04, 0x05),
+            (0x09, 0x05),
+            (0x02, 0x25),
+            (0x03, 0x35),
+            (0x01, 0x45),
+            (0x0f, 0x45),
+        ] {
+            state.b[0] = b_nibble;
+            assert_eq!(
+                act.encoded_display_byte(Some(&state)).unwrap(),
+                Some(expected),
+                "B={b_nibble:x} must map to the source-backed ROM0 class"
+            );
+        }
+
+        state.b[0] = 0x05;
+        assert_eq!(
+            act.encoded_display_byte(Some(&state)),
+            Err(ActDisplaySerialError::UnsupportedModifier {
+                scan_slot: 1,
+                b_nibble: 0x05,
+            })
+        );
     }
 
     #[test]
