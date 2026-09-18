@@ -345,7 +345,8 @@ fn paint_window_insertion_from_right(
     let card_width = window.width();
     let card_height = window.height();
     let holder_mouth_x = window.right();
-    let start_left = photo.right() + 28.0 * scale;
+    let case_right_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
+    let start_left = case_right_x + 28.0 * scale;
     let end_left = window.left();
     let left = start_left + (end_left - start_left) * t;
     let rect = Rect::from_min_max(
@@ -358,7 +359,7 @@ fn paint_window_insertion_from_right(
     // the case; after crossing the case edge it is hidden beneath the body/lip.
     // It becomes visible again only inside the passive holder window.
     let outside_right = Rect::from_min_max(
-        pos2(photo.right(), ui.clip_rect().top()),
+        pos2(case_right_x, ui.clip_rect().top()),
         ui.clip_rect().right_bottom(),
     );
     let holder_window = window.intersect(ui.clip_rect());
@@ -383,7 +384,7 @@ fn paint_window_insertion_from_right(
         );
     }
 
-    debug_assert!(holder_mouth_x <= photo.right());
+    debug_assert!(holder_mouth_x <= case_right_x);
 }
 
 fn lerp_rect(from: Rect, to: Rect, t: f32) -> Rect {
@@ -498,7 +499,7 @@ mod tests {
 
     #[test]
     fn holder_window_stays_inside_the_case_and_occludes_shell_travel() {
-        assert!(CARD_WINDOW.x1 < PHOTO_W);
+        assert!(CARD_WINDOW.x1 < CARD_READER_MOUTH_X);
         assert!(CARD_WINDOW.x0 < CARD_WINDOW.x1);
     }
 
