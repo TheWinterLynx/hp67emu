@@ -83,7 +83,14 @@ The following are exact raw-segment regressions through real `hp67firmware` and 
 - `h 4` / reciprocal of `4 = 0.25`;
 - `5 CHS h 6` / `ABS(-5) = 5.00`;
 - `1.2 f .` / `INT(1.2) = 1.00`;
-- `1.2 g .` / `FRAC(1.2) = 0.20`.
+- `1.2 g .` / `FRAC(1.2) = 0.20`;
+- `1 f 7` / `LN(1) = 0.00`;
+- `0 g 7` / `e^0 = 1.00`;
+- `1 f 8` / `LOG(1) = 0.00`;
+- `0 g 8` / `10^0 = 1.00`;
+- `3 g 9` / `3^2 = 9.00`;
+- `5 h /` / `5! = 120.00`;
+- `2 ENTER 3 h 5` / `2^3 = 8.00`.
 
 Hewlett-Packard's HP-67 Owner's Handbook independently states that CHS changes the sign of the mantissa or exponent and that EEX causes subsequent digits to be entered as the exponent of ten. The HP-67 Quick Reference Card also independently documents RUN/PROGRAM behavior.
 
@@ -118,7 +125,7 @@ Therefore RUN/PRGM behavior is not yet certified and belongs to M12 program entr
 
 ### Shifted function semantics
 
-All shifted dispatch paths are reachable. Five low-ambiguity shifted mathematical/number-alteration functions (`√x`, `1/x`, `ABS`, `INT`, `FRAC`) are now independently exact-locked; the remaining shifted mathematical/programming semantics are not yet exact-locked. The independent HP-67 key definition supplies the physical legends, and Hewlett-Packard documentation supplies user-visible behavior. Those sources should drive the next semantic regression set; emulator output must not be promoted to an expected value merely because the emulator produced it.
+All shifted dispatch paths are reachable. Twelve low-ambiguity shifted mathematical/number-alteration functions (`√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x`) are now independently specified for exact-lock; the remaining shifted mathematical/programming semantics are not yet exact-locked. The independent HP-67 key definition supplies the physical legends, and Hewlett-Packard documentation supplies user-visible behavior. Those sources should drive the next semantic regression set; emulator output must not be promoted to an expected value merely because the emulator produced it.
 
 ### Electrical timing
 
@@ -146,4 +153,4 @@ None of these changes alters ACT, CRC, firmware, keyboard, fetch, display, or UI
 
 There is no evidence that production behavior has been patched opportunistically to satisfy M11. The currently proven RUN-mode numeric path is strong: real versioned firmware, physical key contacts, real firmware dispatch, architectural ACT/CRC execution and structural ROM0/cathode display generation all participate without host calculator semantics.
 
-M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT` and `FRAC`. M11 becomes complete only when the remaining RUN-mode mathematical/display/storage functions in scope are systematically exact-locked and program-control families are explicitly moved to M12 with documented scope.
+M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!` and `y^x`. M11 becomes complete only when the remaining RUN-mode mathematical/display/storage functions in scope are systematically exact-locked and program-control families are explicitly moved to M12 with documented scope.
