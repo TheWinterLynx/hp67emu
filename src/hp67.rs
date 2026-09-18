@@ -669,9 +669,7 @@ mod tests {
         let mut program_switch_test_seen = false;
         let mut program_idle_seen = false;
         for _ in 0..8_192 {
-            if live.machine.pc() == 0o0174
-                && live.pipeline.executing_word() == Some(0o0300)
-            {
+            if live.machine.pc() == 0o0174 && live.pipeline.executing_word() == Some(0o0300) {
                 program_switch_test_seen = true;
             }
             live.step_firmware_cycle().unwrap();
