@@ -154,6 +154,7 @@ The iterative fixes during M11 were validator defects, not attempts to force pro
 
 - rustfmt-only reflows;
 - corrected the M11 display-mode harness after independent HP documentation confirmed that FIX/SCI/ENG selection and `DSP n` precision entry are separate key sequences; the former helper incorrectly treated `f/g/h + DSP + n` as one combined sequence;
+- corrected the ENG 2 + RND oracle: HP-67 ENG 2 retains the first significant digit plus two additional significant digits, so 12345 displays as 12.3×10^3 and RND makes the stored value 12300; the previous 12350 expectation was wrong.
 - a mistaken MULTIPLY expected value of 3.00 corrected to the mathematically and firmware-produced 6.00;
 - an invalid assumption that shifted keys must dispatch into the unshifted 1405..1466 page removed after firmware correctly selected 07xx/06xx/05xx pages;
 - CHS/EEX observations promoted to exact segment regressions after their structural meaning was checked;
