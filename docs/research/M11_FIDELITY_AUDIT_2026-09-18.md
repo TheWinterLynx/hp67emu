@@ -90,9 +90,18 @@ The following are exact raw-segment regressions through real `hp67firmware` and 
 - `0 g 8` / `10^0 = 1.00`;
 - `3 g 9` / `3^2 = 9.00`;
 - `5 h /` / `5! = 120.00`;
-- `2 ENTER 3 h 5` / `2^3 = 8.00`.
+- `2 ENTER 3 h 5` / `2^3 = 8.00`;
+- fresh power-on DEG: `30 f 4` / `sin(30°) = 0.50`;
+- fresh power-on DEG: `60 f 5` / `cos(60°) = 0.50`;
+- fresh power-on DEG: `45 f 6` / `tan(45°) = 1.00`;
+- fresh power-on DEG: `0.5 g 4` / `asin(0.5) = 30.00°`;
+- fresh power-on DEG: `0.5 g 5` / `acos(0.5) = 60.00°`;
+- fresh power-on DEG: `1 g 6` / `atan(1) = 45.00°`.
 
 Hewlett-Packard's HP-67 Owner's Handbook independently states that CHS changes the sign of the mantissa or exponent and that EEX causes subsequent digits to be entered as the exponent of ten. The HP-67 Quick Reference Card also independently documents RUN/PROGRAM behavior.
+
+
+The HP-67 quick reference identifies DEG as the default trigonometric mode and documents SIN/COS/TAN and their inverses. The audit uses that external statement only as a test oracle; it is not a runtime dependency.
 
 ## Shifted-function coverage: what it proves and what it does not
 
@@ -125,7 +134,7 @@ Therefore RUN/PRGM behavior is not yet certified and belongs to M12 program entr
 
 ### Shifted function semantics
 
-All shifted dispatch paths are reachable. Twelve low-ambiguity shifted mathematical/number-alteration functions (`√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x`) are now independently specified for exact-lock; the remaining shifted mathematical/programming semantics are not yet exact-locked. The independent HP-67 key definition supplies the physical legends, and Hewlett-Packard documentation supplies user-visible behavior. Those sources should drive the next semantic regression set; emulator output must not be promoted to an expected value merely because the emulator produced it.
+All shifted dispatch paths are reachable. Eighteen shifted mathematical/number-alteration cases are now independently specified for exact-lock: the prior twelve (`√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x`) plus six exact degree-mode trigonometric/inverse-trigonometric identities; the remaining shifted mathematical/programming semantics are not yet exact-locked. The independent HP-67 key definition supplies the physical legends, and Hewlett-Packard documentation supplies user-visible behavior. Those sources should drive the next semantic regression set; emulator output must not be promoted to an expected value merely because the emulator produced it.
 
 ### Electrical timing
 
@@ -153,4 +162,4 @@ None of these changes alters ACT, CRC, firmware, keyboard, fetch, display, or UI
 
 There is no evidence that production behavior has been patched opportunistically to satisfy M11. The currently proven RUN-mode numeric path is strong: real versioned firmware, physical key contacts, real firmware dispatch, architectural ACT/CRC execution and structural ROM0/cathode display generation all participate without host calculator semantics.
 
-M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!` and `y^x`. M11 becomes complete only when the remaining RUN-mode mathematical/display/storage functions in scope are systematically exact-locked and program-control families are explicitly moved to M12 with documented scope.
+M11 should **not** yet be marked fully complete. Its direct keyboard/basic numeric portion is exact-locked; shifted execution has comprehensive coverage plus independent exact locks for `√x`, `1/x`, `ABS`, `INT`, `FRAC`, `LN`, `e^x`, `LOG`, `10^x`, `x^2`, `N!`, `y^x` and six degree-mode trigonometric/inverse-trigonometric identities. M11 becomes complete only when the remaining RUN-mode mathematical/display/storage functions in scope are systematically exact-locked and program-control families are explicitly moved to M12 with documented scope.
