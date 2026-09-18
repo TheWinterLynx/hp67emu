@@ -577,7 +577,7 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machines::hp67::{ActSerialRegister, ActSerialWordClass, Hp67SegmentMask};
+    use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
 
     struct FixtureRom {
         words: [(u16, u16); 2],
