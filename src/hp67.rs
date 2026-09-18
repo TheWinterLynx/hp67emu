@@ -543,9 +543,23 @@ mod tests {
     fn press_program_key_and_require_ram_change(live: &mut Hp67LiveMachine, key: Hp67Key) {
         let before = live_ram_snapshot(live);
         let mut memory_trace = Vec::new();
+        let mut control_trace = Vec::new();
         live.set_key_contact(Some(key));
 
-        for _ in 0..512 {
+        for step in 0..512 {
+            if step < 96 {
+                control_trace.push(format!(
+                    "#{step:03} pc={:04o} word={} s15={} s3={} key={:?}",
+                    live.machine.pc(),
+                    live.pipeline
+                        .executing_word()
+                        .map(|word| format!("{word:04o}"))
+                        .unwrap_or_else(|| "----".to_owned()),
+                    live.machine.act.state.status[15],
+                    live.machine.act.state.status[3],
+                    live.keyboard.code()
+                ));
+            }
             if let Some(word) = live.pipeline.executing_word() {
                 if word == 0o1160 || word == 0o1360 || (word & 0o77) == 0o50 {
                     memory_trace.push(format!(
@@ -606,13 +620,14 @@ mod tests {
             .collect();
         assert!(
             !changed.is_empty(),
-            "PROGRAM {key:?} did not leave a persistent RAM change; pc={:04o}; memory trace: {}",
+            "PROGRAM {key:?} did not leave a persistent RAM change; pc={:04o}; memory trace: {}; control trace: {}",
             live.machine.pc(),
             if memory_trace.is_empty() {
                 "<none>".to_owned()
             } else {
                 memory_trace.join(" | ")
-            }
+            },
+            control_trace.join(" | ")
         );
     }
 
