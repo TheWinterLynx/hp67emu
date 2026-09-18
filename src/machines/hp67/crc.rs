@@ -9,7 +9,11 @@ use super::isa::ROM_WORD_MASK;
 pub const CRC_FLAG_COUNT: usize = 12;
 pub const CRC_RAM_WRITE_ADDRESS: u8 = 0x99;
 pub const CRC_RAM_READ_ADDRESS: u8 = 0x9b;
+pub const CRC_FLAG_BUFFER_READY: usize = 0;
 pub const CRC_FLAG_PROGRAM_MODE: usize = 1;
+pub const CRC_FLAG_MOTOR_ON: usize = 9;
+pub const CRC_FLAG_CARD_PRESENT: usize = 10;
+pub const CRC_FLAG_WRITE_MODE: usize = 11;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrcInstruction {
@@ -157,5 +161,14 @@ mod tests {
             .expect("program-mode flag exists");
         assert_eq!(crc.execute_opcode(0o300), Ok(Some(true)));
         assert_eq!(crc.external_flag(CRC_FLAG_PROGRAM_MODE), Some(true));
+    }
+
+    #[test]
+    fn external_card_present_participates_without_being_cleared() {
+        let mut crc = CrcArchitecturalCore::default();
+        crc.set_external_flag(CRC_FLAG_CARD_PRESENT as u8, true)
+            .expect("card-present flag exists");
+        assert_eq!(crc.execute_opcode(0o560), Ok(Some(true)));
+        assert_eq!(crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
     }
 }
