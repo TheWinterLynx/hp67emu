@@ -1,10 +1,32 @@
 # Cycle-accurate HP-67 roadmap
 
+## Integration milestone track — current
+
+This is the active vertical integration track used by the current implementation work. The older electrical roadmap below remains the hardware-fidelity workstream and its historical M-numbers are retained for provenance; where the two tracks use the same milestone number, the integration track is authoritative for current branch/work naming.
+
+- **M1 — complete:** real HP-67 ROM corpus.
+- **M2 — complete:** ACT architectural execution.
+- **M3 — complete:** real serial ROM fetch.
+- **M4 — complete:** serial ADD/SUB execution image.
+- **M5 — complete:** real firmware reset/power-on.
+- **M6 — complete:** real firmware display initialization.
+- **M7 — complete:** stable firmware idle loop.
+- **M8 — complete:** physical keyboard to firmware.
+- **M9 — complete:** real entered number on physical display.
+- **M10 — complete:** real arithmetic through physical keyboard/firmware/display.
+- **M11 — complete (2026-09-18):** all 35 direct keycodes independently cross-checked, all 105 shifted `f/g/h` dispatch paths exercised, and major RUN-mode numeric/function families exact-locked through real firmware without host calculator semantics.
+- **M12 — next:** RUN/PRGM hardware flag, program entry, editing, stepping and execution.
+- **M13 — planned:** magnetic-card reader/writer physical path.
+- **M14 — planned:** power/timing fidelity.
+- **M15 — planned:** full hardware validation suite.
+
+M11 closure evidence is recorded in `docs/research/M11_FIDELITY_AUDIT_2026-09-18.md`.
+
 ## Development rule
 
 Each milestone is implemented in a focused branch created from the then-current `main`. After validation and merge, the next milestone branch starts from the updated `main`. We do not stack long-lived feature branches on top of one another.
 
-## Current status snapshot — 2026-09-16
+## Electrical-fidelity workstream snapshot — 2026-09-16
 
 The project has progressed vertically through several later milestones in order to validate real HP-67 firmware and the display path early. Therefore milestone numbers must not be read as a strictly completed prefix: M5/M6 have strong working slices while important M2/M3/M4 electrical details remain unfinished.
 
