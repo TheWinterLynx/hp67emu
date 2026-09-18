@@ -64,10 +64,9 @@ impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
 
-        if self
-            .card_read_started
-            .is_some_and(|started| now.saturating_duration_since(started) >= PROGRAM_CARD_READ_DURATION)
-        {
+        if self.card_read_started.is_some_and(|started| {
+            now.saturating_duration_since(started) >= PROGRAM_CARD_READ_DURATION
+        }) {
             self.card_read_started = None;
             self.card_in_window = true;
         }
