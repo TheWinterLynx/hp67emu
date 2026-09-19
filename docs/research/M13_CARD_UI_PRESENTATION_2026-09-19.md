@@ -83,3 +83,10 @@ Photographic references show a rectangular card with small rounded/chamfered cor
 The initial holder aperture was wider than the photographed A-E row and allowed the procedural card to overlap the white side trim. It is now locked to source x=166..764 and y=373..452. The horizontal bounds match the photographed A-E keycaps exactly while the lower y placement keeps the visible card below the trim and above the key row.
 
 The text/tick anchors are no longer generic 20% card intervals. Their physical-card fractions are calibrated so that, in the final holder position, they land on the actual photographed A-E key centres at source x=211, 338, 465, 592 and 719. The title/reference band is lowered slightly and the primary-label band raised slightly to keep all artwork comfortably inside the visible aperture.
+
+
+## Reference-card silhouette and holder correction
+
+The supplied SD-14A Moon Rocket Lander reference was used as the visual oracle for the card face. Its outline is not a symmetric rounded rectangle: the upper-left corner is cut diagonally and the lower-right corner carries the opposing diagonal, while the other two corners remain square. The photographed diagonal depth corresponds to roughly 4.2 mm on a 71.1 × 11.4 mm card. Three short rectangular light marks/notches are visible along the top edge and are now rendered explicitly.
+
+The earlier holder clip was only 79 source pixels high, so it necessarily removed the physical card's top and bottom from a ~111.5-source-pixel 1:1 card. The holder aperture is now x=132..798, y=344..457. This exposes the complete physical height, including the top markers, and more than 95% of the physical width. The card itself never changes size between reader transit, left exit, holder insertion and final holder state. Its palette was also changed from medium olive to a near-black olive to match the supplied original-card and calculator photographs.
