@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
+use hp67emu::machines::hp67::Hp67CardSide;
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
@@ -19,6 +20,7 @@ pub struct Hp67App {
     photo: TextureHandle,
     card_logo: TextureHandle,
     live_machine: Option<Hp67LiveMachine>,
+    card_media: Option<Hp67CardSide>,
     last_live_tick: Option<Instant>,
     card_phase: ProgramCardPhase,
     card_phase_started: Option<Instant>,
@@ -74,6 +76,7 @@ impl Hp67App {
             photo,
             card_logo,
             live_machine,
+            card_media: None,
             last_live_tick: None,
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
@@ -140,6 +143,17 @@ impl eframe::App for Hp67App {
                     },
                 );
                 if panel.card_reader_clicked {
+                    if let Some(machine) = self.live_machine.as_mut() {
+                        if !machine.card_side_inserted() {
+                            if let Some(side) = self.card_media.take() {
+                                if let Err(error) = machine.insert_card_side(side.clone()) {
+                                    eprintln!("HP-67 live card insertion failed: {error}");
+                                    self.card_media = Some(side);
+                                }
+                            }
+                        }
+                    }
+
                     self.card_phase = ProgramCardPhase::ReadingFromRight;
                     self.card_phase_started = Some(now);
                 }
@@ -201,10 +215,17 @@ impl eframe::App for Hp67App {
             });
 
         let mut live_error = None;
+        let mut live_card_active = false;
         if self.state.power_on {
             if let Some(machine) = self.live_machine.as_mut() {
                 if let Err(error) = machine.advance(elapsed) {
                     live_error = Some(error);
+                } else {
+                    live_card_active =
+                        machine.card_motor_on() || machine.card_record_stream_active();
+                    if machine.card_transport_complete() && self.card_media.is_none() {
+                        self.card_media = machine.take_completed_card_side();
+                    }
                 }
             }
         }
@@ -213,7 +234,7 @@ impl eframe::App for Hp67App {
             self.live_machine = None;
         }
 
-        if self.card_phase.is_animating() {
+        if self.card_phase.is_animating() || live_card_active {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
         if self.state.power_on {
