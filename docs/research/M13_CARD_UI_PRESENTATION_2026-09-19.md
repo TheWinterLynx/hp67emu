@@ -97,3 +97,10 @@ The earlier holder clip was only 79 source pixels high, so it necessarily remove
 Future Standard Pac and Application Pac cards will use the same physical renderer and differ only through metadata: card reference, title, A-E primary labels, f+A through f+E shifted labels, measured top-mark positions and logo visibility. Magnetic track contents remain a separate object and will never be inferred from artwork. This lets us recreate the remaining cards from high-quality scans without duplicating geometry or UI code.
 
 The small top marks are deliberately not assigned a reader or binary meaning. Available HP documentation clearly describes magnetic data as two tracks and write protection as cutting the corresponding edge/corner, but does not document these artwork marks as part of the reader protocol. Their patterns therefore remain scan-derived presentation data unless a primary source establishing another purpose is found.
+
+
+## Exact logo asset and photographed holder mask
+
+The procedural HP badge was rejected after visual comparison with the supplied original card. A transparent crop of the actual badge from the supplied SD-13A scan is now committed as `assets/hp67-card-logo.png`; the app loads it once and the card renderer texture-maps those exact pixels without reconstructing the glyph.
+
+The previous synthetic holder lips also did not reproduce the front-panel layering. Measurements from the emulator screenshot establish the photographed aperture at source x=138..793: outside that range the original chassis/rail pixels must remain on top. Vertically the measured usable opening is y=345..454. Rendering is now clipped to that aperture instead of painting artificial frame pieces. This keeps the original casing photograph authoritative and the physical 71.1 × 11.4 mm card underneath it. A-E artwork fractions were recalibrated after the half-pixel holder-center change so their final source positions remain exactly 211, 338, 465, 592 and 719.
