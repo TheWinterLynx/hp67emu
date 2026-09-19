@@ -343,9 +343,7 @@ impl Hp67LiveMachine {
         self.card_transport.take_completed_card()
     }
 
-    pub fn withdraw_unstarted_magnetic_card(
-        &mut self,
-    ) -> Result<Option<Hp67MagneticCard>, String> {
+    pub fn withdraw_unstarted_magnetic_card(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
         if self.card_motor_on()
             || self.card_transport.head_active()
             || self.card_transport.next_record() != 0
