@@ -249,6 +249,19 @@ impl Hp67App {
     }
 }
 
+fn opposite_track_can_continue(
+    card: &Hp67MagneticCard,
+    current_end: CardInsertionEnd,
+    write_mode: bool,
+) -> bool {
+    let track = card.track(current_end.opposite().track());
+    if write_mode {
+        !track.write_protected()
+    } else {
+        track.is_recorded()
+    }
+}
+
 fn filename_track_hint(path: &Path) -> Option<hp67emu::machines::hp67::Hp67CardTrack> {
     use hp67emu::machines::hp67::Hp67CardTrack;
 
@@ -423,5 +436,47 @@ impl eframe::App for Hp67App {
         if ctx.input(|i| i.pointer.any_down()) {
             ctx.request_repaint();
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
+
+    #[test]
+    fn opposite_track_continuation_distinguishes_read_and_write_media_requirements() {
+        let blank = Hp67MagneticCard::default();
+        assert!(!opposite_track_can_continue(
+            &blank,
+            CardInsertionEnd::End1,
+            false
+        ));
+        assert!(opposite_track_can_continue(
+            &blank,
+            CardInsertionEnd::End1,
+            true
+        ));
+
+        let recorded = blank.with_track(
+            Hp67CardTrack::Track2,
+            Hp67MagneticTrack::from_words([0; HP67_CARD_RECORDS_PER_TRACK]).unwrap(),
+        );
+        assert!(opposite_track_can_continue(
+            &recorded,
+            CardInsertionEnd::End1,
+            false
+        ));
+
+        let protected = Hp67MagneticCard::default().with_track(
+            Hp67CardTrack::Track2,
+            Hp67MagneticTrack::default().with_write_protected(true),
+        );
+        assert!(!opposite_track_can_continue(
+            &protected,
+            CardInsertionEnd::End1,
+            true
+        ));
     }
 }

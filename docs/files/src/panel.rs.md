@@ -19,3 +19,6 @@ Render the source photograph; map all 35 key rectangles; animate key travel; rep
 ## Implementation
 
 `Hp67Panel::show()` returns mechanical/key output plus separate card-reader, left-tab, left-tab-double-click and holder interaction flags. Each key uses `Response::is_pointer_button_down_on()` so contact state exists for the whole mouse hold rather than only on click release. The app translates that identity to `Hp67Key`; the panel never writes ACT state, display state, stack values, arithmetic results, CRC card flags or program RAM. Card rendering is delegated to `ui::program_card`. The panel also passes the original front-panel `TextureHandle` into that renderer so the holder can restore exact photographed chassis pixels over the card along the measured sloped right rail; no flat-color surrogate is used for that occlusion.
+
+
+M13 blank-media interaction: the panel forwards both the primary reader click and a distinct secondary-click blank-card request from `ui/program_card.rs`. It does not create media itself; the app owns that host-side physical-card action.

@@ -7,8 +7,8 @@ use hp67emu::machines::hp67::{
     Hp67ArchitecturalExecution, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
     Hp67CardTransport, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
     Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
-    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    HP67_OBSERVED_WORD_TIME_US,
+    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -317,6 +317,10 @@ impl Hp67LiveMachine {
 
     pub fn card_motor_on(&self) -> bool {
         self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
+    }
+
+    pub fn card_write_mode(&self) -> bool {
+        self.machine.crc.flag(CRC_FLAG_WRITE_MODE) == Some(true)
     }
 
     pub const fn card_record_stream_active(&self) -> bool {

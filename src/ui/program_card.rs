@@ -85,6 +85,7 @@ pub struct ProgramCardView<'a> {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ProgramCardUiOutput {
     pub reader_clicked: bool,
+    pub blank_card_requested: bool,
     pub parked_left_clicked: bool,
     pub parked_left_double_clicked: bool,
     pub window_clicked: bool,
@@ -123,12 +124,15 @@ pub fn paint(
                     ui.make_persistent_id("hp67-magnetic-card-reader"),
                     Sense::click(),
                 )
-                .on_hover_text("Insert program card into the magnetic reader");
+                .on_hover_text(
+                    "Click: insert loaded magnetic card. Right-click: insert a new blank card",
+                );
             if reader_response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                 paint_reader_hint(ui.painter(), photo, reader_hit, scale);
             }
             output.reader_clicked = reader_response.clicked();
+            output.blank_card_requested = reader_response.secondary_clicked();
         }
         ProgramCardPhase::ReadingFromRight => {
             paint_reader_motion(

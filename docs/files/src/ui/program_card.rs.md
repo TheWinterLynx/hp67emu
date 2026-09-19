@@ -38,3 +38,6 @@ The HP badge is no longer generated procedurally. `assets/hp67-card-logo.png` is
 
 
 Final right-edge registration now follows the photographed rail slope instead of a vertical clip. The card is allowed to render to source x=796, then the original `hp67.png` is restored over it in 109 one-source-pixel horizontal bands. The restored boundary interpolates from x=787 at the top of the holder to x=792 at the bottom, matching the visible white rail inclination. The physical card centre remains fixed at source x=465.5 with a -1.5 source-pixel window-centre compensation, so title/logo/A-E registration remains unchanged.
+
+
+The reader hotspot now distinguishes primary click from secondary click. Primary click requests insertion of already prepared media; secondary click requests a new blank physical card through the app. The renderer itself never creates magnetic records. At the left exit the `Crd` continuation hint is valid for both reading a recorded opposite track and writing a writable unrecorded opposite track; the app determines that distinction from the live CRC write-mode flag.
