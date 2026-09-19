@@ -648,6 +648,44 @@ mod tests {
     }
 
     #[test]
+    fn live_firmware_consumes_timed_crc_record_through_real_0x9b_path() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let words = [0x0300_0000; HP67_CARD_RECORDS_PER_SIDE];
+        live.card_transport
+            .insert_side(Hp67CardSide::from_words(words).unwrap())
+            .unwrap();
+        live.card_transport.set_head_active(true);
+        live.machine.set_card_present(true).unwrap();
+
+        for _ in 0..8_192 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(Hp67ArchitecturalExecution {
+                operation:
+                    Hp67ArchitecturalOperation::CrcDataRead {
+                        address,
+                        card_word,
+                    },
+                ..
+            }) = execution
+            {
+                assert_eq!(address, hp67emu::machines::hp67::CRC_RAM_READ_ADDRESS);
+                assert_eq!(card_word, 0x0300_0000);
+                assert_eq!(&live.machine.act.state.c[0..7], &[0, 0, 0, 0, 0, 0, 3]);
+                assert_eq!(&live.machine.act.state.c[7..14], &[0, 0, 0, 0, 0, 0, 3]);
+                return;
+            }
+        }
+
+        panic!("timed card transport never reached the real CRC 0x9B read path");
+    }
+
+    #[test]
     fn ui_state_tracks_mechanical_switch_positions() {
         let mut state = Hp67State::default();
         state.handle(UiEvent::ToggleMode);
