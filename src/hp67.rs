@@ -727,6 +727,83 @@ mod tests {
     }
 
     #[test]
+    fn live_firmware_full_card_write_then_read_round_trip_preserves_34_records() {
+        let mut writer = Hp67LiveMachine::power_on_default().unwrap();
+        writer.phase = LiveBootPhase::Firmware;
+        while !matches!(writer.phase, LiveBootPhase::Idle) {
+            writer.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut writer);
+
+        writer
+            .card_transport
+            .insert_side(Hp67CardSide::default())
+            .expect("blank side must insert for firmware write");
+        writer.card_transport.set_head_active(true);
+        writer.machine.set_card_present(true).unwrap();
+
+        let mut written = Vec::with_capacity(HP67_CARD_RECORDS_PER_SIDE);
+        for _ in 0..32_768 {
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataWrite { card_word, .. },
+                ..
+            }) = writer.step_firmware_cycle_with_execution().unwrap()
+            {
+                written.push(card_word);
+            }
+
+            if writer.card_transport.is_complete()
+                && written.len() == HP67_CARD_RECORDS_PER_SIDE
+                && writer.machine.crc.queued_write_words() == 0
+            {
+                break;
+            }
+        }
+
+        assert_eq!(written.len(), HP67_CARD_RECORDS_PER_SIDE);
+        assert!(writer.card_transport.is_complete());
+        assert_eq!(writer.machine.crc.queued_write_words(), 0);
+
+        writer.machine.set_card_present(false).unwrap();
+        let completed = writer
+            .card_transport
+            .take_completed_side()
+            .expect("fully written card must be ejectable");
+        assert!(completed.dirty());
+
+        let mut reader = Hp67LiveMachine::power_on_default().unwrap();
+        reader.phase = LiveBootPhase::Firmware;
+        while !matches!(reader.phase, LiveBootPhase::Idle) {
+            reader.step_firmware_cycle().unwrap();
+        }
+
+        reader
+            .card_transport
+            .insert_side(completed)
+            .expect("written card must reinsert for firmware read");
+        reader.card_transport.set_head_active(true);
+        reader.machine.set_card_present(true).unwrap();
+
+        let mut read_back = Vec::with_capacity(HP67_CARD_RECORDS_PER_SIDE);
+        for _ in 0..32_768 {
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataRead { card_word, .. },
+                ..
+            }) = reader.step_firmware_cycle_with_execution().unwrap()
+            {
+                read_back.push(card_word);
+                if read_back.len() == HP67_CARD_RECORDS_PER_SIDE {
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(read_back.len(), HP67_CARD_RECORDS_PER_SIDE);
+        assert_eq!(read_back, written);
+        assert!(reader.card_transport.is_complete());
+    }
+
+    #[test]
     fn live_write_protected_side_reaches_crc_f7_without_modification() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.phase = LiveBootPhase::Firmware;
