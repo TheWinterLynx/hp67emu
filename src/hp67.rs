@@ -754,13 +754,11 @@ mod tests {
             {
                 if usize::from(flag) == CRC_FLAG_F7_STATUS {
                     assert_eq!(live.card_transport.next_record(), 0);
-                    assert!(
-                        !live
-                            .card_transport
-                            .side()
-                            .expect("protected side remains inserted")
-                            .dirty()
-                    );
+                    assert!(!live
+                        .card_transport
+                        .side()
+                        .expect("protected side remains inserted")
+                        .dirty());
                     return;
                 }
             }
