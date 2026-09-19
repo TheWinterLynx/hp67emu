@@ -161,14 +161,6 @@ impl HardwareDisplayFrame {
         self.segments[1] == 0x39 && self.segments[2] == 0x50 && self.segments[3] == 0x5e
     }
 
-    pub const fn shows_error(&self) -> bool {
-        self.segments[1] == 0x79
-            && self.segments[2] == 0x50
-            && self.segments[3] == 0x50
-            && self.segments[4] == 0x5c
-            && self.segments[5] == 0x50
-    }
-
     fn clear(&mut self) {
         self.segments = [0; 15];
     }
@@ -345,10 +337,6 @@ impl Hp67LiveMachine {
 
     pub const fn card_prompt_visible(&self) -> bool {
         self.display.shows_card_prompt()
-    }
-
-    pub const fn error_visible(&self) -> bool {
-        self.display.shows_error()
     }
 
     pub fn take_completed_magnetic_card(&mut self) -> Option<Hp67MagneticCard> {
@@ -711,19 +699,20 @@ mod tests {
         live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
             .expect("blank card must insert in RUN mode");
 
+        const ERROR_SEGMENTS: [u8; 5] = [0x79, 0x50, 0x50, 0x5c, 0x50];
+
         let mut motor_seen = false;
         let mut completed_seen = false;
         for _ in 0..65_536 {
             live.step_firmware_cycle().unwrap();
             motor_seen |= live.card_motor_on();
             completed_seen |= live.card_transport_complete();
-            if live.error_visible() {
+            if live.display_frame().segments()[1..6] == ERROR_SEGMENTS[..] {
                 assert!(motor_seen, "blank RUN card never started the reader motor");
                 assert!(
                     completed_seen,
                     "blank RUN card reached Error before traversing the modeled track"
                 );
-                assert_eq!(&live.display_frame().segments()[1..6], &[0x79, 0x50, 0x50, 0x5c, 0x50]);
                 return;
             }
         }
