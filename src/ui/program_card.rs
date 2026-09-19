@@ -310,7 +310,6 @@ fn paint_hp_card_logo(painter: &Painter, rect: Rect, color: Color32, scale: f32)
         logo,
         0.0,
         Stroke::new((0.8 * scale).max(0.45), color),
-        eframe::egui::StrokeKind::Inside,
     );
 
     // Trace the tiny classic HP mark from the supplied reference rather than
