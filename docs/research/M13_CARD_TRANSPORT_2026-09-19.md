@@ -11,7 +11,7 @@ This slice moves M13 beyond presentation and control into the first timed magnet
 - architectural CRC read port `0x9B` now transfers one buffered 28-bit record into ACT C;
 - CRC write port `0x99` now packs ACT C[13:7] into the CRC two-buffer write FIFO.
 
-The live UI is now connected to the same magnetic-card object used by the transport. Host file adapters load verified `.hpp`, `.hp67raw` and `.hp67card` media into that object; firmware writes remain in the returned in-memory card and can be serialized by the native media APIs. A desktop Save-As chooser is a host UX feature, not part of the reader electronics, and is intentionally not conflated with this hardware milestone.
+The live UI is now connected to the same magnetic-card object used by the transport. Host file adapters load verified `.hpp`, `.hp67raw` and `.hp67card` media into that object; firmware writes remain in the returned in-memory card. The desktop now exposes an in-app `Ctrl+S` Save-As surface using the native `.hp67card`/`.hp67raw` serializers, so written media can be persisted without adding an OS-dialog dependency or moving file concerns into the reader electronics.
 
 ## Primary timing evidence
 
@@ -225,3 +225,7 @@ The two-pass regression is bidirectional. After the PROGRAM-mode writer produces
 The data-card path is now exercised independently of the program-card path. The regression enters `W/DATA` through real physical keyboard contacts (`f` then `ENTER`) after `1`, `Σ+` has made secondary statistical storage non-zero. Real firmware first prompts with `Crd`, writes the primary-register pass with header ID 1, prompts with `Crd` again because secondary registers are non-zero, and writes the same card's opposite logical track with header ID 2. A fresh RUN-mode live machine then reads Track 1 through `0x9B`, requires its firmware-generated `Crd`, reinserts the same card by End2 and reads Track 2. The first CRC word observed on the two read passes must carry header IDs 1 and 2 respectively.
 
 Together with the header-3/header-4 program regression, all four firmware-defined HP-67 card-header classes now cross the live transport and CRC boundary.
+
+## Host persistence closure
+
+The card returned by firmware can now be persisted directly from the desktop application. `Ctrl+S` opens an in-app egui Save-As surface, avoiding a new OS file-dialog dependency. `.hp67card` preserves recorded/unrecorded and write-protect state; `.hp67raw` is available only when both logical tracks are recorded. Saving is rejected while the card is physically inside the reader. The media object's dirty flags are cleared only after the host file write succeeds. This completes the write-card → eject → save → later re-import host lifecycle without changing the electrical reader path.

@@ -37,3 +37,5 @@ Artwork/media identity: raw `.hp67raw`, `.hp67card` and newly created blank medi
 
 
 Card orientation is also passed to the presentation layer. `CardInsertionEnd::End2` sets `ProgramCardView::rotated_180`, so a same-card `Crd` continuation is not only logically mapped to the opposite track: the printed physical card is rendered in the corresponding 180-degree in-plane orientation throughout reinsertion and subsequent visible states.
+
+Host persistence is now available without adding a native-dialog dependency. `Ctrl+S` opens an egui Save Magnetic Card window. The editable path accepts `.hp67card` for the lossless native container or `.hp67raw` when both tracks are recorded. Save is rejected while the physical card is inside the live reader, unsupported extensions fail explicitly, and `.hp67raw` propagates the media-layer error instead of inventing an unrecorded track. After `fs::write` succeeds, the same in-memory card is marked clean; write failures leave its dirty state untouched. Importing a card pre-fills the save path with the same basename and `.hp67card`, while a new blank card defaults to `hp67-card.hp67card`.

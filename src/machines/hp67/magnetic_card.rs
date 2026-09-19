@@ -179,6 +179,15 @@ impl Hp67MagneticCard {
         *self.track_mut(track) = media;
     }
 
+    pub const fn dirty(&self) -> bool {
+        self.track_1.dirty() || self.track_2.dirty()
+    }
+
+    pub fn mark_clean(&mut self) {
+        self.track_1.mark_clean();
+        self.track_2.mark_clean();
+    }
+
     pub fn with_track(mut self, track: Hp67CardTrack, media: Hp67MagneticTrack) -> Self {
         self.set_track(track, media);
         self
@@ -598,6 +607,21 @@ mod tests {
         let imported = TeenixHppImport::from_bytes(&encode_teenix(words)).unwrap();
         assert_eq!(imported.card_track, Hp67CardTrack::Track2);
         assert_eq!(imported.header_id, 4);
+    }
+
+    #[test]
+    fn whole_card_dirty_state_clears_only_when_explicitly_marked_clean() {
+        let mut card = Hp67MagneticCard::default();
+        card.track_mut(Hp67CardTrack::Track1)
+            .write_word(0, 0x0123_4567);
+        assert!(card.dirty());
+        assert!(card.track(Hp67CardTrack::Track1).dirty());
+        assert!(!card.track(Hp67CardTrack::Track2).dirty());
+
+        card.mark_clean();
+        assert!(!card.dirty());
+        assert!(!card.track(Hp67CardTrack::Track1).dirty());
+        assert!(!card.track(Hp67CardTrack::Track2).dirty());
     }
 
     #[test]

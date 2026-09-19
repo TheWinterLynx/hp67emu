@@ -104,10 +104,9 @@ M13 also covers the two data-card header classes instead of treating program car
 The functional card-header matrix is therefore: 1 = primary data, 2 = secondary data, 3 = program steps 001-112, 4 = program steps 113-224. All four are covered by live real-firmware regressions.
 
 
-## Host persistence boundary
+## Host persistence
 
-The card object returned by firmware writes is persistent for the lifetime of the application and the native media layer already provides lossless `.hp67card` serialization plus `.hp67raw` serialization when both logical tracks are recorded. The desktop currently imports those formats by drag/drop. An OS Save-As chooser is deliberately not part of M13's electrical/card-reader closure: adding one would be host UX and would require a separately managed desktop-dialog dependency/lockfile update. This distinction prevents a missing file chooser from being misreported as an incomplete magnetic-card hardware path.
-
+The card object returned by firmware writes can now be persisted from the desktop. `Ctrl+S` opens an egui Save Magnetic Card window with an editable path, so no new OS-dialog crate or lockfile dependency is needed. `.hp67card` is the lossless native format; `.hp67raw` export is allowed only when both logical tracks are recorded. Saving while the card is inside the live reader is rejected. A successful host write clears the card's dirty flags; serialization or filesystem failure leaves them set.
 
 ## Opposite-end visual proof
 

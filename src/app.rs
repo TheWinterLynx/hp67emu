@@ -34,6 +34,9 @@ pub struct Hp67App {
     card_phase: ProgramCardPhase,
     card_phase_started: Option<Instant>,
     card_read_progress: f32,
+    card_save_dialog_open: bool,
+    card_save_path: String,
+    card_save_status: Option<String>,
 }
 
 impl Hp67App {
@@ -93,6 +96,9 @@ impl Hp67App {
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
             card_read_progress: 0.0,
+            card_save_dialog_open: false,
+            card_save_path: "hp67-card.hp67card".to_owned(),
+            card_save_status: None,
         }
     }
 }
@@ -209,7 +215,76 @@ impl Hp67App {
             }
         }
 
+        self.card_save_path = path
+            .with_extension("hp67card")
+            .to_string_lossy()
+            .into_owned();
+        self.card_save_status = None;
         Ok(())
+    }
+
+    fn save_card_file(&mut self, path: &Path) -> Result<(), String> {
+        if self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
+        {
+            return Err("cannot save a magnetic card while it is inside the reader".to_owned());
+        }
+
+        let card = self
+            .card_media
+            .as_ref()
+            .ok_or_else(|| "no magnetic card is available to save".to_owned())?;
+        let extension = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let bytes = serialize_card_for_extension(card, &extension)?;
+        fs::write(path, bytes)
+            .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+
+        if let Some(card) = self.card_media.as_mut() {
+            card.mark_clean();
+        }
+        Ok(())
+    }
+
+    fn show_card_save_dialog(&mut self, ctx: &egui::Context) {
+        if !self.card_save_dialog_open {
+            return;
+        }
+
+        let mut open = true;
+        let mut save_requested = false;
+        egui::Window::new("Save magnetic card")
+            .collapsible(false)
+            .resizable(false)
+            .open(&mut open)
+            .show(ctx, |ui| {
+                ui.label("Save as .hp67card or .hp67raw");
+                ui.text_edit_singleline(&mut self.card_save_path);
+                if let Some(status) = &self.card_save_status {
+                    ui.label(status);
+                }
+                if ui.button("Save").clicked() {
+                    save_requested = true;
+                }
+            });
+        self.card_save_dialog_open = open;
+
+        if save_requested {
+            let path = self.card_save_path.clone();
+            match self.save_card_file(Path::new(&path)) {
+                Ok(()) => {
+                    self.card_save_status = Some(format!("Saved {}", Path::new(&path).display()));
+                }
+                Err(error) => {
+                    self.card_save_status = Some(error);
+                }
+            }
+        }
     }
 
     fn insert_current_card(&mut self, insertion_end: CardInsertionEnd) -> bool {
@@ -266,12 +341,30 @@ impl Hp67App {
         self.card_media = Some(Hp67MagneticCard::default());
         self.card_import_name = None;
         self.card_insertion_end = CardInsertionEnd::End1;
+        self.card_save_path = "hp67-card.hp67card".to_owned();
+        self.card_save_status = None;
         if self.insert_current_card(CardInsertionEnd::End1) {
             return true;
         }
 
         self.card_media = None;
         false
+    }
+}
+
+fn serialize_card_for_extension(
+    card: &Hp67MagneticCard,
+    extension: &str,
+) -> Result<Vec<u8>, String> {
+    match extension {
+        "hp67card" => Ok(card.to_hp67card_bytes().to_vec()),
+        "hp67raw" => card
+            .to_hp67raw_bytes()
+            .map(|bytes| bytes.to_vec())
+            .map_err(|error| format!("cannot export .hp67raw: {error:?}")),
+        _ => Err(format!(
+            "unsupported save extension '{extension}'; expected .hp67card or .hp67raw"
+        )),
     }
 }
 
@@ -311,6 +404,10 @@ impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
         self.import_dropped_card_files(ctx);
+        if ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S)) {
+            self.card_save_dialog_open = true;
+            self.card_save_status = None;
+        }
 
         match self.card_phase {
             ProgramCardPhase::InsertingWindowFromRight
@@ -474,6 +571,8 @@ impl eframe::App for Hp67App {
             // contacts without introducing host-side calculator semantics.
             ctx.request_repaint_after(Duration::from_micros(4_800));
         }
+        self.show_card_save_dialog(ctx);
+
         if ctx.input(|i| i.pointer.any_down()) {
             ctx.request_repaint();
         }
@@ -484,6 +583,18 @@ impl eframe::App for Hp67App {
 mod tests {
     use super::*;
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
+
+    #[test]
+    fn native_save_serialization_preserves_blank_state_and_raw_rejects_it() {
+        let blank = Hp67MagneticCard::default();
+        let container = serialize_card_for_extension(&blank, "hp67card").unwrap();
+        assert_eq!(
+            Hp67MagneticCard::from_hp67card_bytes(&container).unwrap(),
+            blank
+        );
+        assert!(serialize_card_for_extension(&blank, "hp67raw").is_err());
+        assert!(serialize_card_for_extension(&blank, "hpp").is_err());
+    }
 
     #[test]
     fn moon_rocket_artwork_requires_matching_imported_card_identity() {
