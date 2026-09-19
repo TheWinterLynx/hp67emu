@@ -18,7 +18,6 @@ const CARD_CORNER_CHAMFER_MM: f32 = 0.9;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
-const A_E_KEY_CENTERS_X: [f32; 5] = [211.0, 338.0, 465.0, 592.0, 719.0];
 const CARD_LABEL_X_FRACTIONS: [f32; 5] = [
     0.134_64,
     0.317_32,
@@ -470,6 +469,8 @@ fn ease_in_out(value: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const A_E_KEY_CENTERS_X: [f32; 5] = [211.0, 338.0, 465.0, 592.0, 719.0];
 
     #[test]
     fn moon_rocket_lander_artwork_maps_a_and_b_without_changing_key_identity() {
