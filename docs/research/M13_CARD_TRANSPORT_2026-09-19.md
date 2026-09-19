@@ -130,7 +130,7 @@ The HP-97 service manual and Teenix reader analysis both establish that write pr
 
 The read-side timed checkpoint passed locally on 2026-09-19. The write-side timed checkpoint also passed locally on 2026-09-19, covering the two-buffer CRC write FIFO, `0x99` packing, nominal transport cadence, write-protect and the live firmware PROGRAM/F7 paths.
 
-The branch now adds two stronger media-preservation regressions. The transport-level test writes all 34 records, ejects the completed side, reinserts that same media and reads all 34 records back through the CRC buffer. The live regression goes further: one real firmware instance writes the complete card in PROGRAM mode, the completed side is transferred unchanged to a second real firmware instance in RUN mode, and the 34 observed `CrcDataRead` words must exactly equal the 34 earlier `CrcDataWrite` words. These new round-trip regressions await the next local gate.
+The branch now adds two stronger media-preservation regressions. The transport-level test writes all 34 records, ejects the completed side, reinserts that same media and reads all 34 records back through the CRC buffer. The live regression goes further: one real firmware instance writes the complete card in PROGRAM mode, the completed side is transferred unchanged to a second real firmware instance in RUN mode, and the 34 observed `CrcDataRead` words must exactly equal the 34 earlier `CrcDataWrite` words. The 34-record transport and live-firmware round-trip regressions passed the full local gate on 2026-09-19.
 
 
 ### 32/34 round-trip failure diagnosis
@@ -146,3 +146,10 @@ After the dual-read-buffer correction, the next live round-trip run failed expli
 ### CRC/head startup-ready handshake
 
 A second `ReadBufferFull` after separating card-present from the head contact showed that record timing was still starting at the wrong logical boundary. `Scr3341` is shared by both card reads and writes. After motor startup it clears `buffer_ready`, delays, clears it again, then calls `Scr3167` and waits for a `buffer_ready` event before any read transfer or any write-data transfer takes place. Because this same sequence runs in write mode, that first event cannot be an incoming 28-bit card record; it is a CRC/head readiness handshake. Production transport now models this explicitly. On head activation it raises one startup `buffer_ready` event without advancing `next_record`. When real firmware test-and-clears that event, the transport enters record-stream state and starts the nominal 28 ms cadence from zero. This preserves the documented continuous two-buffer stream without inventing an extra magnetic record or silently consuming the header.
+
+
+## Production live-card lifecycle
+
+The firmware-synchronized head/startup sequence proven by the tests is now owned by `Hp67LiveMachine` rather than by a test helper. `insert_card_side()` inserts magnetic media and asserts only the physical card-present contact. While motor is running, the live machine observes the same two initial `buffer_ready` clears used to locate the pre-data head boundary; it then closes the modeled head contact and lets `Hp67CardTransport` provide the startup-ready event. Once all 34 record positions cross the head, the live machine deasserts card-present and opens the head contact; the real firmware then leaves `wait_no_card` and clears motor-on. Completed media remains available through `take_completed_card_side()`.
+
+This is intentionally a media-only lifecycle. The photographed/printed Moon Rocket Lander artwork in `ui/program_card.rs` is still not associated with a magnetic payload because the repository does not contain a verified SD-14A dump. No blank or synthetic payload is silently assigned to that artwork.
