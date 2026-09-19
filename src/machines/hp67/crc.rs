@@ -9,6 +9,8 @@ use super::isa::ROM_WORD_MASK;
 pub const CRC_FLAG_COUNT: usize = 12;
 pub const CRC_RAM_WRITE_ADDRESS: u8 = 0x99;
 pub const CRC_RAM_READ_ADDRESS: u8 = 0x9b;
+pub const CRC_CARD_WORD_BITS: u8 = 28;
+pub const CRC_CARD_WORD_MASK: u32 = (1u32 << CRC_CARD_WORD_BITS) - 1;
 pub const CRC_FLAG_BUFFER_READY: usize = 0;
 pub const CRC_FLAG_PROGRAM_MODE: usize = 1;
 pub const CRC_FLAG_MOTOR_ON: usize = 9;
@@ -25,12 +27,16 @@ pub enum CrcInstruction {
 pub enum CrcArchitecturalError {
     OpcodeOutOfRange(u16),
     FlagOutOfRange(u8),
+    CardWordOutOfRange(u32),
+    ReadBufferOccupied,
+    ReadBufferEmpty,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrcArchitecturalCore {
     flags: [bool; CRC_FLAG_COUNT],
     external_flags: [bool; CRC_FLAG_COUNT],
+    read_buffer: Option<u32>,
 }
 
 impl Default for CrcArchitecturalCore {
@@ -38,6 +44,7 @@ impl Default for CrcArchitecturalCore {
         Self {
             flags: [false; CRC_FLAG_COUNT],
             external_flags: [false; CRC_FLAG_COUNT],
+            read_buffer: None,
         }
     }
 }
@@ -45,6 +52,7 @@ impl Default for CrcArchitecturalCore {
 impl CrcArchitecturalCore {
     pub fn reset_control_flags(&mut self) {
         self.flags = [false; CRC_FLAG_COUNT];
+        self.read_buffer = None;
     }
 
     pub fn flag(&self, flag: usize) -> Option<bool> {
@@ -53,6 +61,34 @@ impl CrcArchitecturalCore {
 
     pub fn external_flag(&self, flag: usize) -> Option<bool> {
         self.external_flags.get(flag).copied()
+    }
+
+    pub const fn buffered_read_word(&self) -> Option<u32> {
+        self.read_buffer
+    }
+
+    /// Present one complete 28-bit word from the magnetic transport / sense path.
+    /// BUFFER_READY is a latch: firmware testing clears the flag, while the word
+    /// remains buffered until the CRC data port consumes it.
+    pub fn present_read_word(&mut self, word: u32) -> Result<(), CrcArchitecturalError> {
+        if word > CRC_CARD_WORD_MASK {
+            return Err(CrcArchitecturalError::CardWordOutOfRange(word));
+        }
+        if self.read_buffer.is_some() {
+            return Err(CrcArchitecturalError::ReadBufferOccupied);
+        }
+        self.read_buffer = Some(word);
+        self.flags[CRC_FLAG_BUFFER_READY] = true;
+        Ok(())
+    }
+
+    pub fn take_read_word(&mut self) -> Result<u32, CrcArchitecturalError> {
+        let word = self
+            .read_buffer
+            .take()
+            .ok_or(CrcArchitecturalError::ReadBufferEmpty)?;
+        self.flags[CRC_FLAG_BUFFER_READY] = false;
+        Ok(word)
     }
 
     pub fn set_external_flag(
@@ -161,6 +197,39 @@ mod tests {
             .expect("program-mode flag exists");
         assert_eq!(crc.execute_opcode(0o300), Ok(Some(true)));
         assert_eq!(crc.external_flag(CRC_FLAG_PROGRAM_MODE), Some(true));
+    }
+
+    #[test]
+    fn transport_word_latches_buffer_ready_until_data_port_consumes_it() {
+        let mut crc = CrcArchitecturalCore::default();
+        crc.present_read_word(0x0765_4321)
+            .expect("28-bit card word must fit");
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(crc.buffered_read_word(), Some(0x0765_4321));
+
+        assert_eq!(crc.execute_opcode(0o100), Ok(Some(true)));
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(false));
+        assert_eq!(crc.buffered_read_word(), Some(0x0765_4321));
+
+        assert_eq!(crc.take_read_word(), Ok(0x0765_4321));
+        assert_eq!(crc.buffered_read_word(), None);
+    }
+
+    #[test]
+    fn transport_rejects_overwide_or_overlapping_read_words() {
+        let mut crc = CrcArchitecturalCore::default();
+        assert_eq!(
+            crc.present_read_word(CRC_CARD_WORD_MASK + 1),
+            Err(CrcArchitecturalError::CardWordOutOfRange(
+                CRC_CARD_WORD_MASK + 1
+            ))
+        );
+        crc.present_read_word(0x0123_4567)
+            .expect("first word must latch");
+        assert_eq!(
+            crc.present_read_word(0x0000_0001),
+            Err(CrcArchitecturalError::ReadBufferOccupied)
+        );
     }
 
     #[test]
