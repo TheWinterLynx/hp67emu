@@ -763,10 +763,7 @@ mod tests {
         panic!("timed card transport never reached the real CRC 0x9B read path");
     }
 
-    fn press_live_key_to_dispatch_for_card_test(
-        live: &mut Hp67LiveMachine,
-        key: Hp67Key,
-    ) -> u16 {
+    fn press_live_key_to_dispatch_for_card_test(live: &mut Hp67LiveMachine, key: Hp67Key) -> u16 {
         const KEYS_TO_A_OPCODE: u16 = 0o0120;
         const A_TO_ROM_ADDRESS_OPCODE: u16 = 0o0220;
 
@@ -817,9 +814,7 @@ mod tests {
             }
         }
 
-        panic!(
-            "{key:?} dispatch {target:04o} did not return to the no-key firmware wait"
-        );
+        panic!("{key:?} dispatch {target:04o} did not return to the no-key firmware wait");
     }
 
     fn settle_live_program_mode(live: &mut Hp67LiveMachine) {
@@ -1009,10 +1004,7 @@ mod tests {
             live.card_prompt_visible(),
             "firmware never displayed the physical Crd second-card prompt"
         );
-        assert_eq!(
-            &live.display_frame().segments()[1..4],
-            &[0x39, 0x50, 0x5e]
-        );
+        assert_eq!(&live.display_frame().segments()[1..4], &[0x39, 0x50, 0x5e]);
 
         live.insert_magnetic_card(first_pass, CardInsertionEnd::End2)
             .expect("same physical card must reinsert by the opposite end");

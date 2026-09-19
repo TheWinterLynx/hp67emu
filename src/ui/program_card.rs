@@ -176,14 +176,7 @@ pub fn paint(
             }
             output.parked_left_double_clicked = response.double_clicked();
             output.parked_left_clicked = response.clicked() && !response.double_clicked();
-            paint_parked_left(
-                ui,
-                photo,
-                view.artwork,
-                view.logo,
-                scale,
-                view.rotated_180,
-            );
+            paint_parked_left(ui, photo, view.artwork, view.logo, scale, view.rotated_180);
         }
         ProgramCardPhase::InsertingWindowFromRight => {
             paint_window_insertion_from_right(
