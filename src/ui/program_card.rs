@@ -5,7 +5,7 @@ use eframe::egui::{
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
-const CARD_WINDOW: SourceRect = SourceRect::new(166.0, 373.0, 764.0, 452.0);
+const CARD_WINDOW: SourceRect = SourceRect::new(132.0, 344.0, 798.0, 457.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -14,15 +14,18 @@ const HP67_CASE_WIDTH_SOURCE_PX: f32 = 792.0;
 const SOURCE_PX_PER_MM: f32 = HP67_CASE_WIDTH_SOURCE_PX / HP67_CASE_WIDTH_MM;
 const CARD_WIDTH_MM: f32 = 71.1;
 const CARD_HEIGHT_MM: f32 = 11.4;
-const CARD_CORNER_CHAMFER_MM: f32 = 0.9;
+const CARD_END_CHAMFER_MM: f32 = 4.2;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
 const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.134_64, 0.317_32, 0.5, 0.682_68, 0.865_36];
-const CARD_TITLE_Y_FRACTION: f32 = 0.34;
-const CARD_SHIFTED_Y_FRACTION: f32 = 0.59;
-const CARD_PRIMARY_Y_FRACTION: f32 = 0.76;
-const CARD_REFERENCE_X_FRACTION: f32 = 0.92;
+const CARD_TOP_NOTCH_X_FRACTIONS: [f32; 3] = [0.095, 0.224, 0.310];
+const CARD_TOP_NOTCH_WIDTH_MM: f32 = 0.9;
+const CARD_TOP_NOTCH_HEIGHT_MM: f32 = 0.75;
+const CARD_TITLE_Y_FRACTION: f32 = 0.31;
+const CARD_SHIFTED_Y_FRACTION: f32 = 0.61;
+const CARD_PRIMARY_Y_FRACTION: f32 = 0.82;
+const CARD_REFERENCE_X_FRACTION: f32 = 0.89;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCardArtwork {
@@ -178,11 +181,11 @@ struct CardPalette {
 impl CardPalette {
     fn holder() -> Self {
         Self {
-            body: Color32::from_rgb(83, 80, 57),
-            edge: Color32::from_rgb(133, 126, 85),
-            title: Color32::from_rgb(232, 232, 220),
-            primary: Color32::from_rgb(226, 226, 214),
-            shifted: Color32::from_rgb(198, 174, 73),
+            body: Color32::from_rgb(30, 31, 21),
+            edge: Color32::from_rgb(71, 72, 47),
+            title: Color32::from_rgb(238, 238, 226),
+            primary: Color32::from_rgb(238, 238, 226),
+            shifted: Color32::from_rgb(205, 172, 63),
         }
     }
 }
@@ -198,34 +201,34 @@ fn paint_card(
         return;
     }
 
-    let chamfer = (CARD_CORNER_CHAMFER_MM * SOURCE_PX_PER_MM * scale)
-        .min(rect.width() * 0.08)
-        .min(rect.height() * 0.35);
+    let chamfer = (CARD_END_CHAMFER_MM * SOURCE_PX_PER_MM * scale)
+        .min(rect.width() * 0.10)
+        .min(rect.height() * 0.42);
     let points = vec![
         pos2(rect.left() + chamfer, rect.top()),
-        pos2(rect.right() - chamfer, rect.top()),
-        pos2(rect.right(), rect.top() + chamfer),
+        rect.right_top(),
         pos2(rect.right(), rect.bottom() - chamfer),
         pos2(rect.right() - chamfer, rect.bottom()),
-        pos2(rect.left() + chamfer, rect.bottom()),
-        pos2(rect.left(), rect.bottom() - chamfer),
+        rect.left_bottom(),
         pos2(rect.left(), rect.top() + chamfer),
     ];
     painter.add(Shape::convex_polygon(
         points,
         palette.body,
-        Stroke::new((1.2 * scale).max(0.55), palette.edge),
+        Stroke::new((1.0 * scale).max(0.5), palette.edge),
     ));
 
-    let marker_y = rect.top() + 2.0 * scale;
-    for fraction in CARD_LABEL_X_FRACTIONS {
+    let notch_width = CARD_TOP_NOTCH_WIDTH_MM * SOURCE_PX_PER_MM * scale;
+    let notch_height = CARD_TOP_NOTCH_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
+    for fraction in CARD_TOP_NOTCH_X_FRACTIONS {
         let x = rect.left() + rect.width() * fraction;
-        painter.line_segment(
-            [
-                pos2(x - 3.5 * scale, marker_y),
-                pos2(x + 3.5 * scale, marker_y),
-            ],
-            Stroke::new((1.7 * scale).max(0.7), palette.title),
+        painter.rect_filled(
+            Rect::from_min_max(
+                pos2(x - notch_width * 0.5, rect.top()),
+                pos2(x + notch_width * 0.5, rect.top() + notch_height),
+            ),
+            0.0,
+            palette.title,
         );
     }
 
@@ -290,9 +293,9 @@ fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress
     let top = photo.top() + 370.0 * scale;
     let rect = Rect::from_min_max(pos2(left, top), pos2(left + card_width, top + card_height));
 
-    // The case hides the middle of the same physical card. Because the card is
-    // slightly longer than the distance between both mouths, the leading edge
-    // starts emerging on the left before the trailing edge vanishes on the right.
+    // The case hides the middle of the same physical card. At the locked 1:1
+    // size there is a short interval where the whole card is hidden inside the
+    // reader before its leading edge emerges from the left mouth.
     let right_clip = Rect::from_min_max(
         pos2(reader_mouth_x, ui.clip_rect().top()),
         ui.clip_rect().right_bottom(),
@@ -471,11 +474,12 @@ mod tests {
     }
 
     #[test]
-    fn card_window_matches_a_to_e_row_without_covering_side_trim() {
+    fn card_window_reveals_full_height_and_only_slightly_occludes_the_ends() {
+        assert!(CARD_WINDOW.y0 < 345.0);
         assert!(CARD_WINDOW.y1 < 467.0);
-        assert_eq!(CARD_WINDOW.x0, 166.0);
-        assert_eq!(CARD_WINDOW.x1, 764.0);
-        assert!(CARD_WINDOW.y0 > 365.0);
+        assert!(CARD_WINDOW.y1 - CARD_WINDOW.y0 > CARD_PHYSICAL_HEIGHT);
+        assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 > CARD_PHYSICAL_WIDTH * 0.95);
+        assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 < CARD_PHYSICAL_WIDTH);
     }
 
     #[test]
@@ -514,8 +518,9 @@ mod tests {
             (CARD_PHYSICAL_WIDTH / CARD_PHYSICAL_HEIGHT - CARD_WIDTH_MM / CARD_HEIGHT_MM).abs()
                 < 0.0001
         );
-        assert!(CARD_CORNER_CHAMFER_MM > 0.0);
-        assert!(CARD_CORNER_CHAMFER_MM < CARD_HEIGHT_MM * 0.25);
+        assert!((CARD_END_CHAMFER_MM - 4.2).abs() < 0.0001);
+        assert!(CARD_END_CHAMFER_MM < CARD_HEIGHT_MM * 0.5);
+        assert_eq!(CARD_TOP_NOTCH_X_FRACTIONS.len(), 3);
     }
 
     #[test]
@@ -526,7 +531,8 @@ mod tests {
         assert!((card.width() - CARD_PHYSICAL_WIDTH).abs() < 0.001);
         assert!((card.height() - CARD_PHYSICAL_HEIGHT).abs() < 0.001);
         assert!(card.width() > window.width());
-        assert!(card.height() > window.height());
+        assert!(card.width() - window.width() < CARD_PHYSICAL_WIDTH * 0.05);
+        assert!(window.height() > card.height());
     }
 
     #[test]
