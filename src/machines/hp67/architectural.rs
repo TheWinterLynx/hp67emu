@@ -232,10 +232,7 @@ mod tests {
             .expect("card-present switch must exist");
         machine.execute_word(0o560).expect("CRC test must execute");
         assert!(machine.act.state.status[3]);
-        assert_eq!(
-            machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
-            Some(true)
-        );
+        assert_eq!(machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
     }
 
     #[test]
