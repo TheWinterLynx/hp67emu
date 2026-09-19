@@ -22,3 +22,5 @@ Render the source photograph; map all 35 key rectangles; animate key travel; rep
 
 
 M13 blank-media interaction: the panel forwards both the primary reader click and a distinct secondary-click blank-card request from `ui/program_card.rs`. It does not create media itself; the app owns that host-side physical-card action.
+
+Reader waiting-state interaction: the panel forwards a distinct `card_waiting_reader_clicked` event from the visible right-edge card while it is physically inserted but the firmware-owned motor has not started. The panel does not withdraw the card itself; `src/app.rs` routes that request through `Hp67LiveMachine::withdraw_unstarted_magnetic_card()` so the card-present contact and transport ownership remain authoritative.

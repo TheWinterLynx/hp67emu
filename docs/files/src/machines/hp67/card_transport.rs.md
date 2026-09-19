@@ -29,3 +29,5 @@ In write mode the CRC pair of 28-bit buffers remains authoritative. While motor/
 Read-side buffering follows the HP hardware description: the CRC can retain two 28-bit records while the card continues moving. The transport may enqueue a second record while firmware processes the first but never silently overwrites either one.
 
 Closing the modeled head switch first raises the existing CRC buffer_ready startup/readiness event without advancing the magnetic position. Firmware acknowledges that event in Scr3341; only then does record_stream_active() become true and the 28 ms logical record cadence begin. The same startup sequence is shared by read and write paths.
+
+`take_unstarted_card()` models pulling a card back out before the motor/head path has taken it. It succeeds only while record position is still zero and the head switch has not become active, resets the transport's pre-stream handshake state, and returns the same physical card. It cannot withdraw a card that has begun crossing the head.

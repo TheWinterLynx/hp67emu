@@ -343,6 +343,26 @@ impl Hp67LiveMachine {
         self.card_transport.take_completed_card()
     }
 
+    pub fn withdraw_unstarted_magnetic_card(
+        &mut self,
+    ) -> Result<Option<Hp67MagneticCard>, String> {
+        if self.card_motor_on()
+            || self.card_transport.head_active()
+            || self.card_transport.next_record() != 0
+        {
+            return Ok(None);
+        }
+        if self.card_transport.card().is_none() {
+            return Ok(None);
+        }
+
+        self.machine.set_card_present(false).map_err(|error| {
+            format!("HP-67 card withdrawal contact failed: {error:?}")
+        })?;
+        self.card_startup_buffer_clears = 0;
+        Ok(self.card_transport.take_unstarted_card())
+    }
+
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
@@ -668,6 +688,31 @@ mod tests {
             }
         }
         panic!("released Digit1 did not settle to physical 1. display");
+    }
+
+    #[test]
+    fn live_unstarted_card_can_be_withdrawn_before_firmware_starts_motor() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank card must insert");
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(true)
+        );
+        let card = live
+            .withdraw_unstarted_magnetic_card()
+            .expect("withdrawal contact update must succeed");
+        assert!(card.is_some());
+        assert!(!live.magnetic_card_inserted());
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
     }
 
     #[test]

@@ -309,7 +309,31 @@ impl Hp67App {
         }
 
         self.card_insertion_end = insertion_end;
-        self.card_phase = ProgramCardPhase::ReadingFromRight;
+        self.card_phase = ProgramCardPhase::WaitingAtReader;
+        self.card_phase_started = None;
+        self.card_read_progress = 0.0;
+        true
+    }
+
+    fn withdraw_waiting_card(&mut self) -> bool {
+        if self.card_phase != ProgramCardPhase::WaitingAtReader {
+            return false;
+        }
+
+        let Some(machine) = self.live_machine.as_mut() else {
+            return false;
+        };
+        let card = match machine.withdraw_unstarted_magnetic_card() {
+            Ok(Some(card)) => card,
+            Ok(None) => return false,
+            Err(error) => {
+                eprintln!("HP-67 card withdrawal failed: {error}");
+                return false;
+            }
+        };
+
+        self.card_media = Some(card);
+        self.card_phase = ProgramCardPhase::Idle;
         self.card_phase_started = None;
         self.card_read_progress = 0.0;
         true
@@ -350,6 +374,10 @@ impl Hp67App {
         self.card_media = None;
         false
     }
+}
+
+fn reader_click_requires_new_blank(card_prepared: bool) -> bool {
+    !card_prepared
 }
 
 fn serialize_card_for_extension(
@@ -461,10 +489,17 @@ impl eframe::App for Hp67App {
                     },
                 );
                 if panel.card_reader_clicked {
-                    self.insert_current_card(self.card_insertion_end);
+                    if reader_click_requires_new_blank(self.card_media.is_some()) {
+                        self.insert_new_blank_card();
+                    } else {
+                        self.insert_current_card(self.card_insertion_end);
+                    }
                 }
                 if panel.blank_card_requested {
                     self.insert_new_blank_card();
+                }
+                if panel.card_waiting_reader_clicked {
+                    self.withdraw_waiting_card();
                 }
                 if panel.card_parked_left_double_clicked {
                     if opposite_track_requested {
@@ -542,6 +577,11 @@ impl eframe::App for Hp67App {
                     live_card_active =
                         machine.card_motor_on() || machine.card_record_stream_active();
                     if machine.magnetic_card_inserted() {
+                        if self.card_phase == ProgramCardPhase::WaitingAtReader
+                            && machine.card_motor_on()
+                        {
+                            self.card_phase = ProgramCardPhase::ReadingFromRight;
+                        }
                         self.card_read_progress = (machine.card_record_position() as f32
                             / HP67_CARD_RECORDS_PER_TRACK as f32)
                             .clamp(0.0, 1.0);
@@ -581,6 +621,12 @@ impl eframe::App for Hp67App {
 mod tests {
     use super::*;
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
+
+    #[test]
+    fn reader_primary_click_policy_uses_blank_media_when_none_is_prepared() {
+        assert!(reader_click_requires_new_blank(false));
+        assert!(!reader_click_requires_new_blank(true));
+    }
 
     #[test]
     fn native_save_serialization_preserves_blank_state_and_raw_rejects_it() {

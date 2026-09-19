@@ -47,3 +47,5 @@ The reader hotspot now distinguishes primary click from secondary click. Primary
 
 
 Opposite-end presentation is now physical rather than symbolic. `ProgramCardView::rotated_180` rotates all orientation-bearing artwork by 180 degrees: top-edge marks move to their mirrored bottom positions, text is emitted through egui 0.27.2 `TextShape::with_angle(PI)`, and the HP logo mesh is rotated about its center. The card outline itself is invariant under the 180-degree transformation. Tests lock the point/mark transform as an involution.
+
+Reader-entry recovery now has an explicit `WaitingAtReader` presentation state between host insertion and motorized transport. The card is shown protruding at the right reader mouth while `card_present` is asserted but firmware has not yet asserted `motor_on`. That state is not animated. Clicking the exposed card requests withdrawal; only a real firmware motor request advances presentation to `ReadingFromRight`. This prevents a card inserted while the calculator is in `Error`, OFF, or another non-reader state from becoming an invisible/stuck zero-progress transport.

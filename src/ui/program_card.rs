@@ -69,6 +69,7 @@ pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramCardPhase {
     Idle,
+    WaitingAtReader,
     ReadingFromRight,
     ParkedLeft,
     InsertingWindowFromRight,
@@ -98,6 +99,7 @@ pub struct ProgramCardView<'a> {
 pub struct ProgramCardUiOutput {
     pub reader_clicked: bool,
     pub blank_card_requested: bool,
+    pub waiting_reader_clicked: bool,
     pub parked_left_clicked: bool,
     pub parked_left_double_clicked: bool,
     pub window_clicked: bool,
@@ -137,7 +139,7 @@ pub fn paint(
                     Sense::click(),
                 )
                 .on_hover_text(
-                    "Click: insert loaded magnetic card. Right-click: insert a new blank card",
+                    "Click: insert loaded card, or a new blank card if none is loaded. Right-click: insert a new blank card",
                 );
             if reader_response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
@@ -145,6 +147,30 @@ pub fn paint(
             }
             output.reader_clicked = reader_response.clicked();
             output.blank_card_requested = reader_response.secondary_clicked();
+        }
+        ProgramCardPhase::WaitingAtReader => {
+            paint_reader_motion(
+                ui,
+                photo,
+                view.artwork,
+                view.logo,
+                0.0,
+                scale,
+                view.rotated_180,
+            );
+            let response = ui
+                .interact(
+                    reader_motion_rect(photo, 0.0, scale).intersect(ui.clip_rect()),
+                    ui.make_persistent_id("hp67-magnetic-card-waiting"),
+                    Sense::click(),
+                )
+                .on_hover_text(
+                    "Card is waiting for the reader motor. Click to withdraw it",
+                );
+            if response.hovered() {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+            }
+            output.waiting_reader_clicked = response.clicked();
         }
         ProgramCardPhase::ReadingFromRight => {
             paint_reader_motion(
@@ -428,13 +454,7 @@ fn paint_reader_motion(
 ) {
     let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
     let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
-    let card_width = CARD_PHYSICAL_WIDTH * scale;
-    let card_height = CARD_PHYSICAL_HEIGHT * scale;
-    let start_left = reader_mouth_x + 42.0 * scale;
-    let end_left = exit_mouth_x - CARD_LEFT_VISIBLE_WIDTH * scale;
-    let left = start_left + (end_left - start_left) * ease_in_out(progress);
-    let top = photo.top() + 370.0 * scale;
-    let rect = Rect::from_min_max(pos2(left, top), pos2(left + card_width, top + card_height));
+    let rect = reader_motion_rect(photo, progress, scale);
 
     // The case hides the middle of the same physical card. At the locked 1:1
     // size there is a short interval where the whole card is hidden inside the
@@ -469,6 +489,18 @@ fn paint_reader_motion(
             rotated_180,
         );
     }
+}
+
+fn reader_motion_rect(photo: Rect, progress: f32, scale: f32) -> Rect {
+    let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
+    let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
+    let card_width = CARD_PHYSICAL_WIDTH * scale;
+    let card_height = CARD_PHYSICAL_HEIGHT * scale;
+    let start_left = reader_mouth_x + 42.0 * scale;
+    let end_left = exit_mouth_x - CARD_LEFT_VISIBLE_WIDTH * scale;
+    let left = start_left + (end_left - start_left) * ease_in_out(progress);
+    let top = photo.top() + 370.0 * scale;
+    Rect::from_min_max(pos2(left, top), pos2(left + card_width, top + card_height))
 }
 
 fn holder_card_rect(window: Rect, scale: f32) -> Rect {
@@ -779,6 +811,7 @@ mod tests {
     #[test]
     fn card_phase_animation_only_covers_motion_states() {
         assert!(!ProgramCardPhase::Idle.is_animating());
+        assert!(!ProgramCardPhase::WaitingAtReader.is_animating());
         assert!(ProgramCardPhase::ReadingFromRight.is_animating());
         assert!(!ProgramCardPhase::ParkedLeft.is_animating());
         assert!(ProgramCardPhase::InsertingWindowFromRight.is_animating());

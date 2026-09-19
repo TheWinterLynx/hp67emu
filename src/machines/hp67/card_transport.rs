@@ -169,6 +169,23 @@ impl Hp67CardTransport {
         self.card.is_some() && self.next_record >= HP67_CARD_RECORDS_PER_TRACK
     }
 
+    /// Withdraw a card that has not yet been taken by the motor/head path.
+    ///
+    /// This models pulling the still-exposed card back out of the reader mouth.
+    /// Once the head is active or any record position has crossed it, host-side
+    /// withdrawal is no longer permitted.
+    pub fn take_unstarted_card(&mut self) -> Option<Hp67MagneticCard> {
+        if self.card.is_none() || self.head_active || self.next_record != 0 {
+            return None;
+        }
+
+        self.record_phase_units = 0;
+        self.startup_ready_pending = false;
+        self.waiting_startup_ack = false;
+        self.insertion_end = None;
+        self.card.take()
+    }
+
     /// Remove the same physical card only after the selected logical track has
     /// completely crossed the head. The caller may then rotate it 180 degrees in
     /// its plane and reinsert the opposite end to expose the other logical track.
@@ -322,6 +339,24 @@ mod tests {
         assert_eq!(transport.advance_us(0, true, crc).unwrap(), 0);
         assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(false));
         assert!(transport.record_stream_active());
+    }
+
+    #[test]
+    fn unstarted_card_can_be_withdrawn_before_head_engagement_only() {
+        let mut transport = Hp67CardTransport::default();
+        transport
+            .insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
+
+        assert!(transport.take_unstarted_card().is_some());
+        assert!(transport.card().is_none());
+
+        transport
+            .insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
+        transport.set_head_active(true);
+        assert!(transport.take_unstarted_card().is_none());
+        assert!(transport.card().is_some());
     }
 
     #[test]
