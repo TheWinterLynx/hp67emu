@@ -28,7 +28,6 @@ pub enum CrcArchitecturalError {
     OpcodeOutOfRange(u16),
     FlagOutOfRange(u8),
     CardWordOutOfRange(u32),
-    ReadBufferOccupied,
     ReadBufferEmpty,
 }
 
@@ -74,9 +73,9 @@ impl CrcArchitecturalCore {
         if word > CRC_CARD_WORD_MASK {
             return Err(CrcArchitecturalError::CardWordOutOfRange(word));
         }
-        if self.read_buffer.is_some() {
-            return Err(CrcArchitecturalError::ReadBufferOccupied);
-        }
+        // The CRC owns a single 28-bit read buffer. If firmware has not consumed
+        // the previous record before the next transport record arrives, the new
+        // record replaces it; exact overrun/error signalling is not yet modeled.
         self.read_buffer = Some(word);
         self.flags[CRC_FLAG_BUFFER_READY] = true;
         Ok(())
@@ -216,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn transport_rejects_overwide_or_overlapping_read_words() {
+    fn transport_rejects_overwide_words_and_replaces_unread_record() {
         let mut crc = CrcArchitecturalCore::default();
         assert_eq!(
             crc.present_read_word(CRC_CARD_WORD_MASK + 1),
@@ -226,10 +225,10 @@ mod tests {
         );
         crc.present_read_word(0x0123_4567)
             .expect("first word must latch");
-        assert_eq!(
-            crc.present_read_word(0x0000_0001),
-            Err(CrcArchitecturalError::ReadBufferOccupied)
-        );
+        crc.present_read_word(0x0000_0001)
+            .expect("next physical record replaces the one-word buffer");
+        assert_eq!(crc.buffered_read_word(), Some(0x0000_0001));
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
     }
 
     #[test]
