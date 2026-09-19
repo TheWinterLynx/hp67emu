@@ -19,13 +19,19 @@ const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
 const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.134_64, 0.317_32, 0.5, 0.682_68, 0.865_36];
-const CARD_TOP_NOTCH_X_FRACTIONS: [f32; 3] = [0.095, 0.224, 0.310];
+const MOON_ROCKET_LANDER_TOP_NOTCHES: &[f32] = &[0.095, 0.224, 0.310];
 const CARD_TOP_NOTCH_WIDTH_MM: f32 = 0.9;
 const CARD_TOP_NOTCH_HEIGHT_MM: f32 = 0.75;
 const CARD_TITLE_Y_FRACTION: f32 = 0.31;
 const CARD_SHIFTED_Y_FRACTION: f32 = 0.61;
 const CARD_PRIMARY_Y_FRACTION: f32 = 0.82;
 const CARD_REFERENCE_X_FRACTION: f32 = 0.89;
+const CARD_HP_LOGO_X_FRACTION: f32 = 0.038;
+const CARD_HP_LOGO_Y_FRACTION: f32 = 0.69;
+const CARD_HP_LOGO_WIDTH_MM: f32 = 2.7;
+const CARD_HP_LOGO_HEIGHT_MM: f32 = 4.6;
+const HOLDER_SIDE_LIP_MM: f32 = 0.85;
+const HOLDER_EDGE_SHADOW_MM: f32 = 0.28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCardArtwork {
@@ -33,6 +39,8 @@ pub struct ProgramCardArtwork {
     pub reference: &'static str,
     pub primary_labels: [&'static str; 5],
     pub shifted_labels: [&'static str; 5],
+    pub top_notches: &'static [f32],
+    pub show_hp_logo: bool,
 }
 
 pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
@@ -40,6 +48,8 @@ pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
     reference: "SD-14A",
     primary_labels: ["CNTRL", "RESTART", "", "", ""],
     shifted_labels: ["", "", "", "", ""],
+    top_notches: MOON_ROCKET_LANDER_TOP_NOTCHES,
+    show_hp_logo: true,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,6 +173,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 CardPalette::holder(),
                 scale,
             );
+            paint_holder_lips(ui.painter(), window, scale);
         }
     }
 
@@ -220,7 +231,7 @@ fn paint_card(
 
     let notch_width = CARD_TOP_NOTCH_WIDTH_MM * SOURCE_PX_PER_MM * scale;
     let notch_height = CARD_TOP_NOTCH_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
-    for fraction in CARD_TOP_NOTCH_X_FRACTIONS {
+    for &fraction in card.top_notches {
         let x = rect.left() + rect.width() * fraction;
         painter.rect_filled(
             Rect::from_min_max(
@@ -230,6 +241,10 @@ fn paint_card(
             0.0,
             palette.title,
         );
+    }
+
+    if card.show_hp_logo {
+        paint_hp_card_logo(painter, rect, palette.shifted, scale);
     }
 
     let title_font = FontId::proportional((15.0 * scale).max(7.5));
@@ -280,6 +295,86 @@ fn paint_card(
             );
         }
     }
+}
+
+fn paint_hp_card_logo(painter: &Painter, rect: Rect, color: Color32, scale: f32) {
+    let width = CARD_HP_LOGO_WIDTH_MM * SOURCE_PX_PER_MM * scale;
+    let height = CARD_HP_LOGO_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
+    let center = pos2(
+        rect.left() + rect.width() * CARD_HP_LOGO_X_FRACTION,
+        rect.top() + rect.height() * CARD_HP_LOGO_Y_FRACTION,
+    );
+    let logo = Rect::from_center_size(center, eframe::egui::vec2(width, height));
+
+    painter.rect_stroke(
+        logo,
+        0.0,
+        Stroke::new((0.8 * scale).max(0.45), color),
+        eframe::egui::StrokeKind::Inside,
+    );
+
+    // Trace the tiny classic HP mark from the supplied reference rather than
+    // using a separate bitmap that would blur at the card's displayed scale.
+    let stroke = Stroke::new((1.05 * scale).max(0.55), color);
+    let x0 = logo.left() + logo.width() * 0.24;
+    let x1 = logo.left() + logo.width() * 0.47;
+    let x2 = logo.left() + logo.width() * 0.69;
+    let top = logo.top() + logo.height() * 0.20;
+    let mid = logo.top() + logo.height() * 0.49;
+    let bottom = logo.top() + logo.height() * 0.82;
+
+    painter.line_segment([pos2(x0, top), pos2(x0, bottom)], stroke);
+    painter.line_segment([pos2(x0, mid), pos2(x1, mid)], stroke);
+    painter.line_segment([pos2(x1, mid), pos2(x1, bottom * 0.98 + top * 0.02)], stroke);
+    painter.line_segment([pos2(x2, mid), pos2(x2, bottom)], stroke);
+    painter.line_segment([pos2(x1, mid), pos2(x2, mid)], stroke);
+    painter.line_segment(
+        [
+            pos2(x2, mid),
+            pos2(logo.right() - logo.width() * 0.10, logo.top() + logo.height() * 0.36),
+        ],
+        stroke,
+    );
+}
+
+fn paint_holder_lips(painter: &Painter, window: Rect, scale: f32) {
+    let side = HOLDER_SIDE_LIP_MM * SOURCE_PX_PER_MM * scale;
+    let shadow = HOLDER_EDGE_SHADOW_MM * SOURCE_PX_PER_MM * scale;
+    let lip = Color32::from_rgb(16, 16, 14);
+    let edge = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
+
+    painter.rect_filled(
+        Rect::from_min_max(
+            window.left_top(),
+            pos2((window.left() + side).min(window.right()), window.bottom()),
+        ),
+        0.0,
+        lip,
+    );
+    painter.rect_filled(
+        Rect::from_min_max(
+            pos2((window.right() - side).max(window.left()), window.top()),
+            window.right_bottom(),
+        ),
+        0.0,
+        lip,
+    );
+    painter.rect_filled(
+        Rect::from_min_max(
+            window.left_top(),
+            pos2(window.right(), (window.top() + shadow).min(window.bottom())),
+        ),
+        0.0,
+        edge,
+    );
+    painter.rect_filled(
+        Rect::from_min_max(
+            pos2(window.left(), (window.bottom() - shadow).max(window.top())),
+            window.right_bottom(),
+        ),
+        0.0,
+        edge,
+    );
 }
 
 fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress: f32, scale: f32) {
@@ -411,6 +506,7 @@ fn paint_window_insertion_from_right(
             CardPalette::holder(),
             scale,
         );
+        paint_holder_lips(ui.painter(), window, scale);
     }
 
     debug_assert!(holder_mouth_x <= case_right_x);
@@ -468,6 +564,11 @@ mod tests {
         assert_eq!(MOON_ROCKET_LANDER_CARD.primary_labels[0], "CNTRL");
         assert_eq!(MOON_ROCKET_LANDER_CARD.primary_labels[1], "RESTART");
         assert_eq!(MOON_ROCKET_LANDER_CARD.reference, "SD-14A");
+        assert_eq!(
+            MOON_ROCKET_LANDER_CARD.top_notches,
+            MOON_ROCKET_LANDER_TOP_NOTCHES
+        );
+        assert!(MOON_ROCKET_LANDER_CARD.show_hp_logo);
         assert!(MOON_ROCKET_LANDER_CARD.primary_labels[2..]
             .iter()
             .all(|label| label.is_empty()));
@@ -520,7 +621,7 @@ mod tests {
         );
         assert!((CARD_END_CHAMFER_MM - 4.2).abs() < 0.0001);
         assert!(CARD_END_CHAMFER_MM < CARD_HEIGHT_MM * 0.5);
-        assert_eq!(CARD_TOP_NOTCH_X_FRACTIONS.len(), 3);
+        assert_eq!(MOON_ROCKET_LANDER_CARD.top_notches.len(), 3);
     }
 
     #[test]
