@@ -19,3 +19,6 @@ Create the versioned-firmware live machine; process power/mode switch events; re
 ## Implementation
 
 The frame first paints the currently available hardware display and collects panel interaction. Mechanical events are applied, the RUN/PRGM state is passed to `Hp67LiveMachine::set_program_mode()`, the current key contact is passed to `Hp67LiveMachine::set_key_contact()`, then elapsed time is calculated and the live machine advances. Resetting `last_live_tick` on power transitions preserves the original zero-elapsed first powered frame. No UI key callback performs calculator-level work. The M13 card phase machine advances only visual state (`Idle` → `ReadingFromRight` → `ParkedLeft` → `InsertingWindowFromRight` → `InWindow`) and likewise does not alter CRC state, program RAM or A-E semantics.
+
+
+M13 artwork loading: the exact HP badge is stored as `assets/hp67-card-logo.png`, cropped from the supplied original-card reference. `Hp67App` decodes it once at startup into a dedicated `TextureHandle` and passes that texture into the program-card renderer; the logo is no longer approximated with procedural line geometry.
