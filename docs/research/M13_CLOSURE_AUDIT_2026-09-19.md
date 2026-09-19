@@ -95,3 +95,10 @@ The closure gate must not be recorded as passed until it is executed on a machin
 ## Printed-face identity
 
 The host presentation no longer paints every magnetic object as SD-14A. Native raw/container images and blank cards have no verified printed identity and therefore use neutral artwork. The Moon Rocket Lander face is selected only from matching Teenix card metadata. This keeps the closure claim about magnetic media independent from the still-unavailable verified built-in SD-14A payload.
+
+
+## Data-card W/DATA proof
+
+M13 also covers the two data-card header classes instead of treating program cards as representative of all media. The live test uses real `f` + `ENTER` to enter `W/DATA` after `1`, `Σ+` makes secondary registers non-zero. Firmware owns both `Crd` waits. The first physical pass must be header ID 1 for primary registers; the same card rotated end-for-end must carry header ID 2 for secondary registers. A fresh RUN-mode machine then reads those two passes through the real CRC data-read path and must observe the same header sequence with a firmware `Crd` continuation between them.
+
+The functional card-header matrix is therefore: 1 = primary data, 2 = secondary data, 3 = program steps 001-112, 4 = program steps 113-224. All four are covered by live real-firmware regressions.

@@ -218,3 +218,10 @@ This is an intentional fidelity stop, not an implementation omission to be fille
 ### Two-track read-back proof
 
 The two-pass regression is bidirectional. After the PROGRAM-mode writer produces logical Track 1 (header ID 3) and logical Track 2 (header ID 4), a fresh RUN-mode live machine reads the first pass, returns the same card, reaches the firmware-generated `Crd` prompt, accepts the same card by the opposite end and reads the second pass. The test requires the known non-zero second-half program RAM register to be restored only through that second CRC/card pass. This proves that the `Crd` continuation is not merely a write-side/UI behavior.
+
+
+### W/DATA headers 1/2 and two-pass read-back
+
+The data-card path is now exercised independently of the program-card path. The regression enters `W/DATA` through real physical keyboard contacts (`f` then `ENTER`) after `1`, `Σ+` has made secondary statistical storage non-zero. Real firmware first prompts with `Crd`, writes the primary-register pass with header ID 1, prompts with `Crd` again because secondary registers are non-zero, and writes the same card's opposite logical track with header ID 2. A fresh RUN-mode live machine then reads Track 1 through `0x9B`, requires its firmware-generated `Crd`, reinserts the same card by End2 and reads Track 2. The first CRC word observed on the two read passes must carry header IDs 1 and 2 respectively.
+
+Together with the header-3/header-4 program regression, all four firmware-defined HP-67 card-header classes now cross the live transport and CRC boundary.
