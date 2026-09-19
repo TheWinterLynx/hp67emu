@@ -112,3 +112,12 @@ Final visual trim: the right aperture edge was reduced by four source pixels (`7
 ## Sloped right holder rail
 
 The right holder rail in the source photograph is not vertical. Screenshot measurement shows the inner edge moving rightward by about five source pixels across the holder height. A rectangular clip therefore left a visibly incorrect vertical card edge. The renderer now allows the physical card to extend to x=796 and then restores the original `assets/hp67.png` over the card in 109 horizontal source-pixel bands. The restoration boundary is linearly interpolated from source x=787 at y=345 to x=792 at y=454, reproducing the photographed rail inclination while preserving the original texture, white guide and lighting. The card centre remains source x=465.5, so all A-E label anchors remain exactly 211, 338, 465, 592 and 719.
+
+
+## Firmware-driven second-track presentation
+
+The original 900 ms host timer for `ReadingFromRight` is removed. Reader animation progress is now supplied by the live transport (`next_record / 34`), and the UI does not park the card at the left exit until `Hp67LiveMachine` reports the selected logical track complete and returns the same physical media object.
+
+When the returned card has a recorded opposite track, the app still does not assume that a second pass is required. It waits for the real firmware-generated `Crd` display. Only while that physical prompt is visible does the parked-left hover advertise opposite-end continuation; double-click then switches `CardInsertionEnd`, hands the same `Hp67MagneticCard` back to `insert_magnetic_card()` and reuses the normal right-to-left reader animation for the second pass. A normal click remains the passive-holder action.
+
+This keeps the authority split clean: firmware decides whether another card pass is required, the host knows whether the same imported physical card actually contains an opposite logical track, and the renderer only visualizes the resulting interaction.

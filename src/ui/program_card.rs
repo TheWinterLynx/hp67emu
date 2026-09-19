@@ -79,6 +79,7 @@ pub struct ProgramCardView<'a> {
     pub logo: &'a TextureHandle,
     pub phase: ProgramCardPhase,
     pub phase_progress: f32,
+    pub opposite_track_requested: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -141,15 +142,18 @@ pub fn paint(
         }
         ProgramCardPhase::ParkedLeft => {
             let visible = parked_left_visible_rect(photo, scale);
+            let hover_text = if view.opposite_track_requested {
+                "Crd: double-click to rotate the same card 180° and reinsert the opposite end"
+            } else {
+                "Click: move card to the holder above A-E. Double-click: rotate 180° and select the opposite end"
+            };
             let response = ui
                 .interact(
                     visible,
                     ui.make_persistent_id("hp67-program-card-left-exit"),
                     Sense::click(),
                 )
-                .on_hover_text(
-                    "Click: move card to the holder above A-E. Double-click: rotate 180° and reinsert the opposite end",
-                );
+                .on_hover_text(hover_text);
             if response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }

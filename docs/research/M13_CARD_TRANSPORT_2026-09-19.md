@@ -186,3 +186,12 @@ The new `card_flux.rs` layer therefore distinguishes:
 `Hp67FluxCell` represents one bit cell and makes the documented invariant explicit: exactly one physical track reverses. `Hp67SelfClockingFluxPair` round-trips an already ordered 952-bit serial stream through 952 such cells. It stores reversal events, not absolute magnetic polarity, because the sources establish transition placement but this slice has not established a required initial north/south state.
 
 This layer is intentionally not yet wired directly from `[u32; 34]`. The sources above prove the Zero/One transition encoding, but they do not by themselves pin the temporal significance order in which the CRC shifts the 28 bits of each logical record to the sense/write circuitry. The existing .hp67raw MSB-first packing remains explicitly an emulator interchange convention and is not reused as an unsupported physical-bit-order claim.
+
+
+## Firmware-driven two-track reinsertion
+
+The pinned HP-67/97 card-reader firmware explicitly prompts for the next physical card pass when a second program/data block is required. In `wprgm`, after the first `write_16_reg`, S7 decides whether program steps 113-224 are all R/S; if not, firmware calls `card_prompt`, then writes the second block with header ID 4. `card_prompt` loads display codes 11, 10 and 13 (`C`, `r`, `d`) into the leftmost mantissa positions, toggles the display on and loops in `card_wait` until external `card_present` becomes true again.
+
+Production now exposes this only as an observation: `HardwareDisplayFrame::shows_card_prompt()` recognizes the physical ROM0-derived segment masks `39 50 5e` in those three positions, and `Hp67LiveMachine::card_prompt_visible()` forwards that state to the host without changing firmware. `card_record_position()` also exposes the current 0..34 transport position so presentation can follow the real pass.
+
+A live regression writes a deliberately non-empty second half of program RAM, inserts one blank `Hp67MagneticCard` by End1, requires Track 1 header ID 3, waits for the real physical `Crd` frame, reinserts the same returned card by End2, and requires Track 2 header ID 4. This proves the two-pass continuation through real firmware, display, card-present/motor sequencing and the same physical media object.

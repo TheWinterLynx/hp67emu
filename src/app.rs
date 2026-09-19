@@ -5,7 +5,9 @@ use std::{
 };
 
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
-use hp67emu::machines::hp67::{CardInsertionEnd, Hp67MagneticCard, TeenixHppImport};
+use hp67emu::machines::hp67::{
+    CardInsertionEnd, Hp67MagneticCard, TeenixHppImport, HP67_CARD_RECORDS_PER_TRACK,
+};
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
@@ -16,7 +18,6 @@ use crate::{
     },
 };
 
-const PROGRAM_CARD_READ_DURATION: Duration = Duration::from_millis(900);
 const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
 
 pub struct Hp67App {
@@ -30,6 +31,7 @@ pub struct Hp67App {
     last_live_tick: Option<Instant>,
     card_phase: ProgramCardPhase,
     card_phase_started: Option<Instant>,
+    card_read_progress: f32,
 }
 
 impl Hp67App {
@@ -88,6 +90,7 @@ impl Hp67App {
             last_live_tick: None,
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
+            card_read_progress: 0.0,
         }
     }
 }
@@ -161,6 +164,7 @@ impl Hp67App {
                 self.card_insertion_end = CardInsertionEnd::for_track(card_track);
                 self.card_phase = ProgramCardPhase::Idle;
                 self.card_phase_started = None;
+                self.card_read_progress = 0.0;
 
                 if !length_matches {
                     eprintln!(
@@ -182,6 +186,7 @@ impl Hp67App {
                 self.card_insertion_end = CardInsertionEnd::End1;
                 self.card_phase = ProgramCardPhase::Idle;
                 self.card_phase_started = None;
+                self.card_read_progress = 0.0;
             }
             "hp67card" => {
                 self.card_media = Some(
@@ -192,6 +197,7 @@ impl Hp67App {
                 self.card_insertion_end = CardInsertionEnd::End1;
                 self.card_phase = ProgramCardPhase::Idle;
                 self.card_phase_started = None;
+                self.card_read_progress = 0.0;
             }
             _ => {
                 return Err(format!(
@@ -202,6 +208,44 @@ impl Hp67App {
         }
 
         Ok(())
+    }
+
+    fn insert_current_card(&mut self, insertion_end: CardInsertionEnd) -> bool {
+        let Some(card) = self.card_media.take() else {
+            return false;
+        };
+        let restore = card.clone();
+
+        let Some(machine) = self.live_machine.as_mut() else {
+            self.card_media = Some(card);
+            return false;
+        };
+        if machine.magnetic_card_inserted() {
+            self.card_media = Some(card);
+            return false;
+        }
+
+        if let Err(error) = machine.insert_magnetic_card(card, insertion_end) {
+            eprintln!("HP-67 live card insertion failed: {error}");
+            self.card_media = Some(restore);
+            return false;
+        }
+
+        self.card_insertion_end = insertion_end;
+        self.card_phase = ProgramCardPhase::ReadingFromRight;
+        self.card_phase_started = None;
+        self.card_read_progress = 0.0;
+        true
+    }
+
+    fn opposite_track_requested(&self) -> bool {
+        self.live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::card_prompt_visible)
+            && self.card_media.as_ref().is_some_and(|card| {
+                card.track(self.card_insertion_end.opposite().track())
+                    .is_recorded()
+            })
     }
 }
 
@@ -226,14 +270,6 @@ impl eframe::App for Hp67App {
         self.import_dropped_card_files(ctx);
 
         match self.card_phase {
-            ProgramCardPhase::ReadingFromRight
-                if self.card_phase_started.is_some_and(|started| {
-                    now.saturating_duration_since(started) >= PROGRAM_CARD_READ_DURATION
-                }) =>
-            {
-                self.card_phase = ProgramCardPhase::ParkedLeft;
-                self.card_phase_started = None;
-            }
             ProgramCardPhase::InsertingWindowFromRight
                 if self.card_phase_started.is_some_and(|started| {
                     now.saturating_duration_since(started) >= PROGRAM_CARD_WINDOW_INSERT_DURATION
@@ -246,11 +282,7 @@ impl eframe::App for Hp67App {
         }
 
         let card_phase_progress = match (self.card_phase, self.card_phase_started) {
-            (ProgramCardPhase::ReadingFromRight, Some(started)) => {
-                (now.saturating_duration_since(started).as_secs_f32()
-                    / PROGRAM_CARD_READ_DURATION.as_secs_f32())
-                .clamp(0.0, 1.0)
-            }
+            (ProgramCardPhase::ReadingFromRight, _) => self.card_read_progress,
             (ProgramCardPhase::InsertingWindowFromRight, Some(started)) => {
                 (now.saturating_duration_since(started).as_secs_f32()
                     / PROGRAM_CARD_WINDOW_INSERT_DURATION.as_secs_f32())
@@ -267,6 +299,7 @@ impl eframe::App for Hp67App {
                     .live_machine
                     .as_ref()
                     .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
+                let opposite_track_requested = self.opposite_track_requested();
                 let panel = Hp67Panel::show(
                     ui,
                     &self.state,
@@ -277,31 +310,20 @@ impl eframe::App for Hp67App {
                         logo: &self.card_logo,
                         phase: self.card_phase,
                         phase_progress: card_phase_progress,
+                        opposite_track_requested,
                     },
                 );
                 if panel.card_reader_clicked {
-                    if let Some(machine) = self.live_machine.as_mut() {
-                        if !machine.magnetic_card_inserted() {
-                            if let Some(card) = self.card_media.take() {
-                                let restore = card.clone();
-                                if let Err(error) =
-                                    machine.insert_magnetic_card(card, self.card_insertion_end)
-                                {
-                                    eprintln!("HP-67 live card insertion failed: {error}");
-                                    self.card_media = Some(restore);
-                                }
-                            }
-                        }
-                    }
-
-                    self.card_phase = ProgramCardPhase::ReadingFromRight;
-                    self.card_phase_started = Some(now);
+                    self.insert_current_card(self.card_insertion_end);
                 }
                 if panel.card_parked_left_double_clicked {
-                    if self.card_media.is_some() {
+                    if opposite_track_requested {
+                        self.insert_current_card(self.card_insertion_end.opposite());
+                    } else if self.card_media.is_some() {
                         self.card_insertion_end = self.card_insertion_end.opposite();
                         self.card_phase = ProgramCardPhase::Idle;
                         self.card_phase_started = None;
+                        self.card_read_progress = 0.0;
                     }
                 } else if panel.card_parked_left_clicked {
                     self.card_phase = ProgramCardPhase::InsertingWindowFromRight;
@@ -369,8 +391,17 @@ impl eframe::App for Hp67App {
                 } else {
                     live_card_active =
                         machine.card_motor_on() || machine.card_record_stream_active();
+                    if machine.magnetic_card_inserted() {
+                        self.card_read_progress =
+                            (machine.card_record_position() as f32
+                                / HP67_CARD_RECORDS_PER_TRACK as f32)
+                                .clamp(0.0, 1.0);
+                    }
                     if machine.card_transport_complete() && self.card_media.is_none() {
+                        self.card_read_progress = 1.0;
                         self.card_media = machine.take_completed_magnetic_card();
+                        self.card_phase = ProgramCardPhase::ParkedLeft;
+                        self.card_phase_started = None;
                     }
                 }
             }

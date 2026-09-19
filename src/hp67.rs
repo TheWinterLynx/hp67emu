@@ -157,6 +157,10 @@ impl HardwareDisplayFrame {
         &self.segments
     }
 
+    pub const fn shows_card_prompt(&self) -> bool {
+        self.segments[1] == 0x39 && self.segments[2] == 0x50 && self.segments[3] == 0x5e
+    }
+
     fn clear(&mut self) {
         self.segments = [0; 15];
     }
@@ -321,6 +325,14 @@ impl Hp67LiveMachine {
 
     pub const fn card_transport_complete(&self) -> bool {
         self.card_transport.is_complete()
+    }
+
+    pub const fn card_record_position(&self) -> usize {
+        self.card_transport.next_record()
+    }
+
+    pub const fn card_prompt_visible(&self) -> bool {
+        self.display.shows_card_prompt()
     }
 
     pub fn take_completed_magnetic_card(&mut self) -> Option<Hp67MagneticCard> {
@@ -889,6 +901,83 @@ mod tests {
     }
 
     #[test]
+    fn live_two_track_program_write_prompts_crd_and_reinserts_same_card() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut live);
+
+        let mut second_half_program = [0u8; 14];
+        second_half_program[0] = 1;
+        assert!(live.machine.ram.write(0x1f, second_half_program));
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank physical card must insert for first program track");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() && live.machine.crc.queued_write_words() == 0 {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+        let first_pass = live
+            .take_completed_magnetic_card()
+            .expect("first written track must return the same physical card");
+        assert_eq!(
+            first_pass
+                .track(Hp67CardTrack::Track1)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(3)
+        );
+        assert!(!first_pass.track(Hp67CardTrack::Track2).is_recorded());
+
+        for _ in 0..8_192 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            live.card_prompt_visible(),
+            "firmware never displayed the physical Crd second-card prompt"
+        );
+        assert_eq!(
+            &live.display_frame().segments()[1..4],
+            &[0x39, 0x50, 0x5e]
+        );
+
+        live.insert_magnetic_card(first_pass, CardInsertionEnd::End2)
+            .expect("same physical card must reinsert by the opposite end");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() && live.machine.crc.queued_write_words() == 0 {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+
+        let completed = live
+            .take_completed_magnetic_card()
+            .expect("second written track must return the same physical card");
+        assert!(completed.track(Hp67CardTrack::Track1).dirty());
+        assert!(completed.track(Hp67CardTrack::Track2).dirty());
+        assert_eq!(
+            completed
+                .track(Hp67CardTrack::Track2)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(4)
+        );
+    }
+
+    #[test]
     fn live_write_protected_side_reaches_crc_f7_without_modification() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.phase = LiveBootPhase::Firmware;
@@ -938,6 +1027,18 @@ mod tests {
         }
 
         panic!("write-protected card never reached CRC F7 error status");
+    }
+
+    #[test]
+    fn physical_display_frame_recognizes_firmware_crd_prompt_segments() {
+        let mut frame = HardwareDisplayFrame::BLANK;
+        frame.segments[1] = 0x39;
+        frame.segments[2] = 0x50;
+        frame.segments[3] = 0x5e;
+        assert!(frame.shows_card_prompt());
+
+        frame.segments[3] = 0x00;
+        assert!(!frame.shows_card_prompt());
     }
 
     #[test]
