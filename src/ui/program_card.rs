@@ -94,6 +94,7 @@ pub struct ProgramCardView<'a> {
     pub opposite_track_requested: bool,
     pub rotated_180: bool,
     pub reader_enabled: bool,
+    pub reader_free_for_new_blank: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -250,6 +251,25 @@ pub fn paint(
             );
             paint_holder_right_frame_mask(ui.painter(), photo, body);
         }
+    }
+
+    if view.reader_enabled
+        && view.reader_free_for_new_blank
+        && view.phase != ProgramCardPhase::Idle
+    {
+        let reader_hit = source_to_screen(photo, CARD_READER_HIT);
+        let response = ui
+            .interact(
+                reader_hit,
+                ui.make_persistent_id("hp67-magnetic-card-reader-new-blank"),
+                Sense::click(),
+            )
+            .on_hover_text("Right-click: insert a new blank magnetic card");
+        if response.hovered() {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+            paint_reader_hint(ui.painter(), photo, reader_hit, scale);
+        }
+        output.blank_card_requested |= response.secondary_clicked();
     }
 
     output

@@ -343,6 +343,13 @@ impl Hp67App {
         true
     }
 
+    fn reset_card_presentation_after_power_off(&mut self) {
+        self.card_phase = ProgramCardPhase::Idle;
+        self.card_phase_started = None;
+        self.card_read_progress = 0.0;
+        self.card_insertion_end = CardInsertionEnd::End1;
+    }
+
     fn opposite_track_requested(&self) -> bool {
         let Some(machine) = self.live_machine.as_ref() else {
             return false;
@@ -361,11 +368,10 @@ impl Hp67App {
             return false;
         }
 
-        if self.card_media.is_some()
-            || self
-                .live_machine
-                .as_ref()
-                .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
+        if self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
         {
             return false;
         }
@@ -386,6 +392,13 @@ impl Hp67App {
 
 fn card_insertion_allowed(power_on: bool) -> bool {
     power_on
+}
+
+fn reader_free_for_new_blank(phase: ProgramCardPhase) -> bool {
+    !matches!(
+        phase,
+        ProgramCardPhase::WaitingAtReader | ProgramCardPhase::ReadingFromRight
+    )
 }
 
 fn reader_click_requires_new_blank(card_prepared: bool) -> bool {
@@ -499,6 +512,7 @@ impl eframe::App for Hp67App {
                         opposite_track_requested,
                         rotated_180: self.card_insertion_end == CardInsertionEnd::End2,
                         reader_enabled: self.state.power_on,
+                        reader_free_for_new_blank: reader_free_for_new_blank(self.card_phase),
                     },
                 );
                 if panel.card_reader_clicked {
@@ -537,7 +551,18 @@ impl eframe::App for Hp67App {
                     self.state.handle(event);
                     if matches!(event, UiEvent::TogglePower) {
                         self.last_live_tick = None;
-                        if !was_power_on && self.state.power_on {
+                        if was_power_on && !self.state.power_on {
+                            if let Some(machine) = self.live_machine.as_mut() {
+                                match machine.take_magnetic_card_for_power_off() {
+                                    Ok(Some(card)) => self.card_media = Some(card),
+                                    Ok(None) => {}
+                                    Err(error) => {
+                                        eprintln!("HP-67 power-off card recovery failed: {error}");
+                                    }
+                                }
+                            }
+                            self.reset_card_presentation_after_power_off();
+                        } else if !was_power_on && self.state.power_on {
                             let reset_error = self
                                 .live_machine
                                 .as_mut()
@@ -634,6 +659,22 @@ impl eframe::App for Hp67App {
 mod tests {
     use super::*;
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
+
+    #[test]
+    fn new_blank_is_allowed_when_reader_is_physically_free() {
+        assert!(reader_free_for_new_blank(ProgramCardPhase::Idle));
+        assert!(reader_free_for_new_blank(ProgramCardPhase::ParkedLeft));
+        assert!(reader_free_for_new_blank(
+            ProgramCardPhase::InsertingWindowFromRight
+        ));
+        assert!(reader_free_for_new_blank(ProgramCardPhase::InWindow));
+        assert!(!reader_free_for_new_blank(
+            ProgramCardPhase::WaitingAtReader
+        ));
+        assert!(!reader_free_for_new_blank(
+            ProgramCardPhase::ReadingFromRight
+        ));
+    }
 
     #[test]
     fn magnetic_card_insertion_requires_power_on() {

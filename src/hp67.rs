@@ -343,6 +343,18 @@ impl Hp67LiveMachine {
         self.card_transport.take_completed_card()
     }
 
+    pub fn take_magnetic_card_for_power_off(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
+        if self.card_transport.card().is_none() {
+            return Ok(None);
+        }
+
+        self.machine
+            .set_card_present(false)
+            .map_err(|error| format!("HP-67 power-off card contact failed: {error:?}"))?;
+        self.card_startup_buffer_clears = 0;
+        Ok(self.card_transport.take_card_for_power_off())
+    }
+
     pub fn withdraw_unstarted_magnetic_card(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
         if self.card_motor_on()
             || self.card_transport.head_active()
@@ -720,6 +732,53 @@ mod tests {
         panic!(
             "blank RUN card did not reach physical Error; motor_seen={motor_seen}, completed_seen={completed_seen}, display={:?}",
             live.display_frame().segments()
+        );
+    }
+
+    #[test]
+    fn live_power_on_reset_rebuilds_electronic_state() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let mut nonzero = [0u8; 14];
+        nonzero[0] = 7;
+        assert!(live.machine.ram.write(0x1f, nonzero));
+        live.set_key_contact(Some(Hp67Key::Digit9));
+        live.reset_power_on().unwrap();
+
+        assert_eq!(live.phase, LiveBootPhase::ResetHold);
+        assert_eq!(live.display_frame(), HardwareDisplayFrame::BLANK);
+        assert_eq!(live.machine.ram.read(0x1f), Some([0; 14]));
+        assert!(!live.magnetic_card_inserted());
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn live_power_off_recovers_inserted_card_and_drops_card_present() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank card must insert");
+        wait_for_live_card_record_stream(&mut live);
+        let card = live
+            .take_magnetic_card_for_power_off()
+            .expect("power-off card recovery must update the contact");
+
+        assert!(card.is_some());
+        assert!(!live.magnetic_card_inserted());
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
         );
     }
 

@@ -31,3 +31,5 @@ Read-side buffering follows the HP hardware description: the CRC can retain two 
 Closing the modeled head switch first raises the existing CRC buffer_ready startup/readiness event without advancing the magnetic position. Firmware acknowledges that event in Scr3341; only then does record_stream_active() become true and the 28 ms logical record cadence begin. The same startup sequence is shared by read and write paths.
 
 `take_unstarted_card()` models pulling a card back out before the motor/head path has taken it. It succeeds only while record position is still zero and the head switch has not become active, resets the transport's pre-stream handshake state, and returns the same physical card. It cannot withdraw a card that has begun crossing the head.
+
+Power-off card recovery: `take_card_for_power_off()` returns the currently owned physical card regardless of transport position and clears record phase, head, startup-handshake and insertion-end state. Records already committed to the card remain intact. This API is reserved for calculator power removal; normal user withdrawal still uses the stricter pre-head `take_unstarted_card()` rule.

@@ -186,6 +186,21 @@ impl Hp67CardTransport {
         self.card.take()
     }
 
+    /// Recover the physical card when calculator power is removed.
+    ///
+    /// Power loss stops transport regardless of record position. Already-written
+    /// records remain part of the returned card, while all transient transport
+    /// phase/handshake state is discarded.
+    pub fn take_card_for_power_off(&mut self) -> Option<Hp67MagneticCard> {
+        self.next_record = 0;
+        self.record_phase_units = 0;
+        self.head_active = false;
+        self.startup_ready_pending = false;
+        self.waiting_startup_ack = false;
+        self.insertion_end = None;
+        self.card.take()
+    }
+
     /// Remove the same physical card only after the selected logical track has
     /// completely crossed the head. The caller may then rotate it 180 degrees in
     /// its plane and reinsert the opposite end to expose the other logical track.
@@ -339,6 +354,23 @@ mod tests {
         assert_eq!(transport.advance_us(0, true, crc).unwrap(), 0);
         assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(false));
         assert!(transport.record_stream_active());
+    }
+
+    #[test]
+    fn power_off_recovers_card_even_after_transport_started() {
+        let mut transport = Hp67CardTransport::default();
+        transport
+            .insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
+        transport.set_head_active(true);
+
+        let card = transport.take_card_for_power_off();
+        assert!(card.is_some());
+        assert!(transport.card().is_none());
+        assert_eq!(transport.next_record(), 0);
+        assert!(!transport.head_active());
+        assert!(!transport.record_stream_active());
+        assert_eq!(transport.insertion_end(), None);
     }
 
     #[test]

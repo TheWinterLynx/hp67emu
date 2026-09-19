@@ -123,3 +123,9 @@ The post-closure UI test exposed a host lifecycle bug rather than a CRC bug. Pre
 ## Power-off and withdrawal interaction hardening
 
 A physical HP-67 cannot transport a newly inserted card with POWER OFF, so the host now rejects every insertion route while the mechanical power state is off: loaded media, newly created blank media and opposite-end `Crd` continuation. The UI reader hotspot is hover-only while OFF, while the app-level insertion functions enforce the same rule as a second boundary. Waiting-card withdrawal also no longer relies on the narrow progress-zero card rectangle; the secondary-click target covers both the physical reader hotspot and the visible waiting-card portion. This removes scale/clip-dependent right-click misses without allowing withdrawal once motor/head transport has actually begun.
+
+## Repeated blank cards and power-cycle reset
+
+The right reader is now reusable without first deleting host media manually. A secondary click explicitly requests a fresh blank card whenever the reader is physically free; this includes `ParkedLeft` and passive-holder states, so a previous returned card no longer suppresses the reader hotspot. The fresh blank replaces the previous host-side card object and enters the same firmware-controlled insertion path.
+
+HP's Owner's Handbook states that turning the HP-67 OFF and ON restores the default functions, and HP program-library material notes that loaded program memory is not retained through power-off. The emulator therefore resets the electronic machine on OFF->ON rather than resuming an `Error`, card wait, program counter or RAM state. The mechanical W/PRGM-RUN switch is preserved because power cycling cannot move it. Any physical magnetic card still inside the modeled reader is recovered to the host before reset, preserving its media contents while discarding only transient transport phase.
