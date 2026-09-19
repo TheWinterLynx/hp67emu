@@ -34,3 +34,6 @@ Blank-card/write continuation: secondary-clicking the right reader hotspot reque
 
 
 Artwork/media identity: raw `.hp67raw`, `.hp67card` and newly created blank media use neutral card artwork. The SD-14A Moon Rocket Lander face is selected only when Teenix import metadata identifies the physical card as `Moon Rocket Lander` (case-insensitive, surrounding whitespace ignored). This prevents unrelated magnetic payloads from being visually mislabeled as the built-in Standard Pac card.
+
+
+Card orientation is also passed to the presentation layer. `CardInsertionEnd::End2` sets `ProgramCardView::rotated_180`, so a same-card `Crd` continuation is not only logically mapped to the opposite track: the printed physical card is rendered in the corresponding 180-degree in-plane orientation throughout reinsertion and subsequent visible states.

@@ -107,3 +107,8 @@ The functional card-header matrix is therefore: 1 = primary data, 2 = secondary 
 ## Host persistence boundary
 
 The card object returned by firmware writes is persistent for the lifetime of the application and the native media layer already provides lossless `.hp67card` serialization plus `.hp67raw` serialization when both logical tracks are recorded. The desktop currently imports those formats by drag/drop. An OS Save-As chooser is deliberately not part of M13's electrical/card-reader closure: adding one would be host UX and would require a separately managed desktop-dialog dependency/lockfile update. This distinction prevents a missing file chooser from being misreported as an incomplete magnetic-card hardware path.
+
+
+## Opposite-end visual proof
+
+The host renderer receives the actual `CardInsertionEnd`. A second pass by End2 renders the same card face rotated 180 degrees, including text, logo and edge marks, while the reader motion remains tied to live record position. This closes the visual half of the physical same-card reinsertion requirement without changing firmware or transport authority.

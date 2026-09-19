@@ -361,6 +361,7 @@ impl eframe::App for Hp67App {
                         phase: self.card_phase,
                         phase_progress: card_phase_progress,
                         opposite_track_requested,
+                        rotated_180: self.card_insertion_end == CardInsertionEnd::End2,
                     },
                 );
                 if panel.card_reader_clicked {

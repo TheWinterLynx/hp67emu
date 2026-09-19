@@ -44,3 +44,6 @@ The reader hotspot now distinguishes primary click from secondary click. Primary
 
 
 `GENERIC_MAGNETIC_CARD` is a neutral physical-card face with no title, reference, labels, top marks or HP-logo claim. It is used for host media whose visual identity is not known. `MOON_ROCKET_LANDER_CARD` remains the measured SD-14A artwork fixture and is no longer used as the universal magnetic-card skin.
+
+
+Opposite-end presentation is now physical rather than symbolic. `ProgramCardView::rotated_180` rotates all orientation-bearing artwork by 180 degrees: top-edge marks move to their mirrored bottom positions, text is emitted through egui 0.27.2 `TextShape::with_angle(PI)`, and the HP logo mesh is rotated about its center. The card outline itself is invariant under the 180-degree transformation. Tests lock the point/mark transform as an involution.

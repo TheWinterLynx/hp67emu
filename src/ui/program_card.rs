@@ -1,6 +1,8 @@
+use std::f32::consts::PI;
+
 use eframe::egui::{
-    pos2, Align2, Color32, CursorIcon, FontId, Painter, Rect, Sense, Shape, Stroke, TextureHandle,
-    Ui,
+    emath::Rot2, epaint::TextShape, pos2, Align2, Color32, CursorIcon, FontId, Mesh, Painter, Rect,
+    Sense, Shape, Stroke, TextureHandle, Ui,
 };
 
 const PHOTO_W: f32 = 928.0;
@@ -89,6 +91,7 @@ pub struct ProgramCardView<'a> {
     pub phase: ProgramCardPhase,
     pub phase_progress: f32,
     pub opposite_track_requested: bool,
+    pub rotated_180: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -151,6 +154,7 @@ pub fn paint(
                 view.logo,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
+                view.rotated_180,
             );
         }
         ProgramCardPhase::ParkedLeft => {
@@ -172,7 +176,14 @@ pub fn paint(
             }
             output.parked_left_double_clicked = response.double_clicked();
             output.parked_left_clicked = response.clicked() && !response.double_clicked();
-            paint_parked_left(ui, photo, view.artwork, view.logo, scale);
+            paint_parked_left(
+                ui,
+                photo,
+                view.artwork,
+                view.logo,
+                scale,
+                view.rotated_180,
+            );
         }
         ProgramCardPhase::InsertingWindowFromRight => {
             paint_window_insertion_from_right(
@@ -184,6 +195,7 @@ pub fn paint(
                 view.logo,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
+                view.rotated_180,
             );
         }
         ProgramCardPhase::InWindow => {
@@ -206,6 +218,7 @@ pub fn paint(
                 view.logo,
                 CardPalette::holder(),
                 scale,
+                view.rotated_180,
             );
             paint_holder_right_frame_mask(ui.painter(), photo, body);
         }
@@ -242,6 +255,7 @@ fn paint_card(
     logo: &TextureHandle,
     palette: CardPalette,
     scale: f32,
+    rotated_180: bool,
 ) {
     if rect.width() <= 0.0 || rect.height() <= 0.0 {
         return;
@@ -268,25 +282,29 @@ fn paint_card(
     let notch_height = CARD_TOP_MARK_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
     for &fraction in card.top_marks {
         let x = rect.left() + rect.width() * fraction;
-        painter.rect_filled(
-            Rect::from_min_max(
-                pos2(x - notch_width * 0.5, rect.top()),
-                pos2(x + notch_width * 0.5, rect.top() + notch_height),
-            ),
-            0.0,
-            palette.title,
+        let mark = Rect::from_min_max(
+            pos2(x - notch_width * 0.5, rect.top()),
+            pos2(x + notch_width * 0.5, rect.top() + notch_height),
         );
+        let mark = if rotated_180 {
+            rotate_rect_180(rect, mark)
+        } else {
+            mark
+        };
+        painter.rect_filled(mark, 0.0, palette.title);
     }
 
     if card.show_hp_logo {
-        paint_hp_card_logo(painter, rect, logo, scale);
+        paint_hp_card_logo(painter, rect, logo, scale, rotated_180);
     }
 
     let title_font = FontId::proportional((15.0 * scale).max(7.5));
     let label_font = FontId::proportional((12.5 * scale).max(6.5));
     let reference_font = FontId::proportional((10.5 * scale).max(6.0));
 
-    painter.text(
+    paint_card_text(
+        painter,
+        rect,
         pos2(
             rect.center().x,
             rect.top() + rect.height() * CARD_TITLE_Y_FRACTION,
@@ -295,8 +313,11 @@ fn paint_card(
         card.title,
         title_font,
         palette.title,
+        rotated_180,
     );
-    painter.text(
+    paint_card_text(
+        painter,
+        rect,
         pos2(
             rect.left() + rect.width() * CARD_REFERENCE_X_FRACTION,
             rect.top() + rect.height() * CARD_TITLE_Y_FRACTION,
@@ -305,47 +326,102 @@ fn paint_card(
         card.reference,
         reference_font,
         palette.shifted,
+        rotated_180,
     );
 
     for (index, fraction) in CARD_LABEL_X_FRACTIONS.iter().copied().enumerate() {
         let x = rect.left() + rect.width() * fraction;
         let shifted = card.shifted_labels[index];
         if !shifted.is_empty() {
-            painter.text(
+            paint_card_text(
+                painter,
+                rect,
                 pos2(x, rect.top() + rect.height() * CARD_SHIFTED_Y_FRACTION),
                 Align2::CENTER_CENTER,
                 shifted,
                 label_font.clone(),
                 palette.shifted,
+                rotated_180,
             );
         }
         let primary = card.primary_labels[index];
         if !primary.is_empty() {
-            painter.text(
+            paint_card_text(
+                painter,
+                rect,
                 pos2(x, rect.top() + rect.height() * CARD_PRIMARY_Y_FRACTION),
                 Align2::CENTER_CENTER,
                 primary,
                 label_font.clone(),
                 palette.primary,
+                rotated_180,
             );
         }
     }
 }
 
-fn paint_hp_card_logo(painter: &Painter, rect: Rect, logo: &TextureHandle, scale: f32) {
+fn rotate_point_180(card_rect: Rect, point: eframe::egui::Pos2) -> eframe::egui::Pos2 {
+    pos2(
+        card_rect.center().x * 2.0 - point.x,
+        card_rect.center().y * 2.0 - point.y,
+    )
+}
+
+fn rotate_rect_180(card_rect: Rect, rect: Rect) -> Rect {
+    Rect::from_center_size(rotate_point_180(card_rect, rect.center()), rect.size())
+}
+
+fn paint_card_text(
+    painter: &Painter,
+    card_rect: Rect,
+    position: eframe::egui::Pos2,
+    anchor: Align2,
+    text: &str,
+    font: FontId,
+    color: Color32,
+    rotated_180: bool,
+) {
+    if !rotated_180 {
+        painter.text(position, anchor, text, font, color);
+        return;
+    }
+
+    let galley = painter.layout_no_wrap(text.to_owned(), font, color);
+    let unrotated = anchor.anchor_size(position, galley.size());
+    let center = rotate_point_180(card_rect, unrotated.center());
+    let pivot = center + galley.size() * 0.5;
+    painter.add(TextShape::new(pivot, galley, color).with_angle(PI));
+}
+
+fn paint_hp_card_logo(
+    painter: &Painter,
+    rect: Rect,
+    logo: &TextureHandle,
+    scale: f32,
+    rotated_180: bool,
+) {
     let height = CARD_HP_LOGO_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
     let width = height * CARD_HP_LOGO_ASPECT;
     let center = pos2(
         rect.left() + rect.width() * CARD_HP_LOGO_X_FRACTION,
         rect.top() + rect.height() * CARD_HP_LOGO_Y_FRACTION,
     );
+    let center = if rotated_180 {
+        rotate_point_180(rect, center)
+    } else {
+        center
+    };
     let logo_rect = Rect::from_center_size(center, eframe::egui::vec2(width, height));
-    painter.image(
-        logo.id(),
+    let mut mesh = Mesh::with_texture(logo.id());
+    mesh.add_rect_with_uv(
         logo_rect,
         Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
         Color32::WHITE,
     );
+    if rotated_180 {
+        mesh.rotate(Rot2::from_angle(PI), logo_rect.center());
+    }
+    painter.add(mesh);
 }
 
 fn paint_reader_motion(
@@ -355,6 +431,7 @@ fn paint_reader_motion(
     logo: &TextureHandle,
     progress: f32,
     scale: f32,
+    rotated_180: bool,
 ) {
     let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
     let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
@@ -385,6 +462,7 @@ fn paint_reader_motion(
             logo,
             CardPalette::holder(),
             scale,
+            rotated_180,
         );
     }
     if left_clip.intersects(rect) {
@@ -395,6 +473,7 @@ fn paint_reader_motion(
             logo,
             CardPalette::holder(),
             scale,
+            rotated_180,
         );
     }
 }
@@ -434,6 +513,7 @@ fn paint_parked_left(
     card: &ProgramCardArtwork,
     logo: &TextureHandle,
     scale: f32,
+    rotated_180: bool,
 ) {
     let rect = parked_left_rect(photo, scale);
     let visible = parked_left_visible_rect(photo, scale);
@@ -444,6 +524,7 @@ fn paint_parked_left(
         logo,
         CardPalette::holder(),
         scale,
+        rotated_180,
     );
 }
 
@@ -456,6 +537,7 @@ fn paint_window_insertion_from_right(
     logo: &TextureHandle,
     progress: f32,
     scale: f32,
+    rotated_180: bool,
 ) {
     let t = ease_in_out(progress);
     let final_rect = holder_card_rect(window, scale);
@@ -489,6 +571,7 @@ fn paint_window_insertion_from_right(
             logo,
             CardPalette::holder(),
             scale,
+            rotated_180,
         );
     }
 
@@ -500,6 +583,7 @@ fn paint_window_insertion_from_right(
             logo,
             CardPalette::holder(),
             scale,
+            rotated_180,
         );
         paint_holder_right_frame_mask(ui.painter(), photo, body);
     }
@@ -679,6 +763,24 @@ mod tests {
         assert_eq!(visible.width(), CARD_LEFT_VISIBLE_WIDTH);
         assert_eq!(visible.right(), CARD_EXIT_MOUTH_X);
         assert!(parked.right() > CARD_EXIT_MOUTH_X);
+    }
+
+    #[test]
+    fn opposite_end_rotation_is_exactly_involutive_about_card_center() {
+        let card = Rect::from_min_max(pos2(10.0, 20.0), pos2(110.0, 60.0));
+        let point = pos2(25.0, 27.0);
+        let rotated = rotate_point_180(card, point);
+        assert_eq!(rotated, pos2(95.0, 53.0));
+        assert_eq!(rotate_point_180(card, rotated), point);
+    }
+
+    #[test]
+    fn opposite_end_rotation_moves_top_marks_to_mirrored_bottom_positions() {
+        let card = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 20.0));
+        let mark = Rect::from_min_max(pos2(9.0, 0.0), pos2(11.0, 2.0));
+        let rotated = rotate_rect_180(card, mark);
+        assert_eq!(rotated.min, pos2(89.0, 18.0));
+        assert_eq!(rotated.max, pos2(91.0, 20.0));
     }
 
     #[test]

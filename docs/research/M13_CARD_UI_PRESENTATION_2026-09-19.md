@@ -121,3 +121,8 @@ This keeps the authority split clean: firmware decides whether another card pass
 ## Artwork/media identity separation
 
 Magnetic contents never imply artwork. Blank media and the native `.hp67raw`/`.hp67card` formats carry no title or printed-face metadata, so the UI now renders them with a neutral card face. The measured SD-14A Moon Rocket Lander face is used only when an imported Teenix card explicitly identifies itself as `Moon Rocket Lander`. This prevents a correct magnetic emulation from presenting unrelated media under false Standard Pac labels.
+
+
+## End-for-end orientation rendering
+
+When the same card is reinserted for the opposite logical track, the renderer now follows the physical orientation instead of reusing the End1 artwork pose. End2 rotates the printed face 180 degrees in plane. Text uses the rotation support already present in egui/epaint 0.27.2; the HP logo uses a rotated texture mesh; top marks are mirrored from top to bottom. The normal transport-driven right-to-left reader motion is reused, so the visible second pass is the same physical card in the opposite orientation rather than a second card or an unchanged sprite.
