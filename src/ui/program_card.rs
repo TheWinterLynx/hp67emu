@@ -486,11 +486,7 @@ fn paint_window_insertion_from_right(
     debug_assert!(holder_mouth_x <= case_right_x);
 }
 
-fn paint_holder_right_frame_mask(
-    painter: &Painter,
-    photo: Rect,
-    body: &TextureHandle,
-) {
+fn paint_holder_right_frame_mask(painter: &Painter, photo: Rect, body: &TextureHandle) {
     let y_span = CARD_WINDOW.y1 - CARD_WINDOW.y0;
     for band in 0..HOLDER_RIGHT_MASK_BANDS {
         let t0 = band as f32 / HOLDER_RIGHT_MASK_BANDS as f32;
