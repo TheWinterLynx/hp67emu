@@ -17,6 +17,7 @@ const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700)
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
+    card_logo: TextureHandle,
     live_machine: Option<Hp67LiveMachine>,
     last_live_tick: Option<Instant>,
     card_phase: ProgramCardPhase,
@@ -42,6 +43,24 @@ impl Hp67App {
             cc.egui_ctx
                 .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
 
+        let card_logo_decoded = image::load_from_memory_with_format(
+            include_bytes!("../assets/hp67-card-logo.png"),
+            image::ImageFormat::Png,
+        )
+        .expect("embedded assets/hp67-card-logo.png must be a valid PNG")
+        .to_rgba8();
+        let card_logo_size = [
+            card_logo_decoded.width() as usize,
+            card_logo_decoded.height() as usize,
+        ];
+        let card_logo_color =
+            ColorImage::from_rgba_unmultiplied(card_logo_size, card_logo_decoded.as_raw());
+        let card_logo = cc.egui_ctx.load_texture(
+            "hp67-program-card-logo",
+            card_logo_color,
+            TextureOptions::LINEAR,
+        );
+
         let live_machine = match Hp67LiveMachine::power_on_default() {
             Ok(machine) => Some(machine),
             Err(error) => {
@@ -53,6 +72,7 @@ impl Hp67App {
         Self {
             state: Hp67State::default(),
             photo,
+            card_logo,
             live_machine,
             last_live_tick: None,
             card_phase: ProgramCardPhase::Idle,
@@ -114,6 +134,7 @@ impl eframe::App for Hp67App {
                     &self.photo,
                     ProgramCardView {
                         artwork: &MOON_ROCKET_LANDER_CARD,
+                        logo: &self.card_logo,
                         phase: self.card_phase,
                         phase_progress: card_phase_progress,
                     },
