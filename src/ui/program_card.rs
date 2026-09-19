@@ -6,8 +6,11 @@ use eframe::egui::{
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
-const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 789.0, 454.0);
-const HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX: f32 = 2.0;
+const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 796.0, 454.0);
+const HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX: f32 = -1.5;
+const HOLDER_RIGHT_FRAME_TOP_X: f32 = 789.0;
+const HOLDER_RIGHT_FRAME_BOTTOM_X: f32 = 794.0;
+const HOLDER_RIGHT_MASK_BANDS: usize = 109;
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -99,7 +102,12 @@ impl SourceRect {
     }
 }
 
-pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCardUiOutput {
+pub fn paint(
+    ui: &mut Ui,
+    photo: Rect,
+    body: &TextureHandle,
+    view: ProgramCardView<'_>,
+) -> ProgramCardUiOutput {
     let mut output = ProgramCardUiOutput::default();
     let scale = photo.height() / PHOTO_H;
     let window = source_to_screen(photo, CARD_WINDOW);
@@ -149,6 +157,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
             paint_window_insertion_from_right(
                 ui,
                 photo,
+                body,
                 window,
                 view.artwork,
                 view.logo,
@@ -177,6 +186,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 CardPalette::holder(),
                 scale,
             );
+            paint_holder_right_frame_mask(ui.painter(), photo, body);
         }
     }
 
@@ -419,6 +429,7 @@ fn paint_parked_left(
 fn paint_window_insertion_from_right(
     ui: &Ui,
     photo: Rect,
+    body: &TextureHandle,
     window: Rect,
     card: &ProgramCardArtwork,
     logo: &TextureHandle,
@@ -469,9 +480,41 @@ fn paint_window_insertion_from_right(
             CardPalette::holder(),
             scale,
         );
+        paint_holder_right_frame_mask(ui.painter(), photo, body);
     }
 
     debug_assert!(holder_mouth_x <= case_right_x);
+}
+
+fn paint_holder_right_frame_mask(
+    painter: &Painter,
+    photo: Rect,
+    body: &TextureHandle,
+) {
+    let y_span = CARD_WINDOW.y1 - CARD_WINDOW.y0;
+    for band in 0..HOLDER_RIGHT_MASK_BANDS {
+        let t0 = band as f32 / HOLDER_RIGHT_MASK_BANDS as f32;
+        let t1 = (band + 1) as f32 / HOLDER_RIGHT_MASK_BANDS as f32;
+        let tm = (t0 + t1) * 0.5;
+        let y0 = CARD_WINDOW.y0 + y_span * t0;
+        let y1 = CARD_WINDOW.y0 + y_span * t1;
+        let frame_x = HOLDER_RIGHT_FRAME_TOP_X
+            + (HOLDER_RIGHT_FRAME_BOTTOM_X - HOLDER_RIGHT_FRAME_TOP_X) * tm;
+        let src = SourceRect::new(frame_x, y0, CARD_WINDOW.x1, y1);
+        painter.image(
+            body.id(),
+            source_to_screen(photo, src),
+            source_to_uv(src),
+            Color32::WHITE,
+        );
+    }
+}
+
+fn source_to_uv(src: SourceRect) -> Rect {
+    Rect::from_min_max(
+        pos2(src.x0 / PHOTO_W, src.y0 / PHOTO_H),
+        pos2(src.x1 / PHOTO_W, src.y1 / PHOTO_H),
+    )
 }
 
 fn source_x_to_screen(photo: Rect, x: f32) -> f32 {
@@ -539,8 +582,12 @@ mod tests {
     #[test]
     fn card_window_is_inside_the_photographed_holder_frame() {
         assert_eq!(CARD_WINDOW.x0, 138.0);
-        assert_eq!(CARD_WINDOW.x1, 789.0);
-        assert_eq!(HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX, 2.0);
+        assert_eq!(CARD_WINDOW.x1, 796.0);
+        assert_eq!(HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX, -1.5);
+        assert_eq!(HOLDER_RIGHT_FRAME_TOP_X, 789.0);
+        assert_eq!(HOLDER_RIGHT_FRAME_BOTTOM_X, 794.0);
+        assert!(HOLDER_RIGHT_FRAME_TOP_X < HOLDER_RIGHT_FRAME_BOTTOM_X);
+        assert!(HOLDER_RIGHT_FRAME_BOTTOM_X < CARD_WINDOW.x1);
         assert_eq!(CARD_WINDOW.y0, 345.0);
         assert_eq!(CARD_WINDOW.y1, 454.0);
         assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 < CARD_PHYSICAL_WIDTH);
