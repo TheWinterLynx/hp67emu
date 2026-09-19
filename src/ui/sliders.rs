@@ -44,8 +44,9 @@ const POWER: PhotoSlider = PhotoSlider {
 
 const MODE: PhotoSlider = PhotoSlider {
     id: "mode",
-    // Ends before the RUN lettering; this can never erase the R.
-    clip: PxRect::new(595.0, 292.0, 707.0, 319.0),
+    // Historical regression guard: x=706/707 reaches into the anti-aliased
+    // left edge of the RUN legend.  The proven safe boundary is x=702.
+    clip: PxRect::new(595.0, 292.0, 702.0, 319.0),
     actuator: PxRect::new(657.0, 292.0, 698.0, 309.0),
     clean_track: PxRect::new(605.0, 292.0, 646.0, 309.0),
     travel_px: 52.0,
@@ -151,6 +152,12 @@ mod tests {
             assert!(slider.actuator.y0 >= slider.clip.y0);
             assert!(slider.actuator.y1 <= slider.clip.y1);
         }
+    }
+
+    #[test]
+    fn mode_slider_cleanup_never_reaches_run_legend() {
+        assert_eq!(MODE.clip.x1, 702.0);
+        assert!(MODE.actuator.x1 <= MODE.clip.x1);
     }
 
     #[test]
