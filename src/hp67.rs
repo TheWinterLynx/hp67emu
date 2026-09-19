@@ -572,8 +572,7 @@ mod tests {
         machines::hp67::{
             ActDisplayWordSerializer, ActOperation, Hp67CardTrack, Hp67Key, Hp67MagneticTrack,
             CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE,
-            HP67_CARD_RECORDS_PER_TRACK,
-            HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
+            HP67_CARD_RECORDS_PER_TRACK, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
         },
     };
 
