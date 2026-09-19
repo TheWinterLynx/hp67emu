@@ -2,7 +2,7 @@
 //!
 //! This layer exists to run long stretches of real firmware while preserving chip boundaries.
 //! It is not the final electrical machine: serial fetch is already external to this module,
-//! while CRC card-data ports and physical RAM/DATA timing remain explicit stop conditions.
+//! while CRC write-port and physical RAM/DATA timing remain explicit stop conditions.
 
 use super::{
     act::{
@@ -304,6 +304,30 @@ mod tests {
         assert_eq!(&machine.act.state.c[0..7], &[1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(&machine.act.state.c[7..14], &[1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(machine.crc.buffered_read_word(), None);
+    }
+
+    #[test]
+    fn firmware_register_read_11_selects_crc_0x9b_and_consumes_record() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
+        machine
+            .crc
+            .present_read_word(0x0123_4567)
+            .expect("transport word must latch");
+
+        let execution = machine
+            .execute_word(0o1370)
+            .expect("register -> c 11 must read CRC buffer");
+        assert_eq!(machine.act.state.ram_address, CRC_RAM_READ_ADDRESS);
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataRead {
+                address: CRC_RAM_READ_ADDRESS,
+                card_word: 0x0123_4567,
+            }
+        );
+        assert_eq!(&machine.act.state.c[0..7], &[7, 6, 5, 4, 3, 2, 1]);
+        assert_eq!(&machine.act.state.c[7..14], &[7, 6, 5, 4, 3, 2, 1]);
     }
 
     #[test]
