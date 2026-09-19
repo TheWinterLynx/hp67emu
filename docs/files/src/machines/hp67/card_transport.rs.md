@@ -1,36 +1,31 @@
-# `src/machines/hp67/card_transport.rs`
+# src/machines/hp67/card_transport.rs
 
 ## Purpose
 
-Model the HP-67 magnetic-card transport cadence between the physical reader/head boundary and the CRC 28-bit read/write buffers.
+Model the HP-67 magnetic-card transport cadence between one physical two-track card, the selected longitudinal track at the reader head, and the CRC 28-bit read/write buffers.
 
 ## Why it exists
 
-The HP-67 firmware does not treat `motor_on` as equivalent to data availability. HP documentation separates card-present/motor control, the head switch, magnetic sensing and the CRC buffer; the HP Journal further gives a nominal 28 ms interval between CRC-visible 28-bit records. This transport layer keeps those physical concerns separate from the CRC flag/control model and from card-file persistence.
+The HP-67 firmware does not treat motor_on as equivalent to data availability. HP documentation separates card-present/motor control, the head switch, magnetic sensing and the CRC buffer; the HP Journal further gives a nominal 28 ms interval between CRC-visible 28-bit records. This transport layer keeps those physical concerns separate from the CRC flag/control model and from host file formats.
 
 ## Relationships
 
-Feeds `CrcArchitecturalCore::present_read_word()` in `crc.rs`; is owned by `Hp67LiveMachine` in `src/hp67.rs`; uses the same 320 us observed firmware word time when advanced by the live machine. It does not decode firmware, alter ACT state, render the UI, or own the eventual card-file adapter.
+The transport owns an Hp67MagneticCard while it is inside the reader. CardInsertionEnd selects Track 1 or Track 2 from magnetic_card.rs. The selected Hp67MagneticTrack feeds CrcArchitecturalCore::present_read_word() in crc.rs and receives queued write words in write mode. Hp67LiveMachine in src/hp67.rs owns the firmware-synchronized card-present/head lifecycle. The transport never parses Teenix .hpp, .hp67raw or .hp67card files and never owns artwork.
 
 ## Responsibilities
 
-Represent one inserted HP-67 card side as 34 validated 28-bit records; gate record movement on both motor enable and the head-active condition; accumulate nominal transport time; present each read record to the CRC every 28,000 us; drain queued write records to the inserted card at the same nominal cadence; preserve FIFO order; enforce per-side write protection; mark modified media dirty; and stop after the 34th record.
+Carry one complete physical card through the reader; expose only the track selected by the insertion end; gate record movement on motor enable and head-active state; accumulate nominal transport time; present recorded words to the CRC every 28,000 us; let an unrecorded track cross the head without inventing zero records; drain queued write words at the same cadence; materialize an initially unrecorded track when it is written; enforce write protection independently on the selected track; preserve the non-selected track unchanged; and release the same physical card after the 34th record position.
 
 ## Implementation
 
-`Hp67CardSide` owns a fixed 34-word array, per-side write-protect state and dirty state, and rejects values wider than the CRC 28-bit record mask. `Hp67CardTransport` tracks the inserted side, next record, partial record time and head-active state. `advance_us()` advances only while a side is present, the firmware-owned motor flag is on and the head switch is active. The nominal interval is `HP67_NOMINAL_CARD_RECORD_US = 28_000`, source-backed by the November 1976 HP Journal description of the HP-67/97 card reader. Exact motor acceleration, head-switch position, ±5% speed variation, flux-transition timing and sense-amplifier electrical behavior remain later M13 work.
+Hp67CardTransport stores Option<Hp67MagneticCard> plus Option<CardInsertionEnd>, next-record position, partial record time and head/startup-handshake state. active_track() resolves the selected physical track from the insertion end. insert_card() accepts the whole card and an explicit end; take_completed_card() returns that same card so the caller can rotate it 180 degrees and reinsert the opposite end.
 
+advance_us() advances only while a card is present, the firmware-owned motor flag is on and the modeled head switch is active. The nominal interval is HP67_NOMINAL_CARD_RECORD_US = 28_000. Exact motor acceleration, head-switch position, speed variation, magnetic channels, flux-transition timing and sense-amplifier electrical behavior remain later M13 work.
 
-In write mode the CRC pair of 28-bit buffers is authoritative. While motor/head are active and the side is writable, the transport signals that capacity is available; firmware `0x99` writes enqueue records, and the transport commits one FIFO record every nominal 28 ms. A protected side raises the F7 status path used by firmware and no media word is modified.
+For a recorded track, read cadence presents each of the 34 28-bit words to the CRC in order. For TrackMedia::Unrecorded, the same 34 physical record positions pass the head but no synthetic data-ready event or zero word is generated.
 
+In write mode the CRC pair of 28-bit buffers remains authoritative. While motor/head are active and the selected track is writable, firmware 0x99 writes enqueue records and the transport commits one FIFO record every nominal 28 ms. The first committed record materializes an initially unrecorded track. A clipped/protected selected track raises the F7 status path and remains unchanged; protection on the other track has no effect.
 
-Completed-media ownership: `take_completed_side()` succeeds only after all 34 record positions have crossed the head. It resets transport position/timing and releases the inserted `Hp67CardSide` without guessing when the separate external card-present switch mechanically opens. The caller remains responsible for that contact event.
+Read-side buffering follows the HP hardware description: the CRC can retain two 28-bit records while the card continues moving. The transport may enqueue a second record while firmware processes the first but never silently overwrites either one.
 
-
-Read-side buffering follows the HP hardware description: the CRC alternates between two 28-bit buffers while the card continues moving. The transport therefore may enqueue a second record while firmware processes the first, but it may not silently overwrite either one. Tests that advance multiple record intervals without an ACT-side consumer are intentionally invalid once both buffers are occupied.
-
-
-Head-startup handshake: closing the modeled head switch does not immediately start record cadence. The transport first raises one CRC `buffer_ready` readiness event without consuming or producing a card record. Firmware acknowledges/clears that event in `Scr3341`; only after that acknowledgement does `record_stream_active()` become true and the 28 ms record clock begin. This same startup handshake is required in read and write mode, which follows directly from `Scr3341` being shared by both paths.
-
-
-The normal live-machine owner no longer toggles `head_active` directly. `Hp67LiveMachine` owns the firmware-synchronized insertion sequence and automatically releases the head/contact side of the transport at record 34. Direct head control remains available only as the low-level transport boundary used by focused transport tests and future physical-timing work.
+Closing the modeled head switch first raises the existing CRC buffer_ready startup/readiness event without advancing the magnetic position. Firmware acknowledges that event in Scr3341; only then does record_stream_active() become true and the 28 ms logical record cadence begin. The same startup sequence is shared by read and write paths.

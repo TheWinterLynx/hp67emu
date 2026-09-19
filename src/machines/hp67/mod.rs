@@ -18,6 +18,7 @@ pub mod fetch;
 pub mod hp67firmware;
 pub mod isa;
 pub mod keyboard;
+pub mod magnetic_card;
 pub mod machine;
 pub mod timing;
 pub mod wiring;
@@ -39,10 +40,7 @@ pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
 };
-pub use card_transport::{
-    Hp67CardSide, Hp67CardTransport, Hp67CardTransportError, HP67_CARD_RECORDS_PER_SIDE,
-    HP67_NOMINAL_CARD_RECORD_US,
-};
+pub use card_transport::{Hp67CardTransport, Hp67CardTransportError, HP67_NOMINAL_CARD_RECORD_US};
 pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
     CRC_CARD_WORD_BITS, CRC_CARD_WORD_MASK, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
@@ -69,6 +67,12 @@ pub use isa::{
     act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
 };
 pub use keyboard::{Hp67Key, Hp67Keyboard, HP67_KEY_PRESSED_STATUS_BIT};
+pub use magnetic_card::{
+    CardInsertionEnd, Hp67CardTrack, Hp67MagneticCard, Hp67MagneticCardError, Hp67MagneticTrack,
+    TeenixHppError, TeenixHppImport, TrackMedia, HP67_CARD_BITS_PER_TRACK,
+    HP67_CARD_CONTAINER_BYTES, HP67_CARD_LOGICAL_BYTES, HP67_CARD_LOGICAL_BYTES_PER_TRACK,
+    HP67_CARD_RECORDS_PER_TRACK,
+};
 pub use machine::Hp67ElectricalBackplane;
 pub use timing::{
     display_data_serial_bit, isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow,

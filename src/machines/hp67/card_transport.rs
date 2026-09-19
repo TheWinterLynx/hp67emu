@@ -1,22 +1,24 @@
 //! Nominal HP-67 magnetic-card transport timing at the CRC record boundary.
 //!
-//! The HP Journal (November 1976) documents a nominal 6 cm/s card speed,
-//! approximately 1 kbit/s magnetic bit rate, and one CRC-visible 28-bit record
-//! every 28 ms on average.  This module models only that record cadence and the
-//! head-active gate.  Exact motor acceleration, switch geometry, flux-transition
-//! phase and sense-amplifier electrical timing remain later M13 work.
+//! The transport carries one complete physical card but exposes only the track
+//! selected by the insertion end to the magnetic head.  The HP Journal documents
+//! a nominal 6 cm/s card speed, approximately 1 kbit/s magnetic bit rate, and one
+//! CRC-visible 28-bit record every 28 ms on average.  Exact motor acceleration,
+//! switch geometry, flux-transition phase and sense-amplifier electrical timing
+//! remain later M13 work.
 
-use super::crc::{
-    CrcArchitecturalCore, CrcArchitecturalError, CRC_CARD_WORD_MASK, CRC_FLAG_WRITE_MODE,
+use super::{
+    crc::{CrcArchitecturalCore, CrcArchitecturalError, CRC_FLAG_WRITE_MODE},
+    magnetic_card::{
+        CardInsertionEnd, Hp67MagneticCard, Hp67MagneticTrack, HP67_CARD_RECORDS_PER_TRACK,
+    },
 };
 
-pub const HP67_CARD_RECORDS_PER_SIDE: usize = 34;
 pub const HP67_NOMINAL_CARD_RECORD_US: u64 = 28_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hp67CardTransportError {
     CardAlreadyLoaded,
-    WordOutOfRange { index: usize, word: u32 },
     Crc(CrcArchitecturalError),
 }
 
@@ -26,75 +28,10 @@ impl From<CrcArchitecturalError> for Hp67CardTransportError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Hp67CardSide {
-    words: [u32; HP67_CARD_RECORDS_PER_SIDE],
-    write_protected: bool,
-    dirty: bool,
-}
-
-impl Default for Hp67CardSide {
-    fn default() -> Self {
-        Self {
-            words: [0; HP67_CARD_RECORDS_PER_SIDE],
-            write_protected: false,
-            dirty: false,
-        }
-    }
-}
-
-impl Hp67CardSide {
-    pub fn from_words(
-        words: [u32; HP67_CARD_RECORDS_PER_SIDE],
-    ) -> Result<Self, Hp67CardTransportError> {
-        for (index, word) in words.iter().copied().enumerate() {
-            if word > CRC_CARD_WORD_MASK {
-                return Err(Hp67CardTransportError::WordOutOfRange { index, word });
-            }
-        }
-        Ok(Self {
-            words,
-            write_protected: false,
-            dirty: false,
-        })
-    }
-
-    pub const fn words(&self) -> &[u32; HP67_CARD_RECORDS_PER_SIDE] {
-        &self.words
-    }
-
-    pub const fn write_protected(&self) -> bool {
-        self.write_protected
-    }
-
-    pub const fn dirty(&self) -> bool {
-        self.dirty
-    }
-
-    pub fn with_write_protected(mut self, protected: bool) -> Self {
-        self.write_protected = protected;
-        self
-    }
-
-    fn write_word(&mut self, index: usize, word: u32) {
-        debug_assert!(index < HP67_CARD_RECORDS_PER_SIDE);
-        debug_assert!(word <= CRC_CARD_WORD_MASK);
-        self.words[index] = word;
-        self.dirty = true;
-    }
-
-    pub const fn word(&self, index: usize) -> Option<u32> {
-        if index < HP67_CARD_RECORDS_PER_SIDE {
-            Some(self.words[index])
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Hp67CardTransport {
-    side: Option<Hp67CardSide>,
+    card: Option<Hp67MagneticCard>,
+    insertion_end: Option<CardInsertionEnd>,
     next_record: usize,
     record_elapsed_us: u64,
     head_active: bool,
@@ -103,11 +40,16 @@ pub struct Hp67CardTransport {
 }
 
 impl Hp67CardTransport {
-    pub fn insert_side(&mut self, side: Hp67CardSide) -> Result<(), Hp67CardTransportError> {
-        if self.side.is_some() {
+    pub fn insert_card(
+        &mut self,
+        card: Hp67MagneticCard,
+        insertion_end: CardInsertionEnd,
+    ) -> Result<(), Hp67CardTransportError> {
+        if self.card.is_some() {
             return Err(Hp67CardTransportError::CardAlreadyLoaded);
         }
-        self.side = Some(side);
+        self.card = Some(card);
+        self.insertion_end = Some(insertion_end);
         self.next_record = 0;
         self.record_elapsed_us = 0;
         self.startup_ready_pending = false;
@@ -132,8 +74,25 @@ impl Hp67CardTransport {
         self.head_active && !self.startup_ready_pending && !self.waiting_startup_ack
     }
 
-    pub const fn side(&self) -> Option<&Hp67CardSide> {
-        self.side.as_ref()
+    pub fn card(&self) -> Option<&Hp67MagneticCard> {
+        self.card.as_ref()
+    }
+
+    pub const fn insertion_end(&self) -> Option<CardInsertionEnd> {
+        self.insertion_end
+    }
+
+    pub fn active_track(&self) -> Option<&Hp67MagneticTrack> {
+        let card = self.card.as_ref()?;
+        let insertion_end = self.insertion_end?;
+        Some(card.track(insertion_end.track()))
+    }
+
+    fn active_track_mut(&mut self) -> Option<&mut Hp67MagneticTrack> {
+        let insertion_end = self.insertion_end?;
+        self.card
+            .as_mut()
+            .map(|card| card.track_mut(insertion_end.track()))
     }
 
     pub const fn next_record(&self) -> usize {
@@ -141,15 +100,13 @@ impl Hp67CardTransport {
     }
 
     pub const fn is_complete(&self) -> bool {
-        self.side.is_some() && self.next_record >= HP67_CARD_RECORDS_PER_SIDE
+        self.card.is_some() && self.next_record >= HP67_CARD_RECORDS_PER_TRACK
     }
 
-    /// Remove a side only after all 34 record positions have passed the head.
-    ///
-    /// This deliberately does not guess the exact mechanical instant at which
-    /// the external card-present contact opens. The caller owns that separate
-    /// switch event; this method only transfers completed media ownership.
-    pub fn take_completed_side(&mut self) -> Option<Hp67CardSide> {
+    /// Remove the same physical card only after the selected track has completely
+    /// crossed the head.  The caller may then rotate it 180 degrees in its plane
+    /// and reinsert the opposite end to expose the other longitudinal track.
+    pub fn take_completed_card(&mut self) -> Option<Hp67MagneticCard> {
         if !self.is_complete() {
             return None;
         }
@@ -159,7 +116,8 @@ impl Hp67CardTransport {
         self.head_active = false;
         self.startup_ready_pending = false;
         self.waiting_startup_ack = false;
-        self.side.take()
+        self.insertion_end = None;
+        self.card.take()
     }
 
     pub fn advance_us(
@@ -168,7 +126,7 @@ impl Hp67CardTransport {
         motor_on: bool,
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
-        if !motor_on || !self.head_active || self.side.is_none() || self.is_complete() {
+        if !motor_on || !self.head_active || self.card.is_none() || self.is_complete() {
             return Ok(0);
         }
 
@@ -203,17 +161,19 @@ impl Hp67CardTransport {
         let mut produced = 0;
 
         while self.record_elapsed_us >= HP67_NOMINAL_CARD_RECORD_US
-            && self.next_record < HP67_CARD_RECORDS_PER_SIDE
+            && self.next_record < HP67_CARD_RECORDS_PER_TRACK
         {
             self.record_elapsed_us -= HP67_NOMINAL_CARD_RECORD_US;
             let word = self
-                .side
-                .as_ref()
-                .and_then(|side| side.word(self.next_record))
-                .expect("record index is bounded by HP67_CARD_RECORDS_PER_SIDE");
-            crc.present_read_word(word)?;
+                .active_track()
+                .and_then(|track| track.word(self.next_record));
+
+            if let Some(word) = word {
+                crc.present_read_word(word)?;
+                produced += 1;
+            }
+
             self.next_record += 1;
-            produced += 1;
         }
 
         Ok(produced)
@@ -225,9 +185,8 @@ impl Hp67CardTransport {
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
         let write_protected = self
-            .side
-            .as_ref()
-            .expect("side presence checked by advance_us")
+            .active_track()
+            .expect("card and insertion end presence checked by advance_us")
             .write_protected();
 
         if write_protected {
@@ -249,16 +208,16 @@ impl Hp67CardTransport {
         let mut written = 0;
 
         while self.record_elapsed_us >= HP67_NOMINAL_CARD_RECORD_US
-            && self.next_record < HP67_CARD_RECORDS_PER_SIDE
+            && self.next_record < HP67_CARD_RECORDS_PER_TRACK
         {
             let Some(word) = crc.take_queued_write_word() else {
                 break;
             };
             self.record_elapsed_us -= HP67_NOMINAL_CARD_RECORD_US;
-            self.side
-                .as_mut()
-                .expect("side presence checked by advance_us")
-                .write_word(self.next_record, word);
+            let record_index = self.next_record;
+            self.active_track_mut()
+                .expect("card and insertion end presence checked by advance_us")
+                .write_word(record_index, word);
             self.next_record += 1;
             written += 1;
 
@@ -274,7 +233,17 @@ impl Hp67CardTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machines::hp67::crc::CRC_FLAG_BUFFER_READY;
+    use crate::machines::hp67::{
+        crc::CRC_FLAG_BUFFER_READY, Hp67CardTrack, Hp67MagneticTrack, TrackMedia,
+        CRC_CARD_WORD_MASK,
+    };
+
+    fn card_with_track(
+        track_id: Hp67CardTrack,
+        track: Hp67MagneticTrack,
+    ) -> Hp67MagneticCard {
+        Hp67MagneticCard::default().with_track(track_id, track)
+    }
 
     fn complete_startup_handshake(
         transport: &mut Hp67CardTransport,
@@ -291,10 +260,16 @@ mod tests {
     #[test]
     fn record_cadence_requires_motor_and_head_switch() {
         let mut transport = Hp67CardTransport::default();
-        let mut words = [0u32; HP67_CARD_RECORDS_PER_SIDE];
+        let mut words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
         words[0] = 0x0123_4567;
         transport
-            .insert_side(Hp67CardSide::from_words(words).unwrap())
+            .insert_card(
+                card_with_track(
+                    Hp67CardTrack::Track1,
+                    Hp67MagneticTrack::from_words(words).unwrap(),
+                ),
+                CardInsertionEnd::End1,
+            )
             .unwrap();
         let mut crc = CrcArchitecturalCore::default();
 
@@ -321,13 +296,72 @@ mod tests {
     }
 
     #[test]
+    fn opposite_insertion_end_reads_the_other_track_of_the_same_card() {
+        let mut track_1_words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
+        let mut track_2_words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
+        track_1_words[0] = 0x0111_1111;
+        track_2_words[0] = 0x0222_2222;
+        let card = Hp67MagneticCard::new(
+            Hp67MagneticTrack::from_words(track_1_words).unwrap(),
+            Hp67MagneticTrack::from_words(track_2_words).unwrap(),
+        );
+
+        let mut transport = Hp67CardTransport::default();
+        transport
+            .insert_card(card, CardInsertionEnd::End2)
+            .unwrap();
+        transport.set_head_active(true);
+        let mut crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut transport, &mut crc);
+
+        assert_eq!(
+            transport
+                .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut crc)
+                .unwrap(),
+            1
+        );
+        assert_eq!(crc.take_read_word().unwrap(), 0x0222_2222);
+        assert_eq!(transport.insertion_end(), Some(CardInsertionEnd::End2));
+    }
+
+    #[test]
+    fn unrecorded_track_crosses_the_head_without_inventing_zero_records() {
+        let mut transport = Hp67CardTransport::default();
+        transport
+            .insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
+        transport.set_head_active(true);
+        let mut crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut transport, &mut crc);
+
+        assert_eq!(
+            transport
+                .advance_us(
+                    HP67_NOMINAL_CARD_RECORD_US * HP67_CARD_RECORDS_PER_TRACK as u64,
+                    true,
+                    &mut crc,
+                )
+                .unwrap(),
+            0
+        );
+        assert!(transport.is_complete());
+        assert_eq!(crc.queued_read_words(), 0);
+    }
+
+    #[test]
     fn consecutive_record_boundaries_fill_both_crc_read_buffers_in_fifo_order() {
         let mut transport = Hp67CardTransport::default();
-        let mut words = [0u32; HP67_CARD_RECORDS_PER_SIDE];
+        let mut words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
         words[0] = 0x0111_1111;
         words[1] = 0x0222_2222;
         transport
-            .insert_side(Hp67CardSide::from_words(words).unwrap())
+            .insert_card(
+                card_with_track(
+                    Hp67CardTrack::Track1,
+                    Hp67MagneticTrack::from_words(words).unwrap(),
+                ),
+                CardInsertionEnd::End1,
+            )
             .unwrap();
         transport.set_head_active(true);
         let mut crc = CrcArchitecturalCore::default();
@@ -347,11 +381,11 @@ mod tests {
     }
 
     #[test]
-    fn write_mode_drains_crc_buffers_at_record_cadence() {
+    fn write_mode_records_an_initially_unrecorded_selected_track() {
         let mut transport = Hp67CardTransport::default();
         transport
-            .insert_side(Hp67CardSide::default())
-            .expect("blank side must insert");
+            .insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
         transport.set_head_active(true);
 
         let mut crc = CrcArchitecturalCore::default();
@@ -372,89 +406,99 @@ mod tests {
         assert_eq!(transport.next_record(), 1);
         assert_eq!(crc.queued_write_words(), 1);
         assert_eq!(
-            transport.side.as_ref().and_then(|side| side.word(0)),
+            transport.active_track().and_then(|track| track.word(0)),
             Some(0x0111_1111)
         );
-        assert!(transport
-            .side
-            .as_ref()
-            .expect("side remains inserted")
-            .dirty());
+        assert!(transport.active_track().unwrap().dirty());
+        assert!(matches!(
+            transport.active_track().unwrap().media(),
+            TrackMedia::Recorded(_)
+        ));
     }
 
     #[test]
-    fn write_protected_side_sets_crc_f7_and_remains_unmodified() {
-        let mut transport = Hp67CardTransport::default();
-        transport
-            .insert_side(Hp67CardSide::default().with_write_protected(true))
-            .expect("protected side must insert");
-        transport.set_head_active(true);
+    fn write_protection_is_independent_per_track() {
+        let card = Hp67MagneticCard::new(
+            Hp67MagneticTrack::default().with_write_protected(true),
+            Hp67MagneticTrack::default(),
+        );
 
-        let mut crc = CrcArchitecturalCore::default();
-        crc.execute_opcode(0o660).expect("write mode must set");
-        complete_startup_handshake(&mut transport, &mut crc);
-
-        assert_eq!(transport.advance_us(320, true, &mut crc).unwrap(), 0);
+        let mut protected = Hp67CardTransport::default();
+        protected
+            .insert_card(card.clone(), CardInsertionEnd::End1)
+            .unwrap();
+        protected.set_head_active(true);
+        let mut protected_crc = CrcArchitecturalCore::default();
+        protected_crc.execute_opcode(0o660).unwrap();
+        complete_startup_handshake(&mut protected, &mut protected_crc);
+        assert_eq!(protected.advance_us(320, true, &mut protected_crc).unwrap(), 0);
         assert_eq!(
-            crc.flag(crate::machines::hp67::crc::CRC_FLAG_BUFFER_READY),
+            protected_crc.flag(crate::machines::hp67::crc::CRC_FLAG_F7_STATUS),
             Some(true)
         );
+        assert!(!protected.active_track().unwrap().dirty());
+
+        let mut writable = Hp67CardTransport::default();
+        writable
+            .insert_card(card, CardInsertionEnd::End2)
+            .unwrap();
+        writable.set_head_active(true);
+        let mut writable_crc = CrcArchitecturalCore::default();
+        writable_crc.execute_opcode(0o660).unwrap();
+        complete_startup_handshake(&mut writable, &mut writable_crc);
+        writable_crc.queue_write_word(0x0123_4567).unwrap();
         assert_eq!(
-            crc.flag(crate::machines::hp67::crc::CRC_FLAG_F7_STATUS),
-            Some(true)
+            writable
+                .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut writable_crc)
+                .unwrap(),
+            1
         );
-        assert_eq!(transport.next_record(), 0);
-        assert!(!transport
-            .side
-            .as_ref()
-            .expect("side remains inserted")
-            .dirty());
+        assert_eq!(writable.active_track().unwrap().word(0), Some(0x0123_4567));
     }
 
     #[test]
-    fn full_side_write_eject_reinsert_read_round_trip_preserves_all_records() {
-        let mut expected = [0u32; HP67_CARD_RECORDS_PER_SIDE];
+    fn full_track_write_eject_rotate_state_preserves_both_tracks() {
+        let untouched_track_2 = Hp67MagneticTrack::from_words([0x0055_5555; HP67_CARD_RECORDS_PER_TRACK])
+            .unwrap()
+            .with_write_protected(true);
+        let card = Hp67MagneticCard::new(Hp67MagneticTrack::default(), untouched_track_2.clone());
+
+        let mut expected = [0u32; HP67_CARD_RECORDS_PER_TRACK];
         for (index, word) in expected.iter_mut().enumerate() {
             *word = ((index as u32 + 1) * 0x0001_2345) & CRC_CARD_WORD_MASK;
         }
 
         let mut writer = Hp67CardTransport::default();
         writer
-            .insert_side(Hp67CardSide::default())
-            .expect("blank side must insert for writing");
+            .insert_card(card, CardInsertionEnd::End1)
+            .expect("card must insert for writing");
         writer.set_head_active(true);
         let mut write_crc = CrcArchitecturalCore::default();
-        write_crc
-            .execute_opcode(0o660)
-            .expect("write mode must set");
+        write_crc.execute_opcode(0o660).expect("write mode must set");
         complete_startup_handshake(&mut writer, &mut write_crc);
 
         for expected_word in expected {
-            write_crc
-                .queue_write_word(expected_word)
-                .expect("CRC write buffer must accept next record");
+            write_crc.queue_write_word(expected_word).unwrap();
             assert_eq!(
                 writer
                     .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut write_crc)
-                    .expect("write transport must advance"),
+                    .unwrap(),
                 1
             );
         }
 
         assert!(writer.is_complete());
-        let completed = writer
-            .take_completed_side()
-            .expect("completed side must be ejectable");
-        assert!(completed.dirty());
-        assert!(!completed.write_protected());
-        assert!(writer.side().is_none());
-        assert!(!writer.head_active());
-        assert_eq!(writer.next_record(), 0);
+        let completed = writer.take_completed_card().unwrap();
+        assert_eq!(
+            completed.track(Hp67CardTrack::Track1).words(),
+            Some(&expected)
+        );
+        assert_eq!(completed.track(Hp67CardTrack::Track2), &untouched_track_2);
 
         let mut reader = Hp67CardTransport::default();
         reader
-            .insert_side(completed)
-            .expect("written side must reinsert for reading");
+            .insert_card(completed, CardInsertionEnd::End1)
+            .expect("same physical card must reinsert");
         reader.set_head_active(true);
         let mut read_crc = CrcArchitecturalCore::default();
         complete_startup_handshake(&mut reader, &mut read_crc);
@@ -463,43 +507,13 @@ mod tests {
             assert_eq!(
                 reader
                     .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut read_crc)
-                    .expect("read transport must advance"),
-                1
-            );
-            assert_eq!(
-                read_crc
-                    .take_read_word()
-                    .expect("each record must reach the CRC read buffer"),
-                expected_word
-            );
-        }
-
-        assert!(reader.is_complete());
-        assert!(reader.take_completed_side().is_some());
-    }
-
-    #[test]
-    fn one_side_contains_exactly_thirty_four_records() {
-        let mut transport = Hp67CardTransport::default();
-        transport
-            .insert_side(Hp67CardSide::default())
-            .expect("empty fixture side must insert");
-        transport.set_head_active(true);
-        let mut crc = CrcArchitecturalCore::default();
-        complete_startup_handshake(&mut transport, &mut crc);
-
-        for _ in 0..HP67_CARD_RECORDS_PER_SIDE {
-            assert_eq!(
-                transport
-                    .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut crc)
                     .unwrap(),
                 1
             );
-            crc.take_read_word()
-                .expect("firmware-side consumer must drain each record");
+            assert_eq!(read_crc.take_read_word().unwrap(), expected_word);
         }
 
-        assert!(transport.is_complete());
-        assert_eq!(transport.next_record(), HP67_CARD_RECORDS_PER_SIDE);
+        assert!(reader.is_complete());
+        assert!(reader.take_completed_card().is_some());
     }
 }

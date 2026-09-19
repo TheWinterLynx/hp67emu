@@ -4,7 +4,8 @@ use hp67emu::machines::hp67::{
     decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
     CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardSide, Hp67CardTransport,
+    CardInsertionEnd, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
+    Hp67MagneticCard,
     Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Hp67SegmentMask,
     Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
     HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
@@ -287,10 +288,14 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
     }
 
-    pub fn insert_card_side(&mut self, side: Hp67CardSide) -> Result<(), String> {
+    pub fn insert_magnetic_card(
+        &mut self,
+        card: Hp67MagneticCard,
+        insertion_end: CardInsertionEnd,
+    ) -> Result<(), String> {
         let previous_transport = self.card_transport.clone();
         self.card_transport
-            .insert_side(side)
+            .insert_card(card, insertion_end)
             .map_err(|error| format!("HP-67 card insertion failed: {error:?}"))?;
         self.card_startup_buffer_clears = 0;
 
@@ -302,8 +307,8 @@ impl Hp67LiveMachine {
         Ok(())
     }
 
-    pub const fn card_side_inserted(&self) -> bool {
-        self.card_transport.side().is_some()
+    pub fn magnetic_card_inserted(&self) -> bool {
+        self.card_transport.card().is_some()
     }
 
     pub fn card_motor_on(&self) -> bool {
@@ -318,8 +323,8 @@ impl Hp67LiveMachine {
         self.card_transport.is_complete()
     }
 
-    pub fn take_completed_card_side(&mut self) -> Option<Hp67CardSide> {
-        self.card_transport.take_completed_side()
+    pub fn take_completed_magnetic_card(&mut self) -> Option<Hp67MagneticCard> {
+        self.card_transport.take_completed_card()
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
@@ -385,7 +390,7 @@ impl Hp67LiveMachine {
                 .machine
                 .execute_word(word)
                 .map_err(|error| format!("live cycle {cycle} execution failed: {error:?}"))?;
-            if self.card_transport.side().is_some()
+            if self.card_transport.card().is_some()
                 && !self.card_transport.head_active()
                 && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
             {
@@ -549,11 +554,23 @@ mod tests {
     use hp67emu::{
         emulation::Drive,
         machines::hp67::{
-            ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS,
-            CRC_FLAG_WRITE_MODE, HP67_CARD_RECORDS_PER_SIDE, HP67_DISPLAY_SCAN_SLOTS,
+            ActDisplayWordSerializer, Hp67CardTrack, Hp67MagneticTrack, CRC_FLAG_CARD_PRESENT,
+            CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE, HP67_CARD_RECORDS_PER_TRACK,
+            HP67_DISPLAY_SCAN_SLOTS,
             HP67_NOMINAL_CARD_RECORD_US,
         },
     };
+
+    fn track1_card(track: Hp67MagneticTrack) -> Hp67MagneticCard {
+        Hp67MagneticCard::default().with_track(Hp67CardTrack::Track1, track)
+    }
+
+    fn insert_track1(
+        live: &mut Hp67LiveMachine,
+        track: Hp67MagneticTrack,
+    ) -> Result<(), String> {
+        live.insert_magnetic_card(track1_card(track), CardInsertionEnd::End1)
+    }
 
     #[test]
     fn every_ui_key_used_by_the_panel_maps_to_a_physical_contact() {
@@ -681,9 +698,9 @@ mod tests {
             live.step_firmware_cycle().unwrap();
         }
 
-        let mut words = [0x0300_0000; HP67_CARD_RECORDS_PER_SIDE];
+        let mut words = [0x0300_0000; HP67_CARD_RECORDS_PER_TRACK];
         words[1] = 0x0311_1111;
-        live.insert_card_side(Hp67CardSide::from_words(words).unwrap())
+        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap())
             .unwrap();
         wait_for_live_card_record_stream(&mut live);
 
@@ -713,8 +730,8 @@ mod tests {
             live.step_firmware_cycle().unwrap();
         }
 
-        let words = [0x0300_0000; HP67_CARD_RECORDS_PER_SIDE];
-        live.insert_card_side(Hp67CardSide::from_words(words).unwrap())
+        let words = [0x0300_0000; HP67_CARD_RECORDS_PER_TRACK];
+        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap())
             .unwrap();
         wait_for_live_card_record_stream(&mut live);
 
@@ -768,7 +785,7 @@ mod tests {
         }
         settle_live_program_mode(&mut live);
 
-        live.insert_card_side(Hp67CardSide::default())
+        insert_track1(&mut live, Hp67MagneticTrack::default())
             .expect("blank side must insert");
         wait_for_live_card_record_stream(&mut live);
 
@@ -799,12 +816,11 @@ mod tests {
         }
         settle_live_program_mode(&mut writer);
 
-        writer
-            .insert_card_side(Hp67CardSide::default())
+        insert_track1(&mut writer, Hp67MagneticTrack::default())
             .expect("blank side must insert for firmware write");
         wait_for_live_card_record_stream(&mut writer);
 
-        let mut written = Vec::with_capacity(HP67_CARD_RECORDS_PER_SIDE);
+        let mut written = Vec::with_capacity(HP67_CARD_RECORDS_PER_TRACK);
         for _ in 0..32_768 {
             if let Some(Hp67ArchitecturalExecution {
                 operation: Hp67ArchitecturalOperation::CrcDataWrite { card_word, .. },
@@ -815,14 +831,14 @@ mod tests {
             }
 
             if writer.card_transport_complete()
-                && written.len() == HP67_CARD_RECORDS_PER_SIDE
+                && written.len() == HP67_CARD_RECORDS_PER_TRACK
                 && writer.machine.crc.queued_write_words() == 0
             {
                 break;
             }
         }
 
-        assert_eq!(written.len(), HP67_CARD_RECORDS_PER_SIDE);
+        assert_eq!(written.len(), HP67_CARD_RECORDS_PER_TRACK);
         assert!(writer.card_transport_complete());
         assert_eq!(writer.machine.crc.queued_write_words(), 0);
 
@@ -832,9 +848,9 @@ mod tests {
         );
         assert!(!writer.card_transport.head_active());
         let completed = writer
-            .take_completed_card_side()
+            .take_completed_magnetic_card()
             .expect("fully written card must be ejectable");
-        assert!(completed.dirty());
+        assert!(completed.track(Hp67CardTrack::Track1).dirty());
 
         let mut reader = Hp67LiveMachine::power_on_default().unwrap();
         reader.phase = LiveBootPhase::Firmware;
@@ -843,11 +859,11 @@ mod tests {
         }
 
         reader
-            .insert_card_side(completed)
+            .insert_magnetic_card(completed, CardInsertionEnd::End1)
             .expect("written card must reinsert for firmware read");
         wait_for_live_card_record_stream(&mut reader);
 
-        let mut read_back = Vec::with_capacity(HP67_CARD_RECORDS_PER_SIDE);
+        let mut read_back = Vec::with_capacity(HP67_CARD_RECORDS_PER_TRACK);
         for _ in 0..32_768 {
             if let Some(Hp67ArchitecturalExecution {
                 operation: Hp67ArchitecturalOperation::CrcDataRead { card_word, .. },
@@ -855,13 +871,13 @@ mod tests {
             }) = reader.step_firmware_cycle_with_execution().unwrap()
             {
                 read_back.push(card_word);
-                if read_back.len() == HP67_CARD_RECORDS_PER_SIDE {
+                if read_back.len() == HP67_CARD_RECORDS_PER_TRACK {
                     break;
                 }
             }
         }
 
-        assert_eq!(read_back.len(), HP67_CARD_RECORDS_PER_SIDE);
+        assert_eq!(read_back.len(), HP67_CARD_RECORDS_PER_TRACK);
         assert_eq!(read_back, written);
         assert!(reader.card_transport_complete());
         assert_eq!(
@@ -876,7 +892,7 @@ mod tests {
             reader.step_firmware_cycle().unwrap();
         }
         assert!(!reader.card_motor_on());
-        assert!(reader.take_completed_card_side().is_some());
+        assert!(reader.take_completed_magnetic_card().is_some());
     }
 
     #[test]
@@ -888,7 +904,7 @@ mod tests {
         }
         settle_live_program_mode(&mut live);
 
-        live.insert_card_side(Hp67CardSide::default().with_write_protected(true))
+        insert_track1(&mut live, Hp67MagneticTrack::default().with_write_protected(true))
             .expect("protected side must insert");
         wait_for_live_card_record_stream(&mut live);
 
@@ -907,7 +923,7 @@ mod tests {
                     assert_eq!(live.card_transport.next_record(), 0);
                     assert!(!live
                         .card_transport
-                        .side()
+                        .active_track()
                         .expect("protected side remains inserted")
                         .dirty());
                     return;

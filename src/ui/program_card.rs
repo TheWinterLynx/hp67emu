@@ -85,6 +85,7 @@ pub struct ProgramCardView<'a> {
 pub struct ProgramCardUiOutput {
     pub reader_clicked: bool,
     pub parked_left_clicked: bool,
+    pub parked_left_double_clicked: bool,
     pub window_clicked: bool,
 }
 
@@ -146,11 +147,14 @@ pub fn paint(
                     ui.make_persistent_id("hp67-program-card-left-exit"),
                     Sense::click(),
                 )
-                .on_hover_text("Move program card to the holder above A-E");
+                .on_hover_text(
+                    "Click: move card to the holder above A-E. Double-click: rotate 180° and reinsert the opposite end",
+                );
             if response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
-            output.parked_left_clicked = response.clicked();
+            output.parked_left_double_clicked = response.double_clicked();
+            output.parked_left_clicked = response.clicked() && !response.double_clicked();
             paint_parked_left(ui, photo, view.artwork, view.logo, scale);
         }
         ProgramCardPhase::InsertingWindowFromRight => {

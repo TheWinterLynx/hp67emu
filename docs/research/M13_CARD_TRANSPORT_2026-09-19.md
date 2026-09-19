@@ -60,13 +60,13 @@ https://literature.hpcalc.org/community/hp97-sm-en.pdf
 
 ## Card-side format
 
-Teenix HP-67 notes describe one card side as 34 records of 28 bits:
+Teenix HP-67 notes describe one magnetic track (also called a side in HP user documentation) as 34 records of 28 bits:
 
 1. status/header;
 2-33. sixteen 56-bit storage registers split into upper/lower 28-bit halves;
 34. checksum.
 
-That is 952 magnetic data bits per side.
+That is 952 logical magnetic data bits per track.
 
 Source:
 https://literature.hpcalc.org/community/classic-notes.pdf
@@ -150,6 +150,19 @@ A second `ReadBufferFull` after separating card-present from the head contact sh
 
 ## Production live-card lifecycle
 
-The firmware-synchronized head/startup sequence proven by the tests is now owned by `Hp67LiveMachine` rather than by a test helper. `insert_card_side()` inserts magnetic media and asserts only the physical card-present contact. While motor is running, the live machine observes the same two initial `buffer_ready` clears used to locate the pre-data head boundary; it then closes the modeled head contact and lets `Hp67CardTransport` provide the startup-ready event. Once all 34 record positions cross the head, the live machine deasserts card-present and opens the head contact; the real firmware then leaves `wait_no_card` and clears motor-on. Completed media remains available through `take_completed_card_side()`.
+The firmware-synchronized head/startup sequence proven by the tests is now owned by `Hp67LiveMachine` rather than by a test helper. `insert_magnetic_card()` inserts one complete two-track physical card plus an explicit insertion end and asserts only the physical card-present contact. While motor is running, the live machine observes the same two initial `buffer_ready` clears used to locate the pre-data head boundary; it then closes the modeled head contact and lets `Hp67CardTransport` provide the startup-ready event. Once all 34 record positions cross the head, the live machine deasserts card-present and opens the head contact; the real firmware then leaves `wait_no_card` and clears motor-on. After the selected track has crossed the head, the same physical card remains available through `take_completed_magnetic_card()` and can be rotated 180 degrees for the opposite track.
 
 This is intentionally a media-only lifecycle. The photographed/printed Moon Rocket Lander artwork in `ui/program_card.rs` is still not associated with a magnetic payload because the repository does not contain a verified SD-14A dump. No blank or synthetic payload is silently assigned to that artwork.
+
+
+## Two-track physical-card correction
+
+The production media boundary now represents the object the user actually handles: one Hp67MagneticCard with independent Track 1 and Track 2. CardInsertionEnd::End1 exposes Track 1 and End2 exposes Track 2, so reading the second track means rotating the same card 180 degrees in its plane and inserting the opposite end. The transport no longer owns or returns an isolated Hp67CardSide.
+
+Each Hp67MagneticTrack is either TrackMedia::Unrecorded or Recorded([u32; 34]) and carries its own write-protect state. An unrecorded track physically crosses the head without generating 34 invented zero records. In write mode, the first committed CRC word materializes recorded media. Writing one track cannot mutate the other track or its clipped/write-protected state.
+
+Teenix .hpp is now strictly a host import format. TeenixHppImport XOR-decodes 0x55, validates NeWe, parses the calculator/bitmap/name metadata, removes the historical three dummy records, verifies and removes the duplicated checksum, reconstructs the 34 real 28-bit records and derives Track 1 versus Track 2 from the card-header ID. The transport and CRC never parse or know about .hpp.
+
+Two native host formats are implemented at the logical post-CRC level. .hp67raw is exactly 238 bytes for two recorded 952-bit tracks and cannot represent unrecorded/protected state. .hp67card v1 is a 250-byte container with HP67CARD magic, version, per-track recorded/protected flags and two 119-byte logical payload slots. Neither format contains artwork, title or description. These are logical CRC-record serializations, not flux captures; A/B magnetic channels and transition timing remain future lower-level M13 work.
+
+The desktop host accepts dropped .hpp, .hp67raw and .hp67card files. A double-click on the card protruding from the left exit rotates the current insertion end; a single click continues to move the same card into the passive holder above A-E.
