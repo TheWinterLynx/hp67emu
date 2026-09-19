@@ -25,3 +25,6 @@ In write mode the CRC pair of 28-bit buffers is authoritative. While motor/head 
 
 
 Completed-media ownership: `take_completed_side()` succeeds only after all 34 record positions have crossed the head. It resets transport position/timing and releases the inserted `Hp67CardSide` without guessing when the separate external card-present switch mechanically opens. The caller remains responsible for that contact event.
+
+
+Read-side buffering follows the HP hardware description: the CRC alternates between two 28-bit buffers while the card continues moving. The transport therefore may enqueue a second record while firmware processes the first, but it may not silently overwrite either one. Tests that advance multiple record intervals without an ACT-side consumer are intentionally invalid once both buffers are occupied.
