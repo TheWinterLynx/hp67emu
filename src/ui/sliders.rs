@@ -44,9 +44,11 @@ const POWER: PhotoSlider = PhotoSlider {
 
 const MODE: PhotoSlider = PhotoSlider {
     id: "mode",
-    // Historical regression guard: x=706/707 reaches into the anti-aliased
-    // left edge of the RUN legend.  The proven safe boundary is x=702.
-    clip: PxRect::new(595.0, 292.0, 702.0, 319.0),
+    // The current renderer repaints the complete clip.  The older RUN-safe
+    // implementation only erased through source x=700; x=702 was merely its
+    // outer clip.  Keep this effective paint boundary at 700 so the anti-aliased
+    // left edge of the RUN legend remains untouched.
+    clip: PxRect::new(595.0, 292.0, 700.0, 319.0),
     actuator: PxRect::new(657.0, 292.0, 698.0, 309.0),
     clean_track: PxRect::new(605.0, 292.0, 646.0, 309.0),
     travel_px: 52.0,
@@ -156,8 +158,9 @@ mod tests {
 
     #[test]
     fn mode_slider_cleanup_never_reaches_run_legend() {
-        assert_eq!(MODE.clip.x1, 702.0);
-        assert!(MODE.actuator.x1 <= MODE.clip.x1);
+        assert_eq!(MODE.actuator.x1, 698.0);
+        assert_eq!(MODE.clip.x1, 700.0);
+        assert!(MODE.clip.x1 - MODE.actuator.x1 <= 2.0);
     }
 
     #[test]
