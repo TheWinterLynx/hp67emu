@@ -10,6 +10,7 @@ pub mod act_serial_execution;
 pub mod act_serial_result;
 pub mod act_serial_state;
 pub mod architectural;
+pub mod card_transport;
 pub mod crc;
 pub mod display;
 pub mod display_snapshot;
@@ -38,10 +39,15 @@ pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
 };
+pub use card_transport::{
+    Hp67CardSide, Hp67CardTransport, Hp67CardTransportError, HP67_CARD_RECORDS_PER_SIDE,
+    HP67_NOMINAL_CARD_RECORD_US,
+};
 pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
-    CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT, CRC_FLAG_COUNT, CRC_FLAG_MOTOR_ON,
-    CRC_FLAG_PROGRAM_MODE, CRC_FLAG_WRITE_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
+    CRC_CARD_WORD_BITS, CRC_CARD_WORD_MASK, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
+    CRC_FLAG_COUNT, CRC_FLAG_MOTOR_ON, CRC_FLAG_PROGRAM_MODE, CRC_FLAG_WRITE_MODE,
+    CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
 };
 pub use display::{
     decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, CathodeScanError,
