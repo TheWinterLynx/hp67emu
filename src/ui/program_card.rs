@@ -8,8 +8,8 @@ const PHOTO_H: f32 = 1695.0;
 
 const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 796.0, 454.0);
 const HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX: f32 = -1.5;
-const HOLDER_RIGHT_FRAME_TOP_X: f32 = 789.0;
-const HOLDER_RIGHT_FRAME_BOTTOM_X: f32 = 794.0;
+const HOLDER_RIGHT_FRAME_TOP_X: f32 = 787.0;
+const HOLDER_RIGHT_FRAME_BOTTOM_X: f32 = 792.0;
 const HOLDER_RIGHT_MASK_BANDS: usize = 109;
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
@@ -580,8 +580,8 @@ mod tests {
         assert_eq!(CARD_WINDOW.x0, 138.0);
         assert_eq!(CARD_WINDOW.x1, 796.0);
         assert_eq!(HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX, -1.5);
-        assert_eq!(HOLDER_RIGHT_FRAME_TOP_X, 789.0);
-        assert_eq!(HOLDER_RIGHT_FRAME_BOTTOM_X, 794.0);
+        assert_eq!(HOLDER_RIGHT_FRAME_TOP_X, 787.0);
+        assert_eq!(HOLDER_RIGHT_FRAME_BOTTOM_X, 792.0);
         assert!(HOLDER_RIGHT_FRAME_TOP_X < HOLDER_RIGHT_FRAME_BOTTOM_X);
         assert!(HOLDER_RIGHT_FRAME_BOTTOM_X < CARD_WINDOW.x1);
         assert_eq!(CARD_WINDOW.y0, 345.0);
