@@ -134,6 +134,22 @@ impl Hp67CardTransport {
         self.side.is_some() && self.next_record >= HP67_CARD_RECORDS_PER_SIDE
     }
 
+    /// Remove a side only after all 34 record positions have passed the head.
+    ///
+    /// This deliberately does not guess the exact mechanical instant at which
+    /// the external card-present contact opens. The caller owns that separate
+    /// switch event; this method only transfers completed media ownership.
+    pub fn take_completed_side(&mut self) -> Option<Hp67CardSide> {
+        if !self.is_complete() {
+            return None;
+        }
+
+        self.next_record = 0;
+        self.record_elapsed_us = 0;
+        self.head_active = false;
+        self.side.take()
+    }
+
     pub fn advance_us(
         &mut self,
         elapsed_us: u64,
@@ -347,6 +363,71 @@ mod tests {
             .as_ref()
             .expect("side remains inserted")
             .dirty());
+    }
+
+    #[test]
+    fn full_side_write_eject_reinsert_read_round_trip_preserves_all_records() {
+        let mut expected = [0u32; HP67_CARD_RECORDS_PER_SIDE];
+        for (index, word) in expected.iter_mut().enumerate() {
+            *word = ((index as u32 + 1) * 0x0001_2345) & CRC_CARD_WORD_MASK;
+        }
+
+        let mut writer = Hp67CardTransport::default();
+        writer
+            .insert_side(Hp67CardSide::default())
+            .expect("blank side must insert for writing");
+        writer.set_head_active(true);
+        let mut write_crc = CrcArchitecturalCore::default();
+        write_crc
+            .execute_opcode(0o660)
+            .expect("write mode must set");
+
+        for expected_word in expected {
+            write_crc
+                .queue_write_word(expected_word)
+                .expect("CRC write buffer must accept next record");
+            assert_eq!(
+                writer
+                    .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut write_crc)
+                    .expect("write transport must advance"),
+                1
+            );
+        }
+
+        assert!(writer.is_complete());
+        let completed = writer
+            .take_completed_side()
+            .expect("completed side must be ejectable");
+        assert!(completed.dirty());
+        assert!(!completed.write_protected());
+        assert!(writer.side().is_none());
+        assert!(!writer.head_active());
+        assert_eq!(writer.next_record(), 0);
+
+        let mut reader = Hp67CardTransport::default();
+        reader
+            .insert_side(completed)
+            .expect("written side must reinsert for reading");
+        reader.set_head_active(true);
+        let mut read_crc = CrcArchitecturalCore::default();
+
+        for expected_word in expected {
+            assert_eq!(
+                reader
+                    .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut read_crc)
+                    .expect("read transport must advance"),
+                1
+            );
+            assert_eq!(
+                read_crc
+                    .take_read_word()
+                    .expect("each record must reach the CRC read buffer"),
+                expected_word
+            );
+        }
+
+        assert!(reader.is_complete());
+        assert!(reader.take_completed_side().is_some());
     }
 
     #[test]
