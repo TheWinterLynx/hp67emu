@@ -241,13 +241,37 @@ impl Hp67App {
     }
 
     fn opposite_track_requested(&self) -> bool {
-        self.live_machine
-            .as_ref()
-            .is_some_and(Hp67LiveMachine::card_prompt_visible)
-            && self.card_media.as_ref().is_some_and(|card| {
-                card.track(self.card_insertion_end.opposite().track())
-                    .is_recorded()
-            })
+        let Some(machine) = self.live_machine.as_ref() else {
+            return false;
+        };
+        if !machine.card_prompt_visible() {
+            return false;
+        }
+
+        self.card_media.as_ref().is_some_and(|card| {
+            opposite_track_can_continue(card, self.card_insertion_end, machine.card_write_mode())
+        })
+    }
+
+    fn insert_new_blank_card(&mut self) -> bool {
+        if self.card_media.is_some()
+            || self
+                .live_machine
+                .as_ref()
+                .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
+        {
+            return false;
+        }
+
+        self.card_media = Some(Hp67MagneticCard::default());
+        self.card_import_name = None;
+        self.card_insertion_end = CardInsertionEnd::End1;
+        if self.insert_current_card(CardInsertionEnd::End1) {
+            return true;
+        }
+
+        self.card_media = None;
+        false
     }
 }
 
@@ -341,6 +365,9 @@ impl eframe::App for Hp67App {
                 );
                 if panel.card_reader_clicked {
                     self.insert_current_card(self.card_insertion_end);
+                }
+                if panel.blank_card_requested {
+                    self.insert_new_blank_card();
                 }
                 if panel.card_parked_left_double_clicked {
                     if opposite_track_requested {
@@ -451,7 +478,6 @@ impl eframe::App for Hp67App {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
