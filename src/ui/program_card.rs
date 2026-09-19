@@ -18,13 +18,7 @@ const CARD_CORNER_CHAMFER_MM: f32 = 0.9;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
-const CARD_LABEL_X_FRACTIONS: [f32; 5] = [
-    0.134_64,
-    0.317_32,
-    0.5,
-    0.682_68,
-    0.865_36,
-];
+const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.134_64, 0.317_32, 0.5, 0.682_68, 0.865_36];
 const CARD_TITLE_Y_FRACTION: f32 = 0.34;
 const CARD_SHIFTED_Y_FRACTION: f32 = 0.59;
 const CARD_PRIMARY_Y_FRACTION: f32 = 0.76;
@@ -265,10 +259,7 @@ fn paint_card(
         let shifted = card.shifted_labels[index];
         if !shifted.is_empty() {
             painter.text(
-                pos2(
-                    x,
-                    rect.top() + rect.height() * CARD_SHIFTED_Y_FRACTION,
-                ),
+                pos2(x, rect.top() + rect.height() * CARD_SHIFTED_Y_FRACTION),
                 Align2::CENTER_CENTER,
                 shifted,
                 label_font.clone(),
@@ -278,10 +269,7 @@ fn paint_card(
         let primary = card.primary_labels[index];
         if !primary.is_empty() {
             painter.text(
-                pos2(
-                    x,
-                    rect.top() + rect.height() * CARD_PRIMARY_Y_FRACTION,
-                ),
+                pos2(x, rect.top() + rect.height() * CARD_PRIMARY_Y_FRACTION),
                 Align2::CENTER_CENTER,
                 primary,
                 label_font.clone(),
