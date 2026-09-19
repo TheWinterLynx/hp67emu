@@ -107,3 +107,8 @@ The previous synthetic holder lips did not reproduce the front-panel layering. M
 
 
 Final visual trim: the right aperture edge was reduced by four source pixels (`793 → 789`) after screenshot comparison. A +2 source-pixel card-centre compensation preserves the previous physical card position and all A-E anchor locations, making this a pure occlusion correction rather than a geometry shift.
+
+
+## Sloped right holder rail
+
+The right holder rail in the source photograph is not vertical. Screenshot measurement shows the inner edge moving rightward by about five source pixels across the holder height. A rectangular clip therefore left a visibly incorrect vertical card edge. The renderer now allows the physical card to extend to x=796 and then restores the original `assets/hp67.png` over the card in 109 horizontal source-pixel bands. The restoration boundary is linearly interpolated from source x=789 at y=345 to x=794 at y=454, reproducing the photographed rail inclination while preserving the original texture, white guide and lighting. The card centre remains source x=465.5, so all A-E label anchors remain exactly 211, 338, 465, 592 and 719.
