@@ -1,6 +1,6 @@
 use eframe::egui::{
-    pos2, Align2, Color32, CursorIcon, FontId, Painter, Rect, Sense, Shape, Stroke,
-    TextureHandle, Ui,
+    pos2, Align2, Color32, CursorIcon, FontId, Painter, Rect, Sense, Shape, Stroke, TextureHandle,
+    Ui,
 };
 
 const PHOTO_W: f32 = 928.0;
