@@ -6,7 +6,7 @@ use eframe::egui::{
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
-const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 350.0, 793.0, 449.0);
+const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 793.0, 454.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -19,7 +19,13 @@ const CARD_END_CHAMFER_MM: f32 = 4.2;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
-const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.134_64, 0.317_32, 0.5, 0.682_68, 0.865_36];
+const CARD_LABEL_X_FRACTIONS: [f32; 5] = [
+    0.133_918,
+    0.316_600,
+    0.499_281,
+    0.681_962,
+    0.864_643,
+];
 const MOON_ROCKET_LANDER_TOP_MARKS: &[f32] = &[0.095, 0.224, 0.310];
 const CARD_TOP_MARK_WIDTH_MM: f32 = 0.9;
 const CARD_TOP_MARK_HEIGHT_MM: f32 = 0.75;
@@ -405,6 +411,7 @@ fn paint_parked_left(
         &ui.painter().with_clip_rect(visible),
         rect,
         card,
+        logo,
         CardPalette::holder(),
         scale,
     );
@@ -534,8 +541,8 @@ mod tests {
     fn card_window_is_inside_the_photographed_holder_frame() {
         assert_eq!(CARD_WINDOW.x0, 138.0);
         assert_eq!(CARD_WINDOW.x1, 793.0);
-        assert_eq!(CARD_WINDOW.y0, 350.0);
-        assert_eq!(CARD_WINDOW.y1, 449.0);
+        assert_eq!(CARD_WINDOW.y0, 345.0);
+        assert_eq!(CARD_WINDOW.y1, 454.0);
         assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 < CARD_PHYSICAL_WIDTH);
         assert!(CARD_WINDOW.y1 - CARD_WINDOW.y0 < CARD_PHYSICAL_HEIGHT);
     }
@@ -591,7 +598,7 @@ mod tests {
         assert!(card.width() > window.width());
         assert!(card.width() - window.width() < CARD_PHYSICAL_WIDTH * 0.07);
         assert!(card.height() > window.height());
-        assert!(card.height() - window.height() < CARD_PHYSICAL_HEIGHT * 0.12);
+        assert!(card.height() - window.height() < CARD_PHYSICAL_HEIGHT * 0.03);
     }
 
     #[test]
