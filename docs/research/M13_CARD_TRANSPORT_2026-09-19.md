@@ -111,3 +111,8 @@ The next M13 slices are:
 - implement write-protect and write transport;
 - connect UI/card-file lifecycle to the physical transport state;
 - add speed-tolerance and lower-level sense/DATA timing once sourced.
+
+
+## End-to-end live regression
+
+The live-machine regression `live_firmware_consumes_timed_crc_record_through_real_0x9b_path` boots the real firmware to idle, inserts a synthetic 34-record side, enables the explicit head gate and asserts the external card-present contact. It then executes real firmware words until the bank-1 card routine consumes a transport record through `register -> c 11` / CRC address `0x9B`. The test requires a `CrcDataRead` operation and verifies that the 28-bit record is duplicated into both seven-nibble halves of ACT C. This closes the current read-side slice from card-present through motor, timed record availability, buffer-ready and architectural CRC read.
