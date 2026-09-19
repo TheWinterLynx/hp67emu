@@ -75,17 +75,18 @@ The semantic `reference::crc` and pinned Nonpareil CRC model independently agree
 
 ## CRC read-buffer semantics
 
-The production CRC architectural core now owns a one-record read buffer.
+The production CRC architectural core now owns the hardware-documented pair of 28-bit read buffers.
 
 A transport record arrival:
 
 - validates the 28-bit width;
-- replaces the current one-record input buffer if firmware did not consume it before the next record boundary;
-- raises internal `buffer_ready`.
+- enqueues into the next free 28-bit buffer without replacing unread data;
+- raises internal `buffer_ready`;
+- fails explicitly with `ReadBufferFull` if both physical buffers remain occupied when another record arrives.
 
 Firmware `fs?c buffer_ready` clears the flag but does not itself consume the 28-bit word. The buffered word remains until the CRC data port is read.
 
-Exact hardware overrun/error signaling for an unread record being replaced is not yet established and is therefore not invented.
+The earlier single-latch implementation could silently replace an unread record and caused the first live 34-record round-trip attempt to observe only 32 firmware reads. HP's November 1976 hardware description explicitly states that the CRC alternates between a pair of 28-bit buffers, so M13 now models that pair rather than an overwrite latch.
 
 ## Architectural read port
 
@@ -130,3 +131,8 @@ The HP-97 service manual and Teenix reader analysis both establish that write pr
 The read-side timed checkpoint passed locally on 2026-09-19. The write-side timed checkpoint also passed locally on 2026-09-19, covering the two-buffer CRC write FIFO, `0x99` packing, nominal transport cadence, write-protect and the live firmware PROGRAM/F7 paths.
 
 The branch now adds two stronger media-preservation regressions. The transport-level test writes all 34 records, ejects the completed side, reinserts that same media and reads all 34 records back through the CRC buffer. The live regression goes further: one real firmware instance writes the complete card in PROGRAM mode, the completed side is transferred unchanged to a second real firmware instance in RUN mode, and the 34 observed `CrcDataRead` words must exactly equal the 34 earlier `CrcDataWrite` words. These new round-trip regressions await the next local gate.
+
+
+### 32/34 round-trip failure diagnosis
+
+The first live full-card round-trip gate wrote all 34 records successfully but observed only 32 `CrcDataRead` operations on reinsertion. Firmware/disassembly confirms that a card write is exactly 34 `0x99` transfers: one header, thirty-two payload records and one checksum. The missing read records were therefore not a card-format exception. The root cause was the production CRC's former single read latch, which allowed the moving transport to replace an unread record. HP Journal documentation explicitly describes a pair of alternating 28-bit CRC buffers; the production read boundary has been corrected to the same two-buffer topology, with FIFO preservation and explicit overflow instead of silent replacement.
