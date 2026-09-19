@@ -146,9 +146,10 @@ impl eframe::App for Hp67App {
                     if let Some(machine) = self.live_machine.as_mut() {
                         if !machine.card_side_inserted() {
                             if let Some(side) = self.card_media.take() {
-                                if let Err(error) = machine.insert_card_side(side.clone()) {
+                                let restore = side.clone();
+                                if let Err(error) = machine.insert_card_side(side) {
                                     eprintln!("HP-67 live card insertion failed: {error}");
-                                    self.card_media = Some(side);
+                                    self.card_media = Some(restore);
                                 }
                             }
                         }
