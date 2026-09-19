@@ -3,6 +3,7 @@
 mod app;
 mod hp67;
 mod panel;
+mod program_library;
 mod ui;
 
 use eframe::egui;

@@ -11,6 +11,7 @@ use hp67emu::machines::hp67::{
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
+    program_library::PROGRAM_LIBRARY,
     panel::Hp67Panel,
     ui::{
         program_card::{
@@ -37,6 +38,11 @@ pub struct Hp67App {
     card_save_dialog_open: bool,
     card_save_path: String,
     card_save_status: Option<String>,
+    program_library_open: bool,
+    program_library_selected: Option<usize>,
+    program_library_status: Option<String>,
+    card_library_entry: Option<usize>,
+    card_artwork_texture: Option<TextureHandle>,
 }
 
 impl Hp67App {
@@ -99,6 +105,11 @@ impl Hp67App {
             card_save_dialog_open: false,
             card_save_path: "hp67-card.hp67card".to_owned(),
             card_save_status: None,
+            program_library_open: false,
+            program_library_selected: None,
+            program_library_status: None,
+            card_library_entry: None,
+            card_artwork_texture: None,
         }
     }
 }
@@ -215,6 +226,8 @@ impl Hp67App {
             }
         }
 
+        self.card_library_entry = None;
+        self.card_artwork_texture = None;
         self.card_save_path = path
             .with_extension("hp67card")
             .to_string_lossy()
@@ -249,6 +262,156 @@ impl Hp67App {
             card.mark_clean();
         }
         Ok(())
+    }
+
+    fn load_program_library_entry(
+        &mut self,
+        ctx: &egui::Context,
+        index: usize,
+    ) -> Result<(), String> {
+        if self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
+        {
+            return Err("cannot replace card media while a card is inside the reader".to_owned());
+        }
+
+        let entry = PROGRAM_LIBRARY
+            .get(index)
+            .ok_or_else(|| format!("program library index {index} is out of range"))?;
+        let loaded = entry.load_card()?;
+        let artwork_texture = match entry.artwork_path {
+            Some(path) if Path::new(path).is_file() => {
+                let bytes = fs::read(path)
+                    .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
+                let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+                    .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?
+                    .to_rgba8();
+                let size = [decoded.width() as usize, decoded.height() as usize];
+                let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
+                Some(ctx.load_texture(
+                    format!("hp67-program-card-artwork-{index}"),
+                    image,
+                    TextureOptions::LINEAR,
+                ))
+            }
+            _ => None,
+        };
+
+        self.card_media = Some(loaded.card);
+        self.card_import_name = Some(loaded.card_name);
+        self.card_library_entry = Some(index);
+        self.card_artwork_texture = artwork_texture;
+        self.card_insertion_end = CardInsertionEnd::End1;
+        self.card_phase = ProgramCardPhase::Idle;
+        self.card_phase_started = None;
+        self.card_read_progress = 0.0;
+        self.card_save_path = format!("{} {}.hp67card", entry.reference, entry.title);
+        self.card_save_status = None;
+        Ok(())
+    }
+
+    fn show_program_library(&mut self, ctx: &egui::Context) {
+        if !self.program_library_open {
+            return;
+        }
+
+        let mut open = true;
+        let mut selected = self.program_library_selected;
+        let mut load_requested = None;
+        let status = self.program_library_status.clone();
+
+        egui::Window::new("HP-67 Program Card Library")
+            .default_size([520.0, 620.0])
+            .open(&mut open)
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "{} programs from checked-in magnetic-card images",
+                    PROGRAM_LIBRARY.len()
+                ));
+                ui.separator();
+
+                egui::ScrollArea::vertical()
+                    .max_height(400.0)
+                    .show(ui, |ui| {
+                        let mut previous_pack = "";
+                        for (index, entry) in PROGRAM_LIBRARY.iter().enumerate() {
+                            if entry.pack != previous_pack {
+                                if !previous_pack.is_empty() {
+                                    ui.add_space(6.0);
+                                }
+                                ui.heading(entry.pack);
+                                previous_pack = entry.pack;
+                            }
+                            let label = if entry.reference.is_empty() {
+                                entry.title.to_owned()
+                            } else {
+                                format!("{} - {}", entry.reference, entry.title)
+                            };
+                            if ui.selectable_label(selected == Some(index), label).clicked() {
+                                selected = Some(index);
+                            }
+                        }
+                    });
+
+                ui.separator();
+                if let Some(index) = selected {
+                    let entry = &PROGRAM_LIBRARY[index];
+                    ui.strong(entry.title);
+                    if !entry.reference.is_empty() {
+                        ui.label(format!("Reference: {}", entry.reference));
+                    }
+                    ui.label(format!(
+                        "Magnetic tracks supplied: {}",
+                        entry.track_count()
+                    ));
+                    if let Some(pdf) = entry.source_pdf {
+                        ui.label(format!("Artwork/manual source: {pdf}"));
+                    } else {
+                        ui.label("Artwork/manual source: no pack PDF checked in");
+                    }
+                    if let Some(path) = entry.artwork_path {
+                        if Path::new(path).is_file() {
+                            ui.label(format!("Artwork: {path}"));
+                        } else {
+                            ui.label(format!("Artwork pending extraction: {path}"));
+                        }
+                    }
+
+                    let reader_free = !self
+                        .live_machine
+                        .as_ref()
+                        .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
+                    if ui
+                        .add_enabled(reader_free, egui::Button::new("Load card"))
+                        .clicked()
+                    {
+                        load_requested = Some(index);
+                    }
+                    if !reader_free {
+                        ui.label("Remove the card from the reader before loading another one.");
+                    }
+                }
+
+                if let Some(status) = status.as_deref() {
+                    ui.separator();
+                    ui.label(status);
+                }
+            });
+
+        self.program_library_open = open;
+        self.program_library_selected = selected;
+
+        if let Some(index) = load_requested {
+            self.program_library_status = match self.load_program_library_entry(ctx, index) {
+                Ok(()) => {
+                    let entry = &PROGRAM_LIBRARY[index];
+                    Some(format!("Loaded {} - {}", entry.reference, entry.title))
+                }
+                Err(error) => Some(error),
+            };
+        }
     }
 
     fn show_card_save_dialog(&mut self, ctx: &egui::Context) {
@@ -378,6 +541,8 @@ impl Hp67App {
 
         self.card_media = Some(Hp67MagneticCard::default());
         self.card_import_name = None;
+        self.card_library_entry = None;
+        self.card_artwork_texture = None;
         self.card_insertion_end = CardInsertionEnd::End1;
         self.card_save_path = "hp67-card.hp67card".to_owned();
         self.card_save_status = None;
@@ -461,6 +626,43 @@ impl eframe::App for Hp67App {
             self.card_save_dialog_open = true;
             self.card_save_status = None;
         }
+        let mut open_program_library = false;
+        let mut new_blank_from_menu = false;
+        let mut save_from_menu = false;
+        egui::TopBottomPanel::top("hp67-menu").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("Cards", |ui| {
+                    if ui.button("Program Library...").clicked() {
+                        open_program_library = true;
+                        ui.close_menu();
+                    }
+                    if ui.button("New blank card").clicked() {
+                        new_blank_from_menu = true;
+                        ui.close_menu();
+                    }
+                    if ui.button("Save current card...").clicked() {
+                        save_from_menu = true;
+                        ui.close_menu();
+                    }
+                });
+            });
+        });
+        if open_program_library {
+            self.program_library_open = true;
+            self.program_library_status = None;
+        }
+        if new_blank_from_menu {
+            if !self.insert_new_blank_card() {
+                self.program_library_status = Some(
+                    "Cannot insert a new blank card while power is off or the reader is occupied."
+                        .to_owned(),
+                );
+            }
+        }
+        if save_from_menu {
+            self.card_save_dialog_open = true;
+            self.card_save_status = None;
+        }
 
         match self.card_phase {
             ProgramCardPhase::InsertingWindowFromRight
@@ -493,12 +695,16 @@ impl eframe::App for Hp67App {
                     .as_ref()
                     .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
                 let opposite_track_requested = self.opposite_track_requested();
-                let card_artwork =
-                    if imported_artwork_is_moon_rocket_lander(self.card_import_name.as_deref()) {
-                        &MOON_ROCKET_LANDER_CARD
-                    } else {
-                        &GENERIC_MAGNETIC_CARD
-                    };
+                let card_artwork = if let Some(entry) = self
+                    .card_library_entry
+                    .and_then(|index| PROGRAM_LIBRARY.get(index))
+                {
+                    &entry.artwork
+                } else if imported_artwork_is_moon_rocket_lander(self.card_import_name.as_deref()) {
+                    &MOON_ROCKET_LANDER_CARD
+                } else {
+                    &GENERIC_MAGNETIC_CARD
+                };
                 let panel = Hp67Panel::show(
                     ui,
                     &self.state,
@@ -507,6 +713,7 @@ impl eframe::App for Hp67App {
                     ProgramCardView {
                         artwork: card_artwork,
                         logo: &self.card_logo,
+                        face_texture: self.card_artwork_texture.as_ref(),
                         phase: self.card_phase,
                         phase_progress: card_phase_progress,
                         opposite_track_requested,
@@ -648,6 +855,7 @@ impl eframe::App for Hp67App {
             ctx.request_repaint_after(Duration::from_micros(4_800));
         }
         self.show_card_save_dialog(ctx);
+        self.show_program_library(ctx);
 
         if ctx.input(|i| i.pointer.any_down()) {
             ctx.request_repaint();

@@ -1,8 +1,8 @@
 use std::f32::consts::PI;
 
 use eframe::egui::{
-    emath::Rot2, epaint::TextShape, pos2, Align2, Color32, CursorIcon, FontId, Mesh, Painter, Rect,
-    Sense, Shape, Stroke, TextureHandle, Ui,
+    emath::Rot2, epaint::{TextShape, Vertex}, pos2, Align2, Color32, CursorIcon, FontId, Mesh,
+    Painter, Rect, Sense, Shape, Stroke, TextureHandle, Ui,
 };
 
 const PHOTO_W: f32 = 928.0;
@@ -89,6 +89,7 @@ impl ProgramCardPhase {
 pub struct ProgramCardView<'a> {
     pub artwork: &'a ProgramCardArtwork,
     pub logo: &'a TextureHandle,
+    pub face_texture: Option<&'a TextureHandle>,
     pub phase: ProgramCardPhase,
     pub phase_progress: f32,
     pub opposite_track_requested: bool,
@@ -166,6 +167,7 @@ pub fn paint(
                 photo,
                 view.artwork,
                 view.logo,
+                view.face_texture,
                 0.0,
                 scale,
                 view.rotated_180,
@@ -188,6 +190,7 @@ pub fn paint(
                 photo,
                 view.artwork,
                 view.logo,
+                view.face_texture,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
                 view.rotated_180,
@@ -212,7 +215,15 @@ pub fn paint(
             }
             output.parked_left_double_clicked = response.double_clicked();
             output.parked_left_clicked = response.clicked() && !response.double_clicked();
-            paint_parked_left(ui, photo, view.artwork, view.logo, scale, view.rotated_180);
+            paint_parked_left(
+                ui,
+                photo,
+                view.artwork,
+                view.logo,
+                view.face_texture,
+                scale,
+                view.rotated_180,
+            );
         }
         ProgramCardPhase::InsertingWindowFromRight => {
             paint_window_insertion_from_right(
@@ -222,6 +233,7 @@ pub fn paint(
                 window,
                 view.artwork,
                 view.logo,
+                view.face_texture,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
                 view.rotated_180,
@@ -245,6 +257,7 @@ pub fn paint(
                 card_rect,
                 view.artwork,
                 view.logo,
+                view.face_texture,
                 CardPalette::holder(),
                 scale,
                 view.rotated_180,
@@ -299,6 +312,7 @@ fn paint_card(
     rect: Rect,
     card: &ProgramCardArtwork,
     logo: &TextureHandle,
+    face_texture: Option<&TextureHandle>,
     palette: CardPalette,
     scale: f32,
     rotated_180: bool,
@@ -319,10 +333,44 @@ fn paint_card(
         pos2(rect.left(), rect.top() + chamfer),
     ];
     painter.add(Shape::convex_polygon(
-        points,
+        points.clone(),
         palette.body,
         Stroke::new((1.0 * scale).max(0.5), palette.edge),
     ));
+
+    if let Some(face_texture) = face_texture {
+        let mut mesh = Mesh::with_texture(face_texture.id());
+        let chamfer_u = chamfer / rect.width();
+        let chamfer_v = chamfer / rect.height();
+        let mut uvs = [
+            pos2(chamfer_u, 0.0),
+            pos2(1.0, 0.0),
+            pos2(1.0, 1.0 - chamfer_v),
+            pos2(1.0 - chamfer_u, 1.0),
+            pos2(0.0, 1.0),
+            pos2(0.0, chamfer_v),
+        ];
+        if rotated_180 {
+            for uv in &mut uvs {
+                *uv = pos2(1.0 - uv.x, 1.0 - uv.y);
+            }
+        }
+        for (position, uv) in points.iter().copied().zip(uvs) {
+            mesh.vertices.push(Vertex {
+                pos: position,
+                uv,
+                color: Color32::WHITE,
+            });
+        }
+        mesh.indices
+            .extend_from_slice(&[0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5]);
+        painter.add(mesh);
+        painter.add(Shape::closed_line(
+            points,
+            Stroke::new((1.0 * scale).max(0.5), palette.edge),
+        ));
+        return;
+    }
 
     let notch_width = CARD_TOP_MARK_WIDTH_MM * SOURCE_PX_PER_MM * scale;
     let notch_height = CARD_TOP_MARK_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
@@ -475,6 +523,7 @@ fn paint_reader_motion(
     photo: Rect,
     card: &ProgramCardArtwork,
     logo: &TextureHandle,
+    face_texture: Option<&TextureHandle>,
     progress: f32,
     scale: f32,
     rotated_180: bool,
@@ -500,6 +549,7 @@ fn paint_reader_motion(
             rect,
             card,
             logo,
+            face_texture,
             CardPalette::holder(),
             scale,
             rotated_180,
@@ -511,6 +561,7 @@ fn paint_reader_motion(
             rect,
             card,
             logo,
+            face_texture,
             CardPalette::holder(),
             scale,
             rotated_180,
@@ -579,6 +630,7 @@ fn paint_parked_left(
     photo: Rect,
     card: &ProgramCardArtwork,
     logo: &TextureHandle,
+    face_texture: Option<&TextureHandle>,
     scale: f32,
     rotated_180: bool,
 ) {
@@ -589,6 +641,7 @@ fn paint_parked_left(
         rect,
         card,
         logo,
+        face_texture,
         CardPalette::holder(),
         scale,
         rotated_180,
@@ -602,6 +655,7 @@ fn paint_window_insertion_from_right(
     window: Rect,
     card: &ProgramCardArtwork,
     logo: &TextureHandle,
+    face_texture: Option<&TextureHandle>,
     progress: f32,
     scale: f32,
     rotated_180: bool,
@@ -636,6 +690,7 @@ fn paint_window_insertion_from_right(
             rect,
             card,
             logo,
+            face_texture,
             CardPalette::holder(),
             scale,
             rotated_180,
@@ -648,6 +703,7 @@ fn paint_window_insertion_from_right(
             rect,
             card,
             logo,
+            face_texture,
             CardPalette::holder(),
             scale,
             rotated_180,
