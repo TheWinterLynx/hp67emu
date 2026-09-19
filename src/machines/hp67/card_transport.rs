@@ -223,9 +223,9 @@ impl Hp67CardTransport {
         elapsed_us: u64,
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
-        self.record_phase_units = self.record_phase_units.saturating_add(
-            elapsed_us.saturating_mul(u64::from(self.speed.percent_of_nominal())),
-        );
+        self.record_phase_units = self
+            .record_phase_units
+            .saturating_add(elapsed_us.saturating_mul(u64::from(self.speed.percent_of_nominal())));
         let mut produced = 0;
 
         while self.record_phase_units >= HP67_CARD_RECORD_PHASE_UNITS
@@ -272,9 +272,9 @@ impl Hp67CardTransport {
             return Ok(0);
         }
 
-        self.record_phase_units = self.record_phase_units.saturating_add(
-            elapsed_us.saturating_mul(u64::from(self.speed.percent_of_nominal())),
-        );
+        self.record_phase_units = self
+            .record_phase_units
+            .saturating_add(elapsed_us.saturating_mul(u64::from(self.speed.percent_of_nominal())));
         let mut written = 0;
 
         while self.record_phase_units >= HP67_CARD_RECORD_PHASE_UNITS
