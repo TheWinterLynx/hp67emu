@@ -127,4 +127,6 @@ The HP-97 service manual and Teenix reader analysis both establish that write pr
 
 ## Validation status
 
-The read-side timed checkpoint passed locally on 2026-09-19. The new write-side code and live firmware regressions are implemented in the branch and await the next local focused/full gate.
+The read-side timed checkpoint passed locally on 2026-09-19. The write-side timed checkpoint also passed locally on 2026-09-19, covering the two-buffer CRC write FIFO, `0x99` packing, nominal transport cadence, write-protect and the live firmware PROGRAM/F7 paths.
+
+The branch now adds two stronger media-preservation regressions. The transport-level test writes all 34 records, ejects the completed side, reinserts that same media and reads all 34 records back through the CRC buffer. The live regression goes further: one real firmware instance writes the complete card in PROGRAM mode, the completed side is transferred unchanged to a second real firmware instance in RUN mode, and the 34 observed `CrcDataRead` words must exactly equal the 34 earlier `CrcDataWrite` words. These new round-trip regressions await the next local gate.
