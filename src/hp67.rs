@@ -6,8 +6,8 @@ use hp67emu::machines::hp67::{
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
     Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Hp67SegmentMask,
-    Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_MOTOR_ON,
-    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -633,8 +633,7 @@ mod tests {
         assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(true));
         assert_eq!(live.card_transport.next_record(), 0);
 
-        let cycles_per_record =
-            HP67_NOMINAL_CARD_RECORD_US.div_ceil(HP67_OBSERVED_WORD_TIME_US);
+        let cycles_per_record = HP67_NOMINAL_CARD_RECORD_US.div_ceil(HP67_OBSERVED_WORD_TIME_US);
         for cycle in 1..=cycles_per_record {
             live.step_firmware_cycle().unwrap();
             if cycle < cycles_per_record {
@@ -666,11 +665,7 @@ mod tests {
         for _ in 0..8_192 {
             let execution = live.step_firmware_cycle_with_execution().unwrap();
             if let Some(Hp67ArchitecturalExecution {
-                operation:
-                    Hp67ArchitecturalOperation::CrcDataRead {
-                        address,
-                        card_word,
-                    },
+                operation: Hp67ArchitecturalOperation::CrcDataRead { address, card_word },
                 ..
             }) = execution
             {
