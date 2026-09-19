@@ -253,9 +253,7 @@ pub fn paint(
         }
     }
 
-    if view.reader_enabled
-        && view.reader_free_for_new_blank
-        && view.phase != ProgramCardPhase::Idle
+    if view.reader_enabled && view.reader_free_for_new_blank && view.phase != ProgramCardPhase::Idle
     {
         let reader_hit = source_to_screen(photo, CARD_READER_HIT);
         let response = ui
