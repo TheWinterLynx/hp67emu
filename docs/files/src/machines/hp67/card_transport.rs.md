@@ -31,3 +31,6 @@ Read-side buffering follows the HP hardware description: the CRC alternates betw
 
 
 Head-startup handshake: closing the modeled head switch does not immediately start record cadence. The transport first raises one CRC `buffer_ready` readiness event without consuming or producing a card record. Firmware acknowledges/clears that event in `Scr3341`; only after that acknowledgement does `record_stream_active()` become true and the 28 ms record clock begin. This same startup handshake is required in read and write mode, which follows directly from `Scr3341` being shared by both paths.
+
+
+The normal live-machine owner no longer toggles `head_active` directly. `Hp67LiveMachine` owns the firmware-synchronized insertion sequence and automatically releases the head/contact side of the transport at record 34. Direct head control remains available only as the low-level transport boundary used by focused transport tests and future physical-timing work.
