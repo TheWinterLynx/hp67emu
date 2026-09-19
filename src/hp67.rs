@@ -453,7 +453,9 @@ impl Hp67LiveMachine {
         if self.card_transport.is_complete() {
             self.machine
                 .set_card_present(false)
-                .map_err(|error| format!("live cycle {cycle} card exit contact failed: {error:?}"))?;
+                .map_err(|error| {
+                    format!("live cycle {cycle} card exit contact failed: {error:?}")
+                })?;
             self.card_transport.set_head_active(false);
         }
 
