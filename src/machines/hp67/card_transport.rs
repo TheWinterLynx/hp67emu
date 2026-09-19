@@ -6,7 +6,9 @@
 //! head-active gate.  Exact motor acceleration, switch geometry, flux-transition
 //! phase and sense-amplifier electrical timing remain later M13 work.
 
-use super::crc::{CrcArchitecturalCore, CrcArchitecturalError, CRC_CARD_WORD_MASK};
+use super::crc::{
+    CrcArchitecturalCore, CrcArchitecturalError, CRC_CARD_WORD_MASK, CRC_FLAG_WRITE_MODE,
+};
 
 pub const HP67_CARD_RECORDS_PER_SIDE: usize = 34;
 pub const HP67_NOMINAL_CARD_RECORD_US: u64 = 28_000;
@@ -27,12 +29,16 @@ impl From<CrcArchitecturalError> for Hp67CardTransportError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hp67CardSide {
     words: [u32; HP67_CARD_RECORDS_PER_SIDE],
+    write_protected: bool,
+    dirty: bool,
 }
 
 impl Default for Hp67CardSide {
     fn default() -> Self {
         Self {
             words: [0; HP67_CARD_RECORDS_PER_SIDE],
+            write_protected: false,
+            dirty: false,
         }
     }
 }
@@ -46,11 +52,35 @@ impl Hp67CardSide {
                 return Err(Hp67CardTransportError::WordOutOfRange { index, word });
             }
         }
-        Ok(Self { words })
+        Ok(Self {
+            words,
+            write_protected: false,
+            dirty: false,
+        })
     }
 
     pub const fn words(&self) -> &[u32; HP67_CARD_RECORDS_PER_SIDE] {
         &self.words
+    }
+
+    pub const fn write_protected(&self) -> bool {
+        self.write_protected
+    }
+
+    pub const fn dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn with_write_protected(mut self, protected: bool) -> Self {
+        self.write_protected = protected;
+        self
+    }
+
+    fn write_word(&mut self, index: usize, word: u32) {
+        debug_assert!(index < HP67_CARD_RECORDS_PER_SIDE);
+        debug_assert!(word <= CRC_CARD_WORD_MASK);
+        self.words[index] = word;
+        self.dirty = true;
     }
 
     pub const fn word(&self, index: usize) -> Option<u32> {
@@ -110,6 +140,18 @@ impl Hp67CardTransport {
             return Ok(0);
         }
 
+        if crc.flag(CRC_FLAG_WRITE_MODE) == Some(true) {
+            return self.advance_write_us(elapsed_us, crc);
+        }
+
+        self.advance_read_us(elapsed_us, crc)
+    }
+
+    fn advance_read_us(
+        &mut self,
+        elapsed_us: u64,
+        crc: &mut CrcArchitecturalCore,
+    ) -> Result<usize, Hp67CardTransportError> {
         self.record_elapsed_us = self.record_elapsed_us.saturating_add(elapsed_us);
         let mut produced = 0;
 
@@ -128,6 +170,57 @@ impl Hp67CardTransport {
         }
 
         Ok(produced)
+    }
+
+    fn advance_write_us(
+        &mut self,
+        elapsed_us: u64,
+        crc: &mut CrcArchitecturalCore,
+    ) -> Result<usize, Hp67CardTransportError> {
+        let write_protected = self
+            .side
+            .as_ref()
+            .expect("side presence checked by advance_us")
+            .write_protected();
+
+        if write_protected {
+            crc.signal_write_capacity(true);
+            self.record_elapsed_us = 0;
+            return Ok(0);
+        }
+
+        if crc.write_buffer_can_accept() {
+            crc.signal_write_capacity(false);
+        }
+
+        if crc.queued_write_words() == 0 {
+            self.record_elapsed_us = 0;
+            return Ok(0);
+        }
+
+        self.record_elapsed_us = self.record_elapsed_us.saturating_add(elapsed_us);
+        let mut written = 0;
+
+        while self.record_elapsed_us >= HP67_NOMINAL_CARD_RECORD_US
+            && self.next_record < HP67_CARD_RECORDS_PER_SIDE
+        {
+            let Some(word) = crc.take_queued_write_word() else {
+                break;
+            };
+            self.record_elapsed_us -= HP67_NOMINAL_CARD_RECORD_US;
+            self.side
+                .as_mut()
+                .expect("side presence checked by advance_us")
+                .write_word(self.next_record, word);
+            self.next_record += 1;
+            written += 1;
+
+            if crc.write_buffer_can_accept() {
+                crc.signal_write_capacity(false);
+            }
+        }
+
+        Ok(written)
     }
 }
 
@@ -187,6 +280,70 @@ mod tests {
         );
         assert_eq!(transport.next_record(), 2);
         assert_eq!(crc.buffered_read_word(), Some(0x0222_2222));
+    }
+
+    #[test]
+    fn write_mode_drains_crc_buffers_at_record_cadence() {
+        let mut transport = Hp67CardTransport::default();
+        transport
+            .insert_side(Hp67CardSide::default())
+            .expect("blank side must insert");
+        transport.set_head_active(true);
+
+        let mut crc = CrcArchitecturalCore::default();
+        crc.execute_opcode(0o660).expect("write mode must set");
+        crc.queue_write_word(0x0111_1111).unwrap();
+        crc.queue_write_word(0x0222_2222).unwrap();
+
+        assert_eq!(
+            transport
+                .advance_us(HP67_NOMINAL_CARD_RECORD_US - 1, true, &mut crc)
+                .unwrap(),
+            0
+        );
+        assert_eq!(transport.next_record(), 0);
+
+        assert_eq!(transport.advance_us(1, true, &mut crc).unwrap(), 1);
+        assert_eq!(transport.next_record(), 1);
+        assert_eq!(crc.queued_write_words(), 1);
+        assert_eq!(
+            transport
+                .side
+                .as_ref()
+                .and_then(|side| side.word(0)),
+            Some(0x0111_1111)
+        );
+        assert!(
+            transport
+                .side
+                .as_ref()
+                .expect("side remains inserted")
+                .dirty()
+        );
+    }
+
+    #[test]
+    fn write_protected_side_sets_crc_f7_and_remains_unmodified() {
+        let mut transport = Hp67CardTransport::default();
+        transport
+            .insert_side(Hp67CardSide::default().with_write_protected(true))
+            .expect("protected side must insert");
+        transport.set_head_active(true);
+
+        let mut crc = CrcArchitecturalCore::default();
+        crc.execute_opcode(0o660).expect("write mode must set");
+
+        assert_eq!(transport.advance_us(320, true, &mut crc).unwrap(), 0);
+        assert_eq!(crc.flag(crate::machines::hp67::crc::CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(crc.flag(crate::machines::hp67::crc::CRC_FLAG_F7_STATUS), Some(true));
+        assert_eq!(transport.next_record(), 0);
+        assert!(
+            !transport
+                .side
+                .as_ref()
+                .expect("side remains inserted")
+                .dirty()
+        );
     }
 
     #[test]
