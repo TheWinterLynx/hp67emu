@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Model the HP-67 magnetic-card transport cadence between the physical reader/head boundary and the CRC 28-bit input buffer.
+Model the HP-67 magnetic-card transport cadence between the physical reader/head boundary and the CRC 28-bit read/write buffers.
 
 ## Why it exists
 
@@ -14,8 +14,11 @@ Feeds `CrcArchitecturalCore::present_read_word()` in `crc.rs`; is owned by `Hp67
 
 ## Responsibilities
 
-Represent one inserted HP-67 card side as 34 validated 28-bit records; gate record movement on both motor enable and the head-active condition; accumulate nominal transport time; present each record to the CRC every 28,000 us; preserve record order; and stop producing records after the 34th record.
+Represent one inserted HP-67 card side as 34 validated 28-bit records; gate record movement on both motor enable and the head-active condition; accumulate nominal transport time; present each read record to the CRC every 28,000 us; drain queued write records to the inserted card at the same nominal cadence; preserve FIFO order; enforce per-side write protection; mark modified media dirty; and stop after the 34th record.
 
 ## Implementation
 
-`Hp67CardSide` owns a fixed 34-word array and rejects values wider than the CRC 28-bit record mask. `Hp67CardTransport` tracks the inserted side, next record, partial record time and head-active state. `advance_us()` advances only while a side is present, the firmware-owned motor flag is on and the head switch is active. The nominal interval is `HP67_NOMINAL_CARD_RECORD_US = 28_000`, source-backed by the November 1976 HP Journal description of the HP-67/97 card reader. Exact motor acceleration, head-switch position, ±5% speed variation, flux-transition timing and sense-amplifier electrical behavior remain later M13 work.
+`Hp67CardSide` owns a fixed 34-word array, per-side write-protect state and dirty state, and rejects values wider than the CRC 28-bit record mask. `Hp67CardTransport` tracks the inserted side, next record, partial record time and head-active state. `advance_us()` advances only while a side is present, the firmware-owned motor flag is on and the head switch is active. The nominal interval is `HP67_NOMINAL_CARD_RECORD_US = 28_000`, source-backed by the November 1976 HP Journal description of the HP-67/97 card reader. Exact motor acceleration, head-switch position, ±5% speed variation, flux-transition timing and sense-amplifier electrical behavior remain later M13 work.
+
+
+In write mode the CRC pair of 28-bit buffers is authoritative. While motor/head are active and the side is writable, the transport signals that capacity is available; firmware `0x99` writes enqueue records, and the transport commits one FIFO record every nominal 28 ms. A protected side raises the F7 status path used by firmware and no media word is modified.
