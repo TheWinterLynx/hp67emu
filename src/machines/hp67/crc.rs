@@ -99,9 +99,13 @@ impl CrcArchitecturalCore {
         self.write_len < CRC_WRITE_BUFFER_COUNT
     }
 
-    pub fn signal_write_capacity(&mut self, status_error: bool) {
+    pub fn signal_transport_ready(&mut self, status_error: bool) {
         self.flags[CRC_FLAG_BUFFER_READY] = true;
         self.flags[CRC_FLAG_F7_STATUS] = status_error;
+    }
+
+    pub fn signal_write_capacity(&mut self, status_error: bool) {
+        self.signal_transport_ready(status_error);
     }
 
     pub fn queue_write_word(&mut self, word: u32) -> Result<(), CrcArchitecturalError> {
