@@ -5,7 +5,7 @@ use eframe::egui::{
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
-const CARD_WINDOW: SourceRect = SourceRect::new(135.0, 365.0, 795.0, 448.0);
+const CARD_WINDOW: SourceRect = SourceRect::new(166.0, 373.0, 764.0, 452.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -18,6 +18,18 @@ const CARD_CORNER_CHAMFER_MM: f32 = 0.9;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
+const A_E_KEY_CENTERS_X: [f32; 5] = [211.0, 338.0, 465.0, 592.0, 719.0];
+const CARD_LABEL_X_FRACTIONS: [f32; 5] = [
+    0.134_64,
+    0.317_32,
+    0.5,
+    0.682_68,
+    0.865_36,
+];
+const CARD_TITLE_Y_FRACTION: f32 = 0.34;
+const CARD_SHIFTED_Y_FRACTION: f32 = 0.59;
+const CARD_PRIMARY_Y_FRACTION: f32 = 0.76;
+const CARD_REFERENCE_X_FRACTION: f32 = 0.92;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCardArtwork {
@@ -213,8 +225,8 @@ fn paint_card(
     ));
 
     let marker_y = rect.top() + 2.0 * scale;
-    for index in 0..5 {
-        let x = rect.left() + rect.width() * (index as f32 + 0.5) / 5.0;
+    for fraction in CARD_LABEL_X_FRACTIONS {
+        let x = rect.left() + rect.width() * fraction;
         painter.line_segment(
             [
                 pos2(x - 3.5 * scale, marker_y),
@@ -229,7 +241,10 @@ fn paint_card(
     let reference_font = FontId::proportional((10.5 * scale).max(6.0));
 
     painter.text(
-        pos2(rect.center().x, rect.top() + rect.height() * 0.29),
+        pos2(
+            rect.center().x,
+            rect.top() + rect.height() * CARD_TITLE_Y_FRACTION,
+        ),
         Align2::CENTER_CENTER,
         card.title,
         title_font,
@@ -237,8 +252,8 @@ fn paint_card(
     );
     painter.text(
         pos2(
-            rect.right() - 28.0 * scale,
-            rect.top() + rect.height() * 0.29,
+            rect.left() + rect.width() * CARD_REFERENCE_X_FRACTION,
+            rect.top() + rect.height() * CARD_TITLE_Y_FRACTION,
         ),
         Align2::RIGHT_CENTER,
         card.reference,
@@ -246,12 +261,15 @@ fn paint_card(
         palette.shifted,
     );
 
-    for index in 0..5 {
-        let x = rect.left() + rect.width() * (index as f32 + 0.5) / 5.0;
+    for (index, fraction) in CARD_LABEL_X_FRACTIONS.iter().copied().enumerate() {
+        let x = rect.left() + rect.width() * fraction;
         let shifted = card.shifted_labels[index];
         if !shifted.is_empty() {
             painter.text(
-                pos2(x, rect.top() + rect.height() * 0.58),
+                pos2(
+                    x,
+                    rect.top() + rect.height() * CARD_SHIFTED_Y_FRACTION,
+                ),
                 Align2::CENTER_CENTER,
                 shifted,
                 label_font.clone(),
@@ -261,7 +279,10 @@ fn paint_card(
         let primary = card.primary_labels[index];
         if !primary.is_empty() {
             painter.text(
-                pos2(x, rect.top() + rect.height() * 0.79),
+                pos2(
+                    x,
+                    rect.top() + rect.height() * CARD_PRIMARY_Y_FRACTION,
+                ),
                 Align2::CENTER_CENTER,
                 primary,
                 label_font.clone(),
@@ -461,10 +482,27 @@ mod tests {
     }
 
     #[test]
-    fn card_window_sits_above_the_a_to_e_key_row() {
+    fn card_window_matches_a_to_e_row_without_covering_side_trim() {
         assert!(CARD_WINDOW.y1 < 467.0);
-        assert!(CARD_WINDOW.x0 < 166.0);
-        assert!(CARD_WINDOW.x1 > 764.0);
+        assert_eq!(CARD_WINDOW.x0, 166.0);
+        assert_eq!(CARD_WINDOW.x1, 764.0);
+        assert!(CARD_WINDOW.y0 > 365.0);
+    }
+
+    #[test]
+    fn holder_label_anchors_match_the_real_a_to_e_key_centres() {
+        let photo = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(PHOTO_W, PHOTO_H));
+        let window = source_to_screen(photo, CARD_WINDOW);
+        let card = holder_card_rect(window, 1.0);
+
+        for (fraction, expected_x) in CARD_LABEL_X_FRACTIONS
+            .iter()
+            .copied()
+            .zip(A_E_KEY_CENTERS_X)
+        {
+            let actual_x = card.left() + card.width() * fraction;
+            assert!((actual_x - expected_x).abs() < 0.15);
+        }
     }
 
     #[test]
