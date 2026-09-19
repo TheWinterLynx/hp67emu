@@ -86,7 +86,7 @@ A transport record arrival:
 
 Firmware `fs?c buffer_ready` clears the flag but does not itself consume the 28-bit word. The buffered word remains until the CRC data port is read.
 
-The earlier single-latch implementation could silently replace an unread record and caused the first live 34-record round-trip attempt to observe only 32 firmware reads. HP's November 1976 hardware description explicitly states that the CRC alternates between a pair of 28-bit buffers, so M13 now models that pair rather than an overwrite latch.
+The earlier single-latch implementation could silently replace an unread record and was therefore architecturally incorrect. The first live 34-record round-trip attempt observed only 32 firmware reads, which exposed that defect but did not by itself prove it was the sole cause. HP's November 1976 hardware description explicitly states that the CRC alternates between a pair of 28-bit buffers, so M13 models that pair rather than an overwrite latch.
 
 ## Architectural read port
 
@@ -141,3 +141,8 @@ The first live full-card round-trip gate wrote all 34 records successfully but o
 ### ReadBufferFull follow-up and head-switch sequencing
 
 After the dual-read-buffer correction, the next live round-trip run failed explicitly with `ReadBufferFull` at live cycle 583. This was not evidence for a larger FIFO: the live harness was still asserting `head_active` at the instant of card insertion. HP service documentation distinguishes the motor switch from the head switch: insertion first closes the motor switch, firmware starts the motor, and only when the leading card edge reaches the head does HDS close. Service Note 97-101 further states that head-switch adjustment changes the physical start-bit position. The live tests now preserve that separation. They leave the head contact open through motor startup and the two initial `buffer_ready` clears in `Scr3341`, then close it immediately before the firmware waits for the first real record. This is a test-harness synchronization point, not a claimed mechanical delay constant; exact insertion-to-head travel remains unsourced and therefore unmodeled.
+
+
+### CRC/head startup-ready handshake
+
+A second `ReadBufferFull` after separating card-present from the head contact showed that record timing was still starting at the wrong logical boundary. `Scr3341` is shared by both card reads and writes. After motor startup it clears `buffer_ready`, delays, clears it again, then calls `Scr3167` and waits for a `buffer_ready` event before any read transfer or any write-data transfer takes place. Because this same sequence runs in write mode, that first event cannot be an incoming 28-bit card record; it is a CRC/head readiness handshake. Production transport now models this explicitly. On head activation it raises one startup `buffer_ready` event without advancing `next_record`. When real firmware test-and-clears that event, the transport enters record-stream state and starts the nominal 28 ms cadence from zero. This preserves the documented continuous two-buffer stream without inventing an extra magnetic record or silently consuming the header.
