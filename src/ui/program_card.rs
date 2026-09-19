@@ -1,11 +1,12 @@
 use eframe::egui::{
-    pos2, Align2, Color32, CursorIcon, FontId, Painter, Rect, Sense, Shape, Stroke, Ui,
+    pos2, Align2, Color32, CursorIcon, FontId, Painter, Rect, Sense, Shape, Stroke,
+    TextureHandle, Ui,
 };
 
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
-const CARD_WINDOW: SourceRect = SourceRect::new(132.0, 344.0, 798.0, 457.0);
+const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 350.0, 793.0, 449.0);
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -26,12 +27,10 @@ const CARD_TITLE_Y_FRACTION: f32 = 0.31;
 const CARD_SHIFTED_Y_FRACTION: f32 = 0.61;
 const CARD_PRIMARY_Y_FRACTION: f32 = 0.82;
 const CARD_REFERENCE_X_FRACTION: f32 = 0.89;
-const CARD_HP_LOGO_X_FRACTION: f32 = 0.038;
+const CARD_HP_LOGO_X_FRACTION: f32 = 0.052;
 const CARD_HP_LOGO_Y_FRACTION: f32 = 0.69;
-const CARD_HP_LOGO_WIDTH_MM: f32 = 2.7;
 const CARD_HP_LOGO_HEIGHT_MM: f32 = 4.6;
-const HOLDER_SIDE_LIP_MM: f32 = 0.85;
-const HOLDER_EDGE_SHADOW_MM: f32 = 0.28;
+const CARD_HP_LOGO_ASPECT: f32 = 46.0 / 70.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ProgramCardArtwork {
@@ -73,6 +72,7 @@ impl ProgramCardPhase {
 #[derive(Debug, Clone, Copy)]
 pub struct ProgramCardView<'a> {
     pub artwork: &'a ProgramCardArtwork,
+    pub logo: &'a TextureHandle,
     pub phase: ProgramCardPhase,
     pub phase_progress: f32,
 }
@@ -124,6 +124,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 ui,
                 photo,
                 view.artwork,
+                view.logo,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
             );
@@ -141,7 +142,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
             output.parked_left_clicked = response.clicked();
-            paint_parked_left(ui, photo, view.artwork, scale);
+            paint_parked_left(ui, photo, view.artwork, view.logo, scale);
         }
         ProgramCardPhase::InsertingWindowFromRight => {
             paint_window_insertion_from_right(
@@ -149,6 +150,7 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 photo,
                 window,
                 view.artwork,
+                view.logo,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
             );
@@ -170,10 +172,10 @@ pub fn paint(ui: &mut Ui, photo: Rect, view: ProgramCardView<'_>) -> ProgramCard
                 &ui.painter().with_clip_rect(window),
                 card_rect,
                 view.artwork,
+                view.logo,
                 CardPalette::holder(),
                 scale,
             );
-            paint_holder_lips(ui.painter(), window, scale);
         }
     }
 
@@ -205,6 +207,7 @@ fn paint_card(
     painter: &Painter,
     rect: Rect,
     card: &ProgramCardArtwork,
+    logo: &TextureHandle,
     palette: CardPalette,
     scale: f32,
 ) {
@@ -244,7 +247,7 @@ fn paint_card(
     }
 
     if card.show_hp_logo {
-        paint_hp_card_logo(painter, rect, palette.shifted, scale);
+        paint_hp_card_logo(painter, rect, logo, scale);
     }
 
     let title_font = FontId::proportional((15.0 * scale).max(7.5));
@@ -297,88 +300,30 @@ fn paint_card(
     }
 }
 
-fn paint_hp_card_logo(painter: &Painter, rect: Rect, color: Color32, scale: f32) {
-    let width = CARD_HP_LOGO_WIDTH_MM * SOURCE_PX_PER_MM * scale;
+fn paint_hp_card_logo(painter: &Painter, rect: Rect, logo: &TextureHandle, scale: f32) {
     let height = CARD_HP_LOGO_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
+    let width = height * CARD_HP_LOGO_ASPECT;
     let center = pos2(
         rect.left() + rect.width() * CARD_HP_LOGO_X_FRACTION,
         rect.top() + rect.height() * CARD_HP_LOGO_Y_FRACTION,
     );
-    let logo = Rect::from_center_size(center, eframe::egui::vec2(width, height));
-
-    painter.rect_stroke(logo, 0.0, Stroke::new((0.8 * scale).max(0.45), color));
-
-    // Trace the tiny classic HP mark from the supplied reference rather than
-    // using a separate bitmap that would blur at the card's displayed scale.
-    let stroke = Stroke::new((1.05 * scale).max(0.55), color);
-    let x0 = logo.left() + logo.width() * 0.24;
-    let x1 = logo.left() + logo.width() * 0.47;
-    let x2 = logo.left() + logo.width() * 0.69;
-    let top = logo.top() + logo.height() * 0.20;
-    let mid = logo.top() + logo.height() * 0.49;
-    let bottom = logo.top() + logo.height() * 0.82;
-
-    painter.line_segment([pos2(x0, top), pos2(x0, bottom)], stroke);
-    painter.line_segment([pos2(x0, mid), pos2(x1, mid)], stroke);
-    painter.line_segment(
-        [pos2(x1, mid), pos2(x1, bottom * 0.98 + top * 0.02)],
-        stroke,
-    );
-    painter.line_segment([pos2(x2, mid), pos2(x2, bottom)], stroke);
-    painter.line_segment([pos2(x1, mid), pos2(x2, mid)], stroke);
-    painter.line_segment(
-        [
-            pos2(x2, mid),
-            pos2(
-                logo.right() - logo.width() * 0.10,
-                logo.top() + logo.height() * 0.36,
-            ),
-        ],
-        stroke,
+    let logo_rect = Rect::from_center_size(center, eframe::egui::vec2(width, height));
+    painter.image(
+        logo.id(),
+        logo_rect,
+        Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+        Color32::WHITE,
     );
 }
 
-fn paint_holder_lips(painter: &Painter, window: Rect, scale: f32) {
-    let side = HOLDER_SIDE_LIP_MM * SOURCE_PX_PER_MM * scale;
-    let shadow = HOLDER_EDGE_SHADOW_MM * SOURCE_PX_PER_MM * scale;
-    let lip = Color32::from_rgb(16, 16, 14);
-    let edge = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
-
-    painter.rect_filled(
-        Rect::from_min_max(
-            window.left_top(),
-            pos2((window.left() + side).min(window.right()), window.bottom()),
-        ),
-        0.0,
-        lip,
-    );
-    painter.rect_filled(
-        Rect::from_min_max(
-            pos2((window.right() - side).max(window.left()), window.top()),
-            window.right_bottom(),
-        ),
-        0.0,
-        lip,
-    );
-    painter.rect_filled(
-        Rect::from_min_max(
-            window.left_top(),
-            pos2(window.right(), (window.top() + shadow).min(window.bottom())),
-        ),
-        0.0,
-        edge,
-    );
-    painter.rect_filled(
-        Rect::from_min_max(
-            pos2(window.left(), (window.bottom() - shadow).max(window.top())),
-            window.right_bottom(),
-        ),
-        0.0,
-        edge,
-    );
-}
-
-fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress: f32, scale: f32) {
+fn paint_reader_motion(
+    ui: &Ui,
+    photo: Rect,
+    card: &ProgramCardArtwork,
+    logo: &TextureHandle,
+    progress: f32,
+    scale: f32,
+) {
     let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
     let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
     let card_width = CARD_PHYSICAL_WIDTH * scale;
@@ -405,6 +350,7 @@ fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress
             &ui.painter().with_clip_rect(right_clip),
             rect,
             card,
+            logo,
             CardPalette::holder(),
             scale,
         );
@@ -414,6 +360,7 @@ fn paint_reader_motion(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, progress
             &ui.painter().with_clip_rect(left_clip),
             rect,
             card,
+            logo,
             CardPalette::holder(),
             scale,
         );
@@ -445,7 +392,13 @@ fn parked_left_visible_rect(photo: Rect, scale: f32) -> Rect {
     Rect::from_min_max(parked.min, pos2(exit_mouth_x, parked.bottom()))
 }
 
-fn paint_parked_left(ui: &Ui, photo: Rect, card: &ProgramCardArtwork, scale: f32) {
+fn paint_parked_left(
+    ui: &Ui,
+    photo: Rect,
+    card: &ProgramCardArtwork,
+    logo: &TextureHandle,
+    scale: f32,
+) {
     let rect = parked_left_rect(photo, scale);
     let visible = parked_left_visible_rect(photo, scale);
     paint_card(
@@ -462,6 +415,7 @@ fn paint_window_insertion_from_right(
     photo: Rect,
     window: Rect,
     card: &ProgramCardArtwork,
+    logo: &TextureHandle,
     progress: f32,
     scale: f32,
 ) {
@@ -494,6 +448,7 @@ fn paint_window_insertion_from_right(
             &ui.painter().with_clip_rect(outside_right),
             rect,
             card,
+            logo,
             CardPalette::holder(),
             scale,
         );
@@ -504,10 +459,10 @@ fn paint_window_insertion_from_right(
             &ui.painter().with_clip_rect(holder_window),
             rect,
             card,
+            logo,
             CardPalette::holder(),
             scale,
         );
-        paint_holder_lips(ui.painter(), window, scale);
     }
 
     debug_assert!(holder_mouth_x <= case_right_x);
@@ -576,12 +531,13 @@ mod tests {
     }
 
     #[test]
-    fn card_window_reveals_full_height_and_only_slightly_occludes_the_ends() {
-        assert!(CARD_WINDOW.y0 < 345.0);
-        assert!(CARD_WINDOW.y1 < 467.0);
-        assert!(CARD_WINDOW.y1 - CARD_WINDOW.y0 > CARD_PHYSICAL_HEIGHT);
-        assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 > CARD_PHYSICAL_WIDTH * 0.95);
+    fn card_window_is_inside_the_photographed_holder_frame() {
+        assert_eq!(CARD_WINDOW.x0, 138.0);
+        assert_eq!(CARD_WINDOW.x1, 793.0);
+        assert_eq!(CARD_WINDOW.y0, 350.0);
+        assert_eq!(CARD_WINDOW.y1, 449.0);
         assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 < CARD_PHYSICAL_WIDTH);
+        assert!(CARD_WINDOW.y1 - CARD_WINDOW.y0 < CARD_PHYSICAL_HEIGHT);
     }
 
     #[test]
@@ -633,8 +589,9 @@ mod tests {
         assert!((card.width() - CARD_PHYSICAL_WIDTH).abs() < 0.001);
         assert!((card.height() - CARD_PHYSICAL_HEIGHT).abs() < 0.001);
         assert!(card.width() > window.width());
-        assert!(card.width() - window.width() < CARD_PHYSICAL_WIDTH * 0.05);
-        assert!(window.height() > card.height());
+        assert!(card.width() - window.width() < CARD_PHYSICAL_WIDTH * 0.07);
+        assert!(card.height() > window.height());
+        assert!(card.height() - window.height() < CARD_PHYSICAL_HEIGHT * 0.12);
     }
 
     #[test]
