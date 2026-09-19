@@ -46,8 +46,8 @@ pub use card_transport::{
 pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
     CRC_CARD_WORD_BITS, CRC_CARD_WORD_MASK, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
-    CRC_FLAG_COUNT, CRC_FLAG_MOTOR_ON, CRC_FLAG_PROGRAM_MODE, CRC_FLAG_WRITE_MODE,
-    CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
+    CRC_FLAG_COUNT, CRC_FLAG_F7_STATUS, CRC_FLAG_MOTOR_ON, CRC_FLAG_PROGRAM_MODE,
+    CRC_FLAG_WRITE_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS, CRC_WRITE_BUFFER_COUNT,
 };
 pub use display::{
     decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, CathodeScanError,
