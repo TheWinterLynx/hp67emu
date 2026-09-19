@@ -4,8 +4,9 @@ use hp67emu::machines::hp67::{
     decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
+    Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Hp67SegmentMask,
+    Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_MOTOR_ON,
     HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
@@ -208,6 +209,7 @@ pub struct Hp67LiveMachine {
     pipeline: FetchPipelineLatch,
     machine: Hp67ArchitecturalMachine,
     keyboard: Hp67Keyboard,
+    card_transport: Hp67CardTransport,
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
@@ -230,6 +232,7 @@ impl Hp67LiveMachine {
             pipeline: FetchPipelineLatch::default(),
             machine: Hp67ArchitecturalMachine::default(),
             keyboard: Hp67Keyboard::default(),
+            card_transport: Hp67CardTransport::default(),
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
@@ -255,6 +258,7 @@ impl Hp67LiveMachine {
         self.pipeline = FetchPipelineLatch::default();
         self.machine = Hp67ArchitecturalMachine::default();
         self.keyboard = Hp67Keyboard::default();
+        self.card_transport = Hp67CardTransport::default();
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
@@ -309,6 +313,7 @@ impl Hp67LiveMachine {
         &mut self,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        let card_motor_was_on = self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true);
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
                 "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
@@ -383,6 +388,14 @@ impl Hp67LiveMachine {
                 ));
             }
         }
+
+        self.card_transport
+            .advance_us(
+                HP67_OBSERVED_WORD_TIME_US,
+                card_motor_was_on,
+                &mut self.machine.crc,
+            )
+            .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
 
         self.boot_cycle = cycle.saturating_add(1);
         if idle_after_word {
@@ -472,8 +485,8 @@ mod tests {
     use hp67emu::{
         emulation::Drive,
         machines::hp67::{
-            ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, CRC_FLAG_MOTOR_ON,
-            HP67_DISPLAY_SCAN_SLOTS,
+            ActDisplayWordSerializer, Hp67CardSide, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
+            HP67_CARD_RECORDS_PER_SIDE, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
         },
     };
 
@@ -592,6 +605,46 @@ mod tests {
         }
 
         panic!("card-present contact never reached firmware motor-on request");
+    }
+
+    #[test]
+    fn live_motor_advances_card_transport_at_nominal_record_cadence() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let mut words = [0x0300_0000; HP67_CARD_RECORDS_PER_SIDE];
+        words[1] = 0x0311_1111;
+        live.card_transport
+            .insert_side(Hp67CardSide::from_words(words).unwrap())
+            .unwrap();
+        live.card_transport.set_head_active(true);
+        live.machine.set_card_present(true).unwrap();
+
+        for _ in 0..1_024 {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true) {
+                break;
+            }
+        }
+        assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(true));
+        assert_eq!(live.card_transport.next_record(), 0);
+
+        let cycles_per_record =
+            HP67_NOMINAL_CARD_RECORD_US.div_ceil(HP67_OBSERVED_WORD_TIME_US);
+        for cycle in 1..=cycles_per_record {
+            live.step_firmware_cycle().unwrap();
+            if cycle < cycles_per_record {
+                assert_eq!(live.card_transport.next_record(), 0);
+            }
+        }
+
+        assert_eq!(live.card_transport.next_record(), 1);
+        assert_eq!(live.machine.crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(live.machine.crc.buffered_read_word(), Some(0x0300_0000));
     }
 
     #[test]
