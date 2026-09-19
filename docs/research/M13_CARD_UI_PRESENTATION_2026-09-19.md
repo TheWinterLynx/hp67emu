@@ -76,3 +76,10 @@ The visual card is locked to 71.1 mm × 11.4 mm (2.8 × 0.45 in). The renderer d
 The same fixed physical rectangle is used for reader insertion, left-side emergence, parked-left state, holder insertion and final holder display. `CARD_WINDOW` is only an aperture; it clips the physical card and never changes its width or height.
 
 Photographic references show a rectangular card with small rounded/chamfered corners. The previous arrow-shaped procedural nose was removed. The current 0.9 mm corner chamfer is an optical approximation to that photographed corner treatment, not a claim of a separately documented manufacturing radius.
+
+
+## Holder registration correction
+
+The initial holder aperture was wider than the photographed A-E row and allowed the procedural card to overlap the white side trim. It is now locked to source x=166..764 and y=373..452. The horizontal bounds match the photographed A-E keycaps exactly while the lower y placement keeps the visible card below the trim and above the key row.
+
+The text/tick anchors are no longer generic 20% card intervals. Their physical-card fractions are calibrated so that, in the final holder position, they land on the actual photographed A-E key centres at source x=211, 338, 465, 592 and 719. The title/reference band is lowered slightly and the primary-label band raised slightly to keep all artwork comfortably inside the visible aperture.
