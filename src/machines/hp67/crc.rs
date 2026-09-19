@@ -13,9 +13,11 @@ pub const CRC_CARD_WORD_BITS: u8 = 28;
 pub const CRC_CARD_WORD_MASK: u32 = (1u32 << CRC_CARD_WORD_BITS) - 1;
 pub const CRC_FLAG_BUFFER_READY: usize = 0;
 pub const CRC_FLAG_PROGRAM_MODE: usize = 1;
+pub const CRC_FLAG_F7_STATUS: usize = 7;
 pub const CRC_FLAG_MOTOR_ON: usize = 9;
 pub const CRC_FLAG_CARD_PRESENT: usize = 10;
 pub const CRC_FLAG_WRITE_MODE: usize = 11;
+pub const CRC_WRITE_BUFFER_COUNT: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrcInstruction {
@@ -29,6 +31,8 @@ pub enum CrcArchitecturalError {
     FlagOutOfRange(u8),
     CardWordOutOfRange(u32),
     ReadBufferEmpty,
+    WriteModeInactive,
+    WriteBufferFull,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +40,9 @@ pub struct CrcArchitecturalCore {
     flags: [bool; CRC_FLAG_COUNT],
     external_flags: [bool; CRC_FLAG_COUNT],
     read_buffer: Option<u32>,
+    write_buffers: [Option<u32>; CRC_WRITE_BUFFER_COUNT],
+    write_head: usize,
+    write_len: usize,
 }
 
 impl Default for CrcArchitecturalCore {
@@ -44,6 +51,9 @@ impl Default for CrcArchitecturalCore {
             flags: [false; CRC_FLAG_COUNT],
             external_flags: [false; CRC_FLAG_COUNT],
             read_buffer: None,
+            write_buffers: [None; CRC_WRITE_BUFFER_COUNT],
+            write_head: 0,
+            write_len: 0,
         }
     }
 }
@@ -52,6 +62,9 @@ impl CrcArchitecturalCore {
     pub fn reset_control_flags(&mut self) {
         self.flags = [false; CRC_FLAG_COUNT];
         self.read_buffer = None;
+        self.write_buffers = [None; CRC_WRITE_BUFFER_COUNT];
+        self.write_head = 0;
+        self.write_len = 0;
     }
 
     pub fn flag(&self, flag: usize) -> Option<bool> {
@@ -66,6 +79,49 @@ impl CrcArchitecturalCore {
         self.read_buffer
     }
 
+    pub const fn queued_write_words(&self) -> usize {
+        self.write_len
+    }
+
+    pub const fn write_buffer_can_accept(&self) -> bool {
+        self.write_len < CRC_WRITE_BUFFER_COUNT
+    }
+
+    pub fn signal_write_capacity(&mut self, status_error: bool) {
+        self.flags[CRC_FLAG_BUFFER_READY] = true;
+        self.flags[CRC_FLAG_F7_STATUS] = status_error;
+    }
+
+    pub fn queue_write_word(&mut self, word: u32) -> Result<(), CrcArchitecturalError> {
+        if word > CRC_CARD_WORD_MASK {
+            return Err(CrcArchitecturalError::CardWordOutOfRange(word));
+        }
+        if !self.flags[CRC_FLAG_WRITE_MODE] {
+            return Err(CrcArchitecturalError::WriteModeInactive);
+        }
+        if self.write_len >= CRC_WRITE_BUFFER_COUNT {
+            self.flags[CRC_FLAG_F7_STATUS] = true;
+            return Err(CrcArchitecturalError::WriteBufferFull);
+        }
+
+        let tail = (self.write_head + self.write_len) % CRC_WRITE_BUFFER_COUNT;
+        self.write_buffers[tail] = Some(word);
+        self.write_len += 1;
+        self.flags[CRC_FLAG_BUFFER_READY] = false;
+        self.flags[CRC_FLAG_F7_STATUS] = false;
+        Ok(())
+    }
+
+    pub fn take_queued_write_word(&mut self) -> Option<u32> {
+        if self.write_len == 0 {
+            return None;
+        }
+        let word = self.write_buffers[self.write_head].take();
+        self.write_head = (self.write_head + 1) % CRC_WRITE_BUFFER_COUNT;
+        self.write_len -= 1;
+        word
+    }
+
     /// Present one complete 28-bit word from the magnetic transport / sense path.
     /// BUFFER_READY is a latch: firmware testing clears the flag, while the word
     /// remains buffered until the CRC data port consumes it.
@@ -78,6 +134,7 @@ impl CrcArchitecturalCore {
         // record replaces it; exact overrun/error signalling is not yet modeled.
         self.read_buffer = Some(word);
         self.flags[CRC_FLAG_BUFFER_READY] = true;
+        self.flags[CRC_FLAG_F7_STATUS] = false;
         Ok(())
     }
 
@@ -229,6 +286,41 @@ mod tests {
             .expect("next physical record replaces the one-word buffer");
         assert_eq!(crc.buffered_read_word(), Some(0x0000_0001));
         assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+    }
+
+    #[test]
+    fn write_mode_uses_two_crc_buffers_and_preserves_fifo_order() {
+        let mut crc = CrcArchitecturalCore::default();
+        crc.execute_opcode(0o660).expect("write mode must set");
+
+        crc.queue_write_word(0x0111_1111)
+            .expect("first buffer must accept");
+        crc.queue_write_word(0x0222_2222)
+            .expect("second buffer must accept");
+        assert_eq!(crc.queued_write_words(), 2);
+        assert!(!crc.write_buffer_can_accept());
+
+        assert_eq!(
+            crc.queue_write_word(0x0333_3333),
+            Err(CrcArchitecturalError::WriteBufferFull)
+        );
+        assert_eq!(crc.flag(CRC_FLAG_F7_STATUS), Some(true));
+
+        assert_eq!(crc.take_queued_write_word(), Some(0x0111_1111));
+        assert_eq!(crc.take_queued_write_word(), Some(0x0222_2222));
+        assert_eq!(crc.take_queued_write_word(), None);
+    }
+
+    #[test]
+    fn write_capacity_event_drives_buffer_ready_and_f7_status_separately() {
+        let mut crc = CrcArchitecturalCore::default();
+        crc.signal_write_capacity(false);
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(crc.flag(CRC_FLAG_F7_STATUS), Some(false));
+
+        crc.signal_write_capacity(true);
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(crc.flag(CRC_FLAG_F7_STATUS), Some(true));
     }
 
     #[test]
