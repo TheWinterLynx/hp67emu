@@ -238,10 +238,7 @@ mod tests {
         CRC_CARD_WORD_MASK,
     };
 
-    fn card_with_track(
-        track_id: Hp67CardTrack,
-        track: Hp67MagneticTrack,
-    ) -> Hp67MagneticCard {
+    fn card_with_track(track_id: Hp67CardTrack, track: Hp67MagneticTrack) -> Hp67MagneticCard {
         Hp67MagneticCard::default().with_track(track_id, track)
     }
 
@@ -307,9 +304,7 @@ mod tests {
         );
 
         let mut transport = Hp67CardTransport::default();
-        transport
-            .insert_card(card, CardInsertionEnd::End2)
-            .unwrap();
+        transport.insert_card(card, CardInsertionEnd::End2).unwrap();
         transport.set_head_active(true);
         let mut crc = CrcArchitecturalCore::default();
         complete_startup_handshake(&mut transport, &mut crc);
@@ -431,7 +426,10 @@ mod tests {
         let mut protected_crc = CrcArchitecturalCore::default();
         protected_crc.execute_opcode(0o660).unwrap();
         complete_startup_handshake(&mut protected, &mut protected_crc);
-        assert_eq!(protected.advance_us(320, true, &mut protected_crc).unwrap(), 0);
+        assert_eq!(
+            protected.advance_us(320, true, &mut protected_crc).unwrap(),
+            0
+        );
         assert_eq!(
             protected_crc.flag(crate::machines::hp67::crc::CRC_FLAG_F7_STATUS),
             Some(true)
@@ -439,9 +437,7 @@ mod tests {
         assert!(!protected.active_track().unwrap().dirty());
 
         let mut writable = Hp67CardTransport::default();
-        writable
-            .insert_card(card, CardInsertionEnd::End2)
-            .unwrap();
+        writable.insert_card(card, CardInsertionEnd::End2).unwrap();
         writable.set_head_active(true);
         let mut writable_crc = CrcArchitecturalCore::default();
         writable_crc.execute_opcode(0o660).unwrap();
@@ -458,9 +454,10 @@ mod tests {
 
     #[test]
     fn full_track_write_eject_rotate_state_preserves_both_tracks() {
-        let untouched_track_2 = Hp67MagneticTrack::from_words([0x0055_5555; HP67_CARD_RECORDS_PER_TRACK])
-            .unwrap()
-            .with_write_protected(true);
+        let untouched_track_2 =
+            Hp67MagneticTrack::from_words([0x0055_5555; HP67_CARD_RECORDS_PER_TRACK])
+                .unwrap()
+                .with_write_protected(true);
         let card = Hp67MagneticCard::new(Hp67MagneticTrack::default(), untouched_track_2.clone());
 
         let mut expected = [0u32; HP67_CARD_RECORDS_PER_TRACK];
@@ -474,7 +471,9 @@ mod tests {
             .expect("card must insert for writing");
         writer.set_head_active(true);
         let mut write_crc = CrcArchitecturalCore::default();
-        write_crc.execute_opcode(0o660).expect("write mode must set");
+        write_crc
+            .execute_opcode(0o660)
+            .expect("write mode must set");
         complete_startup_handshake(&mut writer, &mut write_crc);
 
         for expected_word in expected {

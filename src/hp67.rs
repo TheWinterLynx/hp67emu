@@ -3,12 +3,12 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
-    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    CardInsertionEnd, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
-    Hp67MagneticCard,
-    Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Hp67SegmentMask,
-    Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
-    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch,
+    Hp67ArchitecturalExecution, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
+    Hp67CardTransport, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -556,8 +556,7 @@ mod tests {
         machines::hp67::{
             ActDisplayWordSerializer, Hp67CardTrack, Hp67MagneticTrack, CRC_FLAG_CARD_PRESENT,
             CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE, HP67_CARD_RECORDS_PER_TRACK,
-            HP67_DISPLAY_SCAN_SLOTS,
-            HP67_NOMINAL_CARD_RECORD_US,
+            HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
         },
     };
 
@@ -565,10 +564,7 @@ mod tests {
         Hp67MagneticCard::default().with_track(Hp67CardTrack::Track1, track)
     }
 
-    fn insert_track1(
-        live: &mut Hp67LiveMachine,
-        track: Hp67MagneticTrack,
-    ) -> Result<(), String> {
+    fn insert_track1(live: &mut Hp67LiveMachine, track: Hp67MagneticTrack) -> Result<(), String> {
         live.insert_magnetic_card(track1_card(track), CardInsertionEnd::End1)
     }
 
@@ -700,8 +696,7 @@ mod tests {
 
         let mut words = [0x0300_0000; HP67_CARD_RECORDS_PER_TRACK];
         words[1] = 0x0311_1111;
-        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap())
-            .unwrap();
+        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap()).unwrap();
         wait_for_live_card_record_stream(&mut live);
 
         assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(true));
@@ -731,8 +726,7 @@ mod tests {
         }
 
         let words = [0x0300_0000; HP67_CARD_RECORDS_PER_TRACK];
-        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap())
-            .unwrap();
+        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap()).unwrap();
         wait_for_live_card_record_stream(&mut live);
 
         for _ in 0..8_192 {
@@ -785,8 +779,7 @@ mod tests {
         }
         settle_live_program_mode(&mut live);
 
-        insert_track1(&mut live, Hp67MagneticTrack::default())
-            .expect("blank side must insert");
+        insert_track1(&mut live, Hp67MagneticTrack::default()).expect("blank side must insert");
         wait_for_live_card_record_stream(&mut live);
 
         for _ in 0..8_192 {
@@ -904,8 +897,11 @@ mod tests {
         }
         settle_live_program_mode(&mut live);
 
-        insert_track1(&mut live, Hp67MagneticTrack::default().with_write_protected(true))
-            .expect("protected side must insert");
+        insert_track1(
+            &mut live,
+            Hp67MagneticTrack::default().with_write_protected(true),
+        )
+        .expect("protected side must insert");
         wait_for_live_card_record_stream(&mut live);
 
         for _ in 0..8_192 {

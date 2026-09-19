@@ -1,9 +1,11 @@
-use std::{fs, path::Path, time::{Duration, Instant}};
+use std::{
+    fs,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
-use hp67emu::machines::hp67::{
-    CardInsertionEnd, Hp67MagneticCard, TeenixHppImport,
-};
+use hp67emu::machines::hp67::{CardInsertionEnd, Hp67MagneticCard, TeenixHppImport};
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
@@ -122,8 +124,8 @@ impl Hp67App {
             .and_then(|extension| extension.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        let bytes = fs::read(path)
-            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        let bytes =
+            fs::read(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
 
         match extension.as_str() {
             "hpp" => {

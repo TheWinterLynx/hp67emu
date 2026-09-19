@@ -183,21 +183,19 @@ impl Hp67MagneticCard {
         self
     }
 
-    pub fn to_hp67raw_bytes(
-        &self,
-    ) -> Result<[u8; HP67_CARD_LOGICAL_BYTES], Hp67MagneticCardError> {
-        let track_1 = self
-            .track_1
-            .words()
-            .ok_or(Hp67MagneticCardError::RawRequiresRecordedTrack(
-                Hp67CardTrack::Track1,
-            ))?;
-        let track_2 = self
-            .track_2
-            .words()
-            .ok_or(Hp67MagneticCardError::RawRequiresRecordedTrack(
-                Hp67CardTrack::Track2,
-            ))?;
+    pub fn to_hp67raw_bytes(&self) -> Result<[u8; HP67_CARD_LOGICAL_BYTES], Hp67MagneticCardError> {
+        let track_1 =
+            self.track_1
+                .words()
+                .ok_or(Hp67MagneticCardError::RawRequiresRecordedTrack(
+                    Hp67CardTrack::Track1,
+                ))?;
+        let track_2 =
+            self.track_2
+                .words()
+                .ok_or(Hp67MagneticCardError::RawRequiresRecordedTrack(
+                    Hp67CardTrack::Track2,
+                ))?;
 
         let packed_1 = pack_track(track_1);
         let packed_2 = pack_track(track_2);
@@ -349,8 +347,7 @@ impl TeenixHppImport {
         const DUMMY_NIBBLES: usize = 21;
         const REAL_NIBBLES: usize = HP67_CARD_RECORDS_PER_TRACK * 7;
         const DUPLICATE_CHECKSUM_NIBBLES: usize = 7;
-        const EXPECTED_NIBBLES: usize =
-            DUMMY_NIBBLES + REAL_NIBBLES + DUPLICATE_CHECKSUM_NIBBLES;
+        const EXPECTED_NIBBLES: usize = DUMMY_NIBBLES + REAL_NIBBLES + DUPLICATE_CHECKSUM_NIBBLES;
 
         if nibbles.len() != EXPECTED_NIBBLES {
             return Err(TeenixHppError::InvalidNibbleCount {
@@ -422,9 +419,7 @@ fn split_hpp_line<'a>(
         .ok_or(TeenixHppError::MissingField(field))
 }
 
-fn validate_words(
-    words: &[u32; HP67_CARD_RECORDS_PER_TRACK],
-) -> Result<(), Hp67MagneticCardError> {
+fn validate_words(words: &[u32; HP67_CARD_RECORDS_PER_TRACK]) -> Result<(), Hp67MagneticCardError> {
     for (index, word) in words.iter().copied().enumerate() {
         if word > CRC_CARD_WORD_MASK {
             return Err(Hp67MagneticCardError::WordOutOfRange { index, word });
