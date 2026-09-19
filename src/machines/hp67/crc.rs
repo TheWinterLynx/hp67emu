@@ -1,8 +1,8 @@
 //! Independent architectural bring-up model for the HP-67 card-reader controller control interface.
 //!
-//! This module models only the firmware-visible CRC flag/control instructions needed during
-//! power-on and idle firmware execution. Card transport, magnetic data timing and DATA-bus
-//! read/write transfers remain separate physical-device milestones.
+//! This module models the firmware-visible CRC flag/control interface plus the
+//! instruction-boundary 28-bit read/write buffers. Magnetic flux, sense-amplifier
+//! timing and electrical DATA-bus transfer remain separate physical-device milestones.
 
 use super::isa::ROM_WORD_MASK;
 
