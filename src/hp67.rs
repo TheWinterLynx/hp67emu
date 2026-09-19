@@ -6,7 +6,7 @@ use hp67emu::machines::hp67::{
     CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware,
     Hp67Key, Hp67Keyboard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
-    CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -280,16 +280,6 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
     }
 
-    pub fn set_card_present(&mut self, present: bool) -> Result<(), String> {
-        self.machine
-            .set_card_present(present)
-            .map_err(|error| format!("HP-67 card-present flag update failed: {error:?}"))
-    }
-
-    pub fn card_motor_on(&self) -> bool {
-        self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
-    }
-
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
@@ -482,7 +472,8 @@ mod tests {
     use hp67emu::{
         emulation::Drive,
         machines::hp67::{
-            ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, HP67_DISPLAY_SCAN_SLOTS,
+            ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, CRC_FLAG_MOTOR_ON,
+            HP67_DISPLAY_SCAN_SLOTS,
         },
     };
 
@@ -585,13 +576,13 @@ mod tests {
             live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
             Some(false)
         );
-        assert!(!live.card_motor_on());
+        assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(false));
 
-        live.set_card_present(true).unwrap();
+        live.machine.set_card_present(true).unwrap();
 
         for _ in 0..1_024 {
             live.step_firmware_cycle().unwrap();
-            if live.card_motor_on() {
+            if live.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true) {
                 assert_eq!(
                     live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
                     Some(true)
