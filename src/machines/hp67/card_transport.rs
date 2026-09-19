@@ -128,6 +128,10 @@ impl Hp67CardTransport {
         self.head_active
     }
 
+    pub const fn record_stream_active(&self) -> bool {
+        self.head_active && !self.startup_ready_pending && !self.waiting_startup_ack
+    }
+
     pub const fn side(&self) -> Option<&Hp67CardSide> {
         self.side.as_ref()
     }
@@ -281,8 +285,8 @@ mod tests {
         assert_eq!(crc.execute_opcode(0o100), Ok(Some(true)));
         assert_eq!(transport.advance_us(0, true, crc).unwrap(), 0);
         assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(false));
+        assert!(transport.record_stream_active());
     }
-
 
     #[test]
     fn record_cadence_requires_motor_and_head_switch() {
