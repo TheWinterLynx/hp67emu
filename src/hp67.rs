@@ -572,10 +572,7 @@ mod tests {
             live.step_firmware_cycle().unwrap();
         }
 
-        assert_eq!(
-            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
-            Some(false)
-        );
+        assert_eq!(live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(false));
         assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(false));
 
         live.machine.set_card_present(true).unwrap();
@@ -583,10 +580,7 @@ mod tests {
         for _ in 0..1_024 {
             live.step_firmware_cycle().unwrap();
             if live.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true) {
-                assert_eq!(
-                    live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
-                    Some(true)
-                );
+                assert_eq!(live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
                 return;
             }
         }
