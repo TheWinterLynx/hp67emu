@@ -288,6 +288,10 @@ impl Hp67App {
     }
 
     fn insert_current_card(&mut self, insertion_end: CardInsertionEnd) -> bool {
+        if !card_insertion_allowed(self.state.power_on) {
+            return false;
+        }
+
         let Some(card) = self.card_media.take() else {
             return false;
         };
@@ -353,6 +357,10 @@ impl Hp67App {
     }
 
     fn insert_new_blank_card(&mut self) -> bool {
+        if !card_insertion_allowed(self.state.power_on) {
+            return false;
+        }
+
         if self.card_media.is_some()
             || self
                 .live_machine
@@ -374,6 +382,10 @@ impl Hp67App {
         self.card_media = None;
         false
     }
+}
+
+fn card_insertion_allowed(power_on: bool) -> bool {
+    power_on
 }
 
 fn reader_click_requires_new_blank(card_prepared: bool) -> bool {
@@ -486,6 +498,7 @@ impl eframe::App for Hp67App {
                         phase_progress: card_phase_progress,
                         opposite_track_requested,
                         rotated_180: self.card_insertion_end == CardInsertionEnd::End2,
+                        reader_enabled: self.state.power_on,
                     },
                 );
                 if panel.card_reader_clicked {
@@ -621,6 +634,12 @@ impl eframe::App for Hp67App {
 mod tests {
     use super::*;
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
+
+    #[test]
+    fn magnetic_card_insertion_requires_power_on() {
+        assert!(!card_insertion_allowed(false));
+        assert!(card_insertion_allowed(true));
+    }
 
     #[test]
     fn reader_primary_click_policy_uses_blank_media_when_none_is_prepared() {

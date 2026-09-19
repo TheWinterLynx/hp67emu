@@ -93,6 +93,7 @@ pub struct ProgramCardView<'a> {
     pub phase_progress: f32,
     pub opposite_track_requested: bool,
     pub rotated_180: bool,
+    pub reader_enabled: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -132,21 +133,31 @@ pub fn paint(
     match view.phase {
         ProgramCardPhase::Idle => {
             let reader_hit = source_to_screen(photo, CARD_READER_HIT);
+            let reader_sense = if view.reader_enabled {
+                Sense::click()
+            } else {
+                Sense::hover()
+            };
+            let hover_text = if view.reader_enabled {
+                "Click: insert loaded card, or a new blank card if none is loaded. Right-click: insert a new blank card"
+            } else {
+                "Power on the calculator before inserting a magnetic card"
+            };
             let reader_response = ui
                 .interact(
                     reader_hit,
                     ui.make_persistent_id("hp67-magnetic-card-reader"),
-                    Sense::click(),
+                    reader_sense,
                 )
-                .on_hover_text(
-                    "Click: insert loaded card, or a new blank card if none is loaded. Right-click: insert a new blank card",
-                );
-            if reader_response.hovered() {
+                .on_hover_text(hover_text);
+            if reader_response.hovered() && view.reader_enabled {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                 paint_reader_hint(ui.painter(), photo, reader_hit, scale);
             }
-            output.reader_clicked = reader_response.clicked();
-            output.blank_card_requested = reader_response.secondary_clicked();
+            if view.reader_enabled {
+                output.reader_clicked = reader_response.clicked();
+                output.blank_card_requested = reader_response.secondary_clicked();
+            }
         }
         ProgramCardPhase::WaitingAtReader => {
             paint_reader_motion(
@@ -160,7 +171,7 @@ pub fn paint(
             );
             let response = ui
                 .interact(
-                    reader_motion_rect(photo, 0.0, scale).intersect(ui.clip_rect()),
+                    waiting_reader_hit_rect(photo, scale, ui.clip_rect()),
                     ui.make_persistent_id("hp67-magnetic-card-waiting"),
                     Sense::click(),
                 )
@@ -489,6 +500,21 @@ fn paint_reader_motion(
     }
 }
 
+fn waiting_reader_hit_rect(photo: Rect, scale: f32, clip: Rect) -> Rect {
+    let reader_hit = source_to_screen(photo, CARD_READER_HIT).intersect(clip);
+    let card_hit = reader_motion_rect(photo, 0.0, scale).intersect(clip);
+    Rect::from_min_max(
+        pos2(
+            reader_hit.left().min(card_hit.left()),
+            reader_hit.top().min(card_hit.top()),
+        ),
+        pos2(
+            reader_hit.right().max(card_hit.right()),
+            reader_hit.bottom().max(card_hit.bottom()),
+        ),
+    )
+}
+
 fn reader_motion_rect(photo: Rect, progress: f32, scale: f32) -> Rect {
     let reader_mouth_x = source_x_to_screen(photo, CARD_READER_MOUTH_X);
     let exit_mouth_x = source_x_to_screen(photo, CARD_EXIT_MOUTH_X);
@@ -804,6 +830,19 @@ mod tests {
         let rotated = rotate_rect_180(card, mark);
         assert_eq!(rotated.min, pos2(89.0, 18.0));
         assert_eq!(rotated.max, pos2(91.0, 20.0));
+    }
+
+    #[test]
+    fn waiting_reader_hitbox_covers_reader_and_visible_card() {
+        let photo = Rect::from_min_max(pos2(0.0, 0.0), pos2(PHOTO_W, PHOTO_H));
+        let clip = photo;
+        let scale = 1.0;
+        let hit = waiting_reader_hit_rect(photo, scale, clip);
+        let reader = source_to_screen(photo, CARD_READER_HIT);
+        let card = reader_motion_rect(photo, 0.0, scale).intersect(clip);
+
+        assert!(hit.contains(reader.center()));
+        assert!(hit.contains(card.center()));
     }
 
     #[test]
