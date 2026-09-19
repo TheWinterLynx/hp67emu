@@ -1,11 +1,13 @@
 //! Nominal HP-67 magnetic-card transport timing at the CRC record boundary.
 //!
-//! The transport carries one complete physical card but exposes only the track
-//! selected by the insertion end to the magnetic head.  The HP Journal documents
-//! a nominal 6 cm/s card speed, approximately 1 kbit/s magnetic bit rate, and one
-//! CRC-visible 28-bit record every 28 ms on average.  Exact motor acceleration,
-//! switch geometry, flux-transition phase and sense-amplifier electrical timing
-//! remain later M13 work.
+//! The transport carries one complete physical card but exposes only the logical
+//! card track selected by the insertion end.  Each logical track is physically
+//! encoded by the two parallel self-clocking flux tracks modeled in `card_flux`.
+//! The HP Journal documents a nominal 6 cm/s card speed, approximately 1 kbit/s
+//! magnetic bit rate, one CRC-visible 28-bit record every 28 ms on average, and
+//! reader-speed variation of +/-5% between calculators.  Exact motor acceleration,
+//! switch geometry, record-to-bit serialization and sense-amplifier electrical
+//! timing remain later M13 work.
 
 use super::{
     crc::{CrcArchitecturalCore, CrcArchitecturalError, CRC_FLAG_WRITE_MODE},
@@ -15,6 +17,55 @@ use super::{
 };
 
 pub const HP67_NOMINAL_CARD_RECORD_US: u64 = 28_000;
+pub const HP67_MIN_CARD_SPEED_PERCENT: u8 = 95;
+pub const HP67_MAX_CARD_SPEED_PERCENT: u8 = 105;
+const HP67_CARD_RECORD_PHASE_UNITS: u64 = HP67_NOMINAL_CARD_RECORD_US * 100;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67CardSpeedError {
+    OutOfRange {
+        percent: u8,
+        min_percent: u8,
+        max_percent: u8,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hp67CardSpeed {
+    percent_of_nominal: u8,
+}
+
+impl Hp67CardSpeed {
+    pub fn from_percent(percent: u8) -> Result<Self, Hp67CardSpeedError> {
+        if !(HP67_MIN_CARD_SPEED_PERCENT..=HP67_MAX_CARD_SPEED_PERCENT).contains(&percent) {
+            return Err(Hp67CardSpeedError::OutOfRange {
+                percent,
+                min_percent: HP67_MIN_CARD_SPEED_PERCENT,
+                max_percent: HP67_MAX_CARD_SPEED_PERCENT,
+            });
+        }
+        Ok(Self {
+            percent_of_nominal: percent,
+        })
+    }
+
+    pub const fn percent_of_nominal(self) -> u8 {
+        self.percent_of_nominal
+    }
+
+    pub const fn record_interval_us(self) -> u64 {
+        let numerator = HP67_NOMINAL_CARD_RECORD_US * 100;
+        (numerator + self.percent_of_nominal as u64 / 2) / self.percent_of_nominal as u64
+    }
+}
+
+impl Default for Hp67CardSpeed {
+    fn default() -> Self {
+        Self {
+            percent_of_nominal: 100,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hp67CardTransportError {
@@ -33,7 +84,8 @@ pub struct Hp67CardTransport {
     card: Option<Hp67MagneticCard>,
     insertion_end: Option<CardInsertionEnd>,
     next_record: usize,
-    record_elapsed_us: u64,
+    record_phase_units: u64,
+    speed: Hp67CardSpeed,
     head_active: bool,
     startup_ready_pending: bool,
     waiting_startup_ack: bool,
@@ -51,7 +103,7 @@ impl Hp67CardTransport {
         self.card = Some(card);
         self.insertion_end = Some(insertion_end);
         self.next_record = 0;
-        self.record_elapsed_us = 0;
+        self.record_phase_units = 0;
         self.startup_ready_pending = false;
         self.waiting_startup_ack = false;
         Ok(())
@@ -60,7 +112,7 @@ impl Hp67CardTransport {
     pub fn set_head_active(&mut self, active: bool) {
         if self.head_active != active {
             self.head_active = active;
-            self.record_elapsed_us = 0;
+            self.record_phase_units = 0;
             self.startup_ready_pending = active;
             self.waiting_startup_ack = false;
         }
@@ -68,6 +120,20 @@ impl Hp67CardTransport {
 
     pub const fn head_active(&self) -> bool {
         self.head_active
+    }
+
+    pub const fn speed(&self) -> Hp67CardSpeed {
+        self.speed
+    }
+
+    pub fn set_speed_percent(&mut self, percent: u8) -> Result<(), Hp67CardSpeedError> {
+        self.speed = Hp67CardSpeed::from_percent(percent)?;
+        self.record_phase_units = 0;
+        Ok(())
+    }
+
+    pub const fn record_interval_us(&self) -> u64 {
+        self.speed.record_interval_us()
     }
 
     pub const fn record_stream_active(&self) -> bool {
@@ -103,16 +169,16 @@ impl Hp67CardTransport {
         self.card.is_some() && self.next_record >= HP67_CARD_RECORDS_PER_TRACK
     }
 
-    /// Remove the same physical card only after the selected track has completely
-    /// crossed the head.  The caller may then rotate it 180 degrees in its plane
-    /// and reinsert the opposite end to expose the other longitudinal track.
+    /// Remove the same physical card only after the selected logical track has
+    /// completely crossed the head. The caller may then rotate it 180 degrees in
+    /// its plane and reinsert the opposite end to expose the other logical track.
     pub fn take_completed_card(&mut self) -> Option<Hp67MagneticCard> {
         if !self.is_complete() {
             return None;
         }
 
         self.next_record = 0;
-        self.record_elapsed_us = 0;
+        self.record_phase_units = 0;
         self.head_active = false;
         self.startup_ready_pending = false;
         self.waiting_startup_ack = false;
@@ -140,7 +206,7 @@ impl Hp67CardTransport {
         if self.waiting_startup_ack {
             if crc.flag(super::crc::CRC_FLAG_BUFFER_READY) == Some(false) {
                 self.waiting_startup_ack = false;
-                self.record_elapsed_us = 0;
+                self.record_phase_units = 0;
             }
             return Ok(0);
         }
@@ -157,13 +223,15 @@ impl Hp67CardTransport {
         elapsed_us: u64,
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
-        self.record_elapsed_us = self.record_elapsed_us.saturating_add(elapsed_us);
+        self.record_phase_units = self.record_phase_units.saturating_add(
+            elapsed_us.saturating_mul(u64::from(self.speed.percent_of_nominal())),
+        );
         let mut produced = 0;
 
-        while self.record_elapsed_us >= HP67_NOMINAL_CARD_RECORD_US
+        while self.record_phase_units >= HP67_CARD_RECORD_PHASE_UNITS
             && self.next_record < HP67_CARD_RECORDS_PER_TRACK
         {
-            self.record_elapsed_us -= HP67_NOMINAL_CARD_RECORD_US;
+            self.record_phase_units -= HP67_CARD_RECORD_PHASE_UNITS;
             let word = self
                 .active_track()
                 .and_then(|track| track.word(self.next_record));
@@ -191,7 +259,7 @@ impl Hp67CardTransport {
 
         if write_protected {
             crc.signal_write_capacity(true);
-            self.record_elapsed_us = 0;
+            self.record_phase_units = 0;
             return Ok(0);
         }
 
@@ -200,20 +268,22 @@ impl Hp67CardTransport {
         }
 
         if crc.queued_write_words() == 0 {
-            self.record_elapsed_us = 0;
+            self.record_phase_units = 0;
             return Ok(0);
         }
 
-        self.record_elapsed_us = self.record_elapsed_us.saturating_add(elapsed_us);
+        self.record_phase_units = self.record_phase_units.saturating_add(
+            elapsed_us.saturating_mul(u64::from(self.speed.percent_of_nominal())),
+        );
         let mut written = 0;
 
-        while self.record_elapsed_us >= HP67_NOMINAL_CARD_RECORD_US
+        while self.record_phase_units >= HP67_CARD_RECORD_PHASE_UNITS
             && self.next_record < HP67_CARD_RECORDS_PER_TRACK
         {
             let Some(word) = crc.take_queued_write_word() else {
                 break;
             };
-            self.record_elapsed_us -= HP67_NOMINAL_CARD_RECORD_US;
+            self.record_phase_units -= HP67_CARD_RECORD_PHASE_UNITS;
             let record_index = self.next_record;
             self.active_track_mut()
                 .expect("card and insertion end presence checked by advance_us")
@@ -290,6 +360,92 @@ mod tests {
         assert_eq!(transport.next_record(), 1);
         assert_eq!(crc.buffered_read_word(), Some(0x0123_4567));
         assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+    }
+
+    #[test]
+    fn documented_reader_speed_tolerance_changes_record_cadence() {
+        let fast = Hp67CardSpeed::from_percent(105).unwrap();
+        let nominal = Hp67CardSpeed::default();
+        let slow = Hp67CardSpeed::from_percent(95).unwrap();
+
+        assert_eq!(fast.record_interval_us(), 26_667);
+        assert_eq!(nominal.record_interval_us(), HP67_NOMINAL_CARD_RECORD_US);
+        assert_eq!(slow.record_interval_us(), 29_474);
+        assert!(fast.record_interval_us() < nominal.record_interval_us());
+        assert!(slow.record_interval_us() > nominal.record_interval_us());
+    }
+
+    #[test]
+    fn reader_speed_is_limited_to_the_documented_plus_or_minus_five_percent() {
+        assert_eq!(
+            Hp67CardSpeed::from_percent(94),
+            Err(Hp67CardSpeedError::OutOfRange {
+                percent: 94,
+                min_percent: 95,
+                max_percent: 105,
+            })
+        );
+        assert_eq!(
+            Hp67CardSpeed::from_percent(106),
+            Err(Hp67CardSpeedError::OutOfRange {
+                percent: 106,
+                min_percent: 95,
+                max_percent: 105,
+            })
+        );
+    }
+
+    #[test]
+    fn configured_speed_controls_when_the_crc_receives_a_record() {
+        let mut words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
+        words[0] = 0x0123_4567;
+        let mut transport = Hp67CardTransport::default();
+        transport.set_speed_percent(105).unwrap();
+        transport
+            .insert_card(
+                card_with_track(
+                    Hp67CardTrack::Track1,
+                    Hp67MagneticTrack::from_words(words).unwrap(),
+                ),
+                CardInsertionEnd::End1,
+            )
+            .unwrap();
+        transport.set_head_active(true);
+        let mut crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut transport, &mut crc);
+
+        assert_eq!(transport.record_interval_us(), 26_667);
+        assert_eq!(transport.advance_us(26_666, true, &mut crc).unwrap(), 0);
+        assert_eq!(transport.advance_us(1, true, &mut crc).unwrap(), 1);
+        assert_eq!(crc.take_read_word().unwrap(), 0x0123_4567);
+    }
+
+    #[test]
+    fn non_nominal_speed_preserves_fractional_phase_between_records() {
+        let mut words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
+        words[0] = 0x0111_1111;
+        words[1] = 0x0222_2222;
+        let mut transport = Hp67CardTransport::default();
+        transport.set_speed_percent(105).unwrap();
+        transport
+            .insert_card(
+                card_with_track(
+                    Hp67CardTrack::Track1,
+                    Hp67MagneticTrack::from_words(words).unwrap(),
+                ),
+                CardInsertionEnd::End1,
+            )
+            .unwrap();
+        transport.set_head_active(true);
+        let mut crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut transport, &mut crc);
+
+        assert_eq!(transport.advance_us(26_667, true, &mut crc).unwrap(), 1);
+        assert_eq!(crc.take_read_word().unwrap(), 0x0111_1111);
+
+        assert_eq!(transport.advance_us(26_666, true, &mut crc).unwrap(), 0);
+        assert_eq!(transport.advance_us(1, true, &mut crc).unwrap(), 1);
+        assert_eq!(crc.take_read_word().unwrap(), 0x0222_2222);
     }
 
     #[test]

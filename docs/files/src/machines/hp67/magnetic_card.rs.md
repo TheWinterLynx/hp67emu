@@ -2,15 +2,15 @@
 
 ## Purpose
 
-Model the HP-67 magnetic medium as one physical card containing two independent longitudinal tracks and provide host-side import/export formats without leaking file-format concepts into the emulated reader hardware.
+Model the HP-67 magnetic medium as one physical card containing two independent user-visible logical tracks selected end-for-end, and provide host-side import/export formats without leaking file-format concepts into the emulated reader hardware.
 
 ## Why it exists
 
-A physical HP magnetic card is not one isolated side payload.  Keeping the card as the owned object is required so that the same card can leave the reader, be rotated 180 degrees in its plane, and be inserted by the opposite end to expose the other track.  Per-track write protection and genuinely unrecorded media also cannot be represented faithfully by the previous single recorded-side type.
+A physical HP magnetic card is not one isolated side payload. Keeping the card as the owned object is required so that the same card can leave the reader, be rotated 180 degrees in its plane, and be inserted by the opposite end to expose the other logical track. HP's engineering documentation also makes an important distinction below this layer: each logical side/track is itself encoded on two parallel physical magnetic tracks, one for zero transitions and one for one transitions. That lower layer now lives in card_flux.rs.
 
 ## Relationships
 
-The card transport owns an Hp67MagneticCard while it is inside the reader and chooses the active Hp67MagneticTrack from CardInsertionEnd.  The CRC still sees only timed 28-bit words.  The UI/application layer may import Teenix .hpp, .hp67raw or .hp67card files and then hands the resulting physical media object to the transport.  Artwork remains in ui/program_card.rs and is intentionally not part of magnetic media.
+The card transport owns an Hp67MagneticCard while it is inside the reader and chooses the active logical Hp67MagneticTrack from CardInsertionEnd. The CRC still sees timed 28-bit words. card_flux.rs models the documented physical Zero/One flux-track pair underneath one logical track but does not yet impose a record-to-bit serialization order. The UI/application layer may import Teenix .hpp, .hp67raw or .hp67card files and then hands the resulting physical media object to the transport. Artwork remains in ui/program_card.rs and is intentionally not part of magnetic media.
 
 ## Responsibilities
 
@@ -21,11 +21,11 @@ The card transport owns an Hp67MagneticCard while it is inside the reader and ch
 - define the logical 238-byte .hp67raw image for two recorded tracks;
 - define the versioned .hp67card container that also preserves unrecorded/protected state;
 - decode Teenix .hpp files into one clean magnetic track and infer its physical track from the card header;
-- keep flux/channel/timing details out of this logical media layer.
+- keep physical Zero/One flux encoding and analogue timing details out of this logical media layer.
 
 ## Implementation
 
-Hp67MagneticCard contains two Hp67MagneticTrack values. TrackMedia distinguishes Unrecorded from Recorded([u32; 34]). CardInsertionEnd maps End1 to Track1 and End2 to Track2 and supports the physical 180-degree rotation operation through opposite().
+Hp67MagneticCard contains two Hp67MagneticTrack values. Here "Track 1 / Track 2" follows the HP user-facing logical terminology for the two end-for-end 952-bit streams; it must not be confused with the two physical Zero/One flux tracks used to encode each stream at the head. TrackMedia distinguishes Unrecorded from Recorded([u32; 34]). CardInsertionEnd maps End1 to Track1 and End2 to Track2 and supports the physical 180-degree rotation operation through opposite().
 
 The .hp67raw representation is exactly 238 bytes: two contiguous 952-bit logical CRC-record streams. Bits are packed record-by-record in canonical logical order, most-significant bit first within each 28-bit word. This is an emulator interchange convention, not a claim about magnetic flux transition order. It is an emulator logical interchange format, not a magnetic flux capture. Because raw data cannot encode an unrecorded state, export fails unless both tracks are recorded.
 

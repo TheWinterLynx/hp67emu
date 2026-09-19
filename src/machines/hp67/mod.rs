@@ -10,6 +10,7 @@ pub mod act_serial_execution;
 pub mod act_serial_result;
 pub mod act_serial_state;
 pub mod architectural;
+pub mod card_flux;
 pub mod card_transport;
 pub mod crc;
 pub mod display;
@@ -40,7 +41,14 @@ pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
 };
-pub use card_transport::{Hp67CardTransport, Hp67CardTransportError, HP67_NOMINAL_CARD_RECORD_US};
+pub use card_flux::{
+    Hp67FluxCell, Hp67PhysicalFluxTrack, Hp67SelfClockingFluxPair,
+    HP67_PHYSICAL_FLUX_TRACKS_PER_LOGICAL_TRACK,
+};
+pub use card_transport::{
+    Hp67CardSpeed, Hp67CardSpeedError, Hp67CardTransport, Hp67CardTransportError,
+    HP67_MAX_CARD_SPEED_PERCENT, HP67_MIN_CARD_SPEED_PERCENT, HP67_NOMINAL_CARD_RECORD_US,
+};
 pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
     CRC_CARD_WORD_BITS, CRC_CARD_WORD_MASK, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,

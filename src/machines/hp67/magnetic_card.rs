@@ -1,10 +1,11 @@
 //! Physical HP-67 magnetic-card media model and host file formats.
 //!
-//! The physical object is one card with two independent longitudinal magnetic
-//! tracks.  The printed face remains visible; inserting the opposite end selects
-//! the other track.  This module deliberately stops at the CRC-visible logical
-//! record boundary.  Flux transitions, the two magnetic channels and analog
-//! timing remain lower-level M13 work.
+//! The physical object is one card with two user-visible logical tracks, matching
+//! HP's "side 1 / side 2" terminology.  The printed face remains visible;
+//! inserting the opposite end selects the other logical track.  Each logical bit
+//! stream is physically recorded by a parallel 0-track/1-track flux pair; that
+//! self-clocking encoding is modeled separately in `card_flux`.  This module
+//! deliberately remains at the CRC-visible 34 x 28-bit media boundary.
 
 use super::crc::CRC_CARD_WORD_MASK;
 
@@ -529,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn insertion_end_selects_the_opposite_longitudinal_track() {
+    fn insertion_end_selects_the_opposite_logical_card_track() {
         assert_eq!(CardInsertionEnd::End1.track(), Hp67CardTrack::Track1);
         assert_eq!(CardInsertionEnd::End2.track(), Hp67CardTrack::Track2);
         assert_eq!(CardInsertionEnd::End1.opposite(), CardInsertionEnd::End2);
