@@ -75,18 +75,25 @@ The visual card is locked to 71.1 mm × 11.4 mm (2.8 × 0.45 in). The renderer d
 
 The same fixed physical rectangle is used for reader insertion, left-side emergence, parked-left state, holder insertion and final holder display. `CARD_WINDOW` is only an aperture; it clips the physical card and never changes its width or height.
 
-Photographic references show a rectangular card with small rounded/chamfered corners. The previous arrow-shaped procedural nose was removed. The current 0.9 mm corner chamfer is an optical approximation to that photographed corner treatment, not a claim of a separately documented manufacturing radius.
+The supplied pre-recorded card references show a six-edge profile with a large upper-left diagonal and the opposite lower-right diagonal. The renderer uses an approximately 4.2 mm end chamfer on the locked 71.1 × 11.4 mm card. These diagonal cuts are consistent with HP's documented write-protection method for the corresponding card edges.
 
 
 ## Holder registration correction
 
-The initial holder aperture was wider than the photographed A-E row and allowed the procedural card to overlap the white side trim. It is now locked to source x=166..764 and y=373..452. The horizontal bounds match the photographed A-E keycaps exactly while the lower y placement keeps the visible card below the trim and above the key row.
+The holder now uses source x=132..798 and y=344..457 so the complete 1:1 card height remains available. The card is not shrunk to that aperture. Instead the aperture clips the physical card and explicit side lips plus thin edge shadows are painted over it, restoring the visual layering of card-below-frame.
 
 The text/tick anchors are no longer generic 20% card intervals. Their physical-card fractions are calibrated so that, in the final holder position, they land on the actual photographed A-E key centres at source x=211, 338, 465, 592 and 719. The title/reference band is lowered slightly and the primary-label band raised slightly to keep all artwork comfortably inside the visible aperture.
 
 
 ## Reference-card silhouette and holder correction
 
-The supplied SD-14A Moon Rocket Lander reference was used as the visual oracle for the card face. Its outline is not a symmetric rounded rectangle: the upper-left corner is cut diagonally and the lower-right corner carries the opposing diagonal, while the other two corners remain square. The photographed diagonal depth corresponds to roughly 4.2 mm on a 71.1 × 11.4 mm card. Three short rectangular light marks/notches are visible along the top edge and are now rendered explicitly.
+The supplied SD-14A Moon Rocket Lander reference was used as the visual oracle for the card face. Its outline is not a symmetric rounded rectangle: the upper-left corner is cut diagonally and the lower-right corner carries the opposing diagonal, while the other two corners remain square. The photographed diagonal depth corresponds to roughly 4.2 mm on a 71.1 × 11.4 mm card. Three short rectangular light marks are visible along the SD-14A top edge and are now rendered explicitly from card-specific metadata.
 
 The earlier holder clip was only 79 source pixels high, so it necessarily removed the physical card's top and bottom from a ~111.5-source-pixel 1:1 card. The holder aperture is now x=132..798, y=344..457. This exposes the complete physical height, including the top markers, and more than 95% of the physical width. The card itself never changes size between reader transit, left exit, holder insertion and final holder state. Its palette was also changed from medium olive to a near-black olive to match the supplied original-card and calculator photographs.
+
+
+## Per-card artwork catalog strategy
+
+Future Standard Pac and Application Pac cards will use the same physical renderer and differ only through metadata: card reference, title, A-E primary labels, f+A through f+E shifted labels, measured top-mark positions and logo visibility. Magnetic track contents remain a separate object and will never be inferred from artwork. This lets us recreate the remaining cards from high-quality scans without duplicating geometry or UI code.
+
+The small top marks are deliberately not assigned a reader or binary meaning. Available HP documentation clearly describes magnetic data as two tracks and write protection as cutting the corresponding edge/corner, but does not document these artwork marks as part of the reader protocol. Their patterns therefore remain scan-derived presentation data unless a primary source establishing another purpose is found.
