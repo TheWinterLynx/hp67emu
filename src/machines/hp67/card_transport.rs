@@ -98,6 +98,8 @@ pub struct Hp67CardTransport {
     next_record: usize,
     record_elapsed_us: u64,
     head_active: bool,
+    startup_ready_pending: bool,
+    waiting_startup_ack: bool,
 }
 
 impl Hp67CardTransport {
@@ -108,6 +110,8 @@ impl Hp67CardTransport {
         self.side = Some(side);
         self.next_record = 0;
         self.record_elapsed_us = 0;
+        self.startup_ready_pending = false;
+        self.waiting_startup_ack = false;
         Ok(())
     }
 
@@ -115,6 +119,8 @@ impl Hp67CardTransport {
         if self.head_active != active {
             self.head_active = active;
             self.record_elapsed_us = 0;
+            self.startup_ready_pending = active;
+            self.waiting_startup_ack = false;
         }
     }
 
@@ -147,6 +153,8 @@ impl Hp67CardTransport {
         self.next_record = 0;
         self.record_elapsed_us = 0;
         self.head_active = false;
+        self.startup_ready_pending = false;
+        self.waiting_startup_ack = false;
         self.side.take()
     }
 
@@ -157,6 +165,21 @@ impl Hp67CardTransport {
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
         if !motor_on || !self.head_active || self.side.is_none() || self.is_complete() {
+            return Ok(0);
+        }
+
+        if self.startup_ready_pending {
+            crc.signal_transport_ready(false);
+            self.startup_ready_pending = false;
+            self.waiting_startup_ack = true;
+            return Ok(0);
+        }
+
+        if self.waiting_startup_ack {
+            if crc.flag(super::crc::CRC_FLAG_BUFFER_READY) == Some(false) {
+                self.waiting_startup_ack = false;
+                self.record_elapsed_us = 0;
+            }
             return Ok(0);
         }
 
@@ -249,6 +272,18 @@ mod tests {
     use super::*;
     use crate::machines::hp67::crc::CRC_FLAG_BUFFER_READY;
 
+    fn complete_startup_handshake(
+        transport: &mut Hp67CardTransport,
+        crc: &mut CrcArchitecturalCore,
+    ) {
+        assert_eq!(transport.advance_us(0, true, crc).unwrap(), 0);
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(crc.execute_opcode(0o100), Ok(Some(true)));
+        assert_eq!(transport.advance_us(0, true, crc).unwrap(), 0);
+        assert_eq!(crc.flag(CRC_FLAG_BUFFER_READY), Some(false));
+    }
+
+
     #[test]
     fn record_cadence_requires_motor_and_head_switch() {
         let mut transport = Hp67CardTransport::default();
@@ -266,6 +301,7 @@ mod tests {
             0
         );
         transport.set_head_active(true);
+        complete_startup_handshake(&mut transport, &mut crc);
         assert_eq!(
             transport
                 .advance_us(HP67_NOMINAL_CARD_RECORD_US - 1, true, &mut crc)
@@ -291,6 +327,7 @@ mod tests {
             .unwrap();
         transport.set_head_active(true);
         let mut crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut transport, &mut crc);
 
         assert_eq!(
             transport
@@ -315,6 +352,7 @@ mod tests {
 
         let mut crc = CrcArchitecturalCore::default();
         crc.execute_opcode(0o660).expect("write mode must set");
+        complete_startup_handshake(&mut transport, &mut crc);
         crc.queue_write_word(0x0111_1111).unwrap();
         crc.queue_write_word(0x0222_2222).unwrap();
 
@@ -350,6 +388,7 @@ mod tests {
 
         let mut crc = CrcArchitecturalCore::default();
         crc.execute_opcode(0o660).expect("write mode must set");
+        complete_startup_handshake(&mut transport, &mut crc);
 
         assert_eq!(transport.advance_us(320, true, &mut crc).unwrap(), 0);
         assert_eq!(
@@ -384,6 +423,7 @@ mod tests {
         write_crc
             .execute_opcode(0o660)
             .expect("write mode must set");
+        complete_startup_handshake(&mut writer, &mut write_crc);
 
         for expected_word in expected {
             write_crc
@@ -413,6 +453,7 @@ mod tests {
             .expect("written side must reinsert for reading");
         reader.set_head_active(true);
         let mut read_crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut reader, &mut read_crc);
 
         for expected_word in expected {
             assert_eq!(
@@ -441,6 +482,7 @@ mod tests {
             .expect("empty fixture side must insert");
         transport.set_head_active(true);
         let mut crc = CrcArchitecturalCore::default();
+        complete_startup_handshake(&mut transport, &mut crc);
 
         for _ in 0..HP67_CARD_RECORDS_PER_SIDE {
             assert_eq!(
