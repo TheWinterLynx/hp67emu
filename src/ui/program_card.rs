@@ -320,13 +320,19 @@ fn paint_hp_card_logo(painter: &Painter, rect: Rect, color: Color32, scale: f32)
 
     painter.line_segment([pos2(x0, top), pos2(x0, bottom)], stroke);
     painter.line_segment([pos2(x0, mid), pos2(x1, mid)], stroke);
-    painter.line_segment([pos2(x1, mid), pos2(x1, bottom * 0.98 + top * 0.02)], stroke);
+    painter.line_segment(
+        [pos2(x1, mid), pos2(x1, bottom * 0.98 + top * 0.02)],
+        stroke,
+    );
     painter.line_segment([pos2(x2, mid), pos2(x2, bottom)], stroke);
     painter.line_segment([pos2(x1, mid), pos2(x2, mid)], stroke);
     painter.line_segment(
         [
             pos2(x2, mid),
-            pos2(logo.right() - logo.width() * 0.10, logo.top() + logo.height() * 0.36),
+            pos2(
+                logo.right() - logo.width() * 0.10,
+                logo.top() + logo.height() * 0.36,
+            ),
         ],
         stroke,
     );
