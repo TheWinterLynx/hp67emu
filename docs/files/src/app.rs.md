@@ -31,3 +31,6 @@ Reader clicks hand the complete card plus the current CardInsertionEnd to Hp67Li
 The magnetic-media slot intentionally initializes empty until verified media is imported. The Moon Rocket Lander artwork is therefore never silently treated as recorded magnetic content.
 
 Blank-card/write continuation: secondary-clicking the right reader hotspot requests a new unrecorded `Hp67MagneticCard` only when no host card is already prepared and no card is inside the live reader. The blank object is then inserted through the normal live-machine API; it does not pre-populate records or bypass firmware. During a firmware `Crd` continuation, read mode requires the opposite logical track to be recorded, while CRC write mode permits an unrecorded opposite track provided it is not write-protected. This is necessary for real two-track program writes, where Track 2 is commonly blank before the second pass.
+
+
+Artwork/media identity: raw `.hp67raw`, `.hp67card` and newly created blank media use neutral card artwork. The SD-14A Moon Rocket Lander face is selected only when Teenix import metadata identifies the physical card as `Moon Rocket Lander` (case-insensitive, surrounding whitespace ignored). This prevents unrelated magnetic payloads from being visually mislabeled as the built-in Standard Pac card.

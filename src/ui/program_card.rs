@@ -46,6 +46,15 @@ pub struct ProgramCardArtwork {
     pub show_hp_logo: bool,
 }
 
+pub const GENERIC_MAGNETIC_CARD: ProgramCardArtwork = ProgramCardArtwork {
+    title: "",
+    reference: "",
+    primary_labels: ["", "", "", "", ""],
+    shifted_labels: ["", "", "", "", ""],
+    top_marks: &[],
+    show_hp_logo: false,
+};
+
 pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
     title: "MOON ROCKET LANDER",
     reference: "SD-14A",

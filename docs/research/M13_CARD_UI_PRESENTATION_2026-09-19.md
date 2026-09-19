@@ -116,3 +116,8 @@ The original 900 ms host timer for `ReadingFromRight` is removed. Reader animati
 When the returned card has a recorded opposite track, the app still does not assume that a second pass is required. It waits for the real firmware-generated `Crd` display. Only while that physical prompt is visible does the parked-left hover advertise opposite-end continuation; double-click then switches `CardInsertionEnd`, hands the same `Hp67MagneticCard` back to `insert_magnetic_card()` and reuses the normal right-to-left reader animation for the second pass. A normal click remains the passive-holder action.
 
 This keeps the authority split clean: firmware decides whether another card pass is required, the host knows whether the same imported physical card actually contains an opposite logical track, and the renderer only visualizes the resulting interaction.
+
+
+## Artwork/media identity separation
+
+Magnetic contents never imply artwork. Blank media and the native `.hp67raw`/`.hp67card` formats carry no title or printed-face metadata, so the UI now renders them with a neutral card face. The measured SD-14A Moon Rocket Lander face is used only when an imported Teenix card explicitly identifies itself as `Moon Rocket Lander`. This prevents a correct magnetic emulation from presenting unrelated media under false Standard Pac labels.

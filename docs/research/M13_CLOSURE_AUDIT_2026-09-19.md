@@ -90,3 +90,8 @@ A current Teenix distribution advertises 24 HP-67 demo-card files, and HP materi
 For the current integration milestone, M13 is functionally complete when the branch passes the full local formatting/warnings/all-targets gate with the firmware-driven second-pass regression. Lower-level serialization/head/sense timing remains explicitly tracked as electrical fidelity work rather than being approximated inside the functional reader.
 
 The closure gate must not be recorded as passed until it is executed on a machine with the Rust toolchain.
+
+
+## Printed-face identity
+
+The host presentation no longer paints every magnetic object as SD-14A. Native raw/container images and blank cards have no verified printed identity and therefore use neutral artwork. The Moon Rocket Lander face is selected only from matching Teenix card metadata. This keeps the closure claim about magnetic media independent from the still-unavailable verified built-in SD-14A payload.

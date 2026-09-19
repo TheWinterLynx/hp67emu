@@ -13,7 +13,9 @@ use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
     panel::Hp67Panel,
     ui::{
-        program_card::{ProgramCardPhase, ProgramCardView, MOON_ROCKET_LANDER_CARD},
+        program_card::{
+            ProgramCardPhase, ProgramCardView, GENERIC_MAGNETIC_CARD, MOON_ROCKET_LANDER_CARD,
+        },
         sliders, top_keys,
     },
 };
@@ -249,6 +251,10 @@ impl Hp67App {
     }
 }
 
+fn imported_artwork_is_moon_rocket_lander(name: Option<&str>) -> bool {
+    name.is_some_and(|name| name.trim().eq_ignore_ascii_case("Moon Rocket Lander"))
+}
+
 fn opposite_track_can_continue(
     card: &Hp67MagneticCard,
     current_end: CardInsertionEnd,
@@ -313,13 +319,20 @@ impl eframe::App for Hp67App {
                     .as_ref()
                     .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
                 let opposite_track_requested = self.opposite_track_requested();
+                let card_artwork = if imported_artwork_is_moon_rocket_lander(
+                    self.card_import_name.as_deref(),
+                ) {
+                    &MOON_ROCKET_LANDER_CARD
+                } else {
+                    &GENERIC_MAGNETIC_CARD
+                };
                 let panel = Hp67Panel::show(
                     ui,
                     &self.state,
                     &display,
                     &self.photo,
                     ProgramCardView {
-                        artwork: &MOON_ROCKET_LANDER_CARD,
+                        artwork: card_artwork,
                         logo: &self.card_logo,
                         phase: self.card_phase,
                         phase_progress: card_phase_progress,
@@ -446,37 +459,29 @@ mod tests {
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
 
     #[test]
+    fn moon_rocket_artwork_requires_matching_imported_card_identity() {
+        assert!(imported_artwork_is_moon_rocket_lander(Some("Moon Rocket Lander")));
+        assert!(imported_artwork_is_moon_rocket_lander(Some(" moon rocket lander ")));
+        assert!(!imported_artwork_is_moon_rocket_lander(None));
+        assert!(!imported_artwork_is_moon_rocket_lander(Some("Another Program")));
+    }
+
+    #[test]
     fn opposite_track_continuation_distinguishes_read_and_write_media_requirements() {
         let blank = Hp67MagneticCard::default();
-        assert!(!opposite_track_can_continue(
-            &blank,
-            CardInsertionEnd::End1,
-            false
-        ));
-        assert!(opposite_track_can_continue(
-            &blank,
-            CardInsertionEnd::End1,
-            true
-        ));
+        assert!(!opposite_track_can_continue(&blank, CardInsertionEnd::End1, false));
+        assert!(opposite_track_can_continue(&blank, CardInsertionEnd::End1, true));
 
         let recorded = blank.with_track(
             Hp67CardTrack::Track2,
             Hp67MagneticTrack::from_words([0; HP67_CARD_RECORDS_PER_TRACK]).unwrap(),
         );
-        assert!(opposite_track_can_continue(
-            &recorded,
-            CardInsertionEnd::End1,
-            false
-        ));
+        assert!(opposite_track_can_continue(&recorded, CardInsertionEnd::End1, false));
 
         let protected = Hp67MagneticCard::default().with_track(
             Hp67CardTrack::Track2,
             Hp67MagneticTrack::default().with_write_protected(true),
         );
-        assert!(!opposite_track_can_continue(
-            &protected,
-            CardInsertionEnd::End1,
-            true
-        ));
+        assert!(!opposite_track_can_continue(&protected, CardInsertionEnd::End1, true));
     }
 }

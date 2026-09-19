@@ -41,3 +41,6 @@ Final right-edge registration now follows the photographed rail slope instead of
 
 
 The reader hotspot now distinguishes primary click from secondary click. Primary click requests insertion of already prepared media; secondary click requests a new blank physical card through the app. The renderer itself never creates magnetic records. At the left exit the `Crd` continuation hint is valid for both reading a recorded opposite track and writing a writable unrecorded opposite track; the app determines that distinction from the live CRC write-mode flag.
+
+
+`GENERIC_MAGNETIC_CARD` is a neutral physical-card face with no title, reference, labels, top marks or HP-logo claim. It is used for host media whose visual identity is not known. `MOON_ROCKET_LANDER_CARD` remains the measured SD-14A artwork fixture and is no longer used as the universal magnetic-card skin.
