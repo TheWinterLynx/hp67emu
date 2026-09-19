@@ -266,7 +266,7 @@ impl Hp67App {
                 ui.label("Save as .hp67card or .hp67raw");
                 ui.text_edit_singleline(&mut self.card_save_path);
                 if let Some(status) = &self.card_save_status {
-                    ui.label(status);
+                    ui.label(status.as_str());
                 }
                 if ui.button("Save").clicked() {
                     save_requested = true;
