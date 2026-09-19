@@ -787,8 +787,7 @@ mod tests {
                     opcode: KEYS_TO_A_OPCODE
                 })
             ) {
-                let observed =
-                    (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
+                let observed = (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
                 assert_eq!(observed, expected_code);
                 saw_keys_to_a = true;
             }
