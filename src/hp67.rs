@@ -709,11 +709,9 @@ mod tests {
         }
 
         let words = [0x0300_0000; HP67_CARD_RECORDS_PER_SIDE];
-        live.card_transport
-            .insert_side(Hp67CardSide::from_words(words).unwrap())
+        live.insert_card_side(Hp67CardSide::from_words(words).unwrap())
             .unwrap();
-        live.machine.set_card_present(true).unwrap();
-        advance_inserted_card_to_record_stream(&mut live);
+        wait_for_live_card_record_stream(&mut live);
 
         for _ in 0..8_192 {
             let execution = live.step_firmware_cycle_with_execution().unwrap();
