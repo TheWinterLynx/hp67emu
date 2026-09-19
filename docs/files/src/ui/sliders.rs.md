@@ -14,3 +14,6 @@ Interpolate visual actuator position, restore the exposed track cleanly, avoid c
 
 ## Implementation
 Defines source-photo crop rectangles for each actuator/track, uses egui's timed boolean animation, repaints the slot from a clean track sample, then draws only the ribbed actuator at the translated position. Future electrical switch state will replace the temporary semantic state input.
+
+
+RUN legend regression guard: the mode-slider cleanup clip must stop at source x=702. Historical testing showed that x=706/707 overlaps the anti-aliased left edge of the printed `RUN` legend when the switch animates away from its photographed RUN endpoint. `mode_slider_cleanup_never_reaches_run_legend` locks that safe boundary.
