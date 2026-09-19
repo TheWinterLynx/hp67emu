@@ -195,3 +195,21 @@ The pinned HP-67/97 card-reader firmware explicitly prompts for the next physica
 Production now exposes this only as an observation: `HardwareDisplayFrame::shows_card_prompt()` recognizes the physical ROM0-derived segment masks `39 50 5e` in those three positions, and `Hp67LiveMachine::card_prompt_visible()` forwards that state to the host without changing firmware. `card_record_position()` also exposes the current 0..34 transport position so presentation can follow the real pass.
 
 A live regression writes a deliberately non-empty second half of program RAM, inserts one blank `Hp67MagneticCard` by End1, requires Track 1 header ID 3, waits for the real physical `Crd` frame, reinserts the same returned card by End2, and requires Track 2 header ID 4. This proves the two-pass continuation through real firmware, display, card-present/motor sequencing and the same physical media object.
+
+
+## Intra-record physical bit order: evidence boundary
+
+The next lower layer needs a temporal mapping from each CRC-visible 28-bit word to twenty-eight magnetic bit cells. That mapping is **not** inferred from the host file formats.
+
+The available evidence splits at the HP-65 / HP-67-97 architecture boundary:
+
+- Hewlett-Packard's November 1976 HP-67/97 design article states that the basic HP-65 mechanical design and the two-track self-clocking recording scheme were retained, but it also states that HP-67/97 card control is fundamentally different: the new CRC interacts with the microprocessor under firmware control and buffers the magnetic stream in two 28-bit buffers.
+- The reviewed Classic Notes logic capture explicitly identifies HP-65 magnetic data as least-significant-bit first.
+- The same notes describe the HP-67/97 CRC as transferring seven nibbles from ACT C[13:7] through 28-bit buffers, but do not state the temporal significance order in which those 28 bits reach the HP-67/97 write/read channels.
+- The HP-97 service documentation establishes the two magnetic channels and sense-amplifier boundary but likewise does not specify which significance bit leaves a 28-bit CRC buffer first.
+
+Therefore the HP-65 LSB-first capture is useful historical evidence but is not sufficient to assert an HP-67/97 CRC shift order. The fact that the mechanical/two-track encoding scheme was retained does not prove the internal serialization order of the new CRC.
+
+Production consequently keeps `Hp67SelfClockingFluxPair::from_serial_bits()` below an explicit already-ordered bit-stream boundary. It is not connected directly to `[u32; 34]` yet. The MSB-first packing used by `.hp67raw` remains a host interchange convention only and must never be reused as magnetic-order evidence.
+
+This is an intentional fidelity stop, not an implementation omission to be filled by guesswork. Connecting CRC words to flux cells requires either a source-backed 1820-1751 shift-order description, a sufficiently resolved HP-67/97 logic capture, or a known-card/raw-flux experiment that establishes the order unambiguously.

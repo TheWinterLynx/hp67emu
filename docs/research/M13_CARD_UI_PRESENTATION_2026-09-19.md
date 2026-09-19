@@ -2,7 +2,7 @@
 
 ## Scope
 
-This M13 slice establishes the visual/mechanical presentation boundary and the first firmware-visible card-control contact while magnetic data transport remains deliberately unimplemented.
+This note began as the visual/mechanical presentation slice. M13 has since connected that presentation to the live magnetic transport and real HP-67 firmware, so the current state described below is no longer presentation-only.
 
 The HP-67 has two physically distinct card uses:
 
@@ -38,22 +38,17 @@ This is intentionally artwork only. No magnetic payload is fabricated for this s
 
 ## Fidelity boundary
 
-This slice does not claim a working HP-67 card reader.
+The UI now drives a working firmware-controlled logical card-reader path rather than a presentation-only mock:
 
-Implemented control boundary:
+- external CRC `card_present` is asserted by physical-card insertion;
+- real firmware owns `motor_on`, write mode, buffer-ready polling and card semantics;
+- the live transport advances the selected logical track at the source-backed record cadence and returns the same physical card after record 34;
+- CRC `0x9B` reads and `0x99` writes cross the real firmware path;
+- program/data card contents reach architectural RAM only because firmware reads the CRC ports;
+- UI reader motion follows live record position rather than a host completion timer;
+- real firmware `Crd` is the authority for a required second pass.
 
-- external CRC `card_present` (flag 10) is modeled as a persistent physical contact;
-- real HP-67 firmware detects it from the idle loop and issues internal CRC `motor_on` (flag 9), covered by a live-firmware regression.
-
-Still not implemented:
-
-- `buffer_ready` generation from card transport;
-- emulate the 1820-1751 CRC card path;
-- model sense-amplifier timing;
-- read/write card tracks;
-- mutate program RAM from the UI.
-
-Those are the next M13 electrical/firmware slices. This presentation layer exists so real card data can later be attached without conflating metadata with machine state.
+The remaining fidelity boundary is below the 28-bit CRC-record interface: exact HP-67/97 intra-record serialization order, head/sense-amplifier edge timing and insertion-to-head mechanics are not guessed. The physical Zero/One self-clocking encoding exists as an isolated lower layer but is not wired to CRC words until that ordering is sourced.
 
 
 ## Presentation phase machine
@@ -66,7 +61,7 @@ The UI presentation uses five explicit states:
 - `InsertingWindowFromRight`: after the exposed left end is selected, the card is treated as picked up and reintroduced from the right; the case hides the travel until it appears through the holder aperture;
 - `InWindow`: the passive reference artwork remains above A-E until removed.
 
-These states are presentation only. They are deliberately separate from future CRC/card-electronics states so later M13 work can drive motor, card-presence and data timing without making the artwork layer authoritative.
+These states remain presentation states, but `ReadingFromRight` is now driven by the live transport position and completion rather than an independent UI clock. Keeping the enum separate still prevents artwork from becoming authoritative for CRC/card electronics.
 
 
 ## Physical card geometry
