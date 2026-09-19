@@ -503,9 +503,9 @@ mod tests {
     }
 
     #[test]
-    fn physical_card_is_long_enough_to_bridge_reader_and_exit_mouths() {
-        assert!(CARD_PHYSICAL_WIDTH > CARD_READER_MOUTH_X - CARD_EXIT_MOUTH_X);
+    fn physical_card_keeps_real_length_across_hidden_reader_transit() {
         assert!(CARD_LEFT_VISIBLE_WIDTH < CARD_PHYSICAL_WIDTH);
+        assert!(CARD_PHYSICAL_WIDTH < CARD_READER_MOUTH_X - CARD_EXIT_MOUTH_X);
     }
 
     #[test]
