@@ -6,7 +6,8 @@ use eframe::egui::{
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
-const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 793.0, 454.0);
+const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 789.0, 454.0);
+const HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX: f32 = 2.0;
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -370,7 +371,11 @@ fn paint_reader_motion(
 fn holder_card_rect(window: Rect, scale: f32) -> Rect {
     let width = CARD_PHYSICAL_WIDTH * scale;
     let height = CARD_PHYSICAL_HEIGHT * scale;
-    Rect::from_center_size(window.center(), eframe::egui::vec2(width, height))
+    let center = pos2(
+        window.center().x + HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX * scale,
+        window.center().y,
+    );
+    Rect::from_center_size(center, eframe::egui::vec2(width, height))
 }
 
 fn parked_left_rect(photo: Rect, scale: f32) -> Rect {
@@ -534,7 +539,8 @@ mod tests {
     #[test]
     fn card_window_is_inside_the_photographed_holder_frame() {
         assert_eq!(CARD_WINDOW.x0, 138.0);
-        assert_eq!(CARD_WINDOW.x1, 793.0);
+        assert_eq!(CARD_WINDOW.x1, 789.0);
+        assert_eq!(HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX, 2.0);
         assert_eq!(CARD_WINDOW.y0, 345.0);
         assert_eq!(CARD_WINDOW.y1, 454.0);
         assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 < CARD_PHYSICAL_WIDTH);
