@@ -164,9 +164,7 @@ pub fn paint(
                     ui.make_persistent_id("hp67-magnetic-card-waiting"),
                     Sense::click(),
                 )
-                .on_hover_text(
-                    "Card is waiting for the reader motor. Click to withdraw it",
-                );
+                .on_hover_text("Card is waiting for the reader motor. Click to withdraw it");
             if response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }

@@ -354,9 +354,9 @@ impl Hp67LiveMachine {
             return Ok(None);
         }
 
-        self.machine.set_card_present(false).map_err(|error| {
-            format!("HP-67 card withdrawal contact failed: {error:?}")
-        })?;
+        self.machine
+            .set_card_present(false)
+            .map_err(|error| format!("HP-67 card withdrawal contact failed: {error:?}"))?;
         self.card_startup_buffer_clears = 0;
         Ok(self.card_transport.take_unstarted_card())
     }
