@@ -11,7 +11,7 @@ This slice moves M13 beyond presentation and control into the first timed magnet
 - architectural CRC read port `0x9B` now transfers one buffered 28-bit record into ACT C;
 - CRC write port `0x99` now packs ACT C[13:7] into the CRC two-buffer write FIFO.
 
-No UI click is yet authoritative for magnetic data and no card-file persistence is connected.
+The live UI is now connected to the same magnetic-card object used by the transport. Host file adapters load verified `.hpp`, `.hp67raw` and `.hp67card` media into that object; firmware writes remain in the returned in-memory card and can be serialized by the native media APIs. A desktop Save-As chooser is a host UX feature, not part of the reader electronics, and is intentionally not conflated with this hardware milestone.
 
 ## Primary timing evidence
 
@@ -101,18 +101,18 @@ At an instruction boundary:
 
 This is explicitly an instruction-boundary bridge. DATA-bus electrical timing and sense-amplifier pulses remain unimplemented.
 
-## Remaining boundary
+## Remaining evidence boundary
 
-The next M13 slices are:
+The former functional items in this section are now implemented: known logical media can be loaded into the live transport; real firmware headers are read end-to-end; `0x99` write buffering/write-protect is covered; and UI/media lifecycle is tied to the same physical card object.
 
-- connect a known card-side image to the live transport;
-- source-back the insertion/head-switch geometry and first-record phase;
-- prove a real firmware header read end-to-end;
-- validate CRC write port `0x99`, dual-buffer draining and write-protect through the full local gate;
-- connect UI/card-file lifecycle to the physical transport state;
-- pin the physical time order used to serialize each 28-bit CRC record into magnetic bit cells;
-- connect the documented self-clocking Zero/One flux pair to the moving transport once that bit order is evidenced;
-- add lower-level head/sense-amplifier and DATA timing once sourced.
+What remains is deliberately below the current source-backed boundary:
+
+- pin the HP-67/97 temporal significance order used to serialize each 28-bit CRC record into magnetic bit cells;
+- connect the documented self-clocking Zero/One flux pair to the moving transport only after that bit order is evidenced;
+- source exact insertion-to-head geometry/acceleration and first-bit phase;
+- source lower-level head/sense-amplifier and PHI/DATA timing.
+
+The built-in SD-14A artwork also remains intentionally unbound until a redistributable verified Moon Rocket Lander magnetic image can be inspected. None of these gaps is filled with a host-file packing convention or synthetic timing constant.
 
 
 ## End-to-end live regression

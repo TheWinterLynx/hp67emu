@@ -102,3 +102,8 @@ The host presentation no longer paints every magnetic object as SD-14A. Native r
 M13 also covers the two data-card header classes instead of treating program cards as representative of all media. The live test uses real `f` + `ENTER` to enter `W/DATA` after `1`, `Σ+` makes secondary registers non-zero. Firmware owns both `Crd` waits. The first physical pass must be header ID 1 for primary registers; the same card rotated end-for-end must carry header ID 2 for secondary registers. A fresh RUN-mode machine then reads those two passes through the real CRC data-read path and must observe the same header sequence with a firmware `Crd` continuation between them.
 
 The functional card-header matrix is therefore: 1 = primary data, 2 = secondary data, 3 = program steps 001-112, 4 = program steps 113-224. All four are covered by live real-firmware regressions.
+
+
+## Host persistence boundary
+
+The card object returned by firmware writes is persistent for the lifetime of the application and the native media layer already provides lossless `.hp67card` serialization plus `.hp67raw` serialization when both logical tracks are recorded. The desktop currently imports those formats by drag/drop. An OS Save-As chooser is deliberately not part of M13's electrical/card-reader closure: adding one would be host UX and would require a separately managed desktop-dialog dependency/lockfile update. This distinction prevents a missing file chooser from being misreported as an incomplete magnetic-card hardware path.
