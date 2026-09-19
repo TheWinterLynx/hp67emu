@@ -23,6 +23,10 @@ pub enum Hp67ArchitecturalOperation {
         instruction: CrcInstruction,
         condition: Option<bool>,
     },
+    CrcDataRead {
+        address: u8,
+        card_word: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,10 +153,39 @@ impl Hp67ArchitecturalMachine {
         }
 
         if let Some((address, write)) = self.pending_crc_data_access(word) {
-            return Err(Hp67ArchitecturalError::CrcDataPortNotModeled { pc, address, write });
+            if write {
+                return Err(Hp67ArchitecturalError::CrcDataPortNotModeled {
+                    pc,
+                    address,
+                    write: true,
+                });
+            }
+            return self.execute_crc_data_read(word, address);
         }
 
         self.execute_act_word(word)
+    }
+
+    fn execute_crc_data_read(
+        &mut self,
+        word: u16,
+        address: u8,
+    ) -> Result<Hp67ArchitecturalExecution, Hp67ArchitecturalError> {
+        let boundary = self.act.execute_word(&mut self.ram, word)?;
+        let card_word = self.crc.take_read_word()?;
+
+        for digit in 0..7 {
+            let nibble = ((card_word >> (digit * 4)) & 0x0f) as u8;
+            self.act.state.c[digit] = nibble;
+            self.act.state.c[7 + digit] = nibble;
+        }
+
+        Ok(Hp67ArchitecturalExecution {
+            pc: boundary.pc,
+            word,
+            next_pc: boundary.next_pc,
+            operation: Hp67ArchitecturalOperation::CrcDataRead { address, card_word },
+        })
     }
 
     fn execute_act_word(
@@ -250,16 +283,54 @@ mod tests {
     }
 
     #[test]
-    fn crc_data_port_is_an_explicit_hardware_boundary() {
+    fn crc_read_port_consumes_transport_word_and_duplicates_seven_nibbles() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_READ_ADDRESS;
+        machine
+            .crc
+            .present_read_word(0x0765_4321)
+            .expect("transport word must latch");
+
+        let execution = machine
+            .execute_word(0o0070)
+            .expect("CRC read port must execute");
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataRead {
+                address: CRC_RAM_READ_ADDRESS,
+                card_word: 0x0765_4321,
+            }
+        );
+        assert_eq!(&machine.act.state.c[0..7], &[1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(&machine.act.state.c[7..14], &[1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(machine.crc.buffered_read_word(), None);
+    }
+
+    #[test]
+    fn crc_read_port_without_transport_word_is_transactional() {
         let mut machine = Hp67ArchitecturalMachine::default();
         machine.act.state.ram_address = CRC_RAM_READ_ADDRESS;
         let before = machine.clone();
         assert_eq!(
             machine.execute_word(0o0070),
+            Err(Hp67ArchitecturalError::Crc(
+                CrcArchitecturalError::ReadBufferEmpty
+            ))
+        );
+        assert_eq!(machine, before);
+    }
+
+    #[test]
+    fn crc_write_port_remains_an_explicit_hardware_boundary() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
+        let before = machine.clone();
+        assert_eq!(
+            machine.execute_word(0o1360),
             Err(Hp67ArchitecturalError::CrcDataPortNotModeled {
                 pc: 0,
-                address: CRC_RAM_READ_ADDRESS,
-                write: false,
+                address: CRC_RAM_WRITE_ADDRESS,
+                write: true,
             })
         );
         assert_eq!(machine, before);
