@@ -485,7 +485,8 @@ mod tests {
     use hp67emu::{
         emulation::Drive,
         machines::hp67::{
-            ActDisplayWordSerializer, Hp67CardSide, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
+            ActDisplayWordSerializer, CrcInstruction, Hp67CardSide, CRC_FLAG_BUFFER_READY,
+            CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE,
             HP67_CARD_RECORDS_PER_SIDE, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
         },
     };
@@ -678,6 +679,104 @@ mod tests {
         }
 
         panic!("timed card transport never reached the real CRC 0x9B read path");
+    }
+
+    fn settle_live_program_mode(live: &mut Hp67LiveMachine) {
+        live.machine.set_program_mode(true).unwrap();
+        let wait_before = live.main_wait_visits;
+        for _ in 0..2_048 {
+            live.step_firmware_cycle().unwrap();
+            if live.main_wait_visits > wait_before && live.machine.act.state.status[11] {
+                return;
+            }
+        }
+        panic!("real firmware never settled into PROGRAM mode");
+    }
+
+    #[test]
+    fn live_program_mode_reaches_real_crc_0x99_write_path() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut live);
+
+        live.card_transport
+            .insert_side(Hp67CardSide::default())
+            .expect("blank side must insert");
+        live.card_transport.set_head_active(true);
+        live.machine.set_card_present(true).unwrap();
+
+        for _ in 0..8_192 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataWrite { address, card_word },
+                ..
+            }) = execution
+            {
+                assert_eq!(address, hp67emu::machines::hp67::CRC_RAM_WRITE_ADDRESS);
+                assert_eq!(live.machine.crc.flag(CRC_FLAG_WRITE_MODE), Some(true));
+                assert!(card_word <= hp67emu::machines::hp67::CRC_CARD_WORD_MASK);
+                assert!(live.machine.crc.queued_write_words() > 0);
+                return;
+            }
+        }
+
+        panic!("PROGRAM-mode card write never reached the real CRC 0x99 path");
+    }
+
+    #[test]
+    fn live_write_protected_side_reaches_crc_f7_without_modification() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut live);
+
+        live.card_transport
+            .insert_side(Hp67CardSide::default().with_write_protected(true))
+            .expect("protected side must insert");
+        live.card_transport.set_head_active(true);
+        live.machine.set_card_present(true).unwrap();
+
+        for _ in 0..8_192 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(Hp67ArchitecturalExecution {
+                operation:
+                    Hp67ArchitecturalOperation::CrcControl {
+                        instruction: CrcInstruction::TestFlagAndClear { flag },
+                        condition: Some(true),
+                    },
+                ..
+            }) = execution
+            {
+                if usize::from(flag) == CRC_FLAG_F7_STATUS {
+                    assert_eq!(live.card_transport.next_record(), 0);
+                    assert!(
+                        !live
+                            .card_transport
+                            .side()
+                            .expect("protected side remains inserted")
+                            .dirty()
+                    );
+                    return;
+                }
+            }
+
+            if matches!(
+                execution,
+                Some(Hp67ArchitecturalExecution {
+                    operation: Hp67ArchitecturalOperation::CrcDataWrite { .. },
+                    ..
+                })
+            ) {
+                panic!("write-protected card reached CRC 0x99 data write");
+            }
+        }
+
+        panic!("write-protected card never reached CRC F7 error status");
     }
 
     #[test]
