@@ -306,11 +306,7 @@ fn paint_hp_card_logo(painter: &Painter, rect: Rect, color: Color32, scale: f32)
     );
     let logo = Rect::from_center_size(center, eframe::egui::vec2(width, height));
 
-    painter.rect_stroke(
-        logo,
-        0.0,
-        Stroke::new((0.8 * scale).max(0.45), color),
-    );
+    painter.rect_stroke(logo, 0.0, Stroke::new((0.8 * scale).max(0.45), color));
 
     // Trace the tiny classic HP mark from the supplied reference rather than
     // using a separate bitmap that would blur at the card's displayed scale.
