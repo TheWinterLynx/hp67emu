@@ -28,3 +28,6 @@ Completed-media ownership: `take_completed_side()` succeeds only after all 34 re
 
 
 Read-side buffering follows the HP hardware description: the CRC alternates between two 28-bit buffers while the card continues moving. The transport therefore may enqueue a second record while firmware processes the first, but it may not silently overwrite either one. Tests that advance multiple record intervals without an ACT-side consumer are intentionally invalid once both buffers are occupied.
+
+
+Head-startup handshake: closing the modeled head switch does not immediately start record cadence. The transport first raises one CRC `buffer_ready` readiness event without consuming or producing a card record. Firmware acknowledges/clears that event in `Scr3341`; only after that acknowledgement does `record_stream_active()` become true and the 28 ms record clock begin. This same startup handshake is required in read and write mode, which follows directly from `Scr3341` being shared by both paths.
