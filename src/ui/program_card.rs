@@ -19,9 +19,9 @@ const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
 const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.134_64, 0.317_32, 0.5, 0.682_68, 0.865_36];
-const MOON_ROCKET_LANDER_TOP_NOTCHES: &[f32] = &[0.095, 0.224, 0.310];
-const CARD_TOP_NOTCH_WIDTH_MM: f32 = 0.9;
-const CARD_TOP_NOTCH_HEIGHT_MM: f32 = 0.75;
+const MOON_ROCKET_LANDER_TOP_MARKS: &[f32] = &[0.095, 0.224, 0.310];
+const CARD_TOP_MARK_WIDTH_MM: f32 = 0.9;
+const CARD_TOP_MARK_HEIGHT_MM: f32 = 0.75;
 const CARD_TITLE_Y_FRACTION: f32 = 0.31;
 const CARD_SHIFTED_Y_FRACTION: f32 = 0.61;
 const CARD_PRIMARY_Y_FRACTION: f32 = 0.82;
@@ -39,7 +39,7 @@ pub struct ProgramCardArtwork {
     pub reference: &'static str,
     pub primary_labels: [&'static str; 5],
     pub shifted_labels: [&'static str; 5],
-    pub top_notches: &'static [f32],
+    pub top_marks: &'static [f32],
     pub show_hp_logo: bool,
 }
 
@@ -48,7 +48,7 @@ pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
     reference: "SD-14A",
     primary_labels: ["CNTRL", "RESTART", "", "", ""],
     shifted_labels: ["", "", "", "", ""],
-    top_notches: MOON_ROCKET_LANDER_TOP_NOTCHES,
+    top_marks: MOON_ROCKET_LANDER_TOP_MARKS,
     show_hp_logo: true,
 };
 
@@ -229,9 +229,9 @@ fn paint_card(
         Stroke::new((1.0 * scale).max(0.5), palette.edge),
     ));
 
-    let notch_width = CARD_TOP_NOTCH_WIDTH_MM * SOURCE_PX_PER_MM * scale;
-    let notch_height = CARD_TOP_NOTCH_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
-    for &fraction in card.top_notches {
+    let notch_width = CARD_TOP_MARK_WIDTH_MM * SOURCE_PX_PER_MM * scale;
+    let notch_height = CARD_TOP_MARK_HEIGHT_MM * SOURCE_PX_PER_MM * scale;
+    for &fraction in card.top_marks {
         let x = rect.left() + rect.width() * fraction;
         painter.rect_filled(
             Rect::from_min_max(
@@ -564,8 +564,8 @@ mod tests {
         assert_eq!(MOON_ROCKET_LANDER_CARD.primary_labels[1], "RESTART");
         assert_eq!(MOON_ROCKET_LANDER_CARD.reference, "SD-14A");
         assert_eq!(
-            MOON_ROCKET_LANDER_CARD.top_notches,
-            MOON_ROCKET_LANDER_TOP_NOTCHES
+            MOON_ROCKET_LANDER_CARD.top_marks,
+            MOON_ROCKET_LANDER_TOP_MARKS
         );
         assert!(MOON_ROCKET_LANDER_CARD.show_hp_logo);
         assert!(MOON_ROCKET_LANDER_CARD.primary_labels[2..]
@@ -620,7 +620,7 @@ mod tests {
         );
         assert!((CARD_END_CHAMFER_MM - 4.2).abs() < 0.0001);
         assert!(CARD_END_CHAMFER_MM < CARD_HEIGHT_MM * 0.5);
-        assert_eq!(MOON_ROCKET_LANDER_CARD.top_notches.len(), 3);
+        assert_eq!(MOON_ROCKET_LANDER_CARD.top_marks.len(), 3);
     }
 
     #[test]
