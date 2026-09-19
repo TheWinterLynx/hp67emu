@@ -288,13 +288,18 @@ impl Hp67LiveMachine {
     }
 
     pub fn insert_card_side(&mut self, side: Hp67CardSide) -> Result<(), String> {
+        let previous_transport = self.card_transport.clone();
         self.card_transport
             .insert_side(side)
             .map_err(|error| format!("HP-67 card insertion failed: {error:?}"))?;
         self.card_startup_buffer_clears = 0;
-        self.machine
-            .set_card_present(true)
-            .map_err(|error| format!("HP-67 card-present contact failed: {error:?}"))
+
+        if let Err(error) = self.machine.set_card_present(true) {
+            self.card_transport = previous_transport;
+            return Err(format!("HP-67 card-present contact failed: {error:?}"));
+        }
+
+        Ok(())
     }
 
     pub const fn card_side_inserted(&self) -> bool {
