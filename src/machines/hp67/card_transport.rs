@@ -439,16 +439,17 @@ mod tests {
         transport.set_head_active(true);
         let mut crc = CrcArchitecturalCore::default();
 
-        assert_eq!(
-            transport
-                .advance_us(
-                    HP67_NOMINAL_CARD_RECORD_US * HP67_CARD_RECORDS_PER_SIDE as u64,
-                    true,
-                    &mut crc,
-                )
-                .unwrap(),
-            HP67_CARD_RECORDS_PER_SIDE
-        );
+        for _ in 0..HP67_CARD_RECORDS_PER_SIDE {
+            assert_eq!(
+                transport
+                    .advance_us(HP67_NOMINAL_CARD_RECORD_US, true, &mut crc)
+                    .unwrap(),
+                1
+            );
+            crc.take_read_word()
+                .expect("firmware-side consumer must drain each record");
+        }
+
         assert!(transport.is_complete());
         assert_eq!(transport.next_record(), HP67_CARD_RECORDS_PER_SIDE);
     }
