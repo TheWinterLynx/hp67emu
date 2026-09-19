@@ -22,3 +22,6 @@ The frame first paints the currently available hardware display and collects pan
 
 
 M13 artwork loading: the exact HP badge is stored as `assets/hp67-card-logo.png`, cropped from the supplied original-card reference. `Hp67App` decodes it once at startup into a dedicated `TextureHandle` and passes that texture into the program-card renderer; the logo is no longer approximated with procedural line geometry.
+
+
+M13 magnetic-media boundary: the app now owns an optional `Hp67CardSide` independently from the printed `ProgramCardArtwork`. Reader clicks continue to drive the presentation animation, but only a populated magnetic-media slot is handed to `Hp67LiveMachine::insert_card_side()`. Completed 34-record media is reclaimed through `take_completed_card_side()`. The slot intentionally initializes empty until a verified SD-14A magnetic payload is available; the Moon Rocket Lander artwork is never silently treated as a blank or synthetic card image.
