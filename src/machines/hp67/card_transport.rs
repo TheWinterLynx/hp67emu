@@ -122,6 +122,10 @@ impl Hp67CardTransport {
         self.head_active
     }
 
+    pub const fn side(&self) -> Option<&Hp67CardSide> {
+        self.side.as_ref()
+    }
+
     pub const fn next_record(&self) -> usize {
         self.next_record
     }
