@@ -33,7 +33,7 @@ const CARD_HP_LOGO_HEIGHT_MM: f32 = 4.6;
 const HOLDER_SIDE_LIP_MM: f32 = 0.85;
 const HOLDER_EDGE_SHADOW_MM: f32 = 0.28;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ProgramCardArtwork {
     pub title: &'static str,
     pub reference: &'static str,
