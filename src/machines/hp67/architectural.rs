@@ -2,7 +2,7 @@
 //!
 //! This layer exists to run long stretches of real firmware while preserving chip boundaries.
 //! It is not the final electrical machine: serial fetch is already external to this module,
-//! while CRC write-port and physical RAM/DATA timing remain explicit stop conditions.
+//! while physical RAM/DATA timing remains an explicit lower-level boundary.
 
 use super::{
     act::{
@@ -24,6 +24,10 @@ pub enum Hp67ArchitecturalOperation {
         condition: Option<bool>,
     },
     CrcDataRead {
+        address: u8,
+        card_word: u32,
+    },
+    CrcDataWrite {
         address: u8,
         card_word: u32,
     },
@@ -154,11 +158,7 @@ impl Hp67ArchitecturalMachine {
 
         if let Some((address, write)) = self.pending_crc_data_access(word) {
             if write {
-                return Err(Hp67ArchitecturalError::CrcDataPortNotModeled {
-                    pc,
-                    address,
-                    write: true,
-                });
+                return self.execute_crc_data_write(word, address);
             }
             return self.execute_crc_data_read(word, address);
         }
@@ -185,6 +185,27 @@ impl Hp67ArchitecturalMachine {
             word,
             next_pc: boundary.next_pc,
             operation: Hp67ArchitecturalOperation::CrcDataRead { address, card_word },
+        })
+    }
+
+    fn execute_crc_data_write(
+        &mut self,
+        word: u16,
+        address: u8,
+    ) -> Result<Hp67ArchitecturalExecution, Hp67ArchitecturalError> {
+        let boundary = self.act.execute_word(&mut self.ram, word)?;
+
+        let mut card_word = 0u32;
+        for digit in (7..14).rev() {
+            card_word = (card_word << 4) | u32::from(self.act.state.c[digit] & 0x0f);
+        }
+        self.crc.queue_write_word(card_word)?;
+
+        Ok(Hp67ArchitecturalExecution {
+            pc: boundary.pc,
+            word,
+            next_pc: boundary.next_pc,
+            operation: Hp67ArchitecturalOperation::CrcDataWrite { address, card_word },
         })
     }
 
@@ -345,17 +366,43 @@ mod tests {
     }
 
     #[test]
-    fn crc_write_port_remains_an_explicit_hardware_boundary() {
+    fn crc_write_port_packs_only_high_half_of_c_into_28_bit_buffer() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
+        machine
+            .crc
+            .execute_opcode(0o660)
+            .expect("write mode must set");
+
+        for digit in 0..7 {
+            machine.act.state.c[digit] = 0x0f;
+            machine.act.state.c[7 + digit] = (digit + 1) as u8;
+        }
+
+        let execution = machine
+            .execute_word(0o1360)
+            .expect("CRC write port must accept high half");
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataWrite {
+                address: CRC_RAM_WRITE_ADDRESS,
+                card_word: 0x0765_4321,
+            }
+        );
+        assert_eq!(machine.crc.queued_write_words(), 1);
+        assert_eq!(machine.crc.take_queued_write_word(), Some(0x0765_4321));
+    }
+
+    #[test]
+    fn crc_write_port_requires_firmware_write_mode_transactionally() {
         let mut machine = Hp67ArchitecturalMachine::default();
         machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
         let before = machine.clone();
         assert_eq!(
             machine.execute_word(0o1360),
-            Err(Hp67ArchitecturalError::CrcDataPortNotModeled {
-                pc: 0,
-                address: CRC_RAM_WRITE_ADDRESS,
-                write: true,
-            })
+            Err(Hp67ArchitecturalError::Crc(
+                CrcArchitecturalError::WriteModeInactive
+            ))
         );
         assert_eq!(machine, before);
     }
