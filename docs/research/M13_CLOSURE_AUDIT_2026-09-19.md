@@ -111,3 +111,7 @@ The card object returned by firmware writes can now be persisted from the deskto
 ## Opposite-end visual proof
 
 The host renderer receives the actual `CardInsertionEnd`. A second pass by End2 renders the same card face rotated 180 degrees, including text, logo and edge marks, while the reader motion remains tied to live record position. This closes the visual half of the physical same-card reinsertion requirement without changing firmware or transport authority.
+
+## Crd display-code correction
+
+The first full M13 closure run exposed an older display-table inconsistency rather than a magnetic-card lifecycle failure. Real HP-67/97 card firmware builds the continuation prompt with display codes `0x0B, 0x0A, 0x0D` and labels them `C, r, d`; Hewlett-Packard documentation independently says the user is prompted by `Crd`. The previous ROM0 table decoded `0x0A` as `o` and `0x0C` as `r`, making the physical `Crd` detector impossible to satisfy even while firmware was executing the correct prompt path. The decoder is corrected to `0x0A=r` and `0x0C=o`; the earlier capture transcription is retained as an evidence discrepancy rather than overriding firmware-plus-user-visible hardware behavior.
