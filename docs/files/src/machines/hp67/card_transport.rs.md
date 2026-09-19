@@ -22,3 +22,6 @@ Represent one inserted HP-67 card side as 34 validated 28-bit records; gate reco
 
 
 In write mode the CRC pair of 28-bit buffers is authoritative. While motor/head are active and the side is writable, the transport signals that capacity is available; firmware `0x99` writes enqueue records, and the transport commits one FIFO record every nominal 28 ms. A protected side raises the F7 status path used by firmware and no media word is modified.
+
+
+Completed-media ownership: `take_completed_side()` succeeds only after all 34 record positions have crossed the head. It resets transport position/timing and releases the inserted `Hp67CardSide` without guessing when the separate external card-present switch mechanically opens. The caller remains responsible for that contact event.
