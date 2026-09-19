@@ -213,3 +213,8 @@ Therefore the HP-65 LSB-first capture is useful historical evidence but is not s
 Production consequently keeps `Hp67SelfClockingFluxPair::from_serial_bits()` below an explicit already-ordered bit-stream boundary. It is not connected directly to `[u32; 34]` yet. The MSB-first packing used by `.hp67raw` remains a host interchange convention only and must never be reused as magnetic-order evidence.
 
 This is an intentional fidelity stop, not an implementation omission to be filled by guesswork. Connecting CRC words to flux cells requires either a source-backed 1820-1751 shift-order description, a sufficiently resolved HP-67/97 logic capture, or a known-card/raw-flux experiment that establishes the order unambiguously.
+
+
+### Two-track read-back proof
+
+The two-pass regression is bidirectional. After the PROGRAM-mode writer produces logical Track 1 (header ID 3) and logical Track 2 (header ID 4), a fresh RUN-mode live machine reads the first pass, returns the same card, reaches the firmware-generated `Crd` prompt, accepts the same card by the opposite end and reads the second pass. The test requires the known non-zero second-half program RAM register to be restored only through that second CRC/card pass. This proves that the `Crd` continuation is not merely a write-side/UI behavior.

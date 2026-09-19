@@ -905,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn live_two_track_program_write_prompts_crd_and_reinserts_same_card() {
+    fn live_two_track_program_write_and_read_reinsert_same_card_through_crd() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.phase = LiveBootPhase::Firmware;
         while !matches!(live.phase, LiveBootPhase::Idle) {
@@ -979,6 +979,58 @@ mod tests {
                 .map(|word| (word >> 24) as u8),
             Some(4)
         );
+
+        let mut reader = Hp67LiveMachine::power_on_default().unwrap();
+        reader.phase = LiveBootPhase::Firmware;
+        while !matches!(reader.phase, LiveBootPhase::Idle) {
+            reader.step_firmware_cycle().unwrap();
+        }
+
+        reader
+            .insert_magnetic_card(completed, CardInsertionEnd::End1)
+            .expect("two-track card must insert for first firmware read pass");
+        wait_for_live_card_record_stream(&mut reader);
+
+        for _ in 0..32_768 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(reader.card_transport_complete());
+
+        let between_passes = reader
+            .take_completed_magnetic_card()
+            .expect("first read pass must return the same physical card");
+        for _ in 0..8_192 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            reader.card_prompt_visible(),
+            "firmware never displayed Crd while waiting for program Track 2"
+        );
+
+        reader
+            .insert_magnetic_card(between_passes, CardInsertionEnd::End2)
+            .expect("same physical card must reinsert for second firmware read pass");
+        wait_for_live_card_record_stream(&mut reader);
+
+        for _ in 0..32_768 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(reader.card_transport_complete());
+        assert_eq!(
+            reader.machine.ram.read(0x1f),
+            Some(second_half_program),
+            "second logical track did not restore program steps 113-224"
+        );
+        assert!(reader.take_completed_magnetic_card().is_some());
     }
 
     #[test]

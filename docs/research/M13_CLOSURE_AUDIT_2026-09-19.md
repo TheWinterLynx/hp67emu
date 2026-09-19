@@ -42,7 +42,7 @@ Pinned HP-67/97 firmware distinguishes program header IDs 3 and 4:
 
 When the second half is required, the firmware calls `card_prompt`, constructs the display codes for `C`, `r`, `d`, enables the display and waits for a new physical card-present assertion.
 
-The production live regression deliberately makes the second half non-empty, writes the first logical track, requires the physical `Crd` segment frame, returns and rotates the same `Hp67MagneticCard`, writes the second logical track and checks the ID-4 header. This is the authority for the UI continuation flow.
+The production live regression deliberately makes the second half non-empty, writes the first logical track, requires the physical `Crd` segment frame, returns and rotates the same `Hp67MagneticCard`, writes the second logical track and checks the ID-4 header. It then boots a fresh RUN-mode machine, reads Track 1, requires a second real `Crd` wait, reinserts the same card by the opposite end and requires the non-zero second-half program RAM register to be restored by Track 2. This bidirectional proof is the authority for the UI continuation flow.
 
 ## Timing
 
