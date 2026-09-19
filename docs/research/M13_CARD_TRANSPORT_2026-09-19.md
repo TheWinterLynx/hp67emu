@@ -9,7 +9,7 @@ This slice moves M13 beyond presentation and control into the first timed magnet
 - a separate card transport now advances at the documented nominal record cadence;
 - the transport presents 28-bit records to the CRC, which raises `buffer_ready`;
 - architectural CRC read port `0x9B` now transfers one buffered 28-bit record into ACT C;
-- CRC write port `0x99` remains deliberately unimplemented.
+- CRC write port `0x99` now packs ACT C[13:7] into the CRC two-buffer write FIFO.
 
 No UI click is yet authoritative for magnetic data and no card-file persistence is connected.
 
@@ -107,8 +107,7 @@ The next M13 slices are:
 - connect a known card-side image to the live transport;
 - source-back the insertion/head-switch geometry and first-record phase;
 - prove a real firmware header read end-to-end;
-- implement CRC write port `0x99`;
-- implement write-protect and write transport;
+- validate CRC write port `0x99`, dual-buffer draining and write-protect through the full local gate;
 - connect UI/card-file lifecycle to the physical transport state;
 - add speed-tolerance and lower-level sense/DATA timing once sourced.
 
@@ -116,3 +115,16 @@ The next M13 slices are:
 ## End-to-end live regression
 
 The live-machine regression `live_firmware_consumes_timed_crc_record_through_real_0x9b_path` boots the real firmware to idle, inserts a synthetic 34-record side, enables the explicit head gate and asserts the external card-present contact. It then executes real firmware words until the bank-1 card routine consumes a transport record through `register -> c 11` / CRC address `0x9B`. The test requires a `CrcDataRead` operation and verifies that the 28-bit record is duplicated into both seven-nibble halves of ACT C. This closes the current read-side slice from card-present through motor, timed record availability, buffer-ready and architectural CRC read.
+
+
+## Write-side implementation
+
+Teenix documents the CRC 1700 status instruction as the firmware check for whether read data is valid or a write buffer can accept data. The pinned disassembly calls this flag `crc_f7` because the original hardware name is unknown. Production therefore exposes it conservatively as `CRC_FLAG_F7_STATUS`; no stronger semantic name is claimed.
+
+The CRC now models two 28-bit write buffers. Architectural `0x99` writes execute the ACT write-class instruction boundary, then pack only C[13:7] into a 28-bit record, exactly matching the documented firmware/data-bus layout. The transport drains those records FIFO at the same nominal 28 ms cadence used by the magnetic stream. A writable card marks the committed media dirty. A protected side leaves all records unchanged and raises the F7 status path checked by firmware.
+
+The HP-97 service manual and Teenix reader analysis both establish that write protection is sampled when the head switch is reached; a clipped corner delays/prevents the write-protect switch condition and the CRC inhibits writing. The current transport therefore applies protection at the explicit head-active boundary rather than at UI insertion time.
+
+## Validation status
+
+The read-side timed checkpoint passed locally on 2026-09-19. The new write-side code and live firmware regressions are implemented in the branch and await the next local focused/full gate.
