@@ -248,7 +248,7 @@ impl Hp67Panel {
             Color32::WHITE,
         );
 
-        let card_ui = program_card::paint(ui, photo_rect, card_view);
+        let card_ui = program_card::paint(ui, photo_rect, photo, card_view);
 
         let mut events = Vec::new();
         let mut key_contact = None;
