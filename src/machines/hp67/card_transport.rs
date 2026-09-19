@@ -311,19 +311,14 @@ mod tests {
         assert_eq!(transport.next_record(), 1);
         assert_eq!(crc.queued_write_words(), 1);
         assert_eq!(
-            transport
-                .side
-                .as_ref()
-                .and_then(|side| side.word(0)),
+            transport.side.as_ref().and_then(|side| side.word(0)),
             Some(0x0111_1111)
         );
-        assert!(
-            transport
-                .side
-                .as_ref()
-                .expect("side remains inserted")
-                .dirty()
-        );
+        assert!(transport
+            .side
+            .as_ref()
+            .expect("side remains inserted")
+            .dirty());
     }
 
     #[test]
@@ -338,16 +333,20 @@ mod tests {
         crc.execute_opcode(0o660).expect("write mode must set");
 
         assert_eq!(transport.advance_us(320, true, &mut crc).unwrap(), 0);
-        assert_eq!(crc.flag(crate::machines::hp67::crc::CRC_FLAG_BUFFER_READY), Some(true));
-        assert_eq!(crc.flag(crate::machines::hp67::crc::CRC_FLAG_F7_STATUS), Some(true));
-        assert_eq!(transport.next_record(), 0);
-        assert!(
-            !transport
-                .side
-                .as_ref()
-                .expect("side remains inserted")
-                .dirty()
+        assert_eq!(
+            crc.flag(crate::machines::hp67::crc::CRC_FLAG_BUFFER_READY),
+            Some(true)
         );
+        assert_eq!(
+            crc.flag(crate::machines::hp67::crc::CRC_FLAG_F7_STATUS),
+            Some(true)
+        );
+        assert_eq!(transport.next_record(), 0);
+        assert!(!transport
+            .side
+            .as_ref()
+            .expect("side remains inserted")
+            .dirty());
     }
 
     #[test]
