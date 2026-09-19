@@ -3,10 +3,11 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
-    CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
+    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
+    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardSide, Hp67CardTransport,
     Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Hp67SegmentMask,
-    Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_MOTOR_ON, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
     HP67_OBSERVED_WORD_TIME_US,
 };
 
@@ -210,6 +211,7 @@ pub struct Hp67LiveMachine {
     machine: Hp67ArchitecturalMachine,
     keyboard: Hp67Keyboard,
     card_transport: Hp67CardTransport,
+    card_startup_buffer_clears: u8,
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
@@ -233,6 +235,7 @@ impl Hp67LiveMachine {
             machine: Hp67ArchitecturalMachine::default(),
             keyboard: Hp67Keyboard::default(),
             card_transport: Hp67CardTransport::default(),
+            card_startup_buffer_clears: 0,
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
@@ -259,6 +262,7 @@ impl Hp67LiveMachine {
         self.machine = Hp67ArchitecturalMachine::default();
         self.keyboard = Hp67Keyboard::default();
         self.card_transport = Hp67CardTransport::default();
+        self.card_startup_buffer_clears = 0;
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
@@ -282,6 +286,36 @@ impl Hp67LiveMachine {
         self.machine
             .set_program_mode(program)
             .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
+    }
+
+    pub fn insert_card_side(&mut self, side: Hp67CardSide) -> Result<(), String> {
+        self.card_transport
+            .insert_side(side)
+            .map_err(|error| format!("HP-67 card insertion failed: {error:?}"))?;
+        self.card_startup_buffer_clears = 0;
+        self.machine
+            .set_card_present(true)
+            .map_err(|error| format!("HP-67 card-present contact failed: {error:?}"))
+    }
+
+    pub const fn card_side_inserted(&self) -> bool {
+        self.card_transport.side().is_some()
+    }
+
+    pub fn card_motor_on(&self) -> bool {
+        self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
+    }
+
+    pub const fn card_record_stream_active(&self) -> bool {
+        self.card_transport.record_stream_active()
+    }
+
+    pub const fn card_transport_complete(&self) -> bool {
+        self.card_transport.is_complete()
+    }
+
+    pub fn take_completed_card_side(&mut self) -> Option<Hp67CardSide> {
+        self.card_transport.take_completed_side()
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
@@ -347,6 +381,25 @@ impl Hp67LiveMachine {
                 .machine
                 .execute_word(word)
                 .map_err(|error| format!("live cycle {cycle} execution failed: {error:?}"))?;
+            if self.card_transport.side().is_some()
+                && !self.card_transport.head_active()
+                && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
+            {
+                if let Hp67ArchitecturalOperation::CrcControl {
+                    instruction: CrcInstruction::TestFlagAndClear { flag },
+                    ..
+                } = execution.operation
+                {
+                    if usize::from(flag) == CRC_FLAG_BUFFER_READY {
+                        self.card_startup_buffer_clears =
+                            self.card_startup_buffer_clears.saturating_add(1);
+                        if self.card_startup_buffer_clears == 2 {
+                            self.card_transport.set_head_active(true);
+                        }
+                    }
+                }
+            }
+
             executed = Some(execution);
 
             match execution.pc {
@@ -396,6 +449,13 @@ impl Hp67LiveMachine {
                 &mut self.machine.crc,
             )
             .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
+
+        if self.card_transport.is_complete() {
+            self.machine
+                .set_card_present(false)
+                .map_err(|error| format!("live cycle {cycle} card exit contact failed: {error:?}"))?;
+            self.card_transport.set_head_active(false);
+        }
 
         self.boot_cycle = cycle.saturating_add(1);
         if idle_after_word {
@@ -485,8 +545,8 @@ mod tests {
     use hp67emu::{
         emulation::Drive,
         machines::hp67::{
-            ActDisplayWordSerializer, CrcInstruction, Hp67CardSide, CRC_FLAG_BUFFER_READY,
-            CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE,
+            ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS,
+            CRC_FLAG_WRITE_MODE,
             HP67_CARD_RECORDS_PER_SIDE, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
         },
     };
