@@ -7,8 +7,7 @@ use hp67emu::machines::hp67::{
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardSide, Hp67CardTransport,
     Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard, Hp67SegmentMask,
     Rom0DisplayEndpoint, RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
-    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    HP67_OBSERVED_WORD_TIME_US,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -451,11 +450,9 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
 
         if self.card_transport.is_complete() {
-            self.machine
-                .set_card_present(false)
-                .map_err(|error| {
-                    format!("live cycle {cycle} card exit contact failed: {error:?}")
-                })?;
+            self.machine.set_card_present(false).map_err(|error| {
+                format!("live cycle {cycle} card exit contact failed: {error:?}")
+            })?;
             self.card_transport.set_head_active(false);
         }
 
@@ -548,8 +545,8 @@ mod tests {
         emulation::Drive,
         machines::hp67::{
             ActDisplayWordSerializer, CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS,
-            CRC_FLAG_WRITE_MODE,
-            HP67_CARD_RECORDS_PER_SIDE, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
+            CRC_FLAG_WRITE_MODE, HP67_CARD_RECORDS_PER_SIDE, HP67_DISPLAY_SCAN_SLOTS,
+            HP67_NOMINAL_CARD_RECORD_US,
         },
     };
 
