@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn consecutive_record_boundaries_replace_unread_crc_buffer() {
+    fn consecutive_record_boundaries_fill_both_crc_read_buffers_in_fifo_order() {
         let mut transport = Hp67CardTransport::default();
         let mut words = [0u32; HP67_CARD_RECORDS_PER_SIDE];
         words[0] = 0x0111_1111;
@@ -299,7 +299,10 @@ mod tests {
             2
         );
         assert_eq!(transport.next_record(), 2);
-        assert_eq!(crc.buffered_read_word(), Some(0x0222_2222));
+        assert_eq!(crc.queued_read_words(), 2);
+        assert_eq!(crc.buffered_read_word(), Some(0x0111_1111));
+        assert_eq!(crc.take_read_word(), Ok(0x0111_1111));
+        assert_eq!(crc.take_read_word(), Ok(0x0222_2222));
     }
 
     #[test]
