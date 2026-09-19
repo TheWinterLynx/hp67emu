@@ -19,13 +19,7 @@ const CARD_END_CHAMFER_MM: f32 = 4.2;
 const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
-const CARD_LABEL_X_FRACTIONS: [f32; 5] = [
-    0.133_918,
-    0.316_600,
-    0.499_281,
-    0.681_962,
-    0.864_643,
-];
+const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.133_918, 0.316_600, 0.499_281, 0.681_962, 0.864_643];
 const MOON_ROCKET_LANDER_TOP_MARKS: &[f32] = &[0.095, 0.224, 0.310];
 const CARD_TOP_MARK_WIDTH_MM: f32 = 0.9;
 const CARD_TOP_MARK_HEIGHT_MM: f32 = 0.75;
@@ -75,7 +69,7 @@ impl ProgramCardPhase {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct ProgramCardView<'a> {
     pub artwork: &'a ProgramCardArtwork,
     pub logo: &'a TextureHandle,
