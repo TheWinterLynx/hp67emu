@@ -660,8 +660,8 @@ mod tests {
         live.card_transport
             .insert_side(Hp67CardSide::from_words(words).unwrap())
             .unwrap();
-        live.card_transport.set_head_active(true);
         live.machine.set_card_present(true).unwrap();
+        advance_inserted_card_until_head_switch(&mut live);
 
         for _ in 0..8_192 {
             let execution = live.step_firmware_cycle_with_execution().unwrap();
@@ -693,6 +693,39 @@ mod tests {
         panic!("real firmware never settled into PROGRAM mode");
     }
 
+    fn advance_inserted_card_until_head_switch(live: &mut Hp67LiveMachine) {
+        assert!(!live.card_transport.head_active());
+
+        let mut initial_buffer_clears = 0usize;
+        for _ in 0..2_048 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+
+            if live.machine.crc.flag(CRC_FLAG_MOTOR_ON) != Some(true) {
+                continue;
+            }
+
+            if let Some(Hp67ArchitecturalExecution {
+                operation:
+                    Hp67ArchitecturalOperation::CrcControl {
+                        instruction: CrcInstruction::TestFlagAndClear { flag },
+                        ..
+                    },
+                ..
+            }) = execution
+            {
+                if usize::from(flag) == CRC_FLAG_BUFFER_READY {
+                    initial_buffer_clears += 1;
+                    if initial_buffer_clears == 2 {
+                        live.card_transport.set_head_active(true);
+                        return;
+                    }
+                }
+            }
+        }
+
+        panic!("firmware never reached the pre-data head-switch window");
+    }
+
     #[test]
     fn live_program_mode_reaches_real_crc_0x99_write_path() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
@@ -705,8 +738,8 @@ mod tests {
         live.card_transport
             .insert_side(Hp67CardSide::default())
             .expect("blank side must insert");
-        live.card_transport.set_head_active(true);
         live.machine.set_card_present(true).unwrap();
+        advance_inserted_card_until_head_switch(&mut live);
 
         for _ in 0..8_192 {
             let execution = live.step_firmware_cycle_with_execution().unwrap();
@@ -739,8 +772,8 @@ mod tests {
             .card_transport
             .insert_side(Hp67CardSide::default())
             .expect("blank side must insert for firmware write");
-        writer.card_transport.set_head_active(true);
         writer.machine.set_card_present(true).unwrap();
+        advance_inserted_card_until_head_switch(&mut writer);
 
         let mut written = Vec::with_capacity(HP67_CARD_RECORDS_PER_SIDE);
         for _ in 0..32_768 {
@@ -781,8 +814,8 @@ mod tests {
             .card_transport
             .insert_side(completed)
             .expect("written card must reinsert for firmware read");
-        reader.card_transport.set_head_active(true);
         reader.machine.set_card_present(true).unwrap();
+        advance_inserted_card_until_head_switch(&mut reader);
 
         let mut read_back = Vec::with_capacity(HP67_CARD_RECORDS_PER_SIDE);
         for _ in 0..32_768 {
@@ -815,8 +848,8 @@ mod tests {
         live.card_transport
             .insert_side(Hp67CardSide::default().with_write_protected(true))
             .expect("protected side must insert");
-        live.card_transport.set_head_active(true);
         live.machine.set_card_present(true).unwrap();
+        advance_inserted_card_until_head_switch(&mut live);
 
         for _ in 0..8_192 {
             let execution = live.step_firmware_cycle_with_execution().unwrap();
