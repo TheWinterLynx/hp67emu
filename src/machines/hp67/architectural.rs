@@ -46,7 +46,6 @@ pub enum Hp67ArchitecturalError {
     OpcodeOutOfRange(u16),
     Act(ActError),
     Crc(CrcArchitecturalError),
-    CrcDataPortNotModeled { pc: u16, address: u8, write: bool },
 }
 
 impl From<ActError> for Hp67ArchitecturalError {
