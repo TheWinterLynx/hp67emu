@@ -1,8 +1,10 @@
 use std::f32::consts::PI;
 
 use eframe::egui::{
-    emath::Rot2, epaint::{TextShape, Vertex}, pos2, Align2, Color32, CursorIcon, FontId, Mesh,
-    Painter, Rect, Sense, Shape, Stroke, TextureHandle, Ui,
+    emath::Rot2,
+    epaint::{TextShape, Vertex},
+    pos2, Align2, Color32, CursorIcon, FontId, Mesh, Painter, Rect, Sense, Shape, Stroke,
+    TextureHandle, Ui,
 };
 
 const PHOTO_W: f32 = 928.0;

@@ -11,8 +11,8 @@ use hp67emu::machines::hp67::{
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
-    program_library::PROGRAM_LIBRARY,
     panel::Hp67Panel,
+    program_library::PROGRAM_LIBRARY,
     ui::{
         program_card::{
             ProgramCardPhase, ProgramCardView, GENERIC_MAGNETIC_CARD, MOON_ROCKET_LANDER_CARD,
@@ -349,7 +349,10 @@ impl Hp67App {
                             } else {
                                 format!("{} - {}", entry.reference, entry.title)
                             };
-                            if ui.selectable_label(selected == Some(index), label).clicked() {
+                            if ui
+                                .selectable_label(selected == Some(index), label)
+                                .clicked()
+                            {
                                 selected = Some(index);
                             }
                         }
@@ -362,10 +365,7 @@ impl Hp67App {
                     if !entry.reference.is_empty() {
                         ui.label(format!("Reference: {}", entry.reference));
                     }
-                    ui.label(format!(
-                        "Magnetic tracks supplied: {}",
-                        entry.track_count()
-                    ));
+                    ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
                     if let Some(pdf) = entry.source_pdf {
                         ui.label(format!("Artwork/manual source: {pdf}"));
                     } else {

@@ -34,10 +34,7 @@ impl ProgramLibraryEntry {
 
         for bytes in self.parts {
             let imported = TeenixHppImport::from_bytes(bytes).map_err(|error| {
-                format!(
-                    "{} {}: invalid .hpp: {error:?}",
-                    self.reference, self.title
-                )
+                format!("{} {}: invalid .hpp: {error:?}", self.reference, self.title)
             })?;
             if imported.calculator_id != 67 {
                 return Err(format!(
@@ -106,9 +103,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Area Of Circle",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/01_AreaOfCircle.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/01_AreaOfCircle.hpp")],
         artwork: catalog_artwork("Area Of Circle", "01"),
     },
     ProgramLibraryEntry {
@@ -117,9 +112,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Pythagorean",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/02_Pythagorean.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/02_Pythagorean.hpp")],
         artwork: catalog_artwork("Pythagorean", "02"),
     },
     ProgramLibraryEntry {
@@ -128,9 +121,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Future Savings",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/03_FutureSavings.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/03_FutureSavings.hpp")],
         artwork: catalog_artwork("Future Savings", "03"),
     },
     ProgramLibraryEntry {
@@ -139,9 +130,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Time To Fall",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/04_TimeToFall.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/04_TimeToFall.hpp")],
         artwork: catalog_artwork("Time To Fall", "04"),
     },
     ProgramLibraryEntry {
@@ -150,9 +139,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Cumulative Total",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/05_CumulativeTotal.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/05_CumulativeTotal.hpp")],
         artwork: catalog_artwork("Cumulative Total", "05"),
     },
     ProgramLibraryEntry {
@@ -161,9 +148,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Base Areas",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/06_BaseAreas.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/06_BaseAreas.hpp")],
         artwork: catalog_artwork("Base Areas", "06"),
     },
     ProgramLibraryEntry {
@@ -172,9 +157,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Average Of 3",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/07_AverageOf3.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/07_AverageOf3.hpp")],
         artwork: catalog_artwork("Average Of 3", "07"),
     },
     ProgramLibraryEntry {
@@ -183,9 +166,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Square Roots",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/08_SquareRoots.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/08_SquareRoots.hpp")],
         artwork: catalog_artwork("Square Roots", "08"),
     },
     ProgramLibraryEntry {
@@ -194,9 +175,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Accountants",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/09_Accountants.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/09_Accountants.hpp")],
         artwork: catalog_artwork("Accountants", "09"),
     },
     ProgramLibraryEntry {
@@ -205,9 +184,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Calculate e",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/10_Calculate_e.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/10_Calculate_e.hpp")],
         artwork: catalog_artwork("Calculate e", "10"),
     },
     ProgramLibraryEntry {
@@ -216,9 +193,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Common Logs",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/11_CommonLogs.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/11_CommonLogs.hpp")],
         artwork: catalog_artwork("Common Logs", "11"),
     },
     ProgramLibraryEntry {
@@ -227,9 +202,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Quadratic Roots",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/12_QuadraticRoots.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/12_QuadraticRoots.hpp")],
         artwork: catalog_artwork("Quadratic Roots", "12"),
     },
     ProgramLibraryEntry {
@@ -238,9 +211,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Dice",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/13_Dice.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/13_Dice.hpp")],
         artwork: catalog_artwork("Dice", "13"),
     },
     ProgramLibraryEntry {
@@ -249,9 +220,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "I Register",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/14_I_Register.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/14_I_Register.hpp")],
         artwork: catalog_artwork("I Register", "14"),
     },
     ProgramLibraryEntry {
@@ -260,9 +229,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Manhattan Value",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/15_ManhattanValue.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/15_ManhattanValue.hpp")],
         artwork: catalog_artwork("Manhattan Value", "15"),
     },
     ProgramLibraryEntry {
@@ -271,9 +238,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Register I",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/16_Register_I.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/16_Register_I.hpp")],
         artwork: catalog_artwork("Register I", "16"),
     },
     ProgramLibraryEntry {
@@ -282,9 +247,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "I Addressing",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/17_I_Addressing.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/17_I_Addressing.hpp")],
         artwork: catalog_artwork("I Addressing", "17"),
     },
     ProgramLibraryEntry {
@@ -293,9 +256,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "I Average",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/18_I_Average.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/18_I_Average.hpp")],
         artwork: catalog_artwork("I Average", "18"),
     },
     ProgramLibraryEntry {
@@ -304,9 +265,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "I Random",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/19_I_Random.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/19_I_Random.hpp")],
         artwork: catalog_artwork("I Random", "19"),
     },
     ProgramLibraryEntry {
@@ -327,9 +286,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Dist Spd Time",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/21_DistSpdTime.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/21_DistSpdTime.hpp")],
         artwork: catalog_artwork("Dist Spd Time", "21"),
     },
     ProgramLibraryEntry {
@@ -338,9 +295,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Flags",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/22_Flags.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/22_Flags.hpp")],
         artwork: catalog_artwork("Flags", "22"),
     },
     ProgramLibraryEntry {
@@ -349,9 +304,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "HP-67 Diagnostic A",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/HP67diagA.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/HP67diagA.hpp")],
         artwork: catalog_artwork("HP-67 Diagnostic A", "HP67diagA"),
     },
     ProgramLibraryEntry {
@@ -360,9 +313,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "HP-67 Diagnostic B",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/DemoPac1/HP67diagB.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/DemoPac1/HP67diagB.hpp")],
         artwork: catalog_artwork("HP-67 Diagnostic B", "HP67diagB"),
     },
     ProgramLibraryEntry {
@@ -383,9 +334,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Dice",
         source_pdf: Some("hp6797-pac-games-en.pdf"),
         artwork_path: Some("programs/HP67/_artwork/GA1-02A.png"),
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Games Pac 1/GA1-02A_1 Dice.hpp"),
-        ],
+        parts: &[hpp!("/programs/HP67/HP-67 Games Pac 1/GA1-02A_1 Dice.hpp")],
         artwork: catalog_artwork("Dice", "GA1-02A"),
     },
     ProgramLibraryEntry {
@@ -394,9 +343,9 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Slot Machine",
         source_pdf: Some("hp6797-pac-games-en.pdf"),
         artwork_path: Some("programs/HP67/_artwork/GA1-03A.png"),
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Games Pac 1/GA1-03A_1 Slot Machine.hpp"),
-        ],
+        parts: &[hpp!(
+            "/programs/HP67/HP-67 Games Pac 1/GA1-03A_1 Slot Machine.hpp"
+        )],
         artwork: catalog_artwork("Slot Machine", "GA1-03A"),
     },
     ProgramLibraryEntry {
@@ -477,9 +426,9 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Queen Board",
         source_pdf: Some("hp6797-pac-games-en.pdf"),
         artwork_path: Some("programs/HP67/_artwork/GA1-09A.png"),
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Games Pac 1/GA1-09A_1 Queen Board.hpp"),
-        ],
+        parts: &[hpp!(
+            "/programs/HP67/HP-67 Games Pac 1/GA1-09A_1 Queen Board.hpp"
+        )],
         artwork: catalog_artwork("Queen Board", "GA1-09A"),
     },
     ProgramLibraryEntry {
@@ -728,9 +677,9 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Calculus and Roots of f(x)",
         source_pdf: Some("hp67-pac-standard-en.pdf"),
         artwork_path: Some("programs/HP67/_artwork/SD1-11B.png"),
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Standard Pac/SD1-11B_1 Calculus and Roots of f(x).hpp"),
-        ],
+        parts: &[hpp!(
+            "/programs/HP67/HP-67 Standard Pac/SD1-11B_1 Calculus and Roots of f(x).hpp"
+        )],
         artwork: catalog_artwork("Calculus and Roots of f(x)", "SD1-11B"),
     },
     ProgramLibraryEntry {
@@ -763,9 +712,9 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Moon Rocket Lander",
         source_pdf: Some("hp67-pac-standard-en.pdf"),
         artwork_path: Some("programs/HP67/_artwork/SD1-14A.png"),
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Standard Pac/SD1-14A_1 Moon Rocket Lander.hpp"),
-        ],
+        parts: &[hpp!(
+            "/programs/HP67/HP-67 Standard Pac/SD1-14A_1 Moon Rocket Lander.hpp"
+        )],
         artwork: MOON_ROCKET_LANDER_CARD,
     },
     ProgramLibraryEntry {
@@ -801,9 +750,7 @@ mod tests {
     #[test]
     fn every_catalog_entry_decodes_to_one_physical_card() {
         for entry in PROGRAM_LIBRARY {
-            let loaded = entry
-                .load_card()
-                .unwrap_or_else(|error| panic!("{error}"));
+            let loaded = entry.load_card().unwrap_or_else(|error| panic!("{error}"));
             assert!(
                 loaded.card.track(Hp67CardTrack::Track1).is_recorded()
                     || loaded.card.track(Hp67CardTrack::Track2).is_recorded(),
