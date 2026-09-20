@@ -24,11 +24,15 @@ use crate::{
 const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
 const PROGRAM_LIBRARY_VIEWPORT_KEY: &str = "hp67-program-library-viewport";
 const CARD_SAVE_VIEWPORT_KEY: &str = "hp67-card-save-viewport";
+const CARD_ARTWORK_ATLAS_WIDTH: u32 = 600;
+const CARD_ARTWORK_ATLAS_ROW_HEIGHT: u32 = 100;
+const CARD_ARTWORK_ATLAS_ROWS: u32 = 35;
 
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
     card_logo: TextureHandle,
+    card_artwork_atlas: image::RgbaImage,
     live_machine: Option<Hp67LiveMachine>,
     card_media: Option<Hp67MagneticCard>,
     card_import_name: Option<String>,
@@ -84,6 +88,21 @@ impl Hp67App {
             TextureOptions::LINEAR,
         );
 
+        let card_artwork_atlas = image::load_from_memory_with_format(
+            include_bytes!("../assets/hp67-card-artwork-atlas.png"),
+            image::ImageFormat::Png,
+        )
+        .expect("embedded HP-67 card artwork atlas must be a valid PNG")
+        .to_rgba8();
+        assert_eq!(
+            card_artwork_atlas.dimensions(),
+            (
+                CARD_ARTWORK_ATLAS_WIDTH,
+                CARD_ARTWORK_ATLAS_ROW_HEIGHT * CARD_ARTWORK_ATLAS_ROWS,
+            ),
+            "embedded HP-67 card artwork atlas has unexpected dimensions"
+        );
+
         let live_machine = match Hp67LiveMachine::power_on_default() {
             Ok(machine) => Some(machine),
             Err(error) => {
@@ -96,6 +115,7 @@ impl Hp67App {
             state: Hp67State::default(),
             photo,
             card_logo,
+            card_artwork_atlas,
             live_machine,
             card_media: None,
             card_import_name: None,
@@ -283,22 +303,42 @@ impl Hp67App {
             .get(index)
             .ok_or_else(|| format!("program library index {index} is out of range"))?;
         let loaded = entry.load_card()?;
-        let artwork_texture = match entry.artwork_path {
-            Some(path) if Path::new(path).is_file() => {
-                let bytes = fs::read(path)
-                    .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
-                let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
-                    .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?
-                    .to_rgba8();
-                let size = [decoded.width() as usize, decoded.height() as usize];
-                let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
-                Some(ctx.load_texture(
-                    format!("hp67-program-card-artwork-{index}"),
-                    image,
-                    TextureOptions::LINEAR,
-                ))
+        let artwork_texture = if let Some(row) = entry.artwork_atlas_row() {
+            let y = row as u32 * CARD_ARTWORK_ATLAS_ROW_HEIGHT;
+            let decoded = image::imageops::crop_imm(
+                &self.card_artwork_atlas,
+                0,
+                y,
+                CARD_ARTWORK_ATLAS_WIDTH,
+                CARD_ARTWORK_ATLAS_ROW_HEIGHT,
+            )
+            .to_image();
+            let size = [decoded.width() as usize, decoded.height() as usize];
+            let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
+            Some(ctx.load_texture(
+                format!("hp67-program-card-artwork-{index}"),
+                image,
+                TextureOptions::LINEAR,
+            ))
+        } else {
+            match entry.artwork_path {
+                Some(path) if Path::new(path).is_file() => {
+                    let bytes = fs::read(path)
+                        .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
+                    let decoded =
+                        image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+                            .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?
+                            .to_rgba8();
+                    let size = [decoded.width() as usize, decoded.height() as usize];
+                    let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
+                    Some(ctx.load_texture(
+                        format!("hp67-program-card-artwork-{index}"),
+                        image,
+                        TextureOptions::LINEAR,
+                    ))
+                }
+                _ => None,
             }
-            _ => None,
         };
 
         self.card_media = Some(loaded.card);
@@ -440,7 +480,12 @@ impl Hp67App {
                         ui.label(format!("Pack: {}", entry.pack));
                         ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
                         if let Some(pdf) = entry.source_pdf {
-                            ui.label(format!("Artwork/manual source: {pdf}"));
+                            let source = if entry.artwork_atlas_row().is_some() {
+                                "embedded card crop"
+                            } else {
+                                "manual only"
+                            };
+                            ui.label(format!("Artwork/manual source: {pdf} ({source})"));
                         } else {
                             ui.label("Artwork/manual source: no pack PDF checked in");
                         }
