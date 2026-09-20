@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HP67 card artwork extractor v1.6\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
+"""HP67 card artwork extractor v1.7\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
 
 Workflow:
   1. Scan a PDF for wide dark magnetic-card strips.
@@ -74,8 +74,9 @@ CARD_WIDTH_MM = 71.1
 CARD_HEIGHT_MM = 11.4
 CARD_END_CHAMFER_MM = 4.2
 CARD_EDGE_ARTIFACT_ZONE_MM = 0.4
+CARD_WHITE_MARK_MIN_WIDTH_MM = 0.45
+CARD_WHITE_MARK_MIN_HEIGHT_MM = 0.30
 CARD_WHITE_MARK_MAX_MM = 1.5
-CARD_WHITE_MARK_MAX_ASPECT = 1.8
 ATLAS_ROW_HEIGHT = 80
 ATLAS_WIDTH = round(ATLAS_ROW_HEIGHT * CARD_WIDTH_MM / CARD_HEIGHT_MM)
 
@@ -315,12 +316,83 @@ def composite_native_card(dst: Image.Image, src: Image.Image) -> None:
     dst.alpha_composite(src.crop((0, 0, width, height)), (0, 0))
 
 
+def detect_top_registration_marks(
+    image: Image.Image,
+    silhouette: Image.Image,
+    dpi: int,
+) -> list[tuple[int, int, int, int]]:
+    """Find compact filled white blocks cut into the card's top black edge.
+
+    Detect them geometrically before edge cleanup instead of relying on white
+    connected-components. A PDF crop can include a sub-pixel row of white page
+    above the card, which may connect a legitimate top block to the page and
+    make connectivity-based cleanup erase it.
+    """
+    width, _height = image.size
+    pixels = image.load()
+    silhouette_px = silhouette.load()
+    max_mark = max(2, round(CARD_WHITE_MARK_MAX_MM * dpi / 25.4))
+    min_width = max(2, round(CARD_WHITE_MARK_MIN_WIDTH_MM * dpi / 25.4))
+    min_height = max(2, round(CARD_WHITE_MARK_MIN_HEIGHT_MM * dpi / 25.4))
+    probe_height = max_mark
+    minimum_column_fill = max(2, min_height // 2)
+
+    candidate_columns: list[int] = []
+    for x in range(width):
+        bright = 0
+        for y in range(probe_height):
+            if silhouette_px[x, y] == 0:
+                continue
+            r, g, b, a = pixels[x, y]
+            if (
+                a
+                and r >= 150
+                and g >= 150
+                and b >= 150
+                and max(r, g, b) - min(r, g, b) <= 35
+            ):
+                bright += 1
+        if bright >= minimum_column_fill:
+            candidate_columns.append(x)
+
+    marks: list[tuple[int, int, int, int]] = []
+    for x0, x1 in _runs(candidate_columns):
+        mark_width = x1 - x0 + 1
+        if mark_width < min_width or mark_width > max_mark:
+            continue
+
+        ys: list[int] = []
+        for x in range(x0, x1 + 1):
+            for y in range(probe_height):
+                if silhouette_px[x, y] == 0:
+                    continue
+                r, g, b, a = pixels[x, y]
+                if (
+                    a
+                    and r >= 150
+                    and g >= 150
+                    and b >= 150
+                    and max(r, g, b) - min(r, g, b) <= 35
+                ):
+                    ys.append(y)
+        if not ys:
+            continue
+        y0 = min(ys)
+        y1 = max(ys)
+        mark_height = y1 - y0 + 1
+        if mark_height < min_height or mark_height > max_mark:
+            continue
+        marks.append((x0, y0, x1, y1))
+
+    return marks
+
+
 def suppress_boundary_white_artifacts(
     image: Image.Image,
     silhouette: Image.Image,
     dpi: int,
 ) -> None:
-    """Paint PDF edge artifacts black without hollowing compact white top marks."""
+    """Paint line-like/connected PDF edge whites back to black substrate."""
     width, height = image.size
     pixels = image.load()
     silhouette_px = silhouette.load()
@@ -347,7 +419,13 @@ def suppress_boundary_white_artifacts(
             if silhouette_px[x, y] == 0:
                 continue
             r, g, b, a = pixels[x, y]
-            if a and r >= 150 and g >= 150 and b >= 150 and max(r, g, b) - min(r, g, b) <= 35:
+            if (
+                a
+                and r >= 150
+                and g >= 150
+                and b >= 150
+                and max(r, g, b) - min(r, g, b) <= 35
+            ):
                 white[y * width + x] = 1
 
     seen = bytearray(width * height)
@@ -367,16 +445,10 @@ def suppress_boundary_white_artifacts(
             seen[index] = 1
             component: list[tuple[int, int]] = []
             touches_boundary_zone = False
-            min_x = max_x = x0
-            min_y = max_y = y0
 
             while stack:
                 x, y = stack.pop()
                 component.append((x, y))
-                min_x = min(min_x, x)
-                max_x = max(max_x, x)
-                min_y = min(min_y, y)
-                max_y = max(max_y, y)
                 if inner_px[x, y] == 0:
                     touches_boundary_zone = True
 
@@ -390,34 +462,10 @@ def suppress_boundary_white_artifacts(
                         seen[ni] = 1
                         stack.append((nx, ny))
 
-            if not touches_boundary_zone:
-                continue
+            if touches_boundary_zone:
+                for x, y in component:
+                    pixels[x, y] = (0, 0, 0, 255)
 
-            component_width = max_x - min_x + 1
-            component_height = max_y - min_y + 1
-            max_mark_px = max(2, round(CARD_WHITE_MARK_MAX_MM * dpi / 25.4))
-            aspect = max(component_width, component_height) / max(
-                1, min(component_width, component_height)
-            )
-            compact_mark = (
-                component_width <= max_mark_px
-                and component_height <= max_mark_px
-                and aspect <= CARD_WHITE_MARK_MAX_ASPECT
-            )
-            if compact_mark:
-                # These are the small white registration/index blocks printed
-                # along the top of the HP card. Some PAC PDF rasterizations
-                # contain an outlined/hollow-looking centre after antialiasing.
-                # The source manuals show them as solid blocks, so normalize the
-                # entire compact component bbox to opaque white.
-                for y in range(min_y, max_y + 1):
-                    for x in range(min_x, max_x + 1):
-                        if silhouette_px[x, y] != 0:
-                            pixels[x, y] = (255, 255, 255, 255)
-                continue
-
-            for x, y in component:
-                pixels[x, y] = (0, 0, 0, 255)
 
 
 def normalize_card_artwork(image: Image.Image, dpi: int) -> Image.Image:
@@ -436,7 +484,19 @@ def normalize_card_artwork(image: Image.Image, dpi: int) -> Image.Image:
     # Enforce the canonical silhouette after compositing page pixels, then turn
     # edge-only PDF whites/antialias lines back into the black card substrate.
     normalized.putalpha(silhouette)
+    top_marks = detect_top_registration_marks(normalized, silhouette, dpi)
     suppress_boundary_white_artifacts(normalized, silhouette, dpi)
+
+    # Repaint the source-derived top registration blocks after edge cleanup.
+    # This makes their filled state independent of whether the PDF rasterizer
+    # connected them to a one-pixel white page fringe.
+    pixels = normalized.load()
+    silhouette_px = silhouette.load()
+    for x0, y0, x1, y1 in top_marks:
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if silhouette_px[x, y] != 0:
+                    pixels[x, y] = (255, 255, 255, 255)
 
     # The UI owns the physical chamfer polygon. Keep the raster face itself
     # fully opaque on a black substrate so transparent PDF/page pixels cannot
@@ -623,6 +683,29 @@ def atlas_command(args: argparse.Namespace) -> None:
             raise SystemExit(
                 "Atlas validation failed: canonical card rows must be fully opaque"
             )
+
+        if "SD1-01A" in refs:
+            row_index = refs.index("SD1-01A")
+            y_base = row_index * args.row_height
+            bright_columns: list[int] = []
+            for x in range(args.width):
+                bright = 0
+                for y in range(y_base, y_base + min(8, args.row_height)):
+                    r, g, b, _a = check.getpixel((x, y))
+                    if r >= 220 and g >= 220 and b >= 220:
+                        bright += 1
+                if bright >= 2:
+                    bright_columns.append(x)
+            runs = [
+                (x0, x1)
+                for x0, x1 in _runs(bright_columns)
+                if 2 <= x1 - x0 + 1 <= 12
+            ]
+            if len(runs) < 2:
+                raise SystemExit(
+                    "Atlas validation failed: SD1-01A must retain at least two "
+                    f"filled top registration blocks; found runs {runs}"
+                )
     print(
         f"Valid RGBA atlas: {out} "
         f"({args.width}x{args.row_height * len(rows)}, {len(rows)} rows)"
