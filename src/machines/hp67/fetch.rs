@@ -489,11 +489,18 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        backplane.drive(
-            Hp67Net::Isa,
-            ACT_IS_DRIVER,
-            act.drive_for_bit(expected_bit, act_state)?,
-        );
+        let act_drive = match act.drive_for_bit(expected_bit, act_state) {
+            Ok(drive) => drive,
+            Err(ActDisplaySerialError::UnsupportedModifier { .. })
+                if display_data_serial_bit(expected_bit).is_some() =>
+            {
+                let serial_bit = display_data_serial_bit(expected_bit)
+                    .expect("guarded display bit must have a serial index");
+                wired_high_drive(((HP67_ROM0_BLANK_CODE >> serial_bit) & 1) != 0)
+            }
+            Err(error) => return Err(error.into()),
+        };
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
         backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
 
         if let Some(endpoint) = rom0.as_deref_mut() {
@@ -924,6 +931,42 @@ mod tests {
                 next_word_bit: 0,
             })
         );
+    }
+
+    #[test]
+    fn unsupported_transient_display_modifier_does_not_abort_shared_rom_fetch() {
+        struct OneWordRom;
+        impl Hp67RomWordSource for OneWordRom {
+            fn read_word(&self, address: u16) -> Option<u16> {
+                (address == 0x123).then_some(0x2ab)
+            }
+        }
+
+        let source = OneWordRom;
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+        state.a[0] = 0x05;
+        state.b[0] = 0x05;
+
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0x123);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+
+        let result = run_structural_display_fetch_cycle(
+            &mut backplane,
+            0x123,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("unknown transient B modifier must not disable instruction fetch");
+
+        assert_eq!(result.fetched_word, 0x2ab);
+        assert_eq!(result.display_byte, HP67_ROM0_BLANK_CODE);
+        assert_eq!(result.str_event.scan_slot, 1);
     }
 
     #[test]
