@@ -181,10 +181,14 @@ impl ProgramLibraryEntry {
                 if emitted > 0 {
                     listing.push('\n');
                 }
+                let header_id = track
+                    .word(0)
+                    .map(|word| ((word >> 24) & 0x0f) as u8)
+                    .unwrap_or(0);
                 append_program_track_listing(
                     &mut listing,
                     track,
-                    track.word(0).map(|word| ((word >> 24) & 0x0f) as u8).unwrap_or(0),
+                    header_id,
                     side_number,
                     side_count > 1,
                 )?;
@@ -246,11 +250,8 @@ fn append_program_track_listing(
     match header_id {
         3 | 4 => {
             if show_side_header {
-                writeln!(
-                    listing,
-                    "SIDE {side_number}  ·  PROGRAM HEADER {header_id}"
-                )
-                .expect("writing to String cannot fail");
+                writeln!(listing, "SIDE {side_number}  ·  PROGRAM HEADER {header_id}")
+                    .expect("writing to String cannot fail");
                 writeln!(listing, "--------------------------------")
                     .expect("writing to String cannot fail");
             }
@@ -269,20 +270,14 @@ fn append_program_track_listing(
             }
         }
         1 | 2 => {
-            writeln!(
-                listing,
-                "SIDE {side_number}  ·  DATA CARD (HEADER {header_id})"
-            )
-            .expect("writing to String cannot fail");
+            writeln!(listing, "SIDE {side_number}  ·  DATA CARD (HEADER {header_id})")
+                .expect("writing to String cannot fail");
             writeln!(listing, "No user-program listing is stored on this side.")
                 .expect("writing to String cannot fail");
         }
         header => {
-            writeln!(
-                listing,
-                "SIDE {side_number}  ·  UNKNOWN CARD HEADER {header}"
-            )
-            .expect("writing to String cannot fail");
+            writeln!(listing, "SIDE {side_number}  ·  UNKNOWN CARD HEADER {header}")
+                .expect("writing to String cannot fail");
         }
     }
 
