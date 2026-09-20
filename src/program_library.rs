@@ -94,7 +94,7 @@ impl ProgramLibraryEntry {
         self.parts.len()
     }
 
-    pub const fn artwork_atlas_row(&self) -> Option<usize> {
+    pub fn artwork_atlas_row(&self) -> Option<usize> {
         match self.reference {
             "SD1-01A" => Some(0),
             "SD1-02A" => Some(1),
