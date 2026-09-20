@@ -1210,11 +1210,19 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(entries.len(), 8);
         assert_eq!(
-            entries.iter().map(|entry| entry.reference).collect::<Vec<_>>(),
-            ["CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08"]
+            entries
+                .iter()
+                .map(|entry| entry.reference)
+                .collect::<Vec<_>>(),
+            [
+                "CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08"
+            ]
         );
         assert_eq!(
-            entries.iter().map(|entry| entry.track_count()).sum::<usize>(),
+            entries
+                .iter()
+                .map(|entry| entry.track_count())
+                .sum::<usize>(),
             9
         );
     }
