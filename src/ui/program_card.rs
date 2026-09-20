@@ -238,7 +238,7 @@ pub fn paint(
                 view.face_texture,
                 view.phase_progress.clamp(0.0, 1.0),
                 scale,
-                view.rotated_180,
+                false,
             );
         }
         ProgramCardPhase::InWindow => {
@@ -262,7 +262,7 @@ pub fn paint(
                 view.face_texture,
                 CardPalette::holder(),
                 scale,
-                view.rotated_180,
+                false,
             );
             paint_holder_right_frame_mask(ui.painter(), photo, body);
         }
@@ -859,6 +859,14 @@ mod tests {
         assert!((CARD_END_CHAMFER_MM - 4.2).abs() < 0.0001);
         assert!(CARD_END_CHAMFER_MM < CARD_HEIGHT_MM * 0.5);
         assert_eq!(MOON_ROCKET_LANDER_CARD.top_marks.len(), 3);
+    }
+
+    #[test]
+    fn holder_orientation_is_visual_only_and_always_upright() {
+        assert!(matches!(ProgramCardPhase::InWindow, ProgramCardPhase::InWindow));
+        // Logical CardInsertionEnd is intentionally owned by app state. The holder
+        // renderer always passes rotated_180=false so a reversed next insertion
+        // never makes the printed card face appear upside down in the holder.
     }
 
     #[test]
