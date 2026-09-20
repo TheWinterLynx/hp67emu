@@ -862,14 +862,6 @@ mod tests {
     }
 
     #[test]
-    fn holder_orientation_is_visual_only_and_always_upright() {
-        assert!(matches!(ProgramCardPhase::InWindow, ProgramCardPhase::InWindow));
-        // Logical CardInsertionEnd is intentionally owned by app state. The holder
-        // renderer always passes rotated_180=false so a reversed next insertion
-        // never makes the printed card face appear upside down in the holder.
-    }
-
-    #[test]
     fn holder_is_an_aperture_not_a_card_resizer() {
         let photo = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(PHOTO_W, PHOTO_H));
         let window = source_to_screen(photo, CARD_WINDOW);
