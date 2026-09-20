@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""HP67 card artwork extractor v1.1\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
+"""HP67 card artwork extractor v1.2\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
 
 Workflow:
   1. Scan a PDF for wide dark magnetic-card strips.
   2. Review the generated HTML/candidate PNGs.
   3. Extract high-resolution PNGs, optionally naming them from a built-in
      PAC profile or a one-reference-per-line text file.
-  4. Optionally build/validate the 480x80-per-row atlas used by hp67emu.
+  4. Remove only page-white regions connected to the crop perimeter, making
+     them transparent while preserving white printing inside the black card.
+  5. Optionally build/validate the 480x80-per-row RGBA atlas used by hp67emu.
 
 Dependencies:
     py -m pip install pymupdf pillow
@@ -24,6 +26,7 @@ import argparse
 import csv
 import html
 import sys
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -254,17 +257,82 @@ def expanded_rect(rect: fitz.Rect, page_rect: fitz.Rect, margin_pt: float) -> fi
     return r & page_rect
 
 
+def remove_edge_paper(image: Image.Image, *, threshold: int = 235) -> Image.Image:
+    """Make page-white connected to the image perimeter transparent, then trim it.
+
+    HP PAC manuals print the card as a black strip on a white PDF page.  A PDF
+    crop therefore contains paper around the chamfers/notches even when the
+    detected geometry is correct.  The emulator already owns the physical card
+    silhouette, so that page paper must not become part of the card texture.
+
+    Flood-filling only near-white pixels reachable from the crop perimeter keeps
+    legitimate white text/graphics inside the black card opaque.
+    """
+    rgba = image.convert("RGBA")
+    width, height = rgba.size
+    pixels = rgba.load()
+    visited = bytearray(width * height)
+    queue: deque[tuple[int, int]] = deque()
+
+    def is_paper(x: int, y: int) -> bool:
+        r, g, b, a = pixels[x, y]
+        return a != 0 and r >= threshold and g >= threshold and b >= threshold
+
+    def enqueue(x: int, y: int) -> None:
+        index = y * width + x
+        if visited[index] or not is_paper(x, y):
+            return
+        visited[index] = 1
+        queue.append((x, y))
+
+    for x in range(width):
+        enqueue(x, 0)
+        enqueue(x, height - 1)
+    for y in range(height):
+        enqueue(0, y)
+        enqueue(width - 1, y)
+
+    while queue:
+        x, y = queue.popleft()
+        # Transparent pixels are deliberately black, not transparent-white:
+        # linear texture filtering can otherwise create a pale fringe.
+        pixels[x, y] = (0, 0, 0, 0)
+        if x > 0:
+            enqueue(x - 1, y)
+        if x + 1 < width:
+            enqueue(x + 1, y)
+        if y > 0:
+            enqueue(x, y - 1)
+        if y + 1 < height:
+            enqueue(x, y + 1)
+
+    bbox = rgba.getchannel("A").getbbox()
+    if bbox is None:
+        raise RuntimeError("Artwork cleanup removed the complete crop")
+    return rgba.crop(bbox)
+
+
+def clean_card_png(path: Path) -> None:
+    with Image.open(path) as source:
+        cleaned = remove_edge_paper(source)
+    cleaned.save(path, format="PNG", optimize=False)
+
+    # Decode again after writing.  This catches malformed PNG output at the
+    # extraction stage rather than later inside the Rust application.
+    with Image.open(path) as check:
+        check.load()
+        if check.mode != "RGBA":
+            raise RuntimeError(f"Artwork must be RGBA after cleanup: {path} ({check.mode})")
+        if check.width < 100 or check.height < 20:
+            raise RuntimeError(f"Suspiciously small extracted card {path}: {check.size}")
+
+
 def render_candidate(page: fitz.Page, rect: fitz.Rect, out: Path, dpi: int, margin_pt: float) -> None:
     clip = expanded_rect(rect, page.rect, margin_pt)
     pix = page.get_pixmap(matrix=fitz.Matrix(dpi / 72.0, dpi / 72.0), clip=clip, alpha=False)
     out.parent.mkdir(parents=True, exist_ok=True)
     pix.save(out)
-    with Image.open(out) as im:
-        im.verify()
-    # Re-open after verify because Pillow invalidates the decoder state.
-    with Image.open(out) as im:
-        if im.width < 100 or im.height < 20:
-            raise RuntimeError(f"Suspiciously small extracted card {out}: {im.size}")
+    clean_card_png(out)
 
 
 def write_review_html(out_dir: Path, pdf: Path, candidates: list[Candidate]) -> None:
@@ -377,16 +445,22 @@ def atlas_command(args: argparse.Namespace) -> None:
         if not path.is_file():
             raise SystemExit(f"Missing artwork: {path}")
         with Image.open(path) as src:
-            src = src.convert("RGB")
+            src = remove_edge_paper(src)
             # Fit inside the atlas cell without distorting the physical card.
+            # Any unused area stays transparent black so LINEAR sampling in the
+            # emulator cannot manufacture a white halo around the card.
             fitted = ImageOps.contain(src, (args.width, args.row_height), Image.Resampling.LANCZOS)
-            cell = Image.new("RGB", (args.width, args.row_height), "white")
+            cell = Image.new("RGBA", (args.width, args.row_height), (0, 0, 0, 0))
             x = (args.width - fitted.width) // 2
             y = (args.row_height - fitted.height) // 2
-            cell.paste(fitted, (x, y))
+            cell.alpha_composite(fitted, (x, y))
             rows.append(cell)
 
-    atlas = Image.new("RGB", (args.width, args.row_height * len(rows)), "white")
+    atlas = Image.new(
+        "RGBA",
+        (args.width, args.row_height * len(rows)),
+        (0, 0, 0, 0),
+    )
     for i, row in enumerate(rows):
         atlas.paste(row, (0, i * args.row_height))
     out = Path(args.out)
@@ -396,10 +470,22 @@ def atlas_command(args: argparse.Namespace) -> None:
     with Image.open(out) as check:
         check.verify()
     with Image.open(out) as check:
+        check.load()
         expected = (args.width, args.row_height * len(rows))
         if check.size != expected:
             raise SystemExit(f"Atlas validation failed: got {check.size}, expected {expected}")
-    print(f"Valid atlas: {out} ({args.width}x{args.row_height * len(rows)}, {len(rows)} rows)")
+        if check.mode != "RGBA":
+            raise SystemExit(f"Atlas validation failed: expected RGBA, got {check.mode}")
+        alpha_min, alpha_max = check.getchannel("A").getextrema()
+        if alpha_min != 0 or alpha_max != 255:
+            raise SystemExit(
+                "Atlas validation failed: expected both transparent outside-card pixels "
+                "and fully opaque artwork"
+            )
+    print(
+        f"Valid RGBA atlas: {out} "
+        f"({args.width}x{args.row_height * len(rows)}, {len(rows)} rows)"
+    )
 
 
 def add_detection_args(parser: argparse.ArgumentParser) -> None:
@@ -412,7 +498,7 @@ def add_detection_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-width", type=float, default=0.35, help="minimum card width/page width (default: 0.35)")
     parser.add_argument("--min-aspect", type=float, default=3.5, help="minimum width/height ratio (default: 3.5)")
     parser.add_argument("--expected", type=int, help="fail unless exactly this many cards are detected")
-    parser.add_argument("--margin-pt", type=float, default=2.0, help="extra PDF-point margin around detected card (default: 2.0)")
+    parser.add_argument("--margin-pt", type=float, default=0.0, help="extra PDF-point margin around detected card (default: 0.0; edge paper is made transparent)")
     naming = parser.add_mutually_exclusive_group()
     naming.add_argument("--profile", choices=sorted(PROFILES), help="built-in reference ordering")
     naming.add_argument("--references", help="text file: one card reference per line")
@@ -434,7 +520,7 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--manifest", required=True)
     extract.add_argument("--out", required=True)
     extract.add_argument("--dpi", type=int, default=600)
-    extract.add_argument("--margin-pt", type=float, default=2.0)
+    extract.add_argument("--margin-pt", type=float, default=0.0)
     extract.add_argument("--expected", type=int)
     naming = extract.add_mutually_exclusive_group()
     naming.add_argument("--profile", choices=sorted(PROFILES))
