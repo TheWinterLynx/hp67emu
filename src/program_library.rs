@@ -43,7 +43,11 @@ impl ProgramLibraryEntry {
                 card_name: self.title.to_owned(),
             });
         }
-        if self.parts.iter().any(|bytes| bytes.starts_with(b"HP67CARD")) {
+        if self
+            .parts
+            .iter()
+            .any(|bytes| bytes.starts_with(b"HP67CARD"))
+        {
             return Err(format!(
                 "{} {} mixes native .hp67card media with compatibility payloads",
                 self.reference, self.title
@@ -270,14 +274,20 @@ fn append_program_track_listing(
             }
         }
         1 | 2 => {
-            writeln!(listing, "SIDE {side_number}  ·  DATA CARD (HEADER {header_id})")
-                .expect("writing to String cannot fail");
+            writeln!(
+                listing,
+                "SIDE {side_number}  ·  DATA CARD (HEADER {header_id})"
+            )
+            .expect("writing to String cannot fail");
             writeln!(listing, "No user-program listing is stored on this side.")
                 .expect("writing to String cannot fail");
         }
         header => {
-            writeln!(listing, "SIDE {side_number}  ·  UNKNOWN CARD HEADER {header}")
-                .expect("writing to String cannot fail");
+            writeln!(
+                listing,
+                "SIDE {side_number}  ·  UNKNOWN CARD HEADER {header}"
+            )
+            .expect("writing to String cannot fail");
         }
     }
 
@@ -1344,8 +1354,8 @@ mod tests {
                 .map(|entry| entry.reference)
                 .collect::<Vec<_>>(),
             [
-                "CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08",
-                "CD-09", "CD-10", "CD-11", "CD-12",
+                "CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08", "CD-09",
+                "CD-10", "CD-11", "CD-12",
             ]
         );
         assert_eq!(
