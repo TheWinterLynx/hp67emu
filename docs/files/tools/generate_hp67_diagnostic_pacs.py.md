@@ -10,11 +10,11 @@ The diagnostic media must be reproducible from reviewed inputs instead of depend
 
 ## Relationships
 
-The tool mirrors the documented host-media layout implemented in `src/machines/hp67/magnetic_card.rs`: 34 28-bit records per logical track, 119 packed bytes per track, and the 250-byte `HP67CARD` v1 container. The native `.hp67card` files are the canonical generated media consumed directly by `src/program_library.rs`. Teenix parsing remains only to import the pre-existing SD1-15A compatibility source when reproducing its committed native container.
+The tool mirrors the documented host-media layout implemented in `src/machines/hp67/magnetic_card.rs`: 34 28-bit records per logical track, 119 packed bytes per track, and the 250-byte `HP67CARD` v1 container. The native `.hp67card` files are the canonical media consumed directly by `src/program_library.rs`. The diagnostic generator has no Teenix dependency; `.hpp` import compatibility is owned by the legacy-library path.
 
 ## Responsibilities
 
-Build 112 program bytes into the same record/nibble ordering decoded by the production Program Library; calculate record 34 as the low 28 bits of the running sum of records 1-33; emit native `.hp67card` containers; convert the existing SD1-15A compatibility pair without changing any record; validate the exact SD-15C native fixture by its pinned SHA-256 without regenerating or wrapping it; and support `--check` so a local gate can prove every generated binary is reproducible.
+Build 112 program bytes into the same record/nibble ordering decoded by the production Program Library; calculate record 34 as the low 28 bits of the running sum of records 1-33; emit native `.hp67card` containers; validate the committed native SD1-15A media directly; validate the exact SD-15C native fixture by its pinned SHA-256 without regenerating or wrapping it; and support `--check` so a local gate can prove every generated binary is reproducible.
 
 ## Implementation
 
