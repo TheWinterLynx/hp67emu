@@ -47,7 +47,8 @@ impl ProgramLibraryEntry {
                 .unwrap_or(imported.card_track);
 
             if let Some(name) = bitmap_name.as_deref() {
-                if name != imported.bitmap_name && self.physical_track_override(part_index).is_none()
+                if name != imported.bitmap_name
+                    && self.physical_track_override(part_index).is_none()
                 {
                     return Err(format!(
                         "{} {} groups mismatched card artwork IDs '{}' and '{}'",
