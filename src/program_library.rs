@@ -1,4 +1,8 @@
-use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticCard, TeenixHppImport};
+use std::fmt::Write;
+
+use hp67emu::machines::hp67::{
+    Hp67CardTrack, Hp67MagneticCard, Hp67MagneticTrack, TeenixHppImport,
+};
 
 use crate::ui::program_card::{ProgramCardArtwork, MOON_ROCKET_LANDER_CARD};
 
@@ -90,6 +94,76 @@ impl ProgramLibraryEntry {
         self.parts.len()
     }
 
+    pub fn program_listing(&self) -> Result<String, String> {
+        let mut listing = String::new();
+
+        for (part_index, bytes) in self.parts.iter().enumerate() {
+            let imported = TeenixHppImport::from_bytes(bytes).map_err(|error| {
+                format!("{} {}: invalid .hpp: {error:?}", self.reference, self.title)
+            })?;
+
+            if part_index > 0 {
+                listing.push('\n');
+            }
+
+            match imported.header_id {
+                3 | 4 => {
+                    if self.parts.len() > 1 {
+                        let side = self
+                            .physical_track_override(part_index)
+                            .unwrap_or(imported.card_track);
+                        let side_number = match side {
+                            Hp67CardTrack::Track1 => 1,
+                            Hp67CardTrack::Track2 => 2,
+                        };
+                        writeln!(
+                            listing,
+                            "SIDE {side_number}  ·  PROGRAM HEADER {}",
+                            imported.header_id
+                        )
+                        .expect("writing to String cannot fail");
+                        writeln!(listing, "--------------------------------")
+                            .expect("writing to String cannot fail");
+                    }
+
+                    let base_step = if imported.header_id == 4 { 113 } else { 1 };
+                    let program = program_bytes_from_track(&imported.track)?;
+                    for (offset, code) in program.into_iter().enumerate() {
+                        writeln!(
+                            listing,
+                            "{:03}  {:02X}  {}",
+                            base_step + offset,
+                            code,
+                            hp67_program_mnemonic(code)
+                        )
+                        .expect("writing to String cannot fail");
+                    }
+                }
+                1 | 2 => {
+                    writeln!(
+                        listing,
+                        "SIDE {}  ·  DATA CARD (HEADER {})",
+                        part_index + 1,
+                        imported.header_id
+                    )
+                    .expect("writing to String cannot fail");
+                    writeln!(listing, "No user-program listing is stored on this side.")
+                        .expect("writing to String cannot fail");
+                }
+                header => {
+                    writeln!(
+                        listing,
+                        "SIDE {}  ·  UNKNOWN CARD HEADER {header}",
+                        part_index + 1
+                    )
+                    .expect("writing to String cannot fail");
+                }
+            }
+        }
+
+        Ok(listing)
+    }
+
     fn physical_track_override(&self, part_index: usize) -> Option<Hp67CardTrack> {
         match (self.reference, part_index) {
             // HP's Standard Pac documents SD1-12A as one physical card whose two
@@ -100,6 +174,161 @@ impl ProgramLibraryEntry {
             ("SD1-12A", 1) => Some(Hp67CardTrack::Track2),
             _ => None,
         }
+    }
+}
+
+const PROGRAM_STEPS_PER_CARD_SIDE: usize = 112;
+
+fn program_bytes_from_track(track: &Hp67MagneticTrack) -> Result<[u8; PROGRAM_STEPS_PER_CARD_SIDE], String> {
+    let words = track
+        .words()
+        .ok_or_else(|| "program listing requested from an unrecorded track".to_owned())?;
+    let mut nibbles = [0u8; PROGRAM_STEPS_PER_CARD_SIDE * 2];
+    let mut output = 0usize;
+
+    // HP-67 program-card firmware stores one 14-nibble RAM register from each
+    // pair of seven-nibble CRC records, with the later record occupying the
+    // low-address half. Record 0 is the card header and record 33 is not part
+    // of the 112 user-program bytes.
+    for pair in 0..16 {
+        for record in [2 + pair * 2, 1 + pair * 2] {
+            let word = words[record];
+            for nibble in 0..7 {
+                nibbles[output] = ((word >> (nibble * 4)) & 0x0f) as u8;
+                output += 1;
+            }
+        }
+    }
+
+    let mut program = [0u8; PROGRAM_STEPS_PER_CARD_SIDE];
+    for (index, byte) in program.iter_mut().enumerate() {
+        *byte = nibbles[index * 2] | (nibbles[index * 2 + 1] << 4);
+    }
+    Ok(program)
+}
+
+fn hp67_operand(nibble: u8) -> String {
+    match nibble {
+        0x0..=0x9 => char::from(b'0' + nibble).to_string(),
+        0x0a => "A".to_owned(),
+        0x0b => "B".to_owned(),
+        0x0c => "C".to_owned(),
+        0x0d => "D".to_owned(),
+        0x0e => "E".to_owned(),
+        _ => "(i)".to_owned(),
+    }
+}
+
+fn hp67_program_mnemonic(code: u8) -> String {
+    let fixed = match code {
+        0x00 => Some("R/S"),
+        0x01 => Some("1/x"),
+        0x02 => Some("x^2"),
+        0x03 => Some("sqrt(x)"),
+        0x04 => Some("%"),
+        0x05 => Some("Sigma+"),
+        0x06 => Some("y^x"),
+        0x07 => Some("ln"),
+        0x08 => Some("e^x"),
+        0x09 => Some("R->P"),
+        0x0a => Some("SIN"),
+        0x0b => Some("COS"),
+        0x0c => Some("TAN"),
+        0x0d => Some("P->R"),
+        0x0e => Some("RTN"),
+        0x0f => Some("RCL Sigma"),
+        0x1a => Some("."),
+        0x1b => Some("ENTER"),
+        0x1c => Some("CHS"),
+        0x1d => Some("EEX"),
+        0x1e => Some("SPARE"),
+        0x1f => Some("/"),
+        0x20 => Some("PAUSE"),
+        0x21 => Some("n!"),
+        0x22 => Some("MEAN"),
+        0x23 => Some("SDEV"),
+        0x24 => Some("%CH"),
+        0x25 => Some("Sigma-"),
+        0x26 => Some("ABS"),
+        0x27 => Some("LOG"),
+        0x28 => Some("10^x"),
+        0x29 => Some("INT"),
+        0x2a => Some("ASIN"),
+        0x2b => Some("ACOS"),
+        0x2c => Some("ATAN"),
+        0x2d => Some("FRAC"),
+        0x2e => Some("RND"),
+        0x2f => Some("NOP"),
+        0x30 => Some("x<>y"),
+        0x31 => Some("RDN"),
+        0x32 => Some("CLx"),
+        0x33 => Some("ENG"),
+        0x34 => Some("FIX"),
+        0x35 => Some("PRTx"),
+        0x36 => Some("SCI"),
+        0x37 => Some("+"),
+        0x38 => Some("-"),
+        0x39 => Some("*"),
+        0x3a => Some("D->R"),
+        0x3b => Some("R->D"),
+        0x3c => Some("H->HMS"),
+        0x3d => Some("HMS->H"),
+        0x3e => Some("STO (i)"),
+        0x3f => Some("RCL (i)"),
+        0x40 => Some("HMS+"),
+        0x41 => Some("SPACE"),
+        0x42 => Some("PRSTK"),
+        0x43 => Some("LASTx"),
+        0x44 => Some("WDATA"),
+        0x45 => Some("MERGE"),
+        0x46 => Some("x<>I"),
+        0x47 => Some("R^"),
+        0x48 => Some("PI"),
+        0x49 => Some("DEG"),
+        0x4a => Some("RAD"),
+        0x4b => Some("GRAD"),
+        0x4c => Some("P<>S"),
+        0x4d => Some("CLREG"),
+        0x4e => Some("PREG"),
+        0x4f => Some("SPARE"),
+        0x50 => Some("x!=y"),
+        0x51 => Some("x=y"),
+        0x52 => Some("x>y"),
+        0x53 => Some("x!=0"),
+        0x54 => Some("x=0"),
+        0x55 => Some("x>0"),
+        0x56 => Some("x<0"),
+        0x57 => Some("x<=y"),
+        0x5c => Some("ISZ"),
+        0x5d => Some("ISZ (i)"),
+        0x5e => Some("DSZ"),
+        0x5f => Some("DSZ (i)"),
+        0x6e => Some("SPARE"),
+        0x6f => Some("DSP (i)"),
+        _ => None,
+    };
+    if let Some(name) = fixed {
+        return name.to_owned();
+    }
+
+    match code {
+        0x10..=0x19 => format!("{}", code - 0x10),
+        0x58..=0x5b => format!("F? {}", code - 0x58),
+        0x60..=0x69 => format!("DSP {}", code - 0x60),
+        0x6a..=0x6d => format!("CF {}", code - 0x6a),
+        0x70..=0x7f => format!("RCL {}", hp67_operand(code & 0x0f)),
+        0x80..=0x89 => format!("STO / {}", code & 0x0f),
+        0x8a..=0x8d => format!("SF {}", code - 0x8a),
+        0x8e => "SPARE".to_owned(),
+        0x8f => "STO / (i)".to_owned(),
+        0x90..=0x9f => format!("STO {}", hp67_operand(code & 0x0f)),
+        0xa0..=0xaf => format!("STO - {}", hp67_operand(code & 0x0f)),
+        0xb0..=0xbf => format!("GSB {}", hp67_operand(code & 0x0f)),
+        0xc0..=0xcf => format!("STO + {}", hp67_operand(code & 0x0f)),
+        0xd0..=0xdf => format!("GTO {}", hp67_operand(code & 0x0f)),
+        0xe0..=0xef => format!("STO * {}", hp67_operand(code & 0x0f)),
+        0xf0..=0xff => format!("LBL {}", hp67_operand(code & 0x0f)),
+        _ => format!("OP {code:02X}"),
     }
 }
 
@@ -752,6 +981,28 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn moon_rocket_listing_decodes_program_bytes_from_card_records() {
+        let entry = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "SD1-14A")
+            .expect("Moon Rocket Lander must be in the catalog");
+        let listing = entry.program_listing().expect("Moon Rocket listing must decode");
+        assert!(listing.contains("001  FA  LBL A"));
+        assert!(listing.contains("002  15  5"));
+    }
+
+    #[test]
+    fn continuation_card_listing_uses_second_half_step_numbers() {
+        let entry = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "20")
+            .expect("Fibonacci must be in the catalog");
+        let listing = entry.program_listing().expect("Fibonacci listing must decode");
+        assert!(listing.contains("SIDE 2"));
+        assert!(listing.lines().any(|line| line.starts_with("113  ")));
+    }
 
     #[test]
     fn catalog_contains_all_checked_in_hpp_programs() {
