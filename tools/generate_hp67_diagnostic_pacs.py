@@ -2,8 +2,8 @@
 """Regenerate/check the native HP-67 Standard diagnostic and Custom Diagnostic Pacs.
 
 Pure standard-library tool. Native .hp67card is the canonical diagnostic format. The tool
-regenerates synthetic native cards, verifies the exact supplied SD-15C native fixture, and uses
-legacy Teenix .hpp only as an import source for the pre-existing SD1-15A compatibility corpus.
+regenerates synthetic native cards and validates the committed SD1-15A and exact supplied SD-15C
+native fixtures directly. It has no Teenix dependency; .hpp compatibility is owned elsewhere.
 Program-card record 34 is the low 28 bits of the running sum of records 1-33.
 """
 
@@ -66,32 +66,6 @@ def checksum(words: list[int]) -> int:
     return sum(words[:33]) & MASK_28
 
 
-def parse_hpp(path: Path) -> list[int]:
-    decoded = bytes(byte ^ 0x55 for byte in path.read_bytes()).decode("ascii")
-    normalized = decoded.replace("\r\n", "\n").replace("\r", "\n")
-    lines = normalized.split("\n")
-    if lines[0].strip() != "NeWe":
-        raise ValueError(f"{path}: invalid Teenix magic")
-    card_data = "\n".join(lines[5:]).strip()
-    fields = card_data.split()
-    if len(fields) > 1:
-        nibbles = [int(field, 10) for field in fields]
-    else:
-        nibbles = [int(ch, 16) for ch in (fields[0] if fields else "")]
-    real = nibbles[21:21 + RECORDS * 7]
-    if len(real) != RECORDS * 7:
-        raise ValueError(f"{path}: invalid real nibble count {len(real)}")
-    words: list[int] = []
-    for record in range(RECORDS):
-        word = 0
-        for nibble in range(7):
-            word |= real[record * 7 + nibble] << (nibble * 4)
-        words.append(word)
-    if checksum(words) != words[-1]:
-        raise ValueError(f"{path}: source checksum mismatch")
-    return words
-
-
 def build_program_track(program: tuple[int, ...], header: int) -> list[int]:
     if len(program) > PROGRAM_STEPS:
         raise ValueError("program exceeds 112 steps")
@@ -149,30 +123,41 @@ def unpack_track(payload: bytes) -> list[int]:
     return words
 
 
-def parse_sd15c_native(path: Path) -> tuple[list[int], list[int]]:
+def parse_native_card(
+    path: Path,
+    *,
+    expected_sha256: str | None = None,
+) -> tuple[list[int] | None, list[int] | None]:
     raw = path.read_bytes()
     if len(raw) != 250 or raw[:8] != b"HP67CARD" or raw[8] != 1 or raw[11] != 0:
         raise ValueError(f"{path}: invalid HP67CARD v1 container")
-    if hashlib.sha256(raw).hexdigest() != SD15C_SHA256:
-        raise ValueError(f"{path}: exact SD-15C fixture SHA-256 changed")
-    if raw[9] & 1 == 0 or raw[10] & 1 == 0:
-        raise ValueError(f"{path}: SD-15C must contain both recorded tracks")
-    first = unpack_track(raw[12:131])
-    second = unpack_track(raw[131:250])
-    if checksum(first) != first[-1] or checksum(second) != second[-1]:
-        raise ValueError(f"{path}: SD-15C record checksum mismatch")
+    if expected_sha256 is not None and hashlib.sha256(raw).hexdigest() != expected_sha256:
+        raise ValueError(f"{path}: pinned native fixture SHA-256 changed")
+
+    first = unpack_track(raw[12:131]) if raw[9] & 1 else None
+    second = unpack_track(raw[131:250]) if raw[10] & 1 else None
+    for track in (first, second):
+        if track is not None and checksum(track) != track[-1]:
+            raise ValueError(f"{path}: native record checksum mismatch")
     return first, second
 
 
 def expected_files(root: Path) -> dict[Path, bytes]:
     result: dict[Path, bytes] = {}
     std = root / "programs" / "HP67" / "HP-67 Standard Pac"
-    first = parse_hpp(std / "SD1-15A_1 Diagnostic Program.hpp")
-    second = parse_hpp(std / "SD1-15A_2 Diagnostic Program.hpp")
-    result[std / "SD1-15A-Diagnostic-Program.hp67card"] = hp67card_bytes(first, second)
+    sd1_first, sd1_second = parse_native_card(
+        std / "SD1-15A-Diagnostic-Program.hp67card"
+    )
+    if sd1_first is None or sd1_second is None:
+        raise ValueError("SD1-15A native diagnostic must contain both recorded tracks")
 
     diagnostic_cards = root / "programs" / "HP67" / "HP-67 Diagnostic Cards"
-    parse_sd15c_native(diagnostic_cards / "SD-15C-Diagnostic-Program.hp67card")
+    sd15c_first, sd15c_second = parse_native_card(
+        diagnostic_cards / "SD-15C-Diagnostic-Program.hp67card",
+        expected_sha256=SD15C_SHA256,
+    )
+    if sd15c_first is None or sd15c_second is None:
+        raise ValueError("SD-15C native diagnostic must contain both recorded tracks")
 
     out = root / "programs" / "HP67" / "Custom Diagnostic Pacs"
     for diagnostic in DIAGNOSTICS:
