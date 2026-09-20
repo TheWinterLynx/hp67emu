@@ -551,10 +551,7 @@ mod tests {
         let mut words = sample_words(0x0004_2000);
         words[0] = 0x0300_0222;
         let encoded = encode_teenix(words);
-        let decoded = encoded
-            .iter()
-            .map(|byte| byte ^ 0x55)
-            .collect::<Vec<_>>();
+        let decoded = encoded.iter().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
         let decoded = String::from_utf8(decoded).unwrap().replace('\n', "\r");
         let encoded = decoded.bytes().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
 
