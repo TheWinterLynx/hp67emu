@@ -360,8 +360,7 @@ impl Hp67App {
                                 .id_source(("hp67-program-pack", pack))
                                 .default_open(false)
                                 .show(ui, |ui| {
-                                    for (index, entry) in PROGRAM_LIBRARY
-                                        [pack_start..pack_end]
+                                    for (index, entry) in PROGRAM_LIBRARY[pack_start..pack_end]
                                         .iter()
                                         .enumerate()
                                     {
@@ -393,7 +392,10 @@ impl Hp67App {
                             columns[1].label(format!("Reference: {}", entry.reference));
                         }
                         columns[1].label(format!("Pack: {}", entry.pack));
-                        columns[1].label(format!("Magnetic tracks supplied: {}", entry.track_count()));
+                        columns[1].label(format!(
+                            "Magnetic tracks supplied: {}",
+                            entry.track_count()
+                        ));
                         if let Some(pdf) = entry.source_pdf {
                             columns[1].label(format!("Artwork/manual source: {pdf}"));
                         } else {
