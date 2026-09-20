@@ -600,9 +600,7 @@ mod tests {
             .map(|ch| ch.to_digit(16).unwrap().to_string())
             .collect::<Vec<_>>()
             .join("\r");
-        let body = format!(
-            "{calculator}\r{bitmap}\r{card_name}\r{decimal_records}\r"
-        );
+        let body = format!("{calculator}\r{bitmap}\r{card_name}\r{decimal_records}\r");
         let decoded = format!("NeWe\r{}\r{body}", body.len());
         let encoded = decoded.bytes().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
 
