@@ -91,6 +91,19 @@ For the current integration milestone, M13 is functionally complete when the bra
 
 The closure gate must not be recorded as passed until it is executed on a machine with the Rust toolchain.
 
+## Final closure gate — 2026-09-20
+
+The full local M13 closure gate passed after the checked-in Teenix corpus exposed and locked three compatibility details: legacy CR-only line endings, decimal nibble records, and least-significant-nibble-first record serialization. The catalog also established that firmware header class is not universally a physical-side identifier: SD1-12A contains two independent header-3 program sides and is mapped explicitly to opposite physical card tracks.
+
+The successful gate executed, in order:
+
+- `cargo fmt --all -- --check`;
+- focused `program_library::tests::every_catalog_entry_decodes_to_one_physical_card`;
+- `RUSTFLAGS=-Dwarnings cargo test --locked --all-targets`;
+- `cargo build --locked --release --bin hp67emu`.
+
+The command reached `M13 FULL CLOSURE GATE PASSED`. M13 is therefore closed for the integration milestone track. The three explicitly source-blocked lower-level electrical items documented above remain future electrical-fidelity work and are not hidden by this closure.
+
 
 ## Printed-face identity
 
