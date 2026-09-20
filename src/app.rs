@@ -323,7 +323,8 @@ impl Hp67App {
         let status = self.program_library_status.clone();
 
         egui::Window::new("HP-67 Program Card Library")
-            .default_size([520.0, 620.0])
+            .default_size([960.0, 680.0])
+            .min_width(780.0)
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.label(format!(
@@ -332,67 +333,111 @@ impl Hp67App {
                 ));
                 ui.separator();
 
-                egui::ScrollArea::vertical()
-                    .max_height(400.0)
-                    .show(ui, |ui| {
-                        let mut previous_pack = "";
-                        for (index, entry) in PROGRAM_LIBRARY.iter().enumerate() {
-                            if entry.pack != previous_pack {
-                                if !previous_pack.is_empty() {
-                                    ui.add_space(6.0);
+                ui.columns(2, |columns| {
+                    columns[0].set_min_width(320.0);
+                    columns[1].set_min_width(420.0);
+
+                    columns[0].strong("Program packs");
+                    columns[0].add_space(4.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(560.0)
+                        .show(&mut columns[0], |ui| {
+                            let mut pack_start = 0usize;
+                            while pack_start < PROGRAM_LIBRARY.len() {
+                                let pack = PROGRAM_LIBRARY[pack_start].pack;
+                                let mut pack_end = pack_start + 1;
+                                while pack_end < PROGRAM_LIBRARY.len()
+                                    && PROGRAM_LIBRARY[pack_end].pack == pack
+                                {
+                                    pack_end += 1;
                                 }
-                                ui.heading(entry.pack);
-                                previous_pack = entry.pack;
-                            }
-                            let label = if entry.reference.is_empty() {
-                                entry.title.to_owned()
-                            } else {
-                                format!("{} - {}", entry.reference, entry.title)
-                            };
-                            if ui
-                                .selectable_label(selected == Some(index), label)
-                                .clicked()
-                            {
-                                selected = Some(index);
-                            }
-                        }
-                    });
 
-                ui.separator();
-                if let Some(index) = selected {
-                    let entry = &PROGRAM_LIBRARY[index];
-                    ui.strong(entry.title);
-                    if !entry.reference.is_empty() {
-                        ui.label(format!("Reference: {}", entry.reference));
-                    }
-                    ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
-                    if let Some(pdf) = entry.source_pdf {
-                        ui.label(format!("Artwork/manual source: {pdf}"));
-                    } else {
-                        ui.label("Artwork/manual source: no pack PDF checked in");
-                    }
-                    if let Some(path) = entry.artwork_path {
-                        if Path::new(path).is_file() {
-                            ui.label(format!("Artwork: {path}"));
+                                egui::CollapsingHeader::new(format!(
+                                    "{} ({})",
+                                    pack,
+                                    pack_end - pack_start
+                                ))
+                                .id_source(("hp67-program-pack", pack))
+                                .default_open(false)
+                                .show(ui, |ui| {
+                                    for (index, entry) in PROGRAM_LIBRARY
+                                        [pack_start..pack_end]
+                                        .iter()
+                                        .enumerate()
+                                    {
+                                        let index = pack_start + index;
+                                        let label = if entry.reference.is_empty() {
+                                            entry.title.to_owned()
+                                        } else {
+                                            format!("{} - {}", entry.reference, entry.title)
+                                        };
+                                        if ui
+                                            .selectable_label(selected == Some(index), label)
+                                            .clicked()
+                                        {
+                                            selected = Some(index);
+                                        }
+                                    }
+                                });
+
+                                pack_start = pack_end;
+                            }
+                        });
+
+                    columns[1].strong("Program listing");
+                    columns[1].add_space(4.0);
+                    if let Some(index) = selected {
+                        let entry = &PROGRAM_LIBRARY[index];
+                        columns[1].heading(entry.title);
+                        if !entry.reference.is_empty() {
+                            columns[1].label(format!("Reference: {}", entry.reference));
+                        }
+                        columns[1].label(format!("Pack: {}", entry.pack));
+                        columns[1].label(format!("Magnetic tracks supplied: {}", entry.track_count()));
+                        if let Some(pdf) = entry.source_pdf {
+                            columns[1].label(format!("Artwork/manual source: {pdf}"));
                         } else {
-                            ui.label(format!("Artwork pending extraction: {path}"));
+                            columns[1].label("Artwork/manual source: no pack PDF checked in");
                         }
-                    }
+                        columns[1].separator();
 
-                    let reader_free = !self
-                        .live_machine
-                        .as_ref()
-                        .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
-                    if ui
-                        .add_enabled(reader_free, egui::Button::new("Load card"))
-                        .clicked()
-                    {
-                        load_requested = Some(index);
+                        match entry.program_listing() {
+                            Ok(listing) => {
+                                egui::ScrollArea::both()
+                                    .max_height(410.0)
+                                    .show(&mut columns[1], |ui| {
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(listing).monospace(),
+                                            )
+                                            .wrap(false),
+                                        );
+                                    });
+                            }
+                            Err(error) => {
+                                columns[1].label(format!("Cannot decode listing: {error}"));
+                            }
+                        }
+
+                        columns[1].separator();
+                        let reader_free = !self
+                            .live_machine
+                            .as_ref()
+                            .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
+                        if columns[1]
+                            .add_enabled(reader_free, egui::Button::new("Load card"))
+                            .clicked()
+                        {
+                            load_requested = Some(index);
+                        }
+                        if !reader_free {
+                            columns[1]
+                                .label("Remove the card from the reader before loading another one.");
+                        }
+                    } else {
+                        columns[1].label("Select a program from a pack to view its listing.");
                     }
-                    if !reader_free {
-                        ui.label("Remove the card from the reader before loading another one.");
-                    }
-                }
+                });
 
                 if let Some(status) = status.as_deref() {
                     ui.separator();
