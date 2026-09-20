@@ -343,16 +343,7 @@ impl TeenixHppImport {
         let (bitmap_name, body) = split_hpp_line(body, "bitmap name")?;
         let (card_name, card_data) = split_hpp_line(body, "card name")?;
 
-        let mut nibbles = Vec::new();
-        for ch in card_data.chars() {
-            if ch.is_ascii_whitespace() {
-                continue;
-            }
-            let Some(value) = ch.to_digit(16) else {
-                return Err(TeenixHppError::InvalidDataCharacter(ch));
-            };
-            nibbles.push(value as u8);
-        }
+        let nibbles = parse_teenix_nibbles(card_data)?;
 
         const DUMMY_NIBBLES: usize = 21;
         const REAL_NIBBLES: usize = HP67_CARD_RECORDS_PER_TRACK * 7;
@@ -414,10 +405,38 @@ pub enum TeenixHppError {
     InvalidLength(String),
     InvalidCalculator(String),
     InvalidDataCharacter(char),
+    InvalidDataToken(String),
     InvalidNibbleCount { expected: usize, actual: usize },
     ChecksumMirrorMismatch,
     UnsupportedHeaderId(u8),
     Magnetic(Hp67MagneticCardError),
+}
+
+fn parse_teenix_nibbles(card_data: &str) -> Result<Vec<u8>, TeenixHppError> {
+    let fields = card_data.split_ascii_whitespace().collect::<Vec<_>>();
+
+    if fields.len() > 1 {
+        let mut nibbles = Vec::with_capacity(fields.len());
+        for field in fields {
+            let value = field
+                .parse::<u8>()
+                .map_err(|_| TeenixHppError::InvalidDataToken(field.to_owned()))?;
+            if value > 0x0f {
+                return Err(TeenixHppError::InvalidDataToken(field.to_owned()));
+            }
+            nibbles.push(value);
+        }
+        return Ok(nibbles);
+    }
+
+    let mut nibbles = Vec::new();
+    for ch in fields.first().copied().unwrap_or_default().chars() {
+        let Some(value) = ch.to_digit(16) else {
+            return Err(TeenixHppError::InvalidDataCharacter(ch));
+        };
+        nibbles.push(value as u8);
+    }
+    Ok(nibbles)
 }
 
 fn split_hpp_line<'a>(
@@ -553,6 +572,38 @@ mod tests {
         let encoded = encode_teenix(words);
         let decoded = encoded.iter().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
         let decoded = String::from_utf8(decoded).unwrap().replace('\n', "\r");
+        let encoded = decoded.bytes().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
+
+        let imported = TeenixHppImport::from_bytes(&encoded).unwrap();
+        assert_eq!(imported.calculator_id, 67);
+        assert_eq!(imported.card_track, Hp67CardTrack::Track1);
+        assert_eq!(imported.track.words(), Some(&words));
+        assert!(imported.length_matches);
+    }
+
+    #[test]
+    fn teenix_import_accepts_decimal_nibble_records() {
+        let mut words = sample_words(0x0004_2000);
+        words[0] = 0x0300_0222;
+        let encoded = encode_teenix(words);
+        let decoded = encoded.iter().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
+        let decoded = String::from_utf8(decoded).unwrap();
+        let mut lines = decoded.lines();
+        assert_eq!(lines.next(), Some("NeWe"));
+        let _old_length = lines.next().unwrap();
+        let calculator = lines.next().unwrap();
+        let bitmap = lines.next().unwrap();
+        let card_name = lines.next().unwrap();
+        let compact = lines.next().unwrap();
+        let decimal_records = compact
+            .chars()
+            .map(|ch| ch.to_digit(16).unwrap().to_string())
+            .collect::<Vec<_>>()
+            .join("\r");
+        let body = format!(
+            "{calculator}\r{bitmap}\r{card_name}\r{decimal_records}\r"
+        );
+        let decoded = format!("NeWe\r{}\r{body}", body.len());
         let encoded = decoded.bytes().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
 
         let imported = TeenixHppImport::from_bytes(&encoded).unwrap();
