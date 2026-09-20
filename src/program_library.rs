@@ -94,6 +94,47 @@ impl ProgramLibraryEntry {
         self.parts.len()
     }
 
+    pub const fn artwork_atlas_row(&self) -> Option<usize> {
+        match self.reference {
+            "SD1-01A" => Some(0),
+            "SD1-02A" => Some(1),
+            "SD1-03A" => Some(2),
+            "SD1-04A" => Some(3),
+            "SD1-05A" => Some(4),
+            "SD1-06A" => Some(5),
+            "SD1-07A" => Some(6),
+            "SD1-08A" => Some(7),
+            "SD1-09A" => Some(8),
+            "SD1-10A" => Some(9),
+            "SD1-11B" => Some(10),
+            "SD1-12A" => Some(11),
+            "SD1-13A" => Some(12),
+            "SD1-14A" => Some(13),
+            "SD1-15A" => Some(14),
+            "GA1-01A" => Some(15),
+            "GA1-02A" => Some(16),
+            "GA1-03A" => Some(17),
+            "GA1-04A" => Some(18),
+            "GA1-05A" => Some(19),
+            "GA1-06A1" => Some(20),
+            "GA1-06A2" => Some(21),
+            "GA1-07A" => Some(22),
+            "GA1-08A" => Some(23),
+            "GA1-09A" => Some(24),
+            "GA1-10A" => Some(25),
+            "GA1-11A" => Some(26),
+            "GA1-12A" => Some(27),
+            "GA1-13A" => Some(28),
+            "GA1-14A" => Some(29),
+            "GA1-15A" => Some(30),
+            "GA1-16A" => Some(31),
+            "GA1-17A" => Some(32),
+            "GA1-18A" => Some(33),
+            "GA1-19A" => Some(34),
+            _ => None,
+        }
+    }
+
     pub fn program_listing(&self) -> Result<String, String> {
         let mut listing = String::new();
 
@@ -984,6 +1025,23 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_pdf_backed_card_has_a_unique_embedded_artwork_row() {
+        let mut rows = PROGRAM_LIBRARY
+            .iter()
+            .filter(|entry| entry.source_pdf.is_some())
+            .map(|entry| {
+                entry.artwork_atlas_row().unwrap_or_else(|| {
+                    panic!("{} {} lacks embedded PDF artwork", entry.reference, entry.title)
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 35);
+        rows.sort_unstable();
+        rows.dedup();
+        assert_eq!(rows, (0..35).collect::<Vec<_>>());
+    }
 
     #[test]
     fn moon_rocket_listing_decodes_program_bytes_from_card_records() {
