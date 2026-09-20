@@ -9,6 +9,7 @@ matching the checked-in Standard Pac diagnostic corpus.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,7 @@ MASK_28 = (1 << 28) - 1
 PROGRAM_STEPS = 112
 RECORDS = 34
 TRACK_BYTES = 119
+SD15C_SHA256 = "f626047e875d919bb22bf7b25bb0d58218955b07ff504f2f546239a2f1fdf75a"
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,17 @@ DIAGNOSTICS = (
                (0xFA, 0x13, 0x1C, 0x46, 0x32, 0xF0, 0x11, 0x37, 0x5C, 0xD0, 0x00)),
     Diagnostic("CD-08", "DSZ-Loop", "DSZ Loop", "3.00",
                (0xFA, 0x13, 0x46, 0x32, 0xF0, 0x11, 0x37, 0x5E, 0xD0, 0x00)),
+    Diagnostic("CD-09", "Long-DSZ-Burn-In", "Long DSZ Burn In", "2000.00",
+               (0xFA, 0x12, 0x10, 0x10, 0x10, 0x46, 0x32, 0xF0, 0x11, 0x37, 0x5E, 0xD0, 0x00)),
+    Diagnostic("CD-10", "Nested-GSB-Burn-In", "Nested GSB Burn In", "500.00",
+               (0xFA, 0x15, 0x10, 0x10, 0x46, 0x32, 0xF0, 0xB1, 0x5E, 0xD0, 0x00,
+                0xF1, 0xB2, 0x0E, 0xF2, 0x11, 0x37, 0x0E)),
+    Diagnostic("CD-11", "Function-Identity-Burn-In", "Function Identity Burn In", "1.00",
+               (0xFA, 0x11, 0x10, 0x10, 0x46, 0x11, 0xF0, 0x07, 0x08, 0x27, 0x28,
+                0x03, 0x02, 0x5E, 0xD0, 0x00)),
+    Diagnostic("CD-12", "Cross-Half-GSB-Burn-In", "Cross Half GSB Burn In", "500.00",
+               (0xFA, 0x12, 0x15, 0x10, 0x46, 0x32, 0xF0, 0xBE, 0x5E, 0xD0, 0x00),
+               (0xFE, 0xBD, 0x0E, 0xFD, 0x12, 0x37, 0x0E)),
 )
 
 
@@ -131,12 +144,53 @@ def hp67card_bytes(first: list[int] | None, second: list[int] | None) -> bytes:
     return bytes(out)
 
 
+def unpack_track(payload: bytes) -> list[int]:
+    if len(payload) != TRACK_BYTES:
+        raise ValueError(f"invalid track byte count {len(payload)}")
+    words: list[int] = []
+    bit_index = 0
+    for _ in range(RECORDS):
+        word = 0
+        for bit in range(27, -1, -1):
+            if payload[bit_index // 8] & (1 << (7 - bit_index % 8)):
+                word |= 1 << bit
+            bit_index += 1
+        words.append(word)
+    return words
+
+
+def parse_sd15c_native(path: Path) -> tuple[list[int], list[int]]:
+    raw = path.read_bytes()
+    if len(raw) != 250 or raw[:8] != b"HP67CARD" or raw[8] != 1 or raw[11] != 0:
+        raise ValueError(f"{path}: invalid HP67CARD v1 container")
+    if hashlib.sha256(raw).hexdigest() != SD15C_SHA256:
+        raise ValueError(f"{path}: exact SD-15C fixture SHA-256 changed")
+    if raw[9] & 1 == 0 or raw[10] & 1 == 0:
+        raise ValueError(f"{path}: SD-15C must contain both recorded tracks")
+    first = unpack_track(raw[12:131])
+    second = unpack_track(raw[131:250])
+    if checksum(first) != first[-1] or checksum(second) != second[-1]:
+        raise ValueError(f"{path}: SD-15C record checksum mismatch")
+    return first, second
+
+
 def expected_files(root: Path) -> dict[Path, bytes]:
     result: dict[Path, bytes] = {}
     std = root / "programs" / "HP67" / "HP-67 Standard Pac"
     first = parse_hpp(std / "SD1-15A_1 Diagnostic Program.hpp")
     second = parse_hpp(std / "SD1-15A_2 Diagnostic Program.hpp")
     result[std / "SD1-15A-Diagnostic-Program.hp67card"] = hp67card_bytes(first, second)
+
+    diagnostic_cards = root / "programs" / "HP67" / "HP-67 Diagnostic Cards"
+    sd15c_first, sd15c_second = parse_sd15c_native(
+        diagnostic_cards / "SD-15C-Diagnostic-Program.hp67card"
+    )
+    result[diagnostic_cards / "SD-15C-Diagnostic-Program_1.hpp"] = hpp_bytes(
+        "SD-15C", "Diagnostic Program", sd15c_first
+    )
+    result[diagnostic_cards / "SD-15C-Diagnostic-Program_2.hpp"] = hpp_bytes(
+        "SD-15C", "Diagnostic Program", sd15c_second
+    )
 
     out = root / "programs" / "HP67" / "Custom Diagnostic Pacs"
     for diagnostic in DIAGNOSTICS:
