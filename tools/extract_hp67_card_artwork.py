@@ -7,10 +7,11 @@ Workflow:
   3. Extract high-resolution PNGs, optionally naming them from a built-in
      PAC profile or a one-reference-per-line text file.
   4. Normalize every PDF crop at native DPI onto one exact physical-card canvas:
-     missing PDF area is filled black, oversize PDF area is center-cropped, and
-     only the physical chamfered silhouette is transparent outside.
-  5. Suppress line-like PDF edge artifacts and explicitly solid-fill compact
-     white registration marks at the top edge.
+     top/left registration stays fixed, missing right/bottom area is filled
+     black, and right/bottom oversize is cropped without stretching the artwork.
+  5. Detect compact top registration blocks geometrically before edge cleanup,
+     suppress PDF/page fringe independently, then repaint the detected blocks
+     solid white so a one-pixel page connection cannot hollow or erase them.
   6. Flatten the normalized card onto an opaque black canonical substrate so
      PDF/page transparency can never expose bright calculator-photo pixels.
   7. Downsample canonical cards into the 499x80 atlas with BOX area sampling so
