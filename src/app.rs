@@ -24,8 +24,8 @@ use crate::{
 const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
 const PROGRAM_LIBRARY_VIEWPORT_KEY: &str = "hp67-program-library-viewport";
 const CARD_SAVE_VIEWPORT_KEY: &str = "hp67-card-save-viewport";
-const CARD_ARTWORK_ATLAS_WIDTH: u32 = 600;
-const CARD_ARTWORK_ATLAS_ROW_HEIGHT: u32 = 100;
+const CARD_ARTWORK_ATLAS_WIDTH: u32 = 480;
+const CARD_ARTWORK_ATLAS_ROW_HEIGHT: u32 = 80;
 const CARD_ARTWORK_ATLAS_ROWS: u32 = 35;
 
 pub struct Hp67App {
