@@ -11,6 +11,7 @@ The documentation regression uses these companion files as the source-level owne
 - [src/panel.rs](files/src/panel.rs.md)
 - [src/ui/mod.rs](files/src/ui/mod.rs.md)
 - [src/ui/classic_display.rs](files/src/ui/classic_display.rs.md)
+- [src/ui/program_card.rs](files/src/ui/program_card.rs.md)
 - [src/ui/sliders.rs](files/src/ui/sliders.rs.md)
 - [src/ui/top_keys.rs](files/src/ui/top_keys.rs.md)
 
@@ -24,6 +25,7 @@ The documentation regression uses these companion files as the source-level owne
 - [src/emulation/trace.rs](files/src/emulation/trace.rs.md)
 - [src/machines/mod.rs](files/src/machines/mod.rs.md)
 - [src/machines/hp67/mod.rs](files/src/machines/hp67/mod.rs.md)
+- [src/machines/hp67/card_transport.rs](files/src/machines/hp67/card_transport.rs.md)
 - [src/machines/hp67/wiring.rs](files/src/machines/hp67/wiring.rs.md)
 - [src/machines/hp67/machine.rs](files/src/machines/hp67/machine.rs.md)
 - [src/machines/hp67/display_snapshot.rs](files/src/machines/hp67/display_snapshot.rs.md)

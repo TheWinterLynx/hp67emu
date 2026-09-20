@@ -14,3 +14,6 @@ Interpolate visual actuator position, restore the exposed track cleanly, avoid c
 
 ## Implementation
 Defines source-photo crop rectangles for each actuator/track, uses egui's timed boolean animation, repaints the slot from a clean track sample, then draws only the ribbed actuator at the translated position. Future electrical switch state will replace the temporary semantic state input.
+
+
+RUN legend regression guard: the current renderer repaints the entire mode-slider clip, so its effective right paint boundary must stop at source x=700. The older `f195891d` implementation used an outer clip ending at x=702 but only erased through x=700; carrying 702 into the later full-slot renderer reintroduced the cut `R`. The actuator itself ends at x=698, leaving a 2-source-pixel cleanup margin while keeping the anti-aliased `RUN` legend untouched. `mode_slider_cleanup_never_reaches_run_legend` locks this effective boundary.

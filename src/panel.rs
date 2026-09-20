@@ -4,7 +4,10 @@ use eframe::egui::{
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67State, KeyAction, UiEvent},
-    ui::classic_display,
+    ui::{
+        classic_display,
+        program_card::{self, ProgramCardView},
+    },
 };
 
 const PHOTO_W: f32 = 928.0;
@@ -209,6 +212,12 @@ const KEYS: &[PhotoKey] = &[
 pub struct Hp67PanelOutput {
     pub events: Vec<UiEvent>,
     pub key_contact: Option<KeyAction>,
+    pub card_reader_clicked: bool,
+    pub blank_card_requested: bool,
+    pub card_waiting_reader_clicked: bool,
+    pub card_parked_left_clicked: bool,
+    pub card_parked_left_double_clicked: bool,
+    pub card_window_clicked: bool,
 }
 
 pub struct Hp67Panel;
@@ -219,6 +228,7 @@ impl Hp67Panel {
         state: &Hp67State,
         display: &HardwareDisplayFrame,
         photo: &TextureHandle,
+        card_view: ProgramCardView<'_>,
     ) -> Hp67PanelOutput {
         let available = ui.available_size();
         let (host, _) = ui.allocate_exact_size(available, Sense::hover());
@@ -226,6 +236,12 @@ impl Hp67Panel {
             return Hp67PanelOutput {
                 events: Vec::new(),
                 key_contact: None,
+                card_reader_clicked: false,
+                blank_card_requested: false,
+                card_waiting_reader_clicked: false,
+                card_parked_left_clicked: false,
+                card_parked_left_double_clicked: false,
+                card_window_clicked: false,
             };
         }
 
@@ -237,6 +253,8 @@ impl Hp67Panel {
             Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)),
             Color32::WHITE,
         );
+
+        let card_ui = program_card::paint(ui, photo_rect, photo, card_view);
 
         let mut events = Vec::new();
         let mut key_contact = None;
@@ -309,6 +327,12 @@ impl Hp67Panel {
         Hp67PanelOutput {
             events,
             key_contact,
+            card_reader_clicked: card_ui.reader_clicked,
+            blank_card_requested: card_ui.blank_card_requested,
+            card_waiting_reader_clicked: card_ui.waiting_reader_clicked,
+            card_parked_left_clicked: card_ui.parked_left_clicked,
+            card_parked_left_double_clicked: card_ui.parked_left_double_clicked,
+            card_window_clicked: card_ui.window_clicked,
         }
     }
 }

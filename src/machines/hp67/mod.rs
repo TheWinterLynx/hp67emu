@@ -10,6 +10,8 @@ pub mod act_serial_execution;
 pub mod act_serial_result;
 pub mod act_serial_state;
 pub mod architectural;
+pub mod card_flux;
+pub mod card_transport;
 pub mod crc;
 pub mod display;
 pub mod display_snapshot;
@@ -18,6 +20,7 @@ pub mod hp67firmware;
 pub mod isa;
 pub mod keyboard;
 pub mod machine;
+pub mod magnetic_card;
 pub mod timing;
 pub mod wiring;
 
@@ -38,9 +41,20 @@ pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation,
 };
+pub use card_flux::{
+    Hp67FluxCell, Hp67PhysicalFluxTrack, Hp67SelfClockingFluxPair,
+    HP67_PHYSICAL_FLUX_TRACKS_PER_LOGICAL_TRACK,
+};
+pub use card_transport::{
+    Hp67CardSpeed, Hp67CardSpeedError, Hp67CardTransport, Hp67CardTransportError,
+    HP67_MAX_CARD_SPEED_PERCENT, HP67_MIN_CARD_SPEED_PERCENT, HP67_NOMINAL_CARD_RECORD_US,
+};
 pub use crc::{
-    decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction, CRC_FLAG_COUNT,
-    CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
+    decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
+    CRC_CARD_WORD_BITS, CRC_CARD_WORD_MASK, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
+    CRC_FLAG_COUNT, CRC_FLAG_F7_STATUS, CRC_FLAG_MOTOR_ON, CRC_FLAG_PROGRAM_MODE,
+    CRC_FLAG_WRITE_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS, CRC_READ_BUFFER_COUNT,
+    CRC_WRITE_BUFFER_COUNT,
 };
 pub use display::{
     decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, CathodeScanError,
@@ -62,6 +76,12 @@ pub use isa::{
 };
 pub use keyboard::{Hp67Key, Hp67Keyboard, HP67_KEY_PRESSED_STATUS_BIT};
 pub use machine::Hp67ElectricalBackplane;
+pub use magnetic_card::{
+    CardInsertionEnd, Hp67CardTrack, Hp67MagneticCard, Hp67MagneticCardError, Hp67MagneticTrack,
+    TeenixHppError, TeenixHppImport, TrackMedia, HP67_CARD_BITS_PER_TRACK,
+    HP67_CARD_CONTAINER_BYTES, HP67_CARD_LOGICAL_BYTES, HP67_CARD_LOGICAL_BYTES_PER_TRACK,
+    HP67_CARD_RECORDS_PER_TRACK,
+};
 pub use timing::{
     display_data_serial_bit, isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow,
     BITS_PER_DIGIT, BITS_PER_WORD, DIGITS_PER_WORD, DISPLAY_DATA_BITS, DISPLAY_DATA_FIRST_BIT,

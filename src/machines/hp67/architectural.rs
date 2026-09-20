@@ -2,7 +2,7 @@
 //!
 //! This layer exists to run long stretches of real firmware while preserving chip boundaries.
 //! It is not the final electrical machine: serial fetch is already external to this module,
-//! while CRC card-data ports and physical RAM/DATA timing remain explicit stop conditions.
+//! while physical RAM/DATA timing remains an explicit lower-level boundary.
 
 use super::{
     act::{
@@ -11,7 +11,7 @@ use super::{
     },
     crc::{
         decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
-        CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
+        CRC_FLAG_CARD_PRESENT, CRC_FLAG_PROGRAM_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS,
     },
     isa::ROM_WORD_MASK,
 };
@@ -22,6 +22,14 @@ pub enum Hp67ArchitecturalOperation {
     CrcControl {
         instruction: CrcInstruction,
         condition: Option<bool>,
+    },
+    CrcDataRead {
+        address: u8,
+        card_word: u32,
+    },
+    CrcDataWrite {
+        address: u8,
+        card_word: u32,
     },
 }
 
@@ -38,7 +46,6 @@ pub enum Hp67ArchitecturalError {
     OpcodeOutOfRange(u16),
     Act(ActError),
     Crc(CrcArchitecturalError),
-    CrcDataPortNotModeled { pc: u16, address: u8, write: bool },
 }
 
 impl From<ActError> for Hp67ArchitecturalError {
@@ -93,6 +100,12 @@ impl Hp67ArchitecturalMachine {
         Ok(())
     }
 
+    pub fn set_card_present(&mut self, present: bool) -> Result<(), Hp67ArchitecturalError> {
+        self.crc
+            .set_external_flag(CRC_FLAG_CARD_PRESENT as u8, present)?;
+        Ok(())
+    }
+
     /// Execute one already-fetched HP-67 word with ACT/CRC ownership resolved.
     ///
     /// CRC opcodes are external peripheral commands, not ACT specials. The ACT still performs
@@ -143,10 +156,56 @@ impl Hp67ArchitecturalMachine {
         }
 
         if let Some((address, write)) = self.pending_crc_data_access(word) {
-            return Err(Hp67ArchitecturalError::CrcDataPortNotModeled { pc, address, write });
+            if write {
+                return self.execute_crc_data_write(word, address);
+            }
+            return self.execute_crc_data_read(word, address);
         }
 
         self.execute_act_word(word)
+    }
+
+    fn execute_crc_data_read(
+        &mut self,
+        word: u16,
+        address: u8,
+    ) -> Result<Hp67ArchitecturalExecution, Hp67ArchitecturalError> {
+        let boundary = self.act.execute_word(&mut self.ram, word)?;
+        let card_word = self.crc.take_read_word()?;
+
+        for digit in 0..7 {
+            let nibble = ((card_word >> (digit * 4)) & 0x0f) as u8;
+            self.act.state.c[digit] = nibble;
+            self.act.state.c[7 + digit] = nibble;
+        }
+
+        Ok(Hp67ArchitecturalExecution {
+            pc: boundary.pc,
+            word,
+            next_pc: boundary.next_pc,
+            operation: Hp67ArchitecturalOperation::CrcDataRead { address, card_word },
+        })
+    }
+
+    fn execute_crc_data_write(
+        &mut self,
+        word: u16,
+        address: u8,
+    ) -> Result<Hp67ArchitecturalExecution, Hp67ArchitecturalError> {
+        let boundary = self.act.execute_word(&mut self.ram, word)?;
+
+        let mut card_word = 0u32;
+        for digit in (7..14).rev() {
+            card_word = (card_word << 4) | u32::from(self.act.state.c[digit] & 0x0f);
+        }
+        self.crc.queue_write_word(card_word)?;
+
+        Ok(Hp67ArchitecturalExecution {
+            pc: boundary.pc,
+            word,
+            next_pc: boundary.next_pc,
+            operation: Hp67ArchitecturalOperation::CrcDataWrite { address, card_word },
+        })
     }
 
     fn execute_act_word(
@@ -219,6 +278,17 @@ mod tests {
     }
 
     #[test]
+    fn crc_card_present_switch_pulses_act_s3_without_clearing_external_contact() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine
+            .set_card_present(true)
+            .expect("card-present switch must exist");
+        machine.execute_word(0o560).expect("CRC test must execute");
+        assert!(machine.act.state.status[3]);
+        assert_eq!(machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
+    }
+
+    #[test]
     fn then_goto_data_bypasses_crc_decoder() {
         let mut machine = Hp67ArchitecturalMachine::default();
         machine.act.state.pc = 0x800;
@@ -233,17 +303,105 @@ mod tests {
     }
 
     #[test]
-    fn crc_data_port_is_an_explicit_hardware_boundary() {
+    fn crc_read_port_consumes_transport_word_and_duplicates_seven_nibbles() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_READ_ADDRESS;
+        machine
+            .crc
+            .present_read_word(0x0765_4321)
+            .expect("transport word must latch");
+
+        let execution = machine
+            .execute_word(0o0070)
+            .expect("CRC read port must execute");
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataRead {
+                address: CRC_RAM_READ_ADDRESS,
+                card_word: 0x0765_4321,
+            }
+        );
+        assert_eq!(&machine.act.state.c[0..7], &[1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(&machine.act.state.c[7..14], &[1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(machine.crc.buffered_read_word(), None);
+    }
+
+    #[test]
+    fn firmware_register_read_11_selects_crc_0x9b_and_consumes_record() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
+        machine
+            .crc
+            .present_read_word(0x0123_4567)
+            .expect("transport word must latch");
+
+        let execution = machine
+            .execute_word(0o1370)
+            .expect("register -> c 11 must read CRC buffer");
+        assert_eq!(machine.act.state.ram_address, CRC_RAM_READ_ADDRESS);
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataRead {
+                address: CRC_RAM_READ_ADDRESS,
+                card_word: 0x0123_4567,
+            }
+        );
+        assert_eq!(&machine.act.state.c[0..7], &[7, 6, 5, 4, 3, 2, 1]);
+        assert_eq!(&machine.act.state.c[7..14], &[7, 6, 5, 4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn crc_read_port_without_transport_word_is_transactional() {
         let mut machine = Hp67ArchitecturalMachine::default();
         machine.act.state.ram_address = CRC_RAM_READ_ADDRESS;
         let before = machine.clone();
         assert_eq!(
             machine.execute_word(0o0070),
-            Err(Hp67ArchitecturalError::CrcDataPortNotModeled {
-                pc: 0,
-                address: CRC_RAM_READ_ADDRESS,
-                write: false,
-            })
+            Err(Hp67ArchitecturalError::Crc(
+                CrcArchitecturalError::ReadBufferEmpty
+            ))
+        );
+        assert_eq!(machine, before);
+    }
+
+    #[test]
+    fn crc_write_port_packs_only_high_half_of_c_into_28_bit_buffer() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
+        machine
+            .crc
+            .execute_opcode(0o660)
+            .expect("write mode must set");
+
+        for digit in 0..7 {
+            machine.act.state.c[digit] = 0x0f;
+            machine.act.state.c[7 + digit] = (digit + 1) as u8;
+        }
+
+        let execution = machine
+            .execute_word(0o1360)
+            .expect("CRC write port must accept high half");
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataWrite {
+                address: CRC_RAM_WRITE_ADDRESS,
+                card_word: 0x0765_4321,
+            }
+        );
+        assert_eq!(machine.crc.queued_write_words(), 1);
+        assert_eq!(machine.crc.take_queued_write_word(), Some(0x0765_4321));
+    }
+
+    #[test]
+    fn crc_write_port_requires_firmware_write_mode_transactionally() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.ram_address = CRC_RAM_WRITE_ADDRESS;
+        let before = machine.clone();
+        assert_eq!(
+            machine.execute_word(0o1360),
+            Err(Hp67ArchitecturalError::Crc(
+                CrcArchitecturalError::WriteModeInactive
+            ))
         );
         assert_eq!(machine, before);
     }

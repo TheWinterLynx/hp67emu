@@ -3,9 +3,11 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
-    CathodeDriver1820_1749, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+    CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch,
+    Hp67ArchitecturalExecution, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
+    Hp67CardTransport, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
+    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
     HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
@@ -155,6 +157,10 @@ impl HardwareDisplayFrame {
         &self.segments
     }
 
+    pub const fn shows_card_prompt(&self) -> bool {
+        self.segments[1] == 0x39 && self.segments[2] == 0x50 && self.segments[3] == 0x5e
+    }
+
     fn clear(&mut self) {
         self.segments = [0; 15];
     }
@@ -208,6 +214,8 @@ pub struct Hp67LiveMachine {
     pipeline: FetchPipelineLatch,
     machine: Hp67ArchitecturalMachine,
     keyboard: Hp67Keyboard,
+    card_transport: Hp67CardTransport,
+    card_startup_buffer_clears: u8,
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
@@ -230,6 +238,8 @@ impl Hp67LiveMachine {
             pipeline: FetchPipelineLatch::default(),
             machine: Hp67ArchitecturalMachine::default(),
             keyboard: Hp67Keyboard::default(),
+            card_transport: Hp67CardTransport::default(),
+            card_startup_buffer_clears: 0,
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
@@ -255,6 +265,8 @@ impl Hp67LiveMachine {
         self.pipeline = FetchPipelineLatch::default();
         self.machine = Hp67ArchitecturalMachine::default();
         self.keyboard = Hp67Keyboard::default();
+        self.card_transport = Hp67CardTransport::default();
+        self.card_startup_buffer_clears = 0;
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
@@ -278,6 +290,87 @@ impl Hp67LiveMachine {
         self.machine
             .set_program_mode(program)
             .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
+    }
+
+    pub fn insert_magnetic_card(
+        &mut self,
+        card: Hp67MagneticCard,
+        insertion_end: CardInsertionEnd,
+    ) -> Result<(), String> {
+        let previous_transport = self.card_transport.clone();
+        self.card_transport
+            .insert_card(card, insertion_end)
+            .map_err(|error| format!("HP-67 card insertion failed: {error:?}"))?;
+        self.card_startup_buffer_clears = 0;
+
+        if let Err(error) = self.machine.set_card_present(true) {
+            self.card_transport = previous_transport;
+            return Err(format!("HP-67 card-present contact failed: {error:?}"));
+        }
+
+        Ok(())
+    }
+
+    pub fn magnetic_card_inserted(&self) -> bool {
+        self.card_transport.card().is_some()
+    }
+
+    pub fn card_motor_on(&self) -> bool {
+        self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
+    }
+
+    pub fn card_write_mode(&self) -> bool {
+        self.machine.crc.flag(CRC_FLAG_WRITE_MODE) == Some(true)
+    }
+
+    pub const fn card_record_stream_active(&self) -> bool {
+        self.card_transport.record_stream_active()
+    }
+
+    pub const fn card_transport_complete(&self) -> bool {
+        self.card_transport.is_complete()
+    }
+
+    pub const fn card_record_position(&self) -> usize {
+        self.card_transport.next_record()
+    }
+
+    pub const fn card_prompt_visible(&self) -> bool {
+        self.display.shows_card_prompt()
+    }
+
+    pub fn take_completed_magnetic_card(&mut self) -> Option<Hp67MagneticCard> {
+        self.card_transport.take_completed_card()
+    }
+
+    pub fn take_magnetic_card_for_power_off(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
+        if self.card_transport.card().is_none() {
+            return Ok(None);
+        }
+
+        self.machine
+            .set_card_present(false)
+            .map_err(|error| format!("HP-67 power-off card contact failed: {error:?}"))?;
+        self.card_startup_buffer_clears = 0;
+        Ok(self.card_transport.take_card_for_power_off())
+    }
+
+    pub fn withdraw_unstarted_magnetic_card(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
+        if self.card_motor_on()
+            || self.card_transport.head_active()
+            || self.card_transport.next_record() != 0
+        {
+            return Ok(None);
+        }
+        if self.card_transport.card().is_none() {
+            return Ok(None);
+        }
+
+        self.machine
+            .set_card_present(false)
+            .map_err(|error| format!("HP-67 card withdrawal contact failed: {error:?}"))?;
+        self.card_startup_buffer_clears = 0;
+        Ok(self.card_transport.take_unstarted_card())
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
@@ -309,6 +402,7 @@ impl Hp67LiveMachine {
         &mut self,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        let card_motor_was_on = self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true);
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
                 "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
@@ -342,6 +436,25 @@ impl Hp67LiveMachine {
                 .machine
                 .execute_word(word)
                 .map_err(|error| format!("live cycle {cycle} execution failed: {error:?}"))?;
+            if self.card_transport.card().is_some()
+                && !self.card_transport.head_active()
+                && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
+            {
+                if let Hp67ArchitecturalOperation::CrcControl {
+                    instruction: CrcInstruction::TestFlagAndClear { flag },
+                    ..
+                } = execution.operation
+                {
+                    if usize::from(flag) == CRC_FLAG_BUFFER_READY {
+                        self.card_startup_buffer_clears =
+                            self.card_startup_buffer_clears.saturating_add(1);
+                        if self.card_startup_buffer_clears == 2 {
+                            self.card_transport.set_head_active(true);
+                        }
+                    }
+                }
+            }
+
             executed = Some(execution);
 
             match execution.pc {
@@ -382,6 +495,21 @@ impl Hp67LiveMachine {
                     serial_execution.next_word_bit()
                 ));
             }
+        }
+
+        self.card_transport
+            .advance_us(
+                HP67_OBSERVED_WORD_TIME_US,
+                card_motor_was_on,
+                &mut self.machine.crc,
+            )
+            .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
+
+        if self.card_transport.is_complete() {
+            self.machine.set_card_present(false).map_err(|error| {
+                format!("live cycle {cycle} card exit contact failed: {error:?}")
+            })?;
+            self.card_transport.set_head_active(false);
         }
 
         self.boot_cycle = cycle.saturating_add(1);
@@ -471,8 +599,20 @@ mod tests {
     use super::*;
     use hp67emu::{
         emulation::Drive,
-        machines::hp67::{ActDisplayWordSerializer, HP67_DISPLAY_SCAN_SLOTS},
+        machines::hp67::{
+            ActDisplayWordSerializer, ActOperation, Hp67CardTrack, Hp67Key, Hp67MagneticTrack,
+            CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE,
+            HP67_CARD_RECORDS_PER_TRACK, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
+        },
     };
+
+    fn track1_card(track: Hp67MagneticTrack) -> Hp67MagneticCard {
+        Hp67MagneticCard::default().with_track(Hp67CardTrack::Track1, track)
+    }
+
+    fn insert_track1(live: &mut Hp67LiveMachine, track: Hp67MagneticTrack) -> Result<(), String> {
+        live.insert_magnetic_card(track1_card(track), CardInsertionEnd::End1)
+    }
 
     #[test]
     fn every_ui_key_used_by_the_panel_maps_to_a_physical_contact() {
@@ -558,6 +698,738 @@ mod tests {
             }
         }
         panic!("released Digit1 did not settle to physical 1. display");
+    }
+
+    #[test]
+    fn live_run_mode_blank_card_finishes_on_physical_error_display() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank card must insert in RUN mode");
+
+        const ERROR_SEGMENTS: [u8; 5] = [0x79, 0x50, 0x50, 0x5c, 0x50];
+
+        let mut motor_seen = false;
+        let mut completed_seen = false;
+        for _ in 0..65_536 {
+            live.step_firmware_cycle().unwrap();
+            motor_seen |= live.card_motor_on();
+            completed_seen |= live.card_transport_complete();
+            if live.display_frame().segments()[1..6] == ERROR_SEGMENTS[..] {
+                assert!(motor_seen, "blank RUN card never started the reader motor");
+                assert!(
+                    completed_seen,
+                    "blank RUN card reached Error before traversing the modeled track"
+                );
+                return;
+            }
+        }
+
+        panic!(
+            "blank RUN card did not reach physical Error; motor_seen={motor_seen}, completed_seen={completed_seen}, display={:?}",
+            live.display_frame().segments()
+        );
+    }
+
+    #[test]
+    fn live_power_on_reset_rebuilds_electronic_state() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let mut nonzero = [0u8; 14];
+        nonzero[0] = 7;
+        assert!(live.machine.ram.write(0x1f, nonzero));
+        live.set_key_contact(Some(Hp67Key::Digit9));
+        live.reset_power_on().unwrap();
+
+        assert_eq!(live.phase, LiveBootPhase::ResetHold);
+        assert_eq!(live.display_frame(), HardwareDisplayFrame::BLANK);
+        assert_eq!(live.machine.ram.read(0x1f), Some([0; 14]));
+        assert!(!live.magnetic_card_inserted());
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn live_power_off_recovers_inserted_card_and_drops_card_present() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank card must insert");
+        wait_for_live_card_record_stream(&mut live);
+        let card = live
+            .take_magnetic_card_for_power_off()
+            .expect("power-off card recovery must update the contact");
+
+        assert!(card.is_some());
+        assert!(!live.magnetic_card_inserted());
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn live_unstarted_card_can_be_withdrawn_before_firmware_starts_motor() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank card must insert");
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(true)
+        );
+        let card = live
+            .withdraw_unstarted_magnetic_card()
+            .expect("withdrawal contact update must succeed");
+        assert!(card.is_some());
+        assert!(!live.magnetic_card_inserted());
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn live_firmware_card_presence_reaches_real_motor_on_request() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        assert_eq!(
+            live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+        assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(false));
+
+        live.machine.set_card_present(true).unwrap();
+
+        for _ in 0..1_024 {
+            live.step_firmware_cycle().unwrap();
+            if live.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true) {
+                assert_eq!(
+                    live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+                    Some(true)
+                );
+                return;
+            }
+        }
+
+        panic!("card-present contact never reached firmware motor-on request");
+    }
+
+    #[test]
+    fn live_motor_advances_card_transport_at_nominal_record_cadence() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let mut words = [0x0300_0000; HP67_CARD_RECORDS_PER_TRACK];
+        words[1] = 0x0311_1111;
+        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap()).unwrap();
+        wait_for_live_card_record_stream(&mut live);
+
+        assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(true));
+        assert_eq!(live.card_transport.next_record(), 0);
+        assert!(live.card_transport.record_stream_active());
+
+        let cycles_per_record = HP67_NOMINAL_CARD_RECORD_US.div_ceil(HP67_OBSERVED_WORD_TIME_US);
+        for cycle in 1..=cycles_per_record {
+            live.step_firmware_cycle().unwrap();
+            if cycle < cycles_per_record {
+                assert_eq!(live.card_transport.next_record(), 0);
+            }
+        }
+
+        assert_eq!(live.card_transport.next_record(), 1);
+        assert_eq!(live.machine.crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
+        assert_eq!(live.machine.crc.buffered_read_word(), Some(0x0300_0000));
+    }
+
+    #[test]
+    fn live_firmware_consumes_timed_crc_record_through_real_0x9b_path() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        let words = [0x0300_0000; HP67_CARD_RECORDS_PER_TRACK];
+        insert_track1(&mut live, Hp67MagneticTrack::from_words(words).unwrap()).unwrap();
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..8_192 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataRead { address, card_word },
+                ..
+            }) = execution
+            {
+                assert_eq!(address, hp67emu::machines::hp67::CRC_RAM_READ_ADDRESS);
+                assert_eq!(card_word, 0x0300_0000);
+                assert_eq!(&live.machine.act.state.c[0..7], &[0, 0, 0, 0, 0, 0, 3]);
+                assert_eq!(&live.machine.act.state.c[7..14], &[0, 0, 0, 0, 0, 0, 3]);
+                return;
+            }
+        }
+
+        panic!("timed card transport never reached the real CRC 0x9B read path");
+    }
+
+    fn press_live_key_to_dispatch_for_card_test(live: &mut Hp67LiveMachine, key: Hp67Key) -> u16 {
+        const KEYS_TO_A_OPCODE: u16 = 0o0120;
+        const A_TO_ROM_ADDRESS_OPCODE: u16 = 0o0220;
+
+        let expected_code = key.scan_code();
+        live.set_key_contact(Some(key));
+        let mut saw_keys_to_a = false;
+
+        for _ in 0..512 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            let Some(execution) = execution else {
+                continue;
+            };
+
+            if matches!(
+                execution.operation,
+                Hp67ArchitecturalOperation::Act(ActOperation::Special {
+                    opcode: KEYS_TO_A_OPCODE
+                })
+            ) {
+                let observed = (live.machine.act.state.a[2] << 4) | live.machine.act.state.a[1];
+                assert_eq!(observed, expected_code);
+                saw_keys_to_a = true;
+            }
+
+            if matches!(
+                execution.operation,
+                Hp67ArchitecturalOperation::Act(ActOperation::Special {
+                    opcode: A_TO_ROM_ADDRESS_OPCODE
+                })
+            ) {
+                assert!(saw_keys_to_a);
+                live.set_key_contact(None);
+                return execution.next_pc;
+            }
+        }
+
+        live.set_key_contact(None);
+        panic!("{key:?} did not reach firmware keyboard dispatch");
+    }
+
+    fn press_live_key_and_settle_for_card_test(live: &mut Hp67LiveMachine, key: Hp67Key) {
+        let target = press_live_key_to_dispatch_for_card_test(live, key);
+        let wait_visits = live.main_wait_visits;
+        for _ in 0..4_096 {
+            live.step_firmware_cycle().unwrap();
+            if live.main_wait_visits > wait_visits && !live.machine.act.state.status[15] {
+                return;
+            }
+        }
+
+        panic!("{key:?} dispatch {target:04o} did not return to the no-key firmware wait");
+    }
+
+    fn settle_live_program_mode(live: &mut Hp67LiveMachine) {
+        live.machine.set_program_mode(true).unwrap();
+        let wait_before = live.main_wait_visits;
+        for _ in 0..2_048 {
+            live.step_firmware_cycle().unwrap();
+            if live.main_wait_visits > wait_before && live.machine.act.state.status[11] {
+                return;
+            }
+        }
+        panic!("real firmware never settled into PROGRAM mode");
+    }
+
+    fn wait_for_live_card_record_stream(live: &mut Hp67LiveMachine) {
+        for _ in 0..2_048 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_record_stream_active() {
+                return;
+            }
+        }
+
+        panic!("live card lifecycle never reached the CRC record stream");
+    }
+
+    #[test]
+    fn live_program_mode_reaches_real_crc_0x99_write_path() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut live);
+
+        insert_track1(&mut live, Hp67MagneticTrack::default()).expect("blank side must insert");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..8_192 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataWrite { address, card_word },
+                ..
+            }) = execution
+            {
+                assert_eq!(address, hp67emu::machines::hp67::CRC_RAM_WRITE_ADDRESS);
+                assert_eq!(live.machine.crc.flag(CRC_FLAG_WRITE_MODE), Some(true));
+                assert!(card_word <= hp67emu::machines::hp67::CRC_CARD_WORD_MASK);
+                assert!(live.machine.crc.queued_write_words() > 0);
+                return;
+            }
+        }
+
+        panic!("PROGRAM-mode card write never reached the real CRC 0x99 path");
+    }
+
+    #[test]
+    fn live_firmware_full_card_write_then_read_round_trip_preserves_34_records() {
+        let mut writer = Hp67LiveMachine::power_on_default().unwrap();
+        writer.phase = LiveBootPhase::Firmware;
+        while !matches!(writer.phase, LiveBootPhase::Idle) {
+            writer.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut writer);
+
+        insert_track1(&mut writer, Hp67MagneticTrack::default())
+            .expect("blank side must insert for firmware write");
+        wait_for_live_card_record_stream(&mut writer);
+
+        let mut written = Vec::with_capacity(HP67_CARD_RECORDS_PER_TRACK);
+        for _ in 0..32_768 {
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataWrite { card_word, .. },
+                ..
+            }) = writer.step_firmware_cycle_with_execution().unwrap()
+            {
+                written.push(card_word);
+            }
+
+            if writer.card_transport_complete()
+                && written.len() == HP67_CARD_RECORDS_PER_TRACK
+                && writer.machine.crc.queued_write_words() == 0
+            {
+                break;
+            }
+        }
+
+        assert_eq!(written.len(), HP67_CARD_RECORDS_PER_TRACK);
+        assert!(writer.card_transport_complete());
+        assert_eq!(writer.machine.crc.queued_write_words(), 0);
+
+        assert_eq!(
+            writer.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+        assert!(!writer.card_transport.head_active());
+        let completed = writer
+            .take_completed_magnetic_card()
+            .expect("fully written card must be ejectable");
+        assert!(completed.track(Hp67CardTrack::Track1).dirty());
+
+        let mut reader = Hp67LiveMachine::power_on_default().unwrap();
+        reader.phase = LiveBootPhase::Firmware;
+        while !matches!(reader.phase, LiveBootPhase::Idle) {
+            reader.step_firmware_cycle().unwrap();
+        }
+
+        reader
+            .insert_magnetic_card(completed, CardInsertionEnd::End1)
+            .expect("written card must reinsert for firmware read");
+        wait_for_live_card_record_stream(&mut reader);
+
+        let mut read_back = Vec::with_capacity(HP67_CARD_RECORDS_PER_TRACK);
+        for _ in 0..32_768 {
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataRead { card_word, .. },
+                ..
+            }) = reader.step_firmware_cycle_with_execution().unwrap()
+            {
+                read_back.push(card_word);
+                if read_back.len() == HP67_CARD_RECORDS_PER_TRACK {
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(read_back.len(), HP67_CARD_RECORDS_PER_TRACK);
+        assert_eq!(read_back, written);
+        assert!(reader.card_transport_complete());
+        assert_eq!(
+            reader.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+            Some(false)
+        );
+
+        for _ in 0..512 {
+            if !reader.card_motor_on() {
+                break;
+            }
+            reader.step_firmware_cycle().unwrap();
+        }
+        assert!(!reader.card_motor_on());
+        assert!(reader.take_completed_magnetic_card().is_some());
+    }
+
+    #[test]
+    fn live_two_track_program_write_and_read_reinsert_same_card_through_crd() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut live);
+
+        let mut second_half_program = [0u8; 14];
+        second_half_program[0] = 1;
+        assert!(live.machine.ram.write(0x1f, second_half_program));
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank physical card must insert for first program track");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() && live.machine.crc.queued_write_words() == 0 {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+        let first_pass = live
+            .take_completed_magnetic_card()
+            .expect("first written track must return the same physical card");
+        assert_eq!(
+            first_pass
+                .track(Hp67CardTrack::Track1)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(3)
+        );
+        assert!(!first_pass.track(Hp67CardTrack::Track2).is_recorded());
+
+        for _ in 0..8_192 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            live.card_prompt_visible(),
+            "firmware never displayed the physical Crd second-card prompt"
+        );
+        assert_eq!(&live.display_frame().segments()[1..4], &[0x39, 0x50, 0x5e]);
+
+        live.insert_magnetic_card(first_pass, CardInsertionEnd::End2)
+            .expect("same physical card must reinsert by the opposite end");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() && live.machine.crc.queued_write_words() == 0 {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+
+        let completed = live
+            .take_completed_magnetic_card()
+            .expect("second written track must return the same physical card");
+        assert!(completed.track(Hp67CardTrack::Track1).dirty());
+        assert!(completed.track(Hp67CardTrack::Track2).dirty());
+        assert_eq!(
+            completed
+                .track(Hp67CardTrack::Track2)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(4)
+        );
+
+        let mut reader = Hp67LiveMachine::power_on_default().unwrap();
+        reader.phase = LiveBootPhase::Firmware;
+        while !matches!(reader.phase, LiveBootPhase::Idle) {
+            reader.step_firmware_cycle().unwrap();
+        }
+
+        reader
+            .insert_magnetic_card(completed, CardInsertionEnd::End1)
+            .expect("two-track card must insert for first firmware read pass");
+        wait_for_live_card_record_stream(&mut reader);
+
+        for _ in 0..32_768 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(reader.card_transport_complete());
+
+        let between_passes = reader
+            .take_completed_magnetic_card()
+            .expect("first read pass must return the same physical card");
+        for _ in 0..8_192 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            reader.card_prompt_visible(),
+            "firmware never displayed Crd while waiting for program Track 2"
+        );
+
+        reader
+            .insert_magnetic_card(between_passes, CardInsertionEnd::End2)
+            .expect("same physical card must reinsert for second firmware read pass");
+        wait_for_live_card_record_stream(&mut reader);
+
+        for _ in 0..32_768 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(reader.card_transport_complete());
+        assert_eq!(
+            reader.machine.ram.read(0x1f),
+            Some(second_half_program),
+            "second logical track did not restore program steps 113-224"
+        );
+        assert!(reader.take_completed_magnetic_card().is_some());
+    }
+
+    #[test]
+    fn live_wdata_two_track_write_and_read_use_headers_one_and_two_through_crd() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        press_live_key_and_settle_for_card_test(&mut live, Hp67Key::Digit1);
+        press_live_key_and_settle_for_card_test(&mut live, Hp67Key::SigmaPlus);
+        press_live_key_and_settle_for_card_test(&mut live, Hp67Key::FunctionF);
+        press_live_key_to_dispatch_for_card_test(&mut live, Hp67Key::Enter);
+
+        for _ in 0..8_192 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            live.card_prompt_visible(),
+            "W/DATA did not reach the firmware Crd insertion prompt"
+        );
+        assert!(live.card_write_mode());
+
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank data card must insert for primary-register pass");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() && live.machine.crc.queued_write_words() == 0 {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+        let first_pass = live
+            .take_completed_magnetic_card()
+            .expect("primary data pass must return the same physical card");
+        assert_eq!(
+            first_pass
+                .track(Hp67CardTrack::Track1)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(1)
+        );
+
+        for _ in 0..8_192 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            live.card_prompt_visible(),
+            "non-zero secondary registers did not request the W/DATA second pass"
+        );
+
+        live.insert_magnetic_card(first_pass, CardInsertionEnd::End2)
+            .expect("same data card must reinsert for secondary-register pass");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() && live.machine.crc.queued_write_words() == 0 {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+
+        let completed = live
+            .take_completed_magnetic_card()
+            .expect("secondary data pass must return the same physical card");
+        assert_eq!(
+            completed
+                .track(Hp67CardTrack::Track2)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(2)
+        );
+
+        let mut reader = Hp67LiveMachine::power_on_default().unwrap();
+        reader.phase = LiveBootPhase::Firmware;
+        while !matches!(reader.phase, LiveBootPhase::Idle) {
+            reader.step_firmware_cycle().unwrap();
+        }
+
+        reader
+            .insert_magnetic_card(completed, CardInsertionEnd::End1)
+            .expect("two-track data card must insert for primary-register read");
+        wait_for_live_card_record_stream(&mut reader);
+
+        let mut primary_header = None;
+        for _ in 0..32_768 {
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataRead { card_word, .. },
+                ..
+            }) = reader.step_firmware_cycle_with_execution().unwrap()
+            {
+                primary_header.get_or_insert((card_word >> 24) as u8);
+            }
+
+            if reader.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(reader.card_transport_complete());
+        assert_eq!(primary_header, Some(1));
+
+        let between_passes = reader
+            .take_completed_magnetic_card()
+            .expect("primary data read must return the same physical card");
+        for _ in 0..8_192 {
+            reader.step_firmware_cycle().unwrap();
+            if reader.card_prompt_visible() {
+                break;
+            }
+        }
+        assert!(
+            reader.card_prompt_visible(),
+            "data-card read did not request the secondary-register pass with Crd"
+        );
+
+        reader
+            .insert_magnetic_card(between_passes, CardInsertionEnd::End2)
+            .expect("same data card must reinsert for secondary-register read");
+        wait_for_live_card_record_stream(&mut reader);
+
+        let mut secondary_header = None;
+        for _ in 0..32_768 {
+            if let Some(Hp67ArchitecturalExecution {
+                operation: Hp67ArchitecturalOperation::CrcDataRead { card_word, .. },
+                ..
+            }) = reader.step_firmware_cycle_with_execution().unwrap()
+            {
+                secondary_header.get_or_insert((card_word >> 24) as u8);
+            }
+
+            if reader.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(reader.card_transport_complete());
+        assert_eq!(secondary_header, Some(2));
+        assert!(reader.take_completed_magnetic_card().is_some());
+    }
+
+    #[test]
+    fn live_write_protected_side_reaches_crc_f7_without_modification() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        settle_live_program_mode(&mut live);
+
+        insert_track1(
+            &mut live,
+            Hp67MagneticTrack::default().with_write_protected(true),
+        )
+        .expect("protected side must insert");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..8_192 {
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(Hp67ArchitecturalExecution {
+                operation:
+                    Hp67ArchitecturalOperation::CrcControl {
+                        instruction: CrcInstruction::TestFlagAndClear { flag },
+                        condition: Some(true),
+                    },
+                ..
+            }) = execution
+            {
+                if usize::from(flag) == CRC_FLAG_F7_STATUS {
+                    assert_eq!(live.card_transport.next_record(), 0);
+                    assert!(!live
+                        .card_transport
+                        .active_track()
+                        .expect("protected side remains inserted")
+                        .dirty());
+                    return;
+                }
+            }
+
+            if matches!(
+                execution,
+                Some(Hp67ArchitecturalExecution {
+                    operation: Hp67ArchitecturalOperation::CrcDataWrite { .. },
+                    ..
+                })
+            ) {
+                panic!("write-protected card reached CRC 0x99 data write");
+            }
+        }
+
+        panic!("write-protected card never reached CRC F7 error status");
+    }
+
+    #[test]
+    fn physical_display_frame_recognizes_firmware_crd_prompt_segments() {
+        let mut frame = HardwareDisplayFrame::BLANK;
+        frame.segments[1] = 0x39;
+        frame.segments[2] = 0x50;
+        frame.segments[3] = 0x5e;
+        assert!(frame.shows_card_prompt());
+
+        frame.segments[3] = 0x00;
+        assert!(!frame.shows_card_prompt());
     }
 
     #[test]

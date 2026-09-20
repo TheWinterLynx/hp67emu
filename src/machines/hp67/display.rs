@@ -164,10 +164,11 @@ impl Rom0DisplayEndpoint {
 
 /// Decode the HP-67 ROM0 display byte to anode segments.
 ///
-/// The code assignments follow the direct HP-67 ROM0 logic-analyser table. The
-/// seven-segment shapes are corroborated by the reviewed HP-67 character table;
-/// where that semantic table disagrees on the `o`/`r` code numbers, the direct
-/// HP-67 capture wins here. Unknown codes remain hard failures.
+/// The code assignments follow the HP-67 ROM0 observations and firmware-visible
+/// character behavior. The original reviewed capture transcription had `o`/`r`
+/// labels swapped: real HP-67 firmware loads code 0x0a for the documented `Crd`
+/// prompt, so 0x0a must decode as `r` and 0x0c as `o`. Unknown codes remain
+/// hard failures.
 pub fn decode_rom0_display_byte(
     scan_slot: u8,
     code: u8,
@@ -200,9 +201,9 @@ pub fn decode_rom0_display_byte(
         0x07 => 0x07, // 7: A B C
         0x08 => 0x7f, // 8: A B C D E F G
         0x09 => 0x6f, // 9: A B C D F G
-        0x0a => 0x5c, // o: C D E G
+        0x0a => 0x50, // r: E G
         0x0b => 0x39, // C: A D E F
-        0x0c => 0x50, // r: E G
+        0x0c => 0x5c, // o: C D E G
         0x0d => 0x5e, // d: B C D E G
         0x0e => 0x79, // E: A D E F G
         0x0f => 0x00,
@@ -336,9 +337,11 @@ mod tests {
     }
 
     #[test]
-    fn direct_hp67_o_and_r_code_assignment_is_preserved() {
-        assert_eq!(decode_rom0_display_byte(4, 0x0a).unwrap().bits(), 0x5c);
-        assert_eq!(decode_rom0_display_byte(4, 0x0c).unwrap().bits(), 0x50);
+    fn firmware_card_prompt_locks_hp67_r_and_o_code_assignment() {
+        assert_eq!(decode_rom0_display_byte(4, 0x0a).unwrap().bits(), 0x50);
+        assert_eq!(decode_rom0_display_byte(4, 0x0b).unwrap().bits(), 0x39);
+        assert_eq!(decode_rom0_display_byte(4, 0x0c).unwrap().bits(), 0x5c);
+        assert_eq!(decode_rom0_display_byte(4, 0x0d).unwrap().bits(), 0x5e);
     }
 
     #[test]

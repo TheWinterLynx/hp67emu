@@ -10,12 +10,17 @@ The photographed keys need accurate hit regions and visual travel, but calculato
 
 ## Relationships
 
-Uses `Hp67State` for the two slide-switch positions, `HardwareDisplayFrame` for physical LED segments, `KeyAction` only as the identity of a photographed key, and the classic display painter for emitted LED geometry.
+Uses `Hp67State` for the two slide-switch positions, `HardwareDisplayFrame` for physical LED segments, `KeyAction` only as the identity of a photographed key, the classic display painter for emitted LED geometry, and `ProgramCardView` for the passive card-holder presentation.
 
 ## Responsibilities
 
-Render the source photograph; map all 35 key rectangles; animate key travel; report at most one currently held key contact; emit only power/mode switch events; render the hardware display; and keep the EEX key mapped to `KeyAction::Exponent`.
+Render the source photograph; map all 35 key rectangles; animate key travel; report at most one currently held key contact; emit only power/mode switch events; render the hardware display; expose the lateral reader, left-exit tab, left-exit double-click and holder-card interactions without changing machine state; and keep the EEX key mapped to `KeyAction::Exponent`.
 
 ## Implementation
 
-`Hp67Panel::show()` returns `Hp67PanelOutput { events, key_contact }`. Each key uses `Response::is_pointer_button_down_on()` so contact state exists for the whole mouse hold rather than only on click release. The app translates that identity to `Hp67Key`; the panel never writes ACT state, display state, stack values or arithmetic results.
+`Hp67Panel::show()` returns mechanical/key output plus separate card-reader, left-tab, left-tab-double-click and holder interaction flags. Each key uses `Response::is_pointer_button_down_on()` so contact state exists for the whole mouse hold rather than only on click release. The app translates that identity to `Hp67Key`; the panel never writes ACT state, display state, stack values, arithmetic results, CRC card flags or program RAM. Card rendering is delegated to `ui::program_card`. The panel also passes the original front-panel `TextureHandle` into that renderer so the holder can restore exact photographed chassis pixels over the card along the measured sloped right rail; no flat-color surrogate is used for that occlusion.
+
+
+M13 blank-media interaction: the panel forwards both the primary reader click and a distinct secondary-click blank-card request from `ui/program_card.rs`. It does not create media itself; the app owns that host-side physical-card action.
+
+Reader waiting-state interaction: the panel forwards a distinct `card_waiting_reader_clicked` event from the visible right-edge card while it is physically inserted but the firmware-owned motor has not started. The panel does not withdraw the card itself; `src/app.rs` routes that request through `Hp67LiveMachine::withdraw_unstarted_magnetic_card()` so the card-present contact and transport ownership remain authoritative.
