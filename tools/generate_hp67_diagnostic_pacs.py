@@ -109,13 +109,18 @@ def build_program_track(program: tuple[int, ...], header: int) -> list[int]:
     return words
 
 
-def hpp_bytes(ref: str, title: str, words: list[int]) -> bytes:
+def hpp_bytes(
+    ref: str,
+    title: str,
+    words: list[int],
+    bitmap_name: str = "CUSTOM-DIAG.bmp",
+) -> bytes:
     nibbles = [0] * 21
     for word in words:
         nibbles.extend((word >> (4 * i)) & 0x0F for i in range(7))
     nibbles.extend((words[33] >> (4 * i)) & 0x0F for i in range(7))
     data = "".join(f"{value:x}" for value in nibbles)
-    body = f"67\nCUSTOM-DIAG.bmp\n{ref} {title}\n{data}\n"
+    body = f"67\n{bitmap_name}\n{ref} {title}\n{data}\n"
     decoded = f"NeWe\n{len(body)}\n{body}".encode("ascii")
     return bytes(byte ^ 0x55 for byte in decoded)
 
@@ -186,10 +191,10 @@ def expected_files(root: Path) -> dict[Path, bytes]:
         diagnostic_cards / "SD-15C-Diagnostic-Program.hp67card"
     )
     result[diagnostic_cards / "SD-15C-Diagnostic-Program_1.hpp"] = hpp_bytes(
-        "SD-15C", "Diagnostic Program", sd15c_first
+        "SD-15C", "Diagnostic Program", sd15c_first, "SD-15C.bmp"
     )
     result[diagnostic_cards / "SD-15C-Diagnostic-Program_2.hpp"] = hpp_bytes(
-        "SD-15C", "Diagnostic Program", sd15c_second
+        "SD-15C", "Diagnostic Program", sd15c_second, "SD-15C.bmp"
     )
 
     out = root / "programs" / "HP67" / "Custom Diagnostic Pacs"
