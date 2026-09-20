@@ -1035,22 +1035,15 @@ mod tests {
         for row in 0..CARD_ARTWORK_ATLAS_ROWS {
             let y0 = row * CARD_ARTWORK_ATLAS_ROW_HEIGHT;
             let y1 = y0 + CARD_ARTWORK_ATLAS_ROW_HEIGHT;
-            let mut saw_transparent = false;
-            let mut saw_opaque = false;
             for y in y0..y1 {
                 for x in 0..CARD_ARTWORK_ATLAS_WIDTH {
-                    match atlas.get_pixel(x, y).0[3] {
-                        0 => saw_transparent = true,
-                        255 => saw_opaque = true,
-                        _ => {}
-                    }
+                    assert_eq!(
+                        atlas.get_pixel(x, y).0[3],
+                        255,
+                        "artwork atlas row {row} must be fully opaque at ({x}, {y})"
+                    );
                 }
             }
-            assert!(
-                saw_transparent,
-                "artwork atlas row {row} has no transparent outside-card area"
-            );
-            assert!(saw_opaque, "artwork atlas row {row} has no opaque artwork");
         }
     }
 
