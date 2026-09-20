@@ -32,7 +32,7 @@ impl ProgramLibraryEntry {
         let mut track_1_seen = false;
         let mut track_2_seen = false;
 
-        for bytes in self.parts {
+        for (part_index, bytes) in self.parts.iter().enumerate() {
             let imported = TeenixHppImport::from_bytes(bytes).map_err(|error| {
                 format!("{} {}: invalid .hpp: {error:?}", self.reference, self.title)
             })?;
@@ -42,8 +42,13 @@ impl ProgramLibraryEntry {
                     self.reference, self.title, imported.calculator_id
                 ));
             }
+            let physical_track = self
+                .physical_track_override(part_index)
+                .unwrap_or(imported.card_track);
+
             if let Some(name) = bitmap_name.as_deref() {
-                if name != imported.bitmap_name {
+                if name != imported.bitmap_name && self.physical_track_override(part_index).is_none()
+                {
                     return Err(format!(
                         "{} {} groups mismatched card artwork IDs '{}' and '{}'",
                         self.reference, self.title, name, imported.bitmap_name
@@ -53,18 +58,18 @@ impl ProgramLibraryEntry {
                 bitmap_name = Some(imported.bitmap_name.clone());
             }
 
-            let seen = match imported.card_track {
+            let seen = match physical_track {
                 Hp67CardTrack::Track1 => &mut track_1_seen,
                 Hp67CardTrack::Track2 => &mut track_2_seen,
             };
             if *seen {
                 return Err(format!(
                     "{} {} contains duplicate {:?}",
-                    self.reference, self.title, imported.card_track
+                    self.reference, self.title, physical_track
                 ));
             }
             *seen = true;
-            card.set_track(imported.card_track, imported.track);
+            card.set_track(physical_track, imported.track);
         }
 
         if !track_1_seen && !track_2_seen {
@@ -82,6 +87,18 @@ impl ProgramLibraryEntry {
 
     pub fn track_count(&self) -> usize {
         self.parts.len()
+    }
+
+    fn physical_track_override(&self, part_index: usize) -> Option<Hp67CardTrack> {
+        match (self.reference, part_index) {
+            // HP's Standard Pac documents SD1-12A as one physical card whose two
+            // sides are independent one-pass programs. Both Teenix payloads therefore
+            // carry program header 3, while the distinct A1/A2 artwork identifies the
+            // physical side. Header class alone cannot select the card end here.
+            ("SD1-12A", 0) => Some(Hp67CardTrack::Track1),
+            ("SD1-12A", 1) => Some(Hp67CardTrack::Track2),
+            _ => None,
+        }
     }
 }
 
@@ -744,6 +761,31 @@ mod tests {
                 .map(ProgramLibraryEntry::track_count)
                 .sum::<usize>(),
             90
+        );
+    }
+
+    #[test]
+    fn english_si_card_keeps_two_independent_header_three_sides() {
+        let entry = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "SD1-12A")
+            .unwrap();
+        let loaded = entry.load_card().unwrap();
+        assert_eq!(
+            loaded
+                .card
+                .track(Hp67CardTrack::Track1)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(3)
+        );
+        assert_eq!(
+            loaded
+                .card
+                .track(Hp67CardTrack::Track2)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(3)
         );
     }
 
