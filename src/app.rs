@@ -770,11 +770,14 @@ impl eframe::App for Hp67App {
                             }
                             self.reset_card_presentation_after_power_off();
                         } else if !was_power_on && self.state.power_on {
-                            let reset_error = self
-                                .live_machine
-                                .as_mut()
-                                .and_then(|machine| machine.reset_power_on().err());
-                            if let Some(error) = reset_error {
+                            let reset_result = if let Some(machine) = self.live_machine.as_mut() {
+                                machine.reset_power_on()
+                            } else {
+                                Hp67LiveMachine::power_on_default().map(|machine| {
+                                    self.live_machine = Some(machine);
+                                })
+                            };
+                            if let Err(error) = reset_result {
                                 eprintln!("HP-67 live power-on reset failed: {error}");
                                 self.live_machine = None;
                             }
