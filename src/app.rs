@@ -1033,8 +1033,6 @@ mod tests {
         );
     }
 
-
-    use super::*;
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
 
     #[test]
