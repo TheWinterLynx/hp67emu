@@ -424,9 +424,17 @@ fn split_hpp_line<'a>(
     input: &'a str,
     field: &'static str,
 ) -> Result<(&'a str, &'a str), TeenixHppError> {
-    input
-        .split_once('\n')
-        .ok_or(TeenixHppError::MissingField(field))
+    let bytes = input.as_bytes();
+    let index = bytes
+        .iter()
+        .position(|byte| matches!(*byte, b'\r' | b'\n'))
+        .ok_or(TeenixHppError::MissingField(field))?;
+    let separator_len = if bytes[index] == b'\r' && bytes.get(index + 1) == Some(&b'\n') {
+        2
+    } else {
+        1
+    };
+    Ok((&input[..index], &input[index + separator_len..]))
 }
 
 fn validate_words(words: &[u32; HP67_CARD_RECORDS_PER_TRACK]) -> Result<(), Hp67MagneticCardError> {
@@ -536,6 +544,25 @@ mod tests {
         let body = format!("67\nmoon.bmp\nMoon Rocket Lander\n{data}\n");
         let decoded = format!("NeWe\n{}\n{body}", body.len());
         decoded.bytes().map(|byte| byte ^ 0x55).collect()
+    }
+
+    #[test]
+    fn teenix_import_accepts_cr_only_line_endings() {
+        let mut words = sample_words(0x0004_2000);
+        words[0] = 0x0300_0222;
+        let encoded = encode_teenix(words);
+        let decoded = encoded
+            .iter()
+            .map(|byte| byte ^ 0x55)
+            .collect::<Vec<_>>();
+        let decoded = String::from_utf8(decoded).unwrap().replace('\n', "\r");
+        let encoded = decoded.bytes().map(|byte| byte ^ 0x55).collect::<Vec<_>>();
+
+        let imported = TeenixHppImport::from_bytes(&encoded).unwrap();
+        assert_eq!(imported.calculator_id, 67);
+        assert_eq!(imported.card_track, Hp67CardTrack::Track1);
+        assert_eq!(imported.track.words(), Some(&words));
+        assert!(imported.length_matches);
     }
 
     #[test]
