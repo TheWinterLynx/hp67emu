@@ -257,7 +257,7 @@ pub fn paint(
             // The real holder/slot behind the chamfered card is dark. Back the
             // card only up to (but not over) the photographed right-hand frame,
             // otherwise a few black pixels can cover its white highlight.
-            paint_holder_dark_backing(ui.painter(), photo, window, card_rect, scale);
+            paint_holder_dark_backing(ui.painter(), photo, window, card_rect);
             paint_card(
                 &ui.painter().with_clip_rect(window),
                 card_rect,
@@ -704,7 +704,7 @@ fn paint_window_insertion_from_right(
     }
 
     if holder_window.intersects(rect) {
-        paint_holder_dark_backing(ui.painter(), photo, holder_window, rect, scale);
+        paint_holder_dark_backing(ui.painter(), photo, holder_window, rect);
         paint_card(
             &ui.painter().with_clip_rect(holder_window),
             rect,
@@ -722,7 +722,8 @@ fn paint_window_insertion_from_right(
 }
 
 fn holder_frame_x_source(y_source: f32) -> f32 {
-    let t = ((y_source - CARD_WINDOW.y0) / (CARD_WINDOW.y1 - CARD_WINDOW.y0)).clamp(0.0, 1.0);
+    let t =
+        ((y_source - CARD_WINDOW.y0) / (CARD_WINDOW.y1 - CARD_WINDOW.y0)).clamp(0.0, 1.0);
     HOLDER_RIGHT_FRAME_TOP_X
         + (HOLDER_RIGHT_FRAME_BOTTOM_X - HOLDER_RIGHT_FRAME_TOP_X) * t
 }
@@ -731,13 +732,7 @@ fn screen_y_to_source(photo: Rect, y: f32) -> f32 {
     ((y - photo.top()) / photo.height()) * PHOTO_H
 }
 
-fn paint_holder_dark_backing(
-    painter: &Painter,
-    photo: Rect,
-    window: Rect,
-    card_rect: Rect,
-    scale: f32,
-) {
+fn paint_holder_dark_backing(painter: &Painter, photo: Rect, window: Rect, card_rect: Rect) {
     let clipped = window.intersect(card_rect);
     if clipped.width() <= 0.0 || clipped.height() <= 0.0 {
         return;
@@ -745,11 +740,14 @@ fn paint_holder_dark_backing(
 
     let y0_source = screen_y_to_source(photo, clipped.top());
     let y1_source = screen_y_to_source(photo, clipped.bottom());
-    let gap = HOLDER_BACKING_FRAME_GAP_SOURCE_PX * scale;
-    let right_top =
-        source_x_to_screen(photo, holder_frame_x_source(y0_source)) - gap;
-    let right_bottom =
-        source_x_to_screen(photo, holder_frame_x_source(y1_source)) - gap;
+    let right_top = source_x_to_screen(
+        photo,
+        holder_frame_x_source(y0_source) - HOLDER_BACKING_FRAME_GAP_SOURCE_PX,
+    );
+    let right_bottom = source_x_to_screen(
+        photo,
+        holder_frame_x_source(y1_source) - HOLDER_BACKING_FRAME_GAP_SOURCE_PX,
+    );
     let left = clipped.left();
     let right_top = right_top.min(clipped.right());
     let right_bottom = right_bottom.min(clipped.right());
@@ -896,13 +894,19 @@ mod tests {
 
     #[test]
     fn holder_right_frame_is_one_linear_trapezoid() {
-        assert_eq!(holder_frame_x_source(CARD_WINDOW.y0), HOLDER_RIGHT_FRAME_TOP_X);
+        assert_eq!(
+            holder_frame_x_source(CARD_WINDOW.y0),
+            HOLDER_RIGHT_FRAME_TOP_X
+        );
         assert_eq!(
             holder_frame_x_source(CARD_WINDOW.y1),
             HOLDER_RIGHT_FRAME_BOTTOM_X
         );
         let middle = holder_frame_x_source((CARD_WINDOW.y0 + CARD_WINDOW.y1) * 0.5);
-        assert!((middle - (HOLDER_RIGHT_FRAME_TOP_X + HOLDER_RIGHT_FRAME_BOTTOM_X) * 0.5).abs() < 0.001);
+        assert!(
+            (middle - (HOLDER_RIGHT_FRAME_TOP_X + HOLDER_RIGHT_FRAME_BOTTOM_X) * 0.5).abs()
+                < 0.001
+        );
     }
 
     #[test]
