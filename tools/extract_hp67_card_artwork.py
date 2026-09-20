@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""HP67 card artwork extractor v1.3\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
+"""HP67 card artwork extractor v1.4\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
 
 Workflow:
   1. Scan a PDF for wide dark magnetic-card strips.
   2. Review the generated HTML/candidate PNGs.
   3. Extract high-resolution PNGs, optionally naming them from a built-in
      PAC profile or a one-reference-per-line text file.
-  4. Apply the physical HP card silhouette as an alpha mask. This removes PDF
-     page-white/antialias edge pixels without flood-filling legitimate white
-     card markings that touch the top edge.
-  5. Optionally build/validate the 480x80-per-row RGBA atlas used by hp67emu.
+  4. Normalize every PDF crop at native DPI onto one exact physical-card canvas:
+     missing PDF area is filled black, oversize PDF area is center-cropped, and
+     only the physical chamfered silhouette is transparent outside.
+  5. Suppress line-like PDF edge artifacts while preserving compact filled white
+     registration marks at the top edge.
+  6. Optionally build/validate the 499x80-per-row RGBA atlas used by hp67emu.
 
 Dependencies:
     py -m pip install pymupdf pillow
@@ -37,7 +39,7 @@ except ImportError as exc:  # pragma: no cover - dependency guidance
     raise SystemExit("Missing PyMuPDF. Install with: py -m pip install pymupdf pillow") from exc
 
 try:
-    from PIL import Image, ImageChops, ImageDraw, ImageOps
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter
 except ImportError as exc:  # pragma: no cover - dependency guidance
     raise SystemExit("Missing Pillow. Install with: py -m pip install pymupdf pillow") from exc
 
@@ -67,8 +69,11 @@ ATLAS_PROFILES = {
 CARD_WIDTH_MM = 71.1
 CARD_HEIGHT_MM = 11.4
 CARD_END_CHAMFER_MM = 4.2
-CARD_EDGE_INSET_WIDTH_FRACTION = 1.0 / 700.0
-CARD_TRANSPARENT_PADDING_WIDTH_FRACTION = 1.0 / 700.0
+CARD_EDGE_ARTIFACT_ZONE_MM = 1.6
+CARD_WHITE_MARK_MAX_MM = 1.5
+CARD_WHITE_MARK_MAX_ASPECT = 1.8
+ATLAS_ROW_HEIGHT = 80
+ATLAS_WIDTH = round(ATLAS_ROW_HEIGHT * CARD_WIDTH_MM / CARD_HEIGHT_MM)
 
 
 @dataclass(frozen=True)
@@ -263,74 +268,163 @@ def expanded_rect(rect: fitz.Rect, page_rect: fitz.Rect, margin_pt: float) -> fi
     return r & page_rect
 
 
-def apply_card_silhouette(image: Image.Image) -> Image.Image:
-    """Clip a PDF crop to the physical HP magnetic-card silhouette.
+def card_pixel_size(dpi: int) -> tuple[int, int]:
+    return (
+        round(CARD_WIDTH_MM * dpi / 25.4),
+        round(CARD_HEIGHT_MM * dpi / 25.4),
+    )
 
-    A connectivity flood-fill is intentionally not used here. The PAC artwork
-    contains legitimate white registration/top marks that are open to the top
-    edge of the black card; flood-filling page white therefore hollows those
-    marks out. The physical card geometry is known independently by the
-    emulator, so use the same chamfer dimensions as a deterministic alpha mask.
 
-    A tiny inward mask offset removes the one-pixel white antialias fringe left
-    by rasterising the black card against the white PDF page. A transparent
-    black padding ring is added afterwards so linear GPU sampling cannot pull
-    pale RGB values back onto the edge.
-    """
-    rgba = image.convert("RGBA")
-    width, height = rgba.size
-    if width < 100 or height < 20:
-        raise RuntimeError(f"Suspiciously small card crop: {rgba.size}")
-
-    px_per_mm_x = width / CARD_WIDTH_MM
-    px_per_mm_y = height / CARD_HEIGHT_MM
-    px_per_mm = min(px_per_mm_x, px_per_mm_y)
-    chamfer = max(1, round(CARD_END_CHAMFER_MM * px_per_mm))
-    inset = max(1, round(width * CARD_EDGE_INSET_WIDTH_FRACTION))
-
-    left = inset
-    top = inset
-    right = width - 1 - inset
-    bottom = height - 1 - inset
-    if right <= left or bottom <= top or chamfer * 2 >= min(width, height):
-        raise RuntimeError(f"Invalid card mask geometry for crop {rgba.size}")
-
-    mask = Image.new("L", (width, height), 0)
-    draw = ImageDraw.Draw(mask)
-    draw.polygon(
+def card_silhouette_mask(size: tuple[int, int], dpi: int) -> Image.Image:
+    width, height = size
+    chamfer = max(1, round(CARD_END_CHAMFER_MM * dpi / 25.4))
+    chamfer = min(chamfer, width // 4, height - 1)
+    mask = Image.new("L", size, 0)
+    ImageDraw.Draw(mask).polygon(
         [
-            (left + chamfer, top),
-            (right, top),
-            (right, bottom - chamfer),
-            (right - chamfer, bottom),
-            (left, bottom),
-            (left, top + chamfer),
+            (chamfer, 0),
+            (width - 1, 0),
+            (width - 1, height - 1 - chamfer),
+            (width - 1 - chamfer, height - 1),
+            (0, height - 1),
+            (0, chamfer),
         ],
         fill=255,
     )
+    return mask
 
-    source_alpha = rgba.getchannel("A")
-    rgba.putalpha(ImageChops.multiply(source_alpha, mask))
 
-    bbox = rgba.getchannel("A").getbbox()
-    if bbox is None:
-        raise RuntimeError("Artwork silhouette removed the complete crop")
-    rgba = rgba.crop(bbox)
-
-    padding = max(1, round(width * CARD_TRANSPARENT_PADDING_WIDTH_FRACTION))
-    padded = Image.new(
-        "RGBA",
-        (rgba.width + 2 * padding, rgba.height + 2 * padding),
-        (0, 0, 0, 0),
+def composite_centered(dst: Image.Image, src: Image.Image) -> None:
+    """Composite src into dst at native scale, clipping symmetrically if needed."""
+    dx = (dst.width - src.width) // 2
+    dy = (dst.height - src.height) // 2
+    sx0 = max(0, -dx)
+    sy0 = max(0, -dy)
+    tx0 = max(0, dx)
+    ty0 = max(0, dy)
+    width = min(src.width - sx0, dst.width - tx0)
+    height = min(src.height - sy0, dst.height - ty0)
+    if width <= 0 or height <= 0:
+        raise RuntimeError(
+            f"PDF crop {src.size} does not overlap canonical card canvas {dst.size}"
+        )
+    dst.alpha_composite(
+        src.crop((sx0, sy0, sx0 + width, sy0 + height)),
+        (tx0, ty0),
     )
-    padded.alpha_composite(rgba, (padding, padding))
-    return padded
+
+
+def suppress_boundary_white_artifacts(
+    image: Image.Image,
+    silhouette: Image.Image,
+    dpi: int,
+) -> None:
+    """Paint PDF edge artifacts black without hollowing compact white top marks."""
+    width, height = image.size
+    pixels = image.load()
+    silhouette_px = silhouette.load()
+
+    guard = max(1, round(CARD_EDGE_ARTIFACT_ZONE_MM * dpi / 25.4))
+    filter_size = guard * 2 + 1
+    if filter_size > min(width, height):
+        filter_size = max(3, min(width, height) // 2 * 2 - 1)
+    inner = silhouette.filter(ImageFilter.MinFilter(filter_size))
+    inner_px = inner.load()
+
+    white = bytearray(width * height)
+    for y in range(height):
+        for x in range(width):
+            if silhouette_px[x, y] == 0:
+                continue
+            r, g, b, a = pixels[x, y]
+            if a and r >= 180 and g >= 180 and b >= 180 and max(r, g, b) - min(r, g, b) <= 30:
+                white[y * width + x] = 1
+
+    seen = bytearray(width * height)
+    neighbours = (
+        (-1, -1), (0, -1), (1, -1),
+        (-1, 0),            (1, 0),
+        (-1, 1),  (0, 1),  (1, 1),
+    )
+
+    for y0 in range(height):
+        for x0 in range(width):
+            index = y0 * width + x0
+            if not white[index] or seen[index]:
+                continue
+
+            stack = [(x0, y0)]
+            seen[index] = 1
+            component: list[tuple[int, int]] = []
+            touches_boundary_zone = False
+            min_x = max_x = x0
+            min_y = max_y = y0
+
+            while stack:
+                x, y = stack.pop()
+                component.append((x, y))
+                min_x = min(min_x, x)
+                max_x = max(max_x, x)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y)
+                if inner_px[x, y] == 0:
+                    touches_boundary_zone = True
+
+                for ox, oy in neighbours:
+                    nx = x + ox
+                    ny = y + oy
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+                    ni = ny * width + nx
+                    if white[ni] and not seen[ni]:
+                        seen[ni] = 1
+                        stack.append((nx, ny))
+
+            if not touches_boundary_zone:
+                continue
+
+            component_width = max_x - min_x + 1
+            component_height = max_y - min_y + 1
+            max_mark_px = max(2, round(CARD_WHITE_MARK_MAX_MM * dpi / 25.4))
+            aspect = max(component_width, component_height) / max(
+                1, min(component_width, component_height)
+            )
+            compact_mark = (
+                component_width <= max_mark_px
+                and component_height <= max_mark_px
+                and aspect <= CARD_WHITE_MARK_MAX_ASPECT
+            )
+            if compact_mark:
+                continue
+
+            for x, y in component:
+                pixels[x, y] = (0, 0, 0, 255)
+
+
+def normalize_card_artwork(image: Image.Image, dpi: int) -> Image.Image:
+    """Normalize a variable PDF card crop to the exact physical HP card canvas."""
+    source = image.convert("RGBA")
+    target_size = card_pixel_size(dpi)
+    silhouette = card_silhouette_mask(target_size, dpi)
+
+    # The PDF cards differ by a few pixels in width/height. Do not stretch each
+    # one independently: preserve the native DPI, center it on the physical
+    # canvas, crop only genuine oversize, and fill any missing card body black.
+    normalized = Image.new("RGBA", target_size, (0, 0, 0, 255))
+    normalized.putalpha(silhouette)
+    composite_centered(normalized, source)
+
+    # Enforce the canonical silhouette after compositing page pixels, then turn
+    # edge-only PDF whites/antialias lines back into the black card substrate.
+    normalized.putalpha(silhouette)
+    suppress_boundary_white_artifacts(normalized, silhouette, dpi)
+    return normalized
 
 
 
-def clean_card_png(path: Path) -> None:
+def clean_card_png(path: Path, dpi: int) -> None:
     with Image.open(path) as source:
-        cleaned = apply_card_silhouette(source)
+        cleaned = normalize_card_artwork(source, dpi)
     cleaned.save(path, format="PNG", optimize=False)
 
     # Decode again after writing.  This catches malformed PNG output at the
@@ -339,8 +433,11 @@ def clean_card_png(path: Path) -> None:
         check.load()
         if check.mode != "RGBA":
             raise RuntimeError(f"Artwork must be RGBA after cleanup: {path} ({check.mode})")
-        if check.width < 100 or check.height < 20:
-            raise RuntimeError(f"Suspiciously small extracted card {path}: {check.size}")
+        expected = card_pixel_size(dpi)
+        if check.size != expected:
+            raise RuntimeError(
+                f"Extracted card has {check.size}; expected canonical {expected}: {path}"
+            )
 
 
 def render_candidate(page: fitz.Page, rect: fitz.Rect, out: Path, dpi: int, margin_pt: float) -> None:
@@ -348,7 +445,7 @@ def render_candidate(page: fitz.Page, rect: fitz.Rect, out: Path, dpi: int, marg
     pix = page.get_pixmap(matrix=fitz.Matrix(dpi / 72.0, dpi / 72.0), clip=clip, alpha=False)
     out.parent.mkdir(parents=True, exist_ok=True)
     pix.save(out)
-    clean_card_png(out)
+    clean_card_png(out, dpi)
 
 
 def write_review_html(out_dir: Path, pdf: Path, candidates: list[Candidate]) -> None:
@@ -462,18 +559,15 @@ def atlas_command(args: argparse.Namespace) -> None:
             raise SystemExit(f"Missing artwork: {path}")
         with Image.open(path) as src:
             src = src.convert("RGBA")
-            # The extracted PNG has already been silhouette-masked. Never
-            # flood-fill or remask it here: top-edge white card markings are
-            # legitimate artwork and must stay filled.
-            # Fit inside the atlas cell without distorting the physical card.
-            # Any unused area stays transparent black so LINEAR sampling in the
-            # emulator cannot manufacture a white halo around the card.
-            fitted = ImageOps.contain(src, (args.width, args.row_height), Image.Resampling.LANCZOS)
-            cell = Image.new("RGBA", (args.width, args.row_height), (0, 0, 0, 0))
-            x = (args.width - fitted.width) // 2
-            y = (args.row_height - fitted.height) // 2
-            cell.alpha_composite(fitted, (x, y))
-            rows.append(cell)
+            # Extraction already normalized the exact physical card canvas.
+            # Scale that canonical canvas directly to the canonical atlas row:
+            # no per-card contain/letterboxing and therefore no variable border.
+            rows.append(
+                src.resize(
+                    (args.width, args.row_height),
+                    Image.Resampling.LANCZOS,
+                )
+            )
 
     atlas = Image.new(
         "RGBA",
@@ -559,8 +653,8 @@ def build_parser() -> argparse.ArgumentParser:
     atlas.add_argument("--manifest", help="CSV manifest whose reference column defines atlas row order")
     atlas.add_argument("--artwork", required=True)
     atlas.add_argument("--out", required=True)
-    atlas.add_argument("--width", type=int, default=480)
-    atlas.add_argument("--row-height", type=int, default=80)
+    atlas.add_argument("--width", type=int, default=ATLAS_WIDTH)
+    atlas.add_argument("--row-height", type=int, default=ATLAS_ROW_HEIGHT)
     naming = atlas.add_mutually_exclusive_group()
     naming.add_argument("--profile", choices=sorted(ATLAS_PROFILES))
     naming.add_argument("--references")
