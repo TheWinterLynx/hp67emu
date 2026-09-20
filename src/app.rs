@@ -892,7 +892,7 @@ impl eframe::App for Hp67App {
                     machine.set_key_contact(contact);
                 }
 
-                top_keys::paint(ui, host, &self.photo);
+                top_keys::paint(ui, host, &self.photo, panel.key_contact);
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
