@@ -360,9 +360,8 @@ impl Hp67App {
                                 .id_source(("hp67-program-pack", pack))
                                 .default_open(false)
                                 .show(ui, |ui| {
-                                    for (index, entry) in PROGRAM_LIBRARY[pack_start..pack_end]
-                                        .iter()
-                                        .enumerate()
+                                    for (index, entry) in
+                                        PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
                                     {
                                         let index = pack_start + index;
                                         let label = if entry.reference.is_empty() {
@@ -392,10 +391,8 @@ impl Hp67App {
                             columns[1].label(format!("Reference: {}", entry.reference));
                         }
                         columns[1].label(format!("Pack: {}", entry.pack));
-                        columns[1].label(format!(
-                            "Magnetic tracks supplied: {}",
-                            entry.track_count()
-                        ));
+                        columns[1]
+                            .label(format!("Magnetic tracks supplied: {}", entry.track_count()));
                         if let Some(pdf) = entry.source_pdf {
                             columns[1].label(format!("Artwork/manual source: {pdf}"));
                         } else {
@@ -405,16 +402,17 @@ impl Hp67App {
 
                         match entry.program_listing() {
                             Ok(listing) => {
-                                egui::ScrollArea::both()
-                                    .max_height(410.0)
-                                    .show(&mut columns[1], |ui| {
+                                egui::ScrollArea::both().max_height(410.0).show(
+                                    &mut columns[1],
+                                    |ui| {
                                         ui.add(
                                             egui::Label::new(
                                                 egui::RichText::new(listing).monospace(),
                                             )
                                             .wrap(false),
                                         );
-                                    });
+                                    },
+                                );
                             }
                             Err(error) => {
                                 columns[1].label(format!("Cannot decode listing: {error}"));
@@ -433,8 +431,9 @@ impl Hp67App {
                             load_requested = Some(index);
                         }
                         if !reader_free {
-                            columns[1]
-                                .label("Remove the card from the reader before loading another one.");
+                            columns[1].label(
+                                "Remove the card from the reader before loading another one.",
+                            );
                         }
                     } else {
                         columns[1].label("Select a program from a pack to view its listing.");
