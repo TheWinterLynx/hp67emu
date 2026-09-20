@@ -14,7 +14,7 @@ const CARD_WINDOW: SourceRect = SourceRect::new(138.0, 345.0, 796.0, 454.0);
 const HOLDER_CARD_CENTER_X_OFFSET_SOURCE_PX: f32 = -1.5;
 const HOLDER_RIGHT_FRAME_TOP_X: f32 = 787.0;
 const HOLDER_RIGHT_FRAME_BOTTOM_X: f32 = 792.0;
-const HOLDER_RIGHT_MASK_BANDS: usize = 109;
+const HOLDER_BACKING_FRAME_GAP_SOURCE_PX: f32 = 0.75;
 const CARD_READER_HIT: SourceRect = SourceRect::new(775.0, 356.0, 842.0, 452.0);
 const CARD_READER_MOUTH_X: f32 = CARD_READER_HIT.x1;
 const CARD_EXIT_MOUTH_X: f32 = 64.0;
@@ -254,12 +254,10 @@ pub fn paint(
             }
             output.window_clicked = response.clicked();
             let card_rect = holder_card_rect(window, scale);
-            // The real holder/slot behind the chamfered card is dark. The source
-            // calculator photograph has bright metal here, so back only the
-            // in-holder card rectangle with black before drawing its silhouette.
-            ui.painter()
-                .with_clip_rect(window)
-                .rect_filled(card_rect, 0.0, Color32::BLACK);
+            // The real holder/slot behind the chamfered card is dark. Back the
+            // card only up to (but not over) the photographed right-hand frame,
+            // otherwise a few black pixels can cover its white highlight.
+            paint_holder_dark_backing(ui.painter(), photo, window, card_rect, scale);
             paint_card(
                 &ui.painter().with_clip_rect(window),
                 card_rect,
@@ -706,9 +704,7 @@ fn paint_window_insertion_from_right(
     }
 
     if holder_window.intersects(rect) {
-        ui.painter()
-            .with_clip_rect(holder_window)
-            .rect_filled(rect, 0.0, Color32::BLACK);
+        paint_holder_dark_backing(ui.painter(), photo, holder_window, rect, scale);
         paint_card(
             &ui.painter().with_clip_rect(holder_window),
             rect,
@@ -725,24 +721,78 @@ fn paint_window_insertion_from_right(
     debug_assert!(holder_mouth_x <= case_right_x);
 }
 
-fn paint_holder_right_frame_mask(painter: &Painter, photo: Rect, body: &TextureHandle) {
-    let y_span = CARD_WINDOW.y1 - CARD_WINDOW.y0;
-    for band in 0..HOLDER_RIGHT_MASK_BANDS {
-        let t0 = band as f32 / HOLDER_RIGHT_MASK_BANDS as f32;
-        let t1 = (band + 1) as f32 / HOLDER_RIGHT_MASK_BANDS as f32;
-        let tm = (t0 + t1) * 0.5;
-        let y0 = CARD_WINDOW.y0 + y_span * t0;
-        let y1 = CARD_WINDOW.y0 + y_span * t1;
-        let frame_x = HOLDER_RIGHT_FRAME_TOP_X
-            + (HOLDER_RIGHT_FRAME_BOTTOM_X - HOLDER_RIGHT_FRAME_TOP_X) * tm;
-        let src = SourceRect::new(frame_x, y0, CARD_WINDOW.x1, y1);
-        painter.image(
-            body.id(),
-            source_to_screen(photo, src),
-            source_to_uv(src),
-            Color32::WHITE,
-        );
+fn holder_frame_x_source(y_source: f32) -> f32 {
+    let t = ((y_source - CARD_WINDOW.y0) / (CARD_WINDOW.y1 - CARD_WINDOW.y0)).clamp(0.0, 1.0);
+    HOLDER_RIGHT_FRAME_TOP_X
+        + (HOLDER_RIGHT_FRAME_BOTTOM_X - HOLDER_RIGHT_FRAME_TOP_X) * t
+}
+
+fn screen_y_to_source(photo: Rect, y: f32) -> f32 {
+    ((y - photo.top()) / photo.height()) * PHOTO_H
+}
+
+fn paint_holder_dark_backing(
+    painter: &Painter,
+    photo: Rect,
+    window: Rect,
+    card_rect: Rect,
+    scale: f32,
+) {
+    let clipped = window.intersect(card_rect);
+    if clipped.width() <= 0.0 || clipped.height() <= 0.0 {
+        return;
     }
+
+    let y0_source = screen_y_to_source(photo, clipped.top());
+    let y1_source = screen_y_to_source(photo, clipped.bottom());
+    let gap = HOLDER_BACKING_FRAME_GAP_SOURCE_PX * scale;
+    let right_top =
+        source_x_to_screen(photo, holder_frame_x_source(y0_source)) - gap;
+    let right_bottom =
+        source_x_to_screen(photo, holder_frame_x_source(y1_source)) - gap;
+    let left = clipped.left();
+    let right_top = right_top.min(clipped.right());
+    let right_bottom = right_bottom.min(clipped.right());
+    if right_top <= left || right_bottom <= left {
+        return;
+    }
+
+    painter.add(Shape::convex_polygon(
+        vec![
+            pos2(left, clipped.top()),
+            pos2(right_top, clipped.top()),
+            pos2(right_bottom, clipped.bottom()),
+            pos2(left, clipped.bottom()),
+        ],
+        Color32::BLACK,
+        Stroke::NONE,
+    ));
+}
+
+fn paint_holder_right_frame_mask(painter: &Painter, photo: Rect, body: &TextureHandle) {
+    // Repaint the photographed sloping frame as one textured trapezoid. The
+    // old 109-band reconstruction could expose one-pixel seams that appeared
+    // as tiny lines extending into the calculator shell.
+    let source_points = [
+        (HOLDER_RIGHT_FRAME_TOP_X, CARD_WINDOW.y0),
+        (CARD_WINDOW.x1, CARD_WINDOW.y0),
+        (CARD_WINDOW.x1, CARD_WINDOW.y1),
+        (HOLDER_RIGHT_FRAME_BOTTOM_X, CARD_WINDOW.y1),
+    ];
+
+    let mut mesh = Mesh::with_texture(body.id());
+    for (x, y) in source_points {
+        mesh.vertices.push(Vertex {
+            pos: pos2(
+                photo.left() + x * photo.width() / PHOTO_W,
+                photo.top() + y * photo.height() / PHOTO_H,
+            ),
+            uv: pos2(x / PHOTO_W, y / PHOTO_H),
+            color: Color32::WHITE,
+        });
+    }
+    mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+    painter.add(mesh);
 }
 
 fn source_to_uv(src: SourceRect) -> Rect {
@@ -827,6 +877,32 @@ mod tests {
         assert_eq!(CARD_WINDOW.y1, 454.0);
         assert!(CARD_WINDOW.x1 - CARD_WINDOW.x0 < CARD_PHYSICAL_WIDTH);
         assert!(CARD_WINDOW.y1 - CARD_WINDOW.y0 < CARD_PHYSICAL_HEIGHT);
+    }
+
+    #[test]
+    fn holder_backing_stops_before_photographed_right_frame() {
+        let photo = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(PHOTO_W, PHOTO_H));
+        let window = source_to_screen(photo, CARD_WINDOW);
+        let card = holder_card_rect(window, 1.0);
+
+        for y in [window.top(), window.center().y, window.bottom()] {
+            let y_source = screen_y_to_source(photo, y);
+            let frame_x = source_x_to_screen(photo, holder_frame_x_source(y_source));
+            let backing_x = frame_x - HOLDER_BACKING_FRAME_GAP_SOURCE_PX;
+            assert!(backing_x < frame_x);
+            assert!(backing_x > card.left());
+        }
+    }
+
+    #[test]
+    fn holder_right_frame_is_one_linear_trapezoid() {
+        assert_eq!(holder_frame_x_source(CARD_WINDOW.y0), HOLDER_RIGHT_FRAME_TOP_X);
+        assert_eq!(
+            holder_frame_x_source(CARD_WINDOW.y1),
+            HOLDER_RIGHT_FRAME_BOTTOM_X
+        );
+        let middle = holder_frame_x_source((CARD_WINDOW.y0 + CARD_WINDOW.y1) * 0.5);
+        assert!((middle - (HOLDER_RIGHT_FRAME_TOP_X + HOLDER_RIGHT_FRAME_BOTTOM_X) * 0.5).abs() < 0.001);
     }
 
     #[test]
