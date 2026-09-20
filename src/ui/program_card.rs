@@ -722,10 +722,8 @@ fn paint_window_insertion_from_right(
 }
 
 fn holder_frame_x_source(y_source: f32) -> f32 {
-    let t =
-        ((y_source - CARD_WINDOW.y0) / (CARD_WINDOW.y1 - CARD_WINDOW.y0)).clamp(0.0, 1.0);
-    HOLDER_RIGHT_FRAME_TOP_X
-        + (HOLDER_RIGHT_FRAME_BOTTOM_X - HOLDER_RIGHT_FRAME_TOP_X) * t
+    let t = ((y_source - CARD_WINDOW.y0) / (CARD_WINDOW.y1 - CARD_WINDOW.y0)).clamp(0.0, 1.0);
+    HOLDER_RIGHT_FRAME_TOP_X + (HOLDER_RIGHT_FRAME_BOTTOM_X - HOLDER_RIGHT_FRAME_TOP_X) * t
 }
 
 fn screen_y_to_source(photo: Rect, y: f32) -> f32 {
@@ -904,8 +902,7 @@ mod tests {
         );
         let middle = holder_frame_x_source((CARD_WINDOW.y0 + CARD_WINDOW.y1) * 0.5);
         assert!(
-            (middle - (HOLDER_RIGHT_FRAME_TOP_X + HOLDER_RIGHT_FRAME_BOTTOM_X) * 0.5).abs()
-                < 0.001
+            (middle - (HOLDER_RIGHT_FRAME_TOP_X + HOLDER_RIGHT_FRAME_BOTTOM_X) * 0.5).abs() < 0.001
         );
     }
 
