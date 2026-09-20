@@ -791,13 +791,6 @@ fn paint_holder_right_frame_mask(painter: &Painter, photo: Rect, body: &TextureH
     painter.add(mesh);
 }
 
-fn source_to_uv(src: SourceRect) -> Rect {
-    Rect::from_min_max(
-        pos2(src.x0 / PHOTO_W, src.y0 / PHOTO_H),
-        pos2(src.x1 / PHOTO_W, src.y1 / PHOTO_H),
-    )
-}
-
 fn source_x_to_screen(photo: Rect, x: f32) -> f32 {
     photo.left() + x * photo.width() / PHOTO_W
 }
