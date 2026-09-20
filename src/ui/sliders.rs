@@ -36,7 +36,10 @@ struct PhotoSlider {
 // draw only the ribbed piece at its new position.
 const POWER: PhotoSlider = PhotoSlider {
     id: "power",
-    clip: PxRect::new(224.0, 292.0, 336.0, 319.0),
+    // Repaint only through the proven photographed recess boundary. Extending
+    // this to x=336 made the synthesized black track intrude into the bright
+    // right-hand surround by several source pixels.
+    clip: PxRect::new(224.0, 292.0, 330.0, 319.0),
     actuator: PxRect::new(286.0, 292.0, 327.0, 309.0),
     clean_track: PxRect::new(234.0, 292.0, 275.0, 309.0),
     travel_px: 52.0,
@@ -44,11 +47,10 @@ const POWER: PhotoSlider = PhotoSlider {
 
 const MODE: PhotoSlider = PhotoSlider {
     id: "mode",
-    // The current renderer repaints the complete clip.  The older RUN-safe
-    // implementation only erased through source x=700; x=702 was merely its
-    // outer clip.  Keep this effective paint boundary at 700 so the anti-aliased
-    // left edge of the RUN legend remains untouched.
-    clip: PxRect::new(595.0, 292.0, 700.0, 319.0),
+    // The whole clip is repainted from the clean recess sample. Stop exactly at
+    // the photographed actuator/recess edge; the previous x=700 boundary left
+    // two synthetic black source pixels extending toward the RUN legend.
+    clip: PxRect::new(595.0, 292.0, 698.0, 319.0),
     actuator: PxRect::new(657.0, 292.0, 698.0, 309.0),
     clean_track: PxRect::new(605.0, 292.0, 646.0, 309.0),
     travel_px: 52.0,
@@ -157,10 +159,11 @@ mod tests {
     }
 
     #[test]
-    fn mode_slider_cleanup_never_reaches_run_legend() {
+    fn slider_cleanup_stops_at_the_photographed_right_edges() {
+        assert_eq!(POWER.clip.x1, 330.0);
+        assert!(POWER.clip.x1 - POWER.actuator.x1 <= 3.0);
         assert_eq!(MODE.actuator.x1, 698.0);
-        assert_eq!(MODE.clip.x1, 700.0);
-        assert!(MODE.clip.x1 - MODE.actuator.x1 <= 2.0);
+        assert_eq!(MODE.clip.x1, MODE.actuator.x1);
     }
 
     #[test]
