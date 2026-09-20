@@ -1046,7 +1046,6 @@ mod tests {
             }
         }
 
-
         // SD1-01A Moving Average has two solid white registration blocks along
         // its top edge in HP's Standard Pac artwork. Keep this as a concrete
         // regression because earlier edge cleanup/downsampling hollowed them.
