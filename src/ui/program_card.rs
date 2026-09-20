@@ -334,6 +334,10 @@ fn paint_card(
         rect.left_bottom(),
         pos2(rect.left(), rect.top() + chamfer),
     ];
+    // The physical slot behind the card is dark. Paint a black substrate
+    // across the card's full bounding box before the chamfered face so the
+    // clipped corners cannot expose bright metal from the source photograph.
+    painter.rect_filled(rect, 0.0, Color32::BLACK);
     painter.add(Shape::convex_polygon(
         points.clone(),
         palette.body,
