@@ -32,7 +32,7 @@ pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
     card_logo: TextureHandle,
-    card_artwork_atlas: image::RgbaImage,
+    card_artwork_atlas: Option<image::RgbaImage>,
     live_machine: Option<Hp67LiveMachine>,
     card_media: Option<Hp67MagneticCard>,
     card_import_name: Option<String>,
@@ -49,6 +49,28 @@ pub struct Hp67App {
     program_library_status: Option<String>,
     card_library_entry: Option<usize>,
     card_artwork_texture: Option<TextureHandle>,
+}
+
+fn decode_embedded_card_artwork_atlas() -> Result<image::RgbaImage, String> {
+    let atlas = image::load_from_memory_with_format(
+        include_bytes!("../assets/hp67-card-artwork-atlas.png"),
+        image::ImageFormat::Png,
+    )
+    .map_err(|error| format!("invalid embedded PNG: {error}"))?
+    .to_rgba8();
+
+    let expected = (
+        CARD_ARTWORK_ATLAS_WIDTH,
+        CARD_ARTWORK_ATLAS_ROW_HEIGHT * CARD_ARTWORK_ATLAS_ROWS,
+    );
+    if atlas.dimensions() != expected {
+        return Err(format!(
+            "unexpected dimensions {:?}; expected {expected:?}",
+            atlas.dimensions()
+        ));
+    }
+
+    Ok(atlas)
 }
 
 impl Hp67App {
@@ -88,20 +110,13 @@ impl Hp67App {
             TextureOptions::LINEAR,
         );
 
-        let card_artwork_atlas = image::load_from_memory_with_format(
-            include_bytes!("../assets/hp67-card-artwork-atlas.png"),
-            image::ImageFormat::Png,
-        )
-        .expect("embedded HP-67 card artwork atlas must be a valid PNG")
-        .to_rgba8();
-        assert_eq!(
-            card_artwork_atlas.dimensions(),
-            (
-                CARD_ARTWORK_ATLAS_WIDTH,
-                CARD_ARTWORK_ATLAS_ROW_HEIGHT * CARD_ARTWORK_ATLAS_ROWS,
-            ),
-            "embedded HP-67 card artwork atlas has unexpected dimensions"
-        );
+        let card_artwork_atlas = match decode_embedded_card_artwork_atlas() {
+            Ok(atlas) => Some(atlas),
+            Err(error) => {
+                eprintln!("HP-67 card artwork atlas disabled: {error}");
+                None
+            }
+        };
 
         let live_machine = match Hp67LiveMachine::power_on_default() {
             Ok(machine) => Some(machine),
@@ -303,10 +318,12 @@ impl Hp67App {
             .get(index)
             .ok_or_else(|| format!("program library index {index} is out of range"))?;
         let loaded = entry.load_card()?;
-        let artwork_texture = if let Some(row) = entry.artwork_atlas_row() {
+        let artwork_texture = if let (Some(row), Some(atlas)) =
+            (entry.artwork_atlas_row(), self.card_artwork_atlas.as_ref())
+        {
             let y = row as u32 * CARD_ARTWORK_ATLAS_ROW_HEIGHT;
             let decoded = image::imageops::crop_imm(
-                &self.card_artwork_atlas,
+                atlas,
                 0,
                 y,
                 CARD_ARTWORK_ATLAS_WIDTH,
@@ -1001,6 +1018,22 @@ impl eframe::App for Hp67App {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn embedded_card_artwork_atlas_decodes_and_has_expected_dimensions() {
+        let atlas = decode_embedded_card_artwork_atlas()
+            .expect("embedded card artwork atlas must decode during the test gate");
+        assert_eq!(
+            atlas.dimensions(),
+            (
+                CARD_ARTWORK_ATLAS_WIDTH,
+                CARD_ARTWORK_ATLAS_ROW_HEIGHT * CARD_ARTWORK_ATLAS_ROWS,
+            )
+        );
+    }
+
+
     use super::*;
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
 
