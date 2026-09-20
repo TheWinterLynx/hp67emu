@@ -735,10 +735,12 @@ impl eframe::App for Hp67App {
                 if panel.card_waiting_reader_clicked {
                     self.withdraw_waiting_card();
                 }
-                if panel.card_parked_left_double_clicked {
-                    if opposite_track_requested {
-                        self.insert_current_card(self.card_insertion_end.opposite());
-                    } else if self.card_media.is_some() {
+                if opposite_track_requested
+                    && (panel.card_parked_left_clicked || panel.card_parked_left_double_clicked)
+                {
+                    self.insert_current_card(self.card_insertion_end.opposite());
+                } else if panel.card_parked_left_double_clicked {
+                    if self.card_media.is_some() {
                         self.card_insertion_end = self.card_insertion_end.opposite();
                         self.card_phase = ProgramCardPhase::Idle;
                         self.card_phase_started = None;
