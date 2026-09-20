@@ -1,5 +1,7 @@
 use eframe::egui::{pos2, vec2, Color32, Rect, TextureHandle, Ui};
 
+use crate::hp67::KeyAction;
+
 const PHOTO_W: f32 = 928.0;
 const PHOTO_H: f32 = 1695.0;
 
@@ -20,6 +22,7 @@ impl PxRect {
 #[derive(Clone, Copy)]
 struct TopKey {
     id: &'static str,
+    action: KeyAction,
     hit: PxRect,
     cap: PxRect,
 }
@@ -27,26 +30,31 @@ struct TopKey {
 const TOP_KEYS: &[TopKey] = &[
     TopKey {
         id: "a",
+        action: KeyAction::A,
         hit: PxRect::new(166.0, 467.0, 256.0, 550.0),
         cap: PxRect::new(171.0, 472.0, 251.0, 545.0),
     },
     TopKey {
         id: "b",
+        action: KeyAction::B,
         hit: PxRect::new(293.0, 467.0, 383.0, 550.0),
         cap: PxRect::new(298.0, 472.0, 378.0, 545.0),
     },
     TopKey {
         id: "c",
+        action: KeyAction::C,
         hit: PxRect::new(420.0, 467.0, 510.0, 550.0),
         cap: PxRect::new(425.0, 472.0, 505.0, 545.0),
     },
     TopKey {
         id: "d",
+        action: KeyAction::D,
         hit: PxRect::new(547.0, 467.0, 637.0, 550.0),
         cap: PxRect::new(552.0, 472.0, 632.0, 545.0),
     },
     TopKey {
         id: "e",
+        action: KeyAction::E,
         hit: PxRect::new(674.0, 467.0, 764.0, 550.0),
         cap: PxRect::new(679.0, 472.0, 759.0, 545.0),
     },
@@ -58,20 +66,16 @@ const TOP_KEYS: &[TopKey] = &[
 /// unpressed key remained visible above it. Here the A-E row keeps exactly the
 /// same 3.8 px travel, timing, shading and shadow as every other key; we only
 /// replace the newly exposed strip with pixels from the real black key well.
-pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle) {
+pub fn paint(ui: &Ui, host: Rect, photo: &TextureHandle, key_contact: Option<KeyAction>) {
     if host.width() <= 0.0 || host.height() <= 0.0 {
         return;
     }
 
     let photo_rect = fit_photo(host);
     let painter = ui.painter_at(host).with_clip_rect(photo_rect);
-    let (pointer_pos, pointer_down) = ui
-        .ctx()
-        .input(|i| (i.pointer.interact_pos(), i.pointer.primary_down()));
 
     for key in TOP_KEYS {
-        let hit = source_to_screen(photo_rect, key.hit);
-        let down = pointer_down && pointer_pos.is_some_and(|p| hit.contains(p));
+        let down = key_contact == Some(key.action);
         let press = ui.ctx().animate_bool_with_time(
             ui.make_persistent_id(("photo-top-key-correction", key.id)),
             down,
