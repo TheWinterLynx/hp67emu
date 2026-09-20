@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""HP67 card artwork extractor v1.2\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
+"""HP67 card artwork extractor v1.3\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
 
 Workflow:
   1. Scan a PDF for wide dark magnetic-card strips.
   2. Review the generated HTML/candidate PNGs.
   3. Extract high-resolution PNGs, optionally naming them from a built-in
      PAC profile or a one-reference-per-line text file.
-  4. Remove only page-white regions connected to the crop perimeter, making
-     them transparent while preserving white printing inside the black card.
+  4. Apply the physical HP card silhouette as an alpha mask. This removes PDF
+     page-white/antialias edge pixels without flood-filling legitimate white
+     card markings that touch the top edge.
   5. Optionally build/validate the 480x80-per-row RGBA atlas used by hp67emu.
 
 Dependencies:
@@ -26,7 +27,6 @@ import argparse
 import csv
 import html
 import sys
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -37,7 +37,7 @@ except ImportError as exc:  # pragma: no cover - dependency guidance
     raise SystemExit("Missing PyMuPDF. Install with: py -m pip install pymupdf pillow") from exc
 
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image, ImageChops, ImageDraw, ImageOps
 except ImportError as exc:  # pragma: no cover - dependency guidance
     raise SystemExit("Missing Pillow. Install with: py -m pip install pymupdf pillow") from exc
 
@@ -63,6 +63,12 @@ ATLAS_PROFILES = {
     **PROFILES,
     "current": STANDARD_REFS + GAMES1_REFS,
 }
+
+CARD_WIDTH_MM = 71.1
+CARD_HEIGHT_MM = 11.4
+CARD_END_CHAMFER_MM = 4.2
+CARD_EDGE_INSET_WIDTH_FRACTION = 1.0 / 700.0
+CARD_TRANSPARENT_PADDING_WIDTH_FRACTION = 1.0 / 700.0
 
 
 @dataclass(frozen=True)
@@ -257,64 +263,74 @@ def expanded_rect(rect: fitz.Rect, page_rect: fitz.Rect, margin_pt: float) -> fi
     return r & page_rect
 
 
-def remove_edge_paper(image: Image.Image, *, threshold: int = 235) -> Image.Image:
-    """Make page-white connected to the image perimeter transparent, then trim it.
+def apply_card_silhouette(image: Image.Image) -> Image.Image:
+    """Clip a PDF crop to the physical HP magnetic-card silhouette.
 
-    HP PAC manuals print the card as a black strip on a white PDF page.  A PDF
-    crop therefore contains paper around the chamfers/notches even when the
-    detected geometry is correct.  The emulator already owns the physical card
-    silhouette, so that page paper must not become part of the card texture.
+    A connectivity flood-fill is intentionally not used here. The PAC artwork
+    contains legitimate white registration/top marks that are open to the top
+    edge of the black card; flood-filling page white therefore hollows those
+    marks out. The physical card geometry is known independently by the
+    emulator, so use the same chamfer dimensions as a deterministic alpha mask.
 
-    Flood-filling only near-white pixels reachable from the crop perimeter keeps
-    legitimate white text/graphics inside the black card opaque.
+    A tiny inward mask offset removes the one-pixel white antialias fringe left
+    by rasterising the black card against the white PDF page. A transparent
+    black padding ring is added afterwards so linear GPU sampling cannot pull
+    pale RGB values back onto the edge.
     """
     rgba = image.convert("RGBA")
     width, height = rgba.size
-    pixels = rgba.load()
-    visited = bytearray(width * height)
-    queue: deque[tuple[int, int]] = deque()
+    if width < 100 or height < 20:
+        raise RuntimeError(f"Suspiciously small card crop: {rgba.size}")
 
-    def is_paper(x: int, y: int) -> bool:
-        r, g, b, a = pixels[x, y]
-        return a != 0 and r >= threshold and g >= threshold and b >= threshold
+    px_per_mm_x = width / CARD_WIDTH_MM
+    px_per_mm_y = height / CARD_HEIGHT_MM
+    px_per_mm = min(px_per_mm_x, px_per_mm_y)
+    chamfer = max(1, round(CARD_END_CHAMFER_MM * px_per_mm))
+    inset = max(1, round(width * CARD_EDGE_INSET_WIDTH_FRACTION))
 
-    def enqueue(x: int, y: int) -> None:
-        index = y * width + x
-        if visited[index] or not is_paper(x, y):
-            return
-        visited[index] = 1
-        queue.append((x, y))
+    left = inset
+    top = inset
+    right = width - 1 - inset
+    bottom = height - 1 - inset
+    if right <= left or bottom <= top or chamfer * 2 >= min(width, height):
+        raise RuntimeError(f"Invalid card mask geometry for crop {rgba.size}")
 
-    for x in range(width):
-        enqueue(x, 0)
-        enqueue(x, height - 1)
-    for y in range(height):
-        enqueue(0, y)
-        enqueue(width - 1, y)
+    mask = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.polygon(
+        [
+            (left + chamfer, top),
+            (right, top),
+            (right, bottom - chamfer),
+            (right - chamfer, bottom),
+            (left, bottom),
+            (left, top + chamfer),
+        ],
+        fill=255,
+    )
 
-    while queue:
-        x, y = queue.popleft()
-        # Transparent pixels are deliberately black, not transparent-white:
-        # linear texture filtering can otherwise create a pale fringe.
-        pixels[x, y] = (0, 0, 0, 0)
-        if x > 0:
-            enqueue(x - 1, y)
-        if x + 1 < width:
-            enqueue(x + 1, y)
-        if y > 0:
-            enqueue(x, y - 1)
-        if y + 1 < height:
-            enqueue(x, y + 1)
+    source_alpha = rgba.getchannel("A")
+    rgba.putalpha(ImageChops.multiply(source_alpha, mask))
 
     bbox = rgba.getchannel("A").getbbox()
     if bbox is None:
-        raise RuntimeError("Artwork cleanup removed the complete crop")
-    return rgba.crop(bbox)
+        raise RuntimeError("Artwork silhouette removed the complete crop")
+    rgba = rgba.crop(bbox)
+
+    padding = max(1, round(width * CARD_TRANSPARENT_PADDING_WIDTH_FRACTION))
+    padded = Image.new(
+        "RGBA",
+        (rgba.width + 2 * padding, rgba.height + 2 * padding),
+        (0, 0, 0, 0),
+    )
+    padded.alpha_composite(rgba, (padding, padding))
+    return padded
+
 
 
 def clean_card_png(path: Path) -> None:
     with Image.open(path) as source:
-        cleaned = remove_edge_paper(source)
+        cleaned = apply_card_silhouette(source)
     cleaned.save(path, format="PNG", optimize=False)
 
     # Decode again after writing.  This catches malformed PNG output at the
@@ -445,7 +461,10 @@ def atlas_command(args: argparse.Namespace) -> None:
         if not path.is_file():
             raise SystemExit(f"Missing artwork: {path}")
         with Image.open(path) as src:
-            src = remove_edge_paper(src)
+            src = src.convert("RGBA")
+            # The extracted PNG has already been silhouette-masked. Never
+            # flood-fill or remask it here: top-edge white card markings are
+            # legitimate artwork and must stay filled.
             # Fit inside the atlas cell without distorting the physical card.
             # Any unused area stays transparent black so LINEAR sampling in the
             # emulator cannot manufacture a white halo around the card.
@@ -498,7 +517,7 @@ def add_detection_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-width", type=float, default=0.35, help="minimum card width/page width (default: 0.35)")
     parser.add_argument("--min-aspect", type=float, default=3.5, help="minimum width/height ratio (default: 3.5)")
     parser.add_argument("--expected", type=int, help="fail unless exactly this many cards are detected")
-    parser.add_argument("--margin-pt", type=float, default=0.0, help="extra PDF-point margin around detected card (default: 0.0; edge paper is made transparent)")
+    parser.add_argument("--margin-pt", type=float, default=0.0, help="extra PDF-point margin around detected card (default: 0.0; physical silhouette masking removes page edge pixels)")
     naming = parser.add_mutually_exclusive_group()
     naming.add_argument("--profile", choices=sorted(PROFILES), help="built-in reference ordering")
     naming.add_argument("--references", help="text file: one card reference per line")
