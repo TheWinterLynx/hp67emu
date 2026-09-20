@@ -1085,10 +1085,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Diagnostic Program",
         source_pdf: Some("hp67-pac-standard-en.pdf"),
         artwork_path: Some("programs/HP67/_artwork/SD1-15A.png"),
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Standard Pac/SD1-15A_1 Diagnostic Program.hpp"),
-            hpp!("/programs/HP67/HP-67 Standard Pac/SD1-15A_2 Diagnostic Program.hpp"),
-        ],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/HP-67 Standard Pac/SD1-15A-Diagnostic-Program.hp67card"
+        ))],
         artwork: catalog_artwork("Diagnostic Program", "SD1-15A"),
     },
     ProgramLibraryEntry {
@@ -1097,10 +1097,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Diagnostic Program (SD-15C)",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/HP-67 Diagnostic Cards/SD-15C-Diagnostic-Program_1.hpp"),
-            hpp!("/programs/HP67/HP-67 Diagnostic Cards/SD-15C-Diagnostic-Program_2.hpp"),
-        ],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/HP-67 Diagnostic Cards/SD-15C-Diagnostic-Program.hp67card"
+        ))],
         artwork: catalog_artwork("Diagnostic Program", "SD-15C"),
     },
     ProgramLibraryEntry {
@@ -1109,9 +1109,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Flow GSB/GTO/RTN — expect 7.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-01_Flow-GSB-GTO-RTN_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-01_Flow-GSB-GTO-RTN.hp67card"
+        ))],
         artwork: catalog_artwork("Flow GSB/GTO/RTN", "CD-01"),
     },
     ProgramLibraryEntry {
@@ -1120,9 +1121,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Flags SF/CF/F? — expect 6.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-02_Flags-SF-CF-Test_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-02_Flags-SF-CF-Test.hp67card"
+        ))],
         artwork: catalog_artwork("Flags SF/CF/F?", "CD-02"),
     },
     ProgramLibraryEntry {
@@ -1131,9 +1133,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Conditionals — expect 7.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-03_Conditionals_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-03_Conditionals.hp67card"
+        ))],
         artwork: catalog_artwork("Conditionals", "CD-03"),
     },
     ProgramLibraryEntry {
@@ -1142,9 +1145,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Indirect STO/RCL — expect 42.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-04_Indirect-STO-RCL_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-04_Indirect-STO-RCL.hp67card"
+        ))],
         artwork: catalog_artwork("Indirect STO/RCL", "CD-04"),
     },
     ProgramLibraryEntry {
@@ -1153,9 +1157,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Nested GSB — expect 6.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-05_Nested-GSB_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-05_Nested-GSB.hp67card"
+        ))],
         artwork: catalog_artwork("Nested GSB", "CD-05"),
     },
     ProgramLibraryEntry {
@@ -1164,10 +1169,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Second-half label search — expect 67.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_1.hpp"),
-            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_2.hpp"),
-        ],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search.hp67card"
+        ))],
         artwork: catalog_artwork("Second-half label search", "CD-06"),
     },
     ProgramLibraryEntry {
@@ -1176,9 +1181,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "ISZ loop — expect 3.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-07_ISZ-Loop_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-07_ISZ-Loop.hp67card"
+        ))],
         artwork: catalog_artwork("ISZ loop", "CD-07"),
     },
     ProgramLibraryEntry {
@@ -1187,9 +1193,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "DSZ loop — expect 3.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-08_DSZ-Loop_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-08_DSZ-Loop.hp67card"
+        ))],
         artwork: catalog_artwork("DSZ loop", "CD-08"),
     },
     ProgramLibraryEntry {
@@ -1198,9 +1205,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Long DSZ burn-in — expect 2000.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-09_Long-DSZ-Burn-In_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-09_Long-DSZ-Burn-In.hp67card"
+        ))],
         artwork: catalog_artwork("Long DSZ burn-in", "CD-09"),
     },
     ProgramLibraryEntry {
@@ -1209,9 +1217,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Nested GSB burn-in — expect 500.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-10_Nested-GSB-Burn-In_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-10_Nested-GSB-Burn-In.hp67card"
+        ))],
         artwork: catalog_artwork("Nested GSB burn-in", "CD-10"),
     },
     ProgramLibraryEntry {
@@ -1220,9 +1229,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Function identity burn-in — expect 1.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[hpp!(
-            "/programs/HP67/Custom Diagnostic Pacs/CD-11_Function-Identity-Burn-In_1.hpp"
-        )],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-11_Function-Identity-Burn-In.hp67card"
+        ))],
         artwork: catalog_artwork("Function identity burn-in", "CD-11"),
     },
     ProgramLibraryEntry {
@@ -1231,10 +1241,10 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         title: "Cross-half GSB burn-in — expect 500.00",
         source_pdf: None,
         artwork_path: None,
-        parts: &[
-            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-12_Cross-Half-GSB-Burn-In_1.hpp"),
-            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-12_Cross-Half-GSB-Burn-In_2.hpp"),
-        ],
+        parts: &[include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/Custom Diagnostic Pacs/CD-12_Cross-Half-GSB-Burn-In.hp67card"
+        ))],
         artwork: catalog_artwork("Cross-half GSB burn-in", "CD-12"),
     },
 ];
