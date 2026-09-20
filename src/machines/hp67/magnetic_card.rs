@@ -367,7 +367,7 @@ impl TeenixHppImport {
         for (record_index, word) in words.iter_mut().enumerate() {
             let start = record_index * 7;
             for nibble_index in 0..7 {
-                *word = (*word << 4) | u32::from(real[start + nibble_index]);
+                *word |= u32::from(real[start + nibble_index]) << (nibble_index * 4);
             }
         }
 
@@ -549,7 +549,7 @@ mod tests {
     fn encode_teenix(words: [u32; HP67_CARD_RECORDS_PER_TRACK]) -> Vec<u8> {
         let mut nibbles = vec![0u8; 21];
         for word in words {
-            for nibble in (0..7).rev() {
+            for nibble in 0..7 {
                 nibbles.push(((word >> (nibble * 4)) & 0x0f) as u8);
             }
         }
@@ -649,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn teenix_record_nibbles_are_high_to_low_like_the_documented_status_word() {
+    fn teenix_record_nibbles_are_low_to_high_like_the_checked_in_corpus() {
         let mut words = [0u32; HP67_CARD_RECORDS_PER_TRACK];
         words[0] = 0x0222_0013;
         let imported = TeenixHppImport::from_bytes(&encode_teenix(words)).unwrap();
