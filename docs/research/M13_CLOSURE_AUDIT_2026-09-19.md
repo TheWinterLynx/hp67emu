@@ -27,7 +27,7 @@ No CPU or UI path writes program/data RAM from card contents directly.
 
 Host adapters:
 
-- Teenix `.hpp`: import-only compatibility format; header ID is authoritative for logical Track 1/2;
+- Teenix `.hpp`: import-only compatibility format. Header IDs describe firmware payload class (1/2 data primary/secondary, 3/4 program first/continuation); they do not universally identify the physical card side. Catalog metadata may therefore bind a Teenix payload to a physical side independently of its header.
 - `.hp67raw`: 238-byte logical two-track image requiring both tracks to be recorded;
 - `.hp67card`: versioned 250-byte logical container preserving recorded/unrecorded and write-protect state.
 
@@ -101,7 +101,7 @@ The host presentation no longer paints every magnetic object as SD-14A. Native r
 
 M13 also covers the two data-card header classes instead of treating program cards as representative of all media. The live test uses real `f` + `ENTER` to enter `W/DATA` after `1`, `Σ+` makes secondary registers non-zero. Firmware owns both `Crd` waits. The first physical pass must be header ID 1 for primary registers; the same card rotated end-for-end must carry header ID 2 for secondary registers. A fresh RUN-mode machine then reads those two passes through the real CRC data-read path and must observe the same header sequence with a firmware `Crd` continuation between them.
 
-The functional card-header matrix is therefore: 1 = primary data, 2 = secondary data, 3 = program steps 001-112, 4 = program steps 113-224. All four are covered by live real-firmware regressions.
+The functional card-header matrix is therefore: 1 = primary data, 2 = secondary data, 3 = program steps 001-112, 4 = program steps 113-224. All four are covered by live real-firmware regressions. This matrix describes firmware payload meaning, not a universal physical-side number: HP's SD1-12A English-SI Conversions card is explicitly documented as two independent one-pass sides, and both imported Teenix sides correctly carry header 3 while occupying opposite physical card sides.
 
 
 ## Host persistence
