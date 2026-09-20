@@ -201,7 +201,7 @@ pub fn paint(
         ProgramCardPhase::ParkedLeft => {
             let visible = parked_left_visible_rect(photo, scale);
             let hover_text = if view.opposite_track_requested {
-                "Crd: double-click to rotate the same card 180° and reinsert the opposite end"
+                "Crd: click to rotate the same card 180° and reinsert the opposite end"
             } else {
                 "Click: move card to the holder above A-E. Double-click: rotate 180° and select the opposite end"
             };
