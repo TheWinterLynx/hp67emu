@@ -1021,6 +1021,18 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Diagnostic Program", "SD1-15A"),
     },
     ProgramLibraryEntry {
+        pack: "HP-67 Diagnostic Cards",
+        reference: "SD-15C",
+        title: "Diagnostic Program (SD-15C)",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[
+            hpp!("/programs/HP67/HP-67 Diagnostic Cards/SD-15C-Diagnostic-Program_1.hpp"),
+            hpp!("/programs/HP67/HP-67 Diagnostic Cards/SD-15C-Diagnostic-Program_2.hpp"),
+        ],
+        artwork: catalog_artwork("Diagnostic Program", "SD-15C"),
+    },
+    ProgramLibraryEntry {
         pack: "Custom Diagnostic Pacs",
         reference: "CD-01",
         title: "Flow GSB/GTO/RTN — expect 7.00",
@@ -1109,6 +1121,51 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         )],
         artwork: catalog_artwork("DSZ loop", "CD-08"),
     },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-09",
+        title: "Long DSZ burn-in — expect 2000.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-09_Long-DSZ-Burn-In_1.hpp"
+        )],
+        artwork: catalog_artwork("Long DSZ burn-in", "CD-09"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-10",
+        title: "Nested GSB burn-in — expect 500.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-10_Nested-GSB-Burn-In_1.hpp"
+        )],
+        artwork: catalog_artwork("Nested GSB burn-in", "CD-10"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-11",
+        title: "Function identity burn-in — expect 1.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-11_Function-Identity-Burn-In_1.hpp"
+        )],
+        artwork: catalog_artwork("Function identity burn-in", "CD-11"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-12",
+        title: "Cross-half GSB burn-in — expect 500.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[
+            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-12_Cross-Half-GSB-Burn-In_1.hpp"),
+            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-12_Cross-Half-GSB-Burn-In_2.hpp"),
+        ],
+        artwork: catalog_artwork("Cross-half GSB burn-in", "CD-12"),
+    },
 ];
 
 #[cfg(test)]
@@ -1163,13 +1220,13 @@ mod tests {
 
     #[test]
     fn catalog_contains_all_checked_in_hpp_programs() {
-        assert_eq!(PROGRAM_LIBRARY.len(), 67);
+        assert_eq!(PROGRAM_LIBRARY.len(), 72);
         assert_eq!(
             PROGRAM_LIBRARY
                 .iter()
                 .map(ProgramLibraryEntry::track_count)
                 .sum::<usize>(),
-            99
+            106
         );
     }
 
@@ -1199,31 +1256,34 @@ mod tests {
     }
 
     #[test]
-    fn custom_diagnostic_pack_contains_eight_known_result_cards() {
+    fn custom_diagnostic_pack_contains_twelve_known_result_cards() {
         let entries = PROGRAM_LIBRARY
             .iter()
             .filter(|entry| entry.pack == "Custom Diagnostic Pacs")
             .collect::<Vec<_>>();
-        assert_eq!(entries.len(), 8);
+        assert_eq!(entries.len(), 12);
         assert_eq!(
             entries
                 .iter()
                 .map(|entry| entry.reference)
                 .collect::<Vec<_>>(),
-            ["CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08"]
+            [
+                "CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08",
+                "CD-09", "CD-10", "CD-11", "CD-12",
+            ]
         );
         assert_eq!(
             entries
                 .iter()
                 .map(|entry| entry.track_count())
                 .sum::<usize>(),
-            9
+            14
         );
     }
 
     #[test]
     fn custom_diagnostic_native_cards_match_their_library_hpp_tracks() {
-        let cases: [(&str, &[u8]); 8] = [
+        let cases: [(&str, &[u8]); 12] = [
             (
                 "CD-01",
                 include_bytes!(concat!(
@@ -1280,6 +1340,34 @@ mod tests {
                     "/programs/HP67/Custom Diagnostic Pacs/CD-08_DSZ-Loop.hp67card"
                 )),
             ),
+            (
+                "CD-09",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-09_Long-DSZ-Burn-In.hp67card"
+                )),
+            ),
+            (
+                "CD-10",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-10_Nested-GSB-Burn-In.hp67card"
+                )),
+            ),
+            (
+                "CD-11",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-11_Function-Identity-Burn-In.hp67card"
+                )),
+            ),
+            (
+                "CD-12",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-12_Cross-Half-GSB-Burn-In.hp67card"
+                )),
+            ),
         ];
 
         for (reference, native_bytes) in cases {
@@ -1307,6 +1395,39 @@ mod tests {
         )))
         .expect("checked-in native Standard diagnostic must decode");
         assert_eq!(native, imported);
+    }
+
+    #[test]
+    fn exact_sd15c_native_card_matches_embedded_hpp_wrappers() {
+        let entry = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "SD-15C")
+            .expect("SD-15C must be in the catalog");
+        let imported = entry.load_card().unwrap().card;
+        let native = Hp67MagneticCard::from_hp67card_bytes(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/HP-67 Diagnostic Cards/SD-15C-Diagnostic-Program.hp67card"
+        )))
+        .expect("exact SD-15C native fixture must decode");
+        assert_eq!(native, imported);
+        assert_eq!(
+            native
+                .track(Hp67CardTrack::Track1)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(3)
+        );
+        assert_eq!(
+            native
+                .track(Hp67CardTrack::Track2)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(4)
+        );
+
+        let listing = entry.program_listing().unwrap();
+        assert!(listing.contains("035  FA  LBL A"));
+        assert!(listing.contains("113  F8  LBL 8"));
     }
 
     #[test]
