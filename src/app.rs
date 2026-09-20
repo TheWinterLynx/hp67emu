@@ -1049,10 +1049,15 @@ mod tests {
         // SD1-01A Moving Average has two solid white registration blocks along
         // its top edge in HP's Standard Pac artwork. Keep this as a concrete
         // regression because earlier edge cleanup/downsampling hollowed them.
-        let moving_average_top_white = (0..8)
-            .flat_map(|y| (32..96).map(move |x| atlas.get_pixel(x, y).0))
-            .filter(|pixel| pixel[0] >= 220 && pixel[1] >= 220 && pixel[2] >= 220)
-            .count();
+        let mut moving_average_top_white = 0usize;
+        for y in 0..8 {
+            for x in 32..96 {
+                let pixel = atlas.get_pixel(x, y).0;
+                if pixel[0] >= 220 && pixel[1] >= 220 && pixel[2] >= 220 {
+                    moving_average_top_white += 1;
+                }
+            }
+        }
         assert!(
             moving_average_top_white >= 20,
             "SD1-01A top registration blocks were lost or hollowed: {moving_average_top_white} bright pixels"
