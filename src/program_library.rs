@@ -179,7 +179,9 @@ impl ProgramLibraryEntry {
 
 const PROGRAM_STEPS_PER_CARD_SIDE: usize = 112;
 
-fn program_bytes_from_track(track: &Hp67MagneticTrack) -> Result<[u8; PROGRAM_STEPS_PER_CARD_SIDE], String> {
+fn program_bytes_from_track(
+    track: &Hp67MagneticTrack,
+) -> Result<[u8; PROGRAM_STEPS_PER_CARD_SIDE], String> {
     let words = track
         .words()
         .ok_or_else(|| "program listing requested from an unrecorded track".to_owned())?;
@@ -241,8 +243,8 @@ fn hp67_program_mnemonic(code: u8) -> String {
         0x1b => Some("ENTER"),
         0x1c => Some("CHS"),
         0x1d => Some("EEX"),
-        0x1e => Some("SPARE"),
-        0x1f => Some("/"),
+        0x1e => Some("/"),
+        0x1f => Some("(i) [unused]"),
         0x20 => Some("PAUSE"),
         0x21 => Some("n!"),
         0x22 => Some("MEAN"),
@@ -258,7 +260,7 @@ fn hp67_program_mnemonic(code: u8) -> String {
         0x2c => Some("ATAN"),
         0x2d => Some("FRAC"),
         0x2e => Some("RND"),
-        0x2f => Some("NOP"),
+        0x2f => Some("g RND [unused]"),
         0x30 => Some("x<>y"),
         0x31 => Some("RDN"),
         0x32 => Some("CLx"),
@@ -290,7 +292,7 @@ fn hp67_program_mnemonic(code: u8) -> String {
         0x4c => Some("P<>S"),
         0x4d => Some("CLREG"),
         0x4e => Some("PREG"),
-        0x4f => Some("SPARE"),
+        0x4f => Some("h PI [unused]"),
         0x50 => Some("x!=y"),
         0x51 => Some("x=y"),
         0x52 => Some("x>y"),
@@ -303,8 +305,9 @@ fn hp67_program_mnemonic(code: u8) -> String {
         0x5d => Some("ISZ (i)"),
         0x5e => Some("DSZ"),
         0x5f => Some("DSZ (i)"),
-        0x6e => Some("SPARE"),
+        0x6e => Some("CF 4 [unused]"),
         0x6f => Some("DSP (i)"),
+        0xff => Some("LBL (i) [unused]"),
         _ => None,
     };
     if let Some(name) = fixed {
@@ -319,7 +322,7 @@ fn hp67_program_mnemonic(code: u8) -> String {
         0x70..=0x7f => format!("RCL {}", hp67_operand(code & 0x0f)),
         0x80..=0x89 => format!("STO / {}", code & 0x0f),
         0x8a..=0x8d => format!("SF {}", code - 0x8a),
-        0x8e => "SPARE".to_owned(),
+        0x8e => "SF 4 [unused]".to_owned(),
         0x8f => "STO / (i)".to_owned(),
         0x90..=0x9f => format!("STO {}", hp67_operand(code & 0x0f)),
         0xa0..=0xaf => format!("STO - {}", hp67_operand(code & 0x0f)),
