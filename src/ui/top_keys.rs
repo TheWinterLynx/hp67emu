@@ -23,7 +23,6 @@ impl PxRect {
 struct TopKey {
     id: &'static str,
     action: KeyAction,
-    hit: PxRect,
     cap: PxRect,
 }
 
@@ -31,31 +30,26 @@ const TOP_KEYS: &[TopKey] = &[
     TopKey {
         id: "a",
         action: KeyAction::A,
-        hit: PxRect::new(166.0, 467.0, 256.0, 550.0),
         cap: PxRect::new(171.0, 472.0, 251.0, 545.0),
     },
     TopKey {
         id: "b",
         action: KeyAction::B,
-        hit: PxRect::new(293.0, 467.0, 383.0, 550.0),
         cap: PxRect::new(298.0, 472.0, 378.0, 545.0),
     },
     TopKey {
         id: "c",
         action: KeyAction::C,
-        hit: PxRect::new(420.0, 467.0, 510.0, 550.0),
         cap: PxRect::new(425.0, 472.0, 505.0, 545.0),
     },
     TopKey {
         id: "d",
         action: KeyAction::D,
-        hit: PxRect::new(547.0, 467.0, 637.0, 550.0),
         cap: PxRect::new(552.0, 472.0, 632.0, 545.0),
     },
     TopKey {
         id: "e",
         action: KeyAction::E,
-        hit: PxRect::new(674.0, 467.0, 764.0, 550.0),
         cap: PxRect::new(679.0, 472.0, 759.0, 545.0),
     },
 ];
@@ -136,11 +130,15 @@ mod tests {
     #[test]
     fn top_row_corrections_cover_exactly_five_keys() {
         assert_eq!(TOP_KEYS.len(), 5);
-        for key in TOP_KEYS {
-            assert!(key.cap.x0 > key.hit.x0);
-            assert!(key.cap.x1 < key.hit.x1);
-            assert!(key.cap.y0 > key.hit.y0);
-            assert!(key.cap.y1 < key.hit.y1);
-        }
+        assert_eq!(
+            TOP_KEYS.iter().map(|key| key.action).collect::<Vec<_>>(),
+            vec![
+                KeyAction::A,
+                KeyAction::B,
+                KeyAction::C,
+                KeyAction::D,
+                KeyAction::E,
+            ]
+        );
     }
 }
