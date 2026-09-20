@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Regenerate/check the native HP-67 Standard diagnostic and Custom Diagnostic Pacs.
 
-Pure standard-library tool. It writes Teenix-compatible .hpp fixtures plus native .hp67card
-containers. Program-card record 34 is the low 28 bits of the running sum of records 1-33,
-matching the checked-in Standard Pac diagnostic corpus.
+Pure standard-library tool. Native .hp67card is the canonical diagnostic format. The tool
+regenerates synthetic native cards, verifies the exact supplied SD-15C native fixture, and uses
+legacy Teenix .hpp only as an import source for the pre-existing SD1-15A compatibility corpus.
+Program-card record 34 is the low 28 bits of the running sum of records 1-33.
 """
 
 from __future__ import annotations
@@ -109,22 +110,6 @@ def build_program_track(program: tuple[int, ...], header: int) -> list[int]:
     return words
 
 
-def hpp_bytes(
-    ref: str,
-    title: str,
-    words: list[int],
-    bitmap_name: str = "CUSTOM-DIAG.bmp",
-) -> bytes:
-    nibbles = [0] * 21
-    for word in words:
-        nibbles.extend((word >> (4 * i)) & 0x0F for i in range(7))
-    nibbles.extend((words[33] >> (4 * i)) & 0x0F for i in range(7))
-    data = "".join(f"{value:x}" for value in nibbles)
-    body = f"67\n{bitmap_name}\n{ref} {title}\n{data}\n"
-    decoded = f"NeWe\n{len(body)}\n{body}".encode("ascii")
-    return bytes(byte ^ 0x55 for byte in decoded)
-
-
 def pack_track(words: list[int]) -> bytes:
     packed = bytearray(TRACK_BYTES)
     bit_index = 0
@@ -187,15 +172,7 @@ def expected_files(root: Path) -> dict[Path, bytes]:
     result[std / "SD1-15A-Diagnostic-Program.hp67card"] = hp67card_bytes(first, second)
 
     diagnostic_cards = root / "programs" / "HP67" / "HP-67 Diagnostic Cards"
-    sd15c_first, sd15c_second = parse_sd15c_native(
-        diagnostic_cards / "SD-15C-Diagnostic-Program.hp67card"
-    )
-    result[diagnostic_cards / "SD-15C-Diagnostic-Program_1.hpp"] = hpp_bytes(
-        "SD-15C", "Diagnostic Program", sd15c_first, "SD-15C.bmp"
-    )
-    result[diagnostic_cards / "SD-15C-Diagnostic-Program_2.hpp"] = hpp_bytes(
-        "SD-15C", "Diagnostic Program", sd15c_second, "SD-15C.bmp"
-    )
+    parse_sd15c_native(diagnostic_cards / "SD-15C-Diagnostic-Program.hp67card")
 
     out = root / "programs" / "HP67" / "Custom Diagnostic Pacs"
     for diagnostic in DIAGNOSTICS:
@@ -206,13 +183,6 @@ def expected_files(root: Path) -> dict[Path, bytes]:
             if diagnostic.second is not None
             else None
         )
-        result[out / f"{diagnostic.ref}_{diagnostic.slug}_1.hpp"] = hpp_bytes(
-            diagnostic.ref, diagnostic.title, first
-        )
-        if second is not None:
-            result[out / f"{diagnostic.ref}_{diagnostic.slug}_2.hpp"] = hpp_bytes(
-                diagnostic.ref, diagnostic.title, second
-            )
         result[out / f"{diagnostic.ref}_{diagnostic.slug}.hp67card"] = hp67card_bytes(
             first, second
         )
