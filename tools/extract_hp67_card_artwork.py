@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HP67 card artwork extractor v1.4\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
+"""HP67 card artwork extractor v1.5\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
 
 Workflow:
   1. Scan a PDF for wide dark magnetic-card strips.
@@ -9,9 +9,11 @@ Workflow:
   4. Normalize every PDF crop at native DPI onto one exact physical-card canvas:
      missing PDF area is filled black, oversize PDF area is center-cropped, and
      only the physical chamfered silhouette is transparent outside.
-  5. Suppress line-like PDF edge artifacts while preserving compact filled white
-     registration marks at the top edge.
-  6. Optionally build/validate the 499x80-per-row RGBA atlas used by hp67emu.
+  5. Suppress line-like PDF edge artifacts and explicitly solid-fill compact
+     white registration marks at the top edge.
+  6. Downsample canonical cards into the 499x80 atlas with BOX area sampling so
+     tiny filled marks survive reduction without Lanczos ringing/hollowing.
+  7. Optionally build/validate the 499x80-per-row RGBA atlas used by hp67emu.
 
 Dependencies:
     py -m pip install pymupdf pillow
@@ -401,6 +403,15 @@ def suppress_boundary_white_artifacts(
                 and aspect <= CARD_WHITE_MARK_MAX_ASPECT
             )
             if compact_mark:
+                # These are the small white registration/index blocks printed
+                # along the top of the HP card. Some PAC PDF rasterizations
+                # contain an outlined/hollow-looking centre after antialiasing.
+                # The source manuals show them as solid blocks, so normalize the
+                # entire compact component bbox to opaque white.
+                for y in range(min_y, max_y + 1):
+                    for x in range(min_x, max_x + 1):
+                        if silhouette_px[x, y] != 0:
+                            pixels[x, y] = (255, 255, 255, 255)
                 continue
 
             for x, y in component:
@@ -568,10 +579,13 @@ def atlas_command(args: argparse.Namespace) -> None:
             # Extraction already normalized the exact physical card canvas.
             # Scale that canonical canvas directly to the canonical atlas row:
             # no per-card contain/letterboxing and therefore no variable border.
+            # BOX is intentional: this is mostly high-contrast printed artwork,
+            # and area sampling preserves tiny filled registration blocks better
+            # than Lanczos, whose ringing can make them look hollow.
             rows.append(
                 src.resize(
                     (args.width, args.row_height),
-                    Image.Resampling.LANCZOS,
+                    Image.Resampling.BOX,
                 )
             )
 
