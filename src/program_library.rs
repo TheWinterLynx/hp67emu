@@ -991,7 +991,9 @@ mod tests {
             .iter()
             .find(|entry| entry.reference == "SD1-14A")
             .expect("Moon Rocket Lander must be in the catalog");
-        let listing = entry.program_listing().expect("Moon Rocket listing must decode");
+        let listing = entry
+            .program_listing()
+            .expect("Moon Rocket listing must decode");
         assert!(listing.contains("001  FA  LBL A"));
         assert!(listing.contains("002  15  5"));
     }
@@ -1002,7 +1004,9 @@ mod tests {
             .iter()
             .find(|entry| entry.reference == "20")
             .expect("Fibonacci must be in the catalog");
-        let listing = entry.program_listing().expect("Fibonacci listing must decode");
+        let listing = entry
+            .program_listing()
+            .expect("Fibonacci listing must decode");
         assert!(listing.contains("SIDE 2"));
         assert!(listing.lines().any(|line| line.starts_with("113  ")));
     }
