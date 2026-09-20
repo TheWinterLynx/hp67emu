@@ -11,9 +11,8 @@ Diagnostic Pacs.
 `f626047e875d919bb22bf7b25bb0d58218955b07ff504f2f546239a2f1fdf75a`
 
 It contains two recorded program tracks with header classes 3 and 4. Their first record headers are
-`0x03090222` and `0x04090222`; both 28-bit record-34 checksums validate. The two adjacent `.hpp`
-files are lossless Teenix wrappers generated from those exact native tracks solely so the existing
-Program Library adapter can load and display the card. They are not alternate program sources.
+`0x03090222` and `0x04090222`; both 28-bit record-34 checksums validate. The Program Library
+loads this native container directly. No Teenix wrapper is required or generated.
 
 The decoded user-program listing places `LBL A` at step 035 and `LBL 8` at step 113. Loading the
 library entry therefore exercises the original native media contents rather than the separately
