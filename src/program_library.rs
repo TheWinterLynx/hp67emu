@@ -31,6 +31,25 @@ pub struct ProgramLibraryEntry {
 
 impl ProgramLibraryEntry {
     pub fn load_card(&self) -> Result<LoadedProgramCard, String> {
+        if self.parts.len() == 1 && self.parts[0].starts_with(b"HP67CARD") {
+            let card = Hp67MagneticCard::from_hp67card_bytes(self.parts[0]).map_err(|error| {
+                format!(
+                    "{} {}: invalid native .hp67card: {error:?}",
+                    self.reference, self.title
+                )
+            })?;
+            return Ok(LoadedProgramCard {
+                card,
+                card_name: self.title.to_owned(),
+            });
+        }
+        if self.parts.iter().any(|bytes| bytes.starts_with(b"HP67CARD")) {
+            return Err(format!(
+                "{} {} mixes native .hp67card media with compatibility payloads",
+                self.reference, self.title
+            ));
+        }
+
         let mut card = Hp67MagneticCard::default();
         let mut bitmap_name: Option<String> = None;
         let mut track_1_seen = false;
@@ -91,6 +110,11 @@ impl ProgramLibraryEntry {
     }
 
     pub fn track_count(&self) -> usize {
+        if self.parts.len() == 1 && self.parts[0].starts_with(b"HP67CARD") {
+            let bytes = self.parts[0];
+            return usize::from(bytes.get(9).is_some_and(|flags| flags & 0x01 != 0))
+                + usize::from(bytes.get(10).is_some_and(|flags| flags & 0x01 != 0));
+        }
         self.parts.len()
     }
 
@@ -136,6 +160,39 @@ impl ProgramLibraryEntry {
     }
 
     pub fn program_listing(&self) -> Result<String, String> {
+        if self.parts.len() == 1 && self.parts[0].starts_with(b"HP67CARD") {
+            let card = Hp67MagneticCard::from_hp67card_bytes(self.parts[0]).map_err(|error| {
+                format!(
+                    "{} {}: invalid native .hp67card: {error:?}",
+                    self.reference, self.title
+                )
+            })?;
+            let mut listing = String::new();
+            let side_count = self.track_count();
+            let mut emitted = 0usize;
+            for (track_id, side_number) in [
+                (Hp67CardTrack::Track1, 1usize),
+                (Hp67CardTrack::Track2, 2usize),
+            ] {
+                let track = card.track(track_id);
+                if !track.is_recorded() {
+                    continue;
+                }
+                if emitted > 0 {
+                    listing.push('\n');
+                }
+                append_program_track_listing(
+                    &mut listing,
+                    track,
+                    track.word(0).map(|word| ((word >> 24) & 0x0f) as u8).unwrap_or(0),
+                    side_number,
+                    side_count > 1,
+                )?;
+                emitted += 1;
+            }
+            return Ok(listing);
+        }
+
         let mut listing = String::new();
 
         for (part_index, bytes) in self.parts.iter().enumerate() {
@@ -147,59 +204,20 @@ impl ProgramLibraryEntry {
                 listing.push('\n');
             }
 
-            match imported.header_id {
-                3 | 4 => {
-                    if self.parts.len() > 1 {
-                        let side = self
-                            .physical_track_override(part_index)
-                            .unwrap_or(imported.card_track);
-                        let side_number = match side {
-                            Hp67CardTrack::Track1 => 1,
-                            Hp67CardTrack::Track2 => 2,
-                        };
-                        writeln!(
-                            listing,
-                            "SIDE {side_number}  ·  PROGRAM HEADER {}",
-                            imported.header_id
-                        )
-                        .expect("writing to String cannot fail");
-                        writeln!(listing, "--------------------------------")
-                            .expect("writing to String cannot fail");
-                    }
-
-                    let base_step = if imported.header_id == 4 { 113 } else { 1 };
-                    let program = program_bytes_from_track(&imported.track)?;
-                    for (offset, code) in program.into_iter().enumerate() {
-                        writeln!(
-                            listing,
-                            "{:03}  {:02X}  {}",
-                            base_step + offset,
-                            code,
-                            hp67_program_mnemonic(code)
-                        )
-                        .expect("writing to String cannot fail");
-                    }
-                }
-                1 | 2 => {
-                    writeln!(
-                        listing,
-                        "SIDE {}  ·  DATA CARD (HEADER {})",
-                        part_index + 1,
-                        imported.header_id
-                    )
-                    .expect("writing to String cannot fail");
-                    writeln!(listing, "No user-program listing is stored on this side.")
-                        .expect("writing to String cannot fail");
-                }
-                header => {
-                    writeln!(
-                        listing,
-                        "SIDE {}  ·  UNKNOWN CARD HEADER {header}",
-                        part_index + 1
-                    )
-                    .expect("writing to String cannot fail");
-                }
-            }
+            let physical_track = self
+                .physical_track_override(part_index)
+                .unwrap_or(imported.card_track);
+            let side_number = match physical_track {
+                Hp67CardTrack::Track1 => 1,
+                Hp67CardTrack::Track2 => 2,
+            };
+            append_program_track_listing(
+                &mut listing,
+                &imported.track,
+                imported.header_id,
+                side_number,
+                self.parts.len() > 1,
+            )?;
         }
 
         Ok(listing)
@@ -216,6 +234,59 @@ impl ProgramLibraryEntry {
             _ => None,
         }
     }
+}
+
+fn append_program_track_listing(
+    listing: &mut String,
+    track: &Hp67MagneticTrack,
+    header_id: u8,
+    side_number: usize,
+    show_side_header: bool,
+) -> Result<(), String> {
+    match header_id {
+        3 | 4 => {
+            if show_side_header {
+                writeln!(
+                    listing,
+                    "SIDE {side_number}  ·  PROGRAM HEADER {header_id}"
+                )
+                .expect("writing to String cannot fail");
+                writeln!(listing, "--------------------------------")
+                    .expect("writing to String cannot fail");
+            }
+
+            let base_step = if header_id == 4 { 113 } else { 1 };
+            let program = program_bytes_from_track(track)?;
+            for (offset, code) in program.into_iter().enumerate() {
+                writeln!(
+                    listing,
+                    "{:03}  {:02X}  {}",
+                    base_step + offset,
+                    code,
+                    hp67_program_mnemonic(code)
+                )
+                .expect("writing to String cannot fail");
+            }
+        }
+        1 | 2 => {
+            writeln!(
+                listing,
+                "SIDE {side_number}  ·  DATA CARD (HEADER {header_id})"
+            )
+            .expect("writing to String cannot fail");
+            writeln!(listing, "No user-program listing is stored on this side.")
+                .expect("writing to String cannot fail");
+        }
+        header => {
+            writeln!(
+                listing,
+                "SIDE {side_number}  ·  UNKNOWN CARD HEADER {header}"
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+
+    Ok(())
 }
 
 const PROGRAM_STEPS_PER_CARD_SIDE: usize = 112;
