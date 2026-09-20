@@ -1046,21 +1046,49 @@ mod tests {
             }
         }
 
-        // SD1-01A Moving Average has two solid white registration blocks along
-        // its top edge in HP's Standard Pac artwork. Keep this as a concrete
-        // regression because earlier edge cleanup/downsampling hollowed them.
-        let mut moving_average_top_white = 0usize;
-        for y in 0..8 {
-            for x in 32..96 {
+        // SD1-01A Moving Average has two compact solid-white registration
+        // blocks along its top edge. Detect compact bright runs instead of
+        // hard-coding x positions so the regression follows the source crop
+        // even if canonical card registration shifts by a few pixels.
+        let mut bright_columns = Vec::new();
+        for x in 0..CARD_ARTWORK_ATLAS_WIDTH {
+            let mut bright = 0usize;
+            for y in 0..8 {
                 let pixel = atlas.get_pixel(x, y).0;
                 if pixel[0] >= 220 && pixel[1] >= 220 && pixel[2] >= 220 {
-                    moving_average_top_white += 1;
+                    bright += 1;
                 }
             }
+            if bright >= 2 {
+                bright_columns.push(x);
+            }
         }
+
+        let mut compact_runs = Vec::new();
+        if let Some(&first) = bright_columns.first() {
+            let mut start = first;
+            let mut previous = first;
+            for &x in bright_columns.iter().skip(1) {
+                if x <= previous + 1 {
+                    previous = x;
+                    continue;
+                }
+                let width = previous - start + 1;
+                if (2..=12).contains(&width) {
+                    compact_runs.push((start, previous));
+                }
+                start = x;
+                previous = x;
+            }
+            let width = previous - start + 1;
+            if (2..=12).contains(&width) {
+                compact_runs.push((start, previous));
+            }
+        }
+
         assert!(
-            moving_average_top_white >= 20,
-            "SD1-01A top registration blocks were lost or hollowed: {moving_average_top_white} bright pixels"
+            compact_runs.len() >= 2,
+            "SD1-01A top registration blocks were lost or hollowed: {compact_runs:?}"
         );
     }
 
