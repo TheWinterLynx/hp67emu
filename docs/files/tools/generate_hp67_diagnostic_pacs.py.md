@@ -6,7 +6,7 @@ Generate and verify the native Standard Pac diagnostic container plus the synthe
 
 ## Why it exists
 
-The diagnostic media must be reproducible from reviewed inputs instead of depending on opaque hand-built binary files. The Standard Pac native container is derived from the two existing source-backed SD1-15A Teenix sides. The custom cards use deliberately tiny programs with independently known final results so failures can be localized to GSB/GTO/RTN, flags, conditionals, indirect storage, return-stack depth, second-half label search, ISZ or DSZ.
+The diagnostic media must be reproducible from reviewed inputs instead of depending on opaque hand-built binary files. The Standard Pac native container is derived from the two existing source-backed SD1-15A Teenix sides. The first custom cards use deliberately tiny programs with independently known final results so failures can be localized to GSB/GTO/RTN, flags, conditionals, indirect storage, return-stack depth, second-half label search, ISZ or DSZ. CD-09 through CD-12 extend the same idea into long-running burn-ins with hundreds or thousands of loop iterations and repeated cross-half subroutine calls.
 
 ## Relationships
 
@@ -14,8 +14,8 @@ The tool mirrors the documented host-media layout implemented in `src/machines/h
 
 ## Responsibilities
 
-Build 112 program bytes into the same record/nibble ordering decoded by the production Program Library; calculate record 34 as the low 28 bits of the running sum of records 1-33; emit Teenix-compatible XOR-0x55 `.hpp` files; emit native `.hp67card` containers; convert the existing SD1-15A source-backed pair without changing any record; and support `--check` so a local gate can prove every committed binary is reproducible.
+Build 112 program bytes into the same record/nibble ordering decoded by the production Program Library; calculate record 34 as the low 28 bits of the running sum of records 1-33; emit Teenix-compatible XOR-0x55 `.hpp` files; emit native `.hp67card` containers; convert the existing SD1-15A source-backed pair without changing any record; validate the exact SD-15C native fixture by its pinned SHA-256 and regenerate only its lossless `.hpp` wrappers; and support `--check` so a local gate can prove every generated binary is reproducible.
 
 ## Implementation
 
-Single-pass custom programs use header `0x03100222`, matching the checked-in FIX-2/DEG one-pass program-card convention. CD-06 uses `0x03000222` followed by `0x04000222` so real firmware requests the continuation with `Crd`. Program bytes are expanded low nibble then high nibble and paired into CRC records in the inverse of `program_bytes_from_track()`; native host packing remains MSB-first exactly as defined by the project's interchange format. The tool uses only the Python standard library and does not claim that this host packing is the physical magnetic bit order.
+Single-pass custom programs use header `0x03100222`, matching the checked-in FIX-2/DEG one-pass program-card convention. CD-06 and CD-12 use `0x03000222` followed by `0x04000222` so real firmware requests the continuation with `Crd`. The exact SD-15C fixture is a source input, not generated output: its SHA-256 is pinned to `f626047e875d919bb22bf7b25bb0d58218955b07ff504f2f546239a2f1fdf75a` before its two tracks are wrapped for the library. Program bytes are expanded low nibble then high nibble and paired into CRC records in the inverse of `program_bytes_from_track()`; native host packing remains MSB-first exactly as defined by the project's interchange format. The tool uses only the Python standard library and does not claim that this host packing is the physical magnetic bit order.
