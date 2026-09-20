@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HP67 card artwork extractor v1.5\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
+"""HP67 card artwork extractor v1.6\n\nExtract HP-67/HP-97 magnetic-card artwork strips from PAC PDFs.
 
 Workflow:
   1. Scan a PDF for wide dark magnetic-card strips.
@@ -11,9 +11,11 @@ Workflow:
      only the physical chamfered silhouette is transparent outside.
   5. Suppress line-like PDF edge artifacts and explicitly solid-fill compact
      white registration marks at the top edge.
-  6. Downsample canonical cards into the 499x80 atlas with BOX area sampling so
+  6. Flatten the normalized card onto an opaque black canonical substrate so
+     PDF/page transparency can never expose bright calculator-photo pixels.
+  7. Downsample canonical cards into the 499x80 atlas with BOX area sampling so
      tiny filled marks survive reduction without Lanczos ringing/hollowing.
-  7. Optionally build/validate the 499x80-per-row RGBA atlas used by hp67emu.
+  8. Optionally build/validate the 499x80-per-row RGBA atlas used by hp67emu.
 
 Dependencies:
     py -m pip install pymupdf pillow
@@ -435,7 +437,14 @@ def normalize_card_artwork(image: Image.Image, dpi: int) -> Image.Image:
     # edge-only PDF whites/antialias lines back into the black card substrate.
     normalized.putalpha(silhouette)
     suppress_boundary_white_artifacts(normalized, silhouette, dpi)
-    return normalized
+
+    # The UI owns the physical chamfer polygon. Keep the raster face itself
+    # fully opaque on a black substrate so transparent PDF/page pixels cannot
+    # reveal bright metal from the calculator photograph through tiny edge
+    # gaps or registration marks.
+    opaque = Image.new("RGBA", target_size, (0, 0, 0, 255))
+    opaque.alpha_composite(normalized)
+    return opaque
 
 
 
@@ -610,10 +619,9 @@ def atlas_command(args: argparse.Namespace) -> None:
         if check.mode != "RGBA":
             raise SystemExit(f"Atlas validation failed: expected RGBA, got {check.mode}")
         alpha_min, alpha_max = check.getchannel("A").getextrema()
-        if alpha_min != 0 or alpha_max != 255:
+        if alpha_min != 255 or alpha_max != 255:
             raise SystemExit(
-                "Atlas validation failed: expected both transparent outside-card pixels "
-                "and fully opaque artwork"
+                "Atlas validation failed: canonical card rows must be fully opaque"
             )
     print(
         f"Valid RGBA atlas: {out} "
