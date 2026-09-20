@@ -24,9 +24,10 @@ insert the opposite end if firmware shows `Crd`, then press `A`.
 CD-09 through CD-12 are intentionally longer-running burn-ins. They exercise thousands of
 stored-program dispatches instead of returning almost immediately.
 
-Every custom diagnostic is checked in as a Teenix-compatible `.hpp` used by the Program Library
-and as a native `.hp67card` containing the exact same logical tracks. The generator verifies the
-28-bit card checksum and can reproduce every binary fixture with `--check`.
+Every custom diagnostic is checked in only in the project's native `.hp67card` format. The
+Program Library loads those native containers directly; Teenix `.hpp` is not part of this
+diagnostic path. The generator verifies the 28-bit card checksum and can reproduce every native
+fixture with `--check`.
 
 The Standard Pac directory also contains `SD1-15A-Diagnostic-Program.hp67card`, a lossless native
 container conversion of the existing source-backed SD1-15A Teenix sides. The separately supplied
