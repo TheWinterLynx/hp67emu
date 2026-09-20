@@ -1082,12 +1082,8 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         source_pdf: None,
         artwork_path: None,
         parts: &[
-            hpp!(
-                "/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_1.hpp"
-            ),
-            hpp!(
-                "/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_2.hpp"
-            ),
+            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_1.hpp"),
+            hpp!("/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_2.hpp"),
         ],
         artwork: catalog_artwork("Second-half label search", "CD-06"),
     },
@@ -1214,9 +1210,7 @@ mod tests {
                 .iter()
                 .map(|entry| entry.reference)
                 .collect::<Vec<_>>(),
-            [
-                "CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08"
-            ]
+            ["CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08"]
         );
         assert_eq!(
             entries
