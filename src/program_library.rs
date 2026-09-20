@@ -1033,7 +1033,10 @@ mod tests {
             .filter(|entry| entry.source_pdf.is_some())
             .map(|entry| {
                 entry.artwork_atlas_row().unwrap_or_else(|| {
-                    panic!("{} {} lacks embedded PDF artwork", entry.reference, entry.title)
+                    panic!(
+                        "{} {} lacks embedded PDF artwork",
+                        entry.reference, entry.title
+                    )
                 })
             })
             .collect::<Vec<_>>();
