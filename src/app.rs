@@ -22,6 +22,8 @@ use crate::{
 };
 
 const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
+const PROGRAM_LIBRARY_VIEWPORT_KEY: &str = "hp67-program-library-viewport";
+const CARD_SAVE_VIEWPORT_KEY: &str = "hp67-card-save-viewport";
 
 pub struct Hp67App {
     state: Hp67State,
@@ -317,136 +319,159 @@ impl Hp67App {
             return;
         }
 
-        let mut open = true;
+        let mut keep_open = true;
         let mut selected = self.program_library_selected;
         let mut load_requested = None;
         let status = self.program_library_status.clone();
+        let reader_free = !self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
 
-        egui::Window::new("HP-67 Program Card Library")
-            .default_size([960.0, 680.0])
-            .min_width(780.0)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.label(format!(
-                    "{} programs from checked-in magnetic-card images",
-                    PROGRAM_LIBRARY.len()
-                ));
-                ui.separator();
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of(PROGRAM_LIBRARY_VIEWPORT_KEY),
+            egui::ViewportBuilder::default()
+                .with_title("HP-67 Program Card Library")
+                .with_inner_size([960.0, 680.0])
+                .with_min_inner_size([720.0, 480.0])
+                .with_resizable(true),
+            |ctx, _class| {
+                if ctx.input(|input| input.viewport().close_requested()) {
+                    keep_open = false;
+                    return;
+                }
 
-                ui.columns(2, |columns| {
-                    columns[0].set_min_width(320.0);
-                    columns[1].set_min_width(420.0);
+                egui::TopBottomPanel::top("hp67-program-library-header").show(ctx, |ui| {
+                    ui.label(format!(
+                        "{} programs from checked-in magnetic-card images",
+                        PROGRAM_LIBRARY.len()
+                    ));
+                });
 
-                    columns[0].strong("Program packs");
-                    columns[0].add_space(4.0);
-                    egui::ScrollArea::vertical()
-                        .max_height(560.0)
-                        .show(&mut columns[0], |ui| {
-                            let mut pack_start = 0usize;
-                            while pack_start < PROGRAM_LIBRARY.len() {
-                                let pack = PROGRAM_LIBRARY[pack_start].pack;
-                                let mut pack_end = pack_start + 1;
-                                while pack_end < PROGRAM_LIBRARY.len()
-                                    && PROGRAM_LIBRARY[pack_end].pack == pack
-                                {
-                                    pack_end += 1;
-                                }
-
-                                egui::CollapsingHeader::new(format!(
-                                    "{} ({})",
-                                    pack,
-                                    pack_end - pack_start
-                                ))
-                                .id_source(("hp67-program-pack", pack))
-                                .default_open(false)
-                                .show(ui, |ui| {
-                                    for (index, entry) in
-                                        PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
-                                    {
-                                        let index = pack_start + index;
-                                        let label = if entry.reference.is_empty() {
-                                            entry.title.to_owned()
-                                        } else {
-                                            format!("{} - {}", entry.reference, entry.title)
-                                        };
-                                        if ui
-                                            .selectable_label(selected == Some(index), label)
-                                            .clicked()
-                                        {
-                                            selected = Some(index);
-                                        }
-                                    }
-                                });
-
-                                pack_start = pack_end;
-                            }
-                        });
-
-                    columns[1].strong("Program listing");
-                    columns[1].add_space(4.0);
+                egui::TopBottomPanel::bottom("hp67-program-library-actions").show(ctx, |ui| {
                     if let Some(index) = selected {
                         let entry = &PROGRAM_LIBRARY[index];
-                        columns[1].heading(entry.title);
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_enabled(reader_free, egui::Button::new("Load card"))
+                                .clicked()
+                            {
+                                load_requested = Some(index);
+                            }
+                            if !reader_free {
+                                ui.label(
+                                    "Remove the card from the reader before loading another one.",
+                                );
+                            } else {
+                                ui.label(format!("{} - {}", entry.reference, entry.title));
+                            }
+                        });
+                    }
+
+                    if let Some(status) = status.as_deref() {
+                        ui.separator();
+                        ui.label(status);
+                    }
+                });
+
+                egui::SidePanel::left("hp67-program-library-packs")
+                    .default_width(330.0)
+                    .min_width(240.0)
+                    .max_width(480.0)
+                    .resizable(true)
+                    .show(ctx, |ui| {
+                        ui.strong("Program packs");
+                        ui.separator();
+
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                let mut pack_start = 0usize;
+                                while pack_start < PROGRAM_LIBRARY.len() {
+                                    let pack = PROGRAM_LIBRARY[pack_start].pack;
+                                    let mut pack_end = pack_start + 1;
+                                    while pack_end < PROGRAM_LIBRARY.len()
+                                        && PROGRAM_LIBRARY[pack_end].pack == pack
+                                    {
+                                        pack_end += 1;
+                                    }
+
+                                    egui::CollapsingHeader::new(format!(
+                                        "{} ({})",
+                                        pack,
+                                        pack_end - pack_start
+                                    ))
+                                    .id_source(("hp67-program-pack", pack))
+                                    .default_open(false)
+                                    .show(ui, |ui| {
+                                        for (index, entry) in
+                                            PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
+                                        {
+                                            let index = pack_start + index;
+                                            let label = if entry.reference.is_empty() {
+                                                entry.title.to_owned()
+                                            } else {
+                                                format!("{} - {}", entry.reference, entry.title)
+                                            };
+                                            if ui
+                                                .selectable_label(selected == Some(index), label)
+                                                .clicked()
+                                            {
+                                                selected = Some(index);
+                                            }
+                                        }
+                                    });
+
+                                    pack_start = pack_end;
+                                }
+                            });
+                    });
+
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.strong("Program listing");
+                    ui.add_space(4.0);
+
+                    if let Some(index) = selected {
+                        let entry = &PROGRAM_LIBRARY[index];
+                        ui.heading(entry.title);
                         if !entry.reference.is_empty() {
-                            columns[1].label(format!("Reference: {}", entry.reference));
+                            ui.label(format!("Reference: {}", entry.reference));
                         }
-                        columns[1].label(format!("Pack: {}", entry.pack));
-                        columns[1]
-                            .label(format!("Magnetic tracks supplied: {}", entry.track_count()));
+                        ui.label(format!("Pack: {}", entry.pack));
+                        ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
                         if let Some(pdf) = entry.source_pdf {
-                            columns[1].label(format!("Artwork/manual source: {pdf}"));
+                            ui.label(format!("Artwork/manual source: {pdf}"));
                         } else {
-                            columns[1].label("Artwork/manual source: no pack PDF checked in");
+                            ui.label("Artwork/manual source: no pack PDF checked in");
                         }
-                        columns[1].separator();
+                        ui.separator();
 
                         match entry.program_listing() {
                             Ok(listing) => {
-                                egui::ScrollArea::both().max_height(410.0).show(
-                                    &mut columns[1],
-                                    |ui| {
+                                egui::ScrollArea::both()
+                                    .id_source("hp67-program-listing-scroll")
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
                                         ui.add(
                                             egui::Label::new(
                                                 egui::RichText::new(listing).monospace(),
                                             )
                                             .wrap(false),
                                         );
-                                    },
-                                );
+                                    });
                             }
                             Err(error) => {
-                                columns[1].label(format!("Cannot decode listing: {error}"));
+                                ui.label(format!("Cannot decode listing: {error}"));
                             }
                         }
-
-                        columns[1].separator();
-                        let reader_free = !self
-                            .live_machine
-                            .as_ref()
-                            .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
-                        if columns[1]
-                            .add_enabled(reader_free, egui::Button::new("Load card"))
-                            .clicked()
-                        {
-                            load_requested = Some(index);
-                        }
-                        if !reader_free {
-                            columns[1].label(
-                                "Remove the card from the reader before loading another one.",
-                            );
-                        }
                     } else {
-                        columns[1].label("Select a program from a pack to view its listing.");
+                        ui.label("Select a program from a pack to view its listing.");
                     }
                 });
+            },
+        );
 
-                if let Some(status) = status.as_deref() {
-                    ui.separator();
-                    ui.label(status);
-                }
-            });
-
-        self.program_library_open = open;
+        self.program_library_open = keep_open;
         self.program_library_selected = selected;
 
         if let Some(index) = load_requested {
@@ -465,23 +490,38 @@ impl Hp67App {
             return;
         }
 
-        let mut open = true;
+        let mut keep_open = true;
         let mut save_requested = false;
-        egui::Window::new("Save magnetic card")
-            .collapsible(false)
-            .resizable(false)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.label("Save as .hp67card or .hp67raw");
-                ui.text_edit_singleline(&mut self.card_save_path);
-                if let Some(status) = &self.card_save_status {
-                    ui.label(status.as_str());
+        let mut save_path = self.card_save_path.clone();
+        let status = self.card_save_status.clone();
+
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of(CARD_SAVE_VIEWPORT_KEY),
+            egui::ViewportBuilder::default()
+                .with_title("Save magnetic card")
+                .with_inner_size([520.0, 150.0])
+                .with_resizable(false),
+            |ctx, _class| {
+                if ctx.input(|input| input.viewport().close_requested()) {
+                    keep_open = false;
+                    return;
                 }
-                if ui.button("Save").clicked() {
-                    save_requested = true;
-                }
-            });
-        self.card_save_dialog_open = open;
+
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.label("Save as .hp67card or .hp67raw");
+                    ui.text_edit_singleline(&mut save_path);
+                    if let Some(status) = status.as_deref() {
+                        ui.label(status);
+                    }
+                    if ui.button("Save").clicked() {
+                        save_requested = true;
+                    }
+                });
+            },
+        );
+
+        self.card_save_dialog_open = keep_open;
+        self.card_save_path = save_path;
 
         if save_requested {
             let path = self.card_save_path.clone();
