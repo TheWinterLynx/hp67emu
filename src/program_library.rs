@@ -1300,7 +1300,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_contains_all_checked_in_hpp_programs() {
+    fn catalog_contains_all_built_in_program_media() {
         assert_eq!(PROGRAM_LIBRARY.len(), 72);
         assert_eq!(
             PROGRAM_LIBRARY
@@ -1363,7 +1363,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_diagnostic_native_cards_match_their_library_hpp_tracks() {
+    fn custom_diagnostic_library_entries_use_native_hp67card() {
         let cases: [(&str, &[u8]); 12] = [
             (
                 "CD-01",
@@ -1458,17 +1458,24 @@ mod tests {
                 .iter()
                 .find(|entry| entry.reference == reference)
                 .expect("custom diagnostic must be in the catalog");
-            let imported = entry.load_card().unwrap().card;
-            assert_eq!(native, imported, "{reference} native/HPP media mismatch");
+            assert_eq!(entry.parts.len(), 1, "{reference} must use one native card");
+            assert!(
+                entry.parts[0].starts_with(b"HP67CARD"),
+                "{reference} must not depend on the Teenix compatibility format"
+            );
+            let loaded = entry.load_card().unwrap().card;
+            assert_eq!(native, loaded, "{reference} native media mismatch");
         }
     }
 
     #[test]
-    fn standard_diagnostic_native_card_matches_source_backed_hpp_pair() {
+    fn standard_diagnostic_library_uses_native_card() {
         let entry = PROGRAM_LIBRARY
             .iter()
             .find(|entry| entry.reference == "SD1-15A")
             .expect("Standard Pac diagnostic must be in the catalog");
+        assert_eq!(entry.parts.len(), 1);
+        assert!(entry.parts[0].starts_with(b"HP67CARD"));
         let imported = entry.load_card().unwrap().card;
         let native = Hp67MagneticCard::from_hp67card_bytes(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1479,11 +1486,13 @@ mod tests {
     }
 
     #[test]
-    fn exact_sd15c_native_card_matches_embedded_hpp_wrappers() {
+    fn exact_sd15c_library_entry_uses_native_card() {
         let entry = PROGRAM_LIBRARY
             .iter()
             .find(|entry| entry.reference == "SD-15C")
             .expect("SD-15C must be in the catalog");
+        assert_eq!(entry.parts.len(), 1);
+        assert!(entry.parts[0].starts_with(b"HP67CARD"));
         let imported = entry.load_card().unwrap().card;
         let native = Hp67MagneticCard::from_hp67card_bytes(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
