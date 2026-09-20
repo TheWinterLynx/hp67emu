@@ -254,6 +254,12 @@ pub fn paint(
             }
             output.window_clicked = response.clicked();
             let card_rect = holder_card_rect(window, scale);
+            // The real holder/slot behind the chamfered card is dark. The source
+            // calculator photograph has bright metal here, so back only the
+            // in-holder card rectangle with black before drawing its silhouette.
+            ui.painter()
+                .with_clip_rect(window)
+                .rect_filled(card_rect, 0.0, Color32::BLACK);
             paint_card(
                 &ui.painter().with_clip_rect(window),
                 card_rect,
@@ -334,10 +340,6 @@ fn paint_card(
         rect.left_bottom(),
         pos2(rect.left(), rect.top() + chamfer),
     ];
-    // The physical slot behind the card is dark. Paint a black substrate
-    // across the card's full bounding box before the chamfered face so the
-    // clipped corners cannot expose bright metal from the source photograph.
-    painter.rect_filled(rect, 0.0, Color32::BLACK);
     painter.add(Shape::convex_polygon(
         points.clone(),
         palette.body,
@@ -704,6 +706,9 @@ fn paint_window_insertion_from_right(
     }
 
     if holder_window.intersects(rect) {
+        ui.painter()
+            .with_clip_rect(holder_window)
+            .rect_filled(rect, 0.0, Color32::BLACK);
         paint_card(
             &ui.painter().with_clip_rect(holder_window),
             rect,
