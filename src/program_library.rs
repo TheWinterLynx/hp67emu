@@ -1020,6 +1020,99 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         ],
         artwork: catalog_artwork("Diagnostic Program", "SD1-15A"),
     },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-01",
+        title: "Flow GSB/GTO/RTN — expect 7.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-01_Flow-GSB-GTO-RTN_1.hpp"
+        )],
+        artwork: catalog_artwork("Flow GSB/GTO/RTN", "CD-01"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-02",
+        title: "Flags SF/CF/F? — expect 6.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-02_Flags-SF-CF-Test_1.hpp"
+        )],
+        artwork: catalog_artwork("Flags SF/CF/F?", "CD-02"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-03",
+        title: "Conditionals — expect 7.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-03_Conditionals_1.hpp"
+        )],
+        artwork: catalog_artwork("Conditionals", "CD-03"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-04",
+        title: "Indirect STO/RCL — expect 42.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-04_Indirect-STO-RCL_1.hpp"
+        )],
+        artwork: catalog_artwork("Indirect STO/RCL", "CD-04"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-05",
+        title: "Nested GSB — expect 6.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-05_Nested-GSB_1.hpp"
+        )],
+        artwork: catalog_artwork("Nested GSB", "CD-05"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-06",
+        title: "Second-half label search — expect 67.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[
+            hpp!(
+                "/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_1.hpp"
+            ),
+            hpp!(
+                "/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search_2.hpp"
+            ),
+        ],
+        artwork: catalog_artwork("Second-half label search", "CD-06"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-07",
+        title: "ISZ loop — expect 3.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-07_ISZ-Loop_1.hpp"
+        )],
+        artwork: catalog_artwork("ISZ loop", "CD-07"),
+    },
+    ProgramLibraryEntry {
+        pack: "Custom Diagnostic Pacs",
+        reference: "CD-08",
+        title: "DSZ loop — expect 3.00",
+        source_pdf: None,
+        artwork_path: None,
+        parts: &[hpp!(
+            "/programs/HP67/Custom Diagnostic Pacs/CD-08_DSZ-Loop_1.hpp"
+        )],
+        artwork: catalog_artwork("DSZ loop", "CD-08"),
+    },
 ];
 
 #[cfg(test)]
@@ -1074,13 +1167,13 @@ mod tests {
 
     #[test]
     fn catalog_contains_all_checked_in_hpp_programs() {
-        assert_eq!(PROGRAM_LIBRARY.len(), 59);
+        assert_eq!(PROGRAM_LIBRARY.len(), 67);
         assert_eq!(
             PROGRAM_LIBRARY
                 .iter()
                 .map(ProgramLibraryEntry::track_count)
                 .sum::<usize>(),
-            90
+            99
         );
     }
 
@@ -1107,6 +1200,139 @@ mod tests {
                 .map(|word| (word >> 24) as u8),
             Some(3)
         );
+    }
+
+    #[test]
+    fn custom_diagnostic_pack_contains_eight_known_result_cards() {
+        let entries = PROGRAM_LIBRARY
+            .iter()
+            .filter(|entry| entry.pack == "Custom Diagnostic Pacs")
+            .collect::<Vec<_>>();
+        assert_eq!(entries.len(), 8);
+        assert_eq!(
+            entries.iter().map(|entry| entry.reference).collect::<Vec<_>>(),
+            ["CD-01", "CD-02", "CD-03", "CD-04", "CD-05", "CD-06", "CD-07", "CD-08"]
+        );
+        assert_eq!(
+            entries.iter().map(|entry| entry.track_count()).sum::<usize>(),
+            9
+        );
+    }
+
+    #[test]
+    fn custom_diagnostic_native_cards_match_their_library_hpp_tracks() {
+        let cases: [(&str, &[u8]); 8] = [
+            (
+                "CD-01",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-01_Flow-GSB-GTO-RTN.hp67card"
+                )),
+            ),
+            (
+                "CD-02",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-02_Flags-SF-CF-Test.hp67card"
+                )),
+            ),
+            (
+                "CD-03",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-03_Conditionals.hp67card"
+                )),
+            ),
+            (
+                "CD-04",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-04_Indirect-STO-RCL.hp67card"
+                )),
+            ),
+            (
+                "CD-05",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-05_Nested-GSB.hp67card"
+                )),
+            ),
+            (
+                "CD-06",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-06_Second-Half-Label-Search.hp67card"
+                )),
+            ),
+            (
+                "CD-07",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-07_ISZ-Loop.hp67card"
+                )),
+            ),
+            (
+                "CD-08",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/programs/HP67/Custom Diagnostic Pacs/CD-08_DSZ-Loop.hp67card"
+                )),
+            ),
+        ];
+
+        for (reference, native_bytes) in cases {
+            let native = Hp67MagneticCard::from_hp67card_bytes(native_bytes)
+                .unwrap_or_else(|error| panic!("{reference}: {error:?}"));
+            let entry = PROGRAM_LIBRARY
+                .iter()
+                .find(|entry| entry.reference == reference)
+                .expect("custom diagnostic must be in the catalog");
+            let imported = entry.load_card().unwrap().card;
+            assert_eq!(native, imported, "{reference} native/HPP media mismatch");
+        }
+    }
+
+    #[test]
+    fn standard_diagnostic_native_card_matches_source_backed_hpp_pair() {
+        let entry = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "SD1-15A")
+            .expect("Standard Pac diagnostic must be in the catalog");
+        let imported = entry.load_card().unwrap().card;
+        let native = Hp67MagneticCard::from_hp67card_bytes(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/HP-67 Standard Pac/SD1-15A-Diagnostic-Program.hp67card"
+        )))
+        .expect("checked-in native Standard diagnostic must decode");
+        assert_eq!(native, imported);
+    }
+
+    #[test]
+    fn second_half_custom_diagnostic_reaches_program_steps_113_through_224() {
+        let entry = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "CD-06")
+            .expect("CD-06 must be in the catalog");
+        let loaded = entry.load_card().unwrap();
+        assert_eq!(
+            loaded
+                .card
+                .track(Hp67CardTrack::Track1)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(3)
+        );
+        assert_eq!(
+            loaded
+                .card
+                .track(Hp67CardTrack::Track2)
+                .word(0)
+                .map(|word| (word >> 24) as u8),
+            Some(4)
+        );
+        let listing = entry.program_listing().unwrap();
+        assert!(listing.contains("001  FA  LBL A"));
+        assert!(listing.contains("113  FE  LBL E"));
     }
 
     #[test]
