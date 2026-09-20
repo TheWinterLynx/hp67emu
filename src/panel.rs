@@ -257,7 +257,40 @@ impl Hp67Panel {
         let card_ui = program_card::paint(ui, photo_rect, photo, card_view);
 
         let mut events = Vec::new();
-        let mut key_contact = None;
+
+        // Capture the physical key on the mouse-down edge and keep that same
+        // contact closed until the primary button is released. A real HP-67 key
+        // does not spring back merely because the host pointer moves a few pixels
+        // or egui stops considering the interaction a potential click.
+        let pointer_capture_id = ui.make_persistent_id("hp67-held-pointer-key");
+        let (pointer_pos, pointer_pressed, pointer_down) = ui.ctx().input(|input| {
+            (
+                input.pointer.interact_pos(),
+                input.pointer.primary_pressed(),
+                input.pointer.primary_down(),
+            )
+        });
+        if pointer_pressed {
+            let pressed_key = pointer_pos.and_then(|position| {
+                KEYS.iter()
+                    .find(|key| source_to_screen(photo_rect, key.src).contains(position))
+                    .map(|key| key.action)
+            });
+            ui.data_mut(|data| data.insert_temp(pointer_capture_id, pressed_key));
+        }
+        if !pointer_down {
+            ui.data_mut(|data| {
+                data.insert_temp::<Option<KeyAction>>(pointer_capture_id, None)
+            });
+        }
+        let key_contact = if pointer_down {
+            ui.data(|data| {
+                data.get_temp::<Option<KeyAction>>(pointer_capture_id)
+                    .flatten()
+            })
+        } else {
+            None
+        };
 
         // The two mechanical slide switches remain part of the photograph, but
         // retain their emulator hit areas.  The display state makes power changes
@@ -297,10 +330,7 @@ impl Hp67Panel {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
 
-            let down = response.is_pointer_button_down_on();
-            if down {
-                key_contact = Some(key.action);
-            }
+            let down = key_contact == Some(key.action);
             let press = ui.ctx().animate_bool_with_time(
                 response.id.with("travel"),
                 down,
