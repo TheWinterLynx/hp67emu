@@ -39,7 +39,7 @@ except ImportError as exc:  # pragma: no cover - dependency guidance
     raise SystemExit("Missing PyMuPDF. Install with: py -m pip install pymupdf pillow") from exc
 
 try:
-    from PIL import Image, ImageChops, ImageDraw, ImageFilter
+    from PIL import Image, ImageDraw
 except ImportError as exc:  # pragma: no cover - dependency guidance
     raise SystemExit("Missing Pillow. Install with: py -m pip install pymupdf pillow") from exc
 
@@ -69,7 +69,7 @@ ATLAS_PROFILES = {
 CARD_WIDTH_MM = 71.1
 CARD_HEIGHT_MM = 11.4
 CARD_END_CHAMFER_MM = 4.2
-CARD_EDGE_ARTIFACT_ZONE_MM = 1.6
+CARD_EDGE_ARTIFACT_ZONE_MM = 0.4
 CARD_WHITE_MARK_MAX_MM = 1.5
 CARD_WHITE_MARK_MAX_ASPECT = 1.8
 ATLAS_ROW_HEIGHT = 80
@@ -294,24 +294,21 @@ def card_silhouette_mask(size: tuple[int, int], dpi: int) -> Image.Image:
     return mask
 
 
-def composite_centered(dst: Image.Image, src: Image.Image) -> None:
-    """Composite src into dst at native scale, clipping symmetrically if needed."""
-    dx = (dst.width - src.width) // 2
-    dy = (dst.height - src.height) // 2
-    sx0 = max(0, -dx)
-    sy0 = max(0, -dy)
-    tx0 = max(0, dx)
-    ty0 = max(0, dy)
-    width = min(src.width - sx0, dst.width - tx0)
-    height = min(src.height - sy0, dst.height - ty0)
+def composite_native_card(dst: Image.Image, src: Image.Image) -> None:
+    """Anchor PDF artwork at the canonical top-left and crop only right/bottom excess.
+
+    The PAC scans show that the stable physical registration is the top/left card
+    edge while right/bottom extents vary by a few pixels. Keeping native DPI and
+    anchoring those stable edges preserves the printed marks exactly; shorter
+    source crops simply expose the black canonical substrate to the right/bottom.
+    """
+    width = min(src.width, dst.width)
+    height = min(src.height, dst.height)
     if width <= 0 or height <= 0:
         raise RuntimeError(
             f"PDF crop {src.size} does not overlap canonical card canvas {dst.size}"
         )
-    dst.alpha_composite(
-        src.crop((sx0, sy0, sx0 + width, sy0 + height)),
-        (tx0, ty0),
-    )
+    dst.alpha_composite(src.crop((0, 0, width, height)), (0, 0))
 
 
 def suppress_boundary_white_artifacts(
@@ -325,10 +322,19 @@ def suppress_boundary_white_artifacts(
     silhouette_px = silhouette.load()
 
     guard = max(1, round(CARD_EDGE_ARTIFACT_ZONE_MM * dpi / 25.4))
-    filter_size = guard * 2 + 1
-    if filter_size > min(width, height):
-        filter_size = max(3, min(width, height) // 2 * 2 - 1)
-    inner = silhouette.filter(ImageFilter.MinFilter(filter_size))
+    chamfer = max(1, round(CARD_END_CHAMFER_MM * dpi / 25.4))
+    inner = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(inner).polygon(
+        [
+            (chamfer + guard, guard),
+            (width - 1 - guard, guard),
+            (width - 1 - guard, height - 1 - chamfer - guard),
+            (width - 1 - chamfer - guard, height - 1 - guard),
+            (guard, height - 1 - guard),
+            (guard, chamfer + guard),
+        ],
+        fill=255,
+    )
     inner_px = inner.load()
 
     white = bytearray(width * height)
@@ -337,7 +343,7 @@ def suppress_boundary_white_artifacts(
             if silhouette_px[x, y] == 0:
                 continue
             r, g, b, a = pixels[x, y]
-            if a and r >= 180 and g >= 180 and b >= 180 and max(r, g, b) - min(r, g, b) <= 30:
+            if a and r >= 150 and g >= 150 and b >= 150 and max(r, g, b) - min(r, g, b) <= 35:
                 white[y * width + x] = 1
 
     seen = bytearray(width * height)
@@ -408,11 +414,11 @@ def normalize_card_artwork(image: Image.Image, dpi: int) -> Image.Image:
     silhouette = card_silhouette_mask(target_size, dpi)
 
     # The PDF cards differ by a few pixels in width/height. Do not stretch each
-    # one independently: preserve the native DPI, center it on the physical
-    # canvas, crop only genuine oversize, and fill any missing card body black.
+    # one independently: preserve native DPI, anchor the stable top/left edges,
+    # crop only right/bottom oversize, and fill missing card body black.
     normalized = Image.new("RGBA", target_size, (0, 0, 0, 255))
     normalized.putalpha(silhouette)
-    composite_centered(normalized, source)
+    composite_native_card(normalized, source)
 
     # Enforce the canonical silhouette after compositing page pixels, then turn
     # edge-only PDF whites/antialias lines back into the black card substrate.
