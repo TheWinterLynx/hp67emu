@@ -17,3 +17,6 @@ The benchmark measures computational headroom, not completeness of electrical fi
 
 ## Execution
 Run explicitly in release mode with `--ignored --nocapture`. Workload size can be changed with `HP67_BENCH_WORDS`, `HP67_BENCH_ROUNDS` and `HP67_BENCH_WARMUP_WORDS`.
+
+## Implementation
+The ignored test uses `std::time::Instant` around repeated continuous workloads after a warm-up phase. It keeps one backplane/device state alive for every measured round, summarizes median/min/max durations, converts them to microseconds per 56-bit word and words per second, and compares the median with the observed `HP67_OBSERVED_WORD_TIME_US` physical reference. `std::hint::black_box` prevents trivial elimination of measured work without adding per-edge observer overhead.
