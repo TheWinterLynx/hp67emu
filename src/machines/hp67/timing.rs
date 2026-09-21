@@ -81,6 +81,40 @@ pub const ROM_WORD_LAST_BIT: u8 = ROM_WORD_FIRST_BIT + ROM_WORD_BITS - 1;
 // assertion that every slot has the same physical duration.
 const CLOCK_SUBPHASES_PER_BIT: u8 = 4;
 
+/// HP-67-specific name for the four currently represented positions inside one
+/// serial bit.
+///
+/// Direct HP-67 page-70 captures establish the pin polarity/order: PHI1 is a
+/// low-going pulse, both clocks return high, PHI2 is a low-going pulse, then
+/// both clocks return high again. The enum deliberately names topology rather
+/// than duration; the physical widths/dead times remain uncalibrated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67ClockPhase {
+    Phi1Low,
+    InterphaseAfterPhi1,
+    Phi2Low,
+    InterphaseAfterPhi2,
+}
+
+impl Hp67ClockPhase {
+    pub const fn from_subphase(subphase: u8) -> Self {
+        match subphase & 0b11 {
+            0 => Self::Phi1Low,
+            1 => Self::InterphaseAfterPhi1,
+            2 => Self::Phi2Low,
+            _ => Self::InterphaseAfterPhi2,
+        }
+    }
+
+    pub const fn phi1_low(self) -> bool {
+        matches!(self, Self::Phi1Low)
+    }
+
+    pub const fn phi2_low(self) -> bool {
+        matches!(self, Self::Phi2Low)
+    }
+}
+
 /// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsaWindow {
@@ -201,6 +235,14 @@ impl Hp67WordTiming {
         self.clock_subphase
     }
 
+    /// HP-67-specific named phase for the current scheduler coordinate.
+    ///
+    /// This exposes source-backed pin polarity/order without claiming physical
+    /// phase durations.
+    pub const fn clock_phase(&self) -> Hp67ClockPhase {
+        Hp67ClockPhase::from_subphase(self.clock_subphase)
+    }
+
     /// Advance one scheduler clock sub-phase.
     ///
     /// Every complete four-slot scaffold period advances one serial bit. Bit 55
@@ -317,6 +359,24 @@ mod tests {
             let fetch = !matches!(isa_window_for_bit(bit), IsaWindow::Other);
             assert!(!(display && fetch));
         }
+    }
+
+    #[test]
+    fn hp67_clock_phase_names_lock_active_low_order_without_durations() {
+        assert_eq!(Hp67ClockPhase::from_subphase(0), Hp67ClockPhase::Phi1Low);
+        assert_eq!(
+            Hp67ClockPhase::from_subphase(1),
+            Hp67ClockPhase::InterphaseAfterPhi1
+        );
+        assert_eq!(Hp67ClockPhase::from_subphase(2), Hp67ClockPhase::Phi2Low);
+        assert_eq!(
+            Hp67ClockPhase::from_subphase(3),
+            Hp67ClockPhase::InterphaseAfterPhi2
+        );
+        assert!(Hp67ClockPhase::Phi1Low.phi1_low());
+        assert!(!Hp67ClockPhase::Phi1Low.phi2_low());
+        assert!(!Hp67ClockPhase::Phi2Low.phi1_low());
+        assert!(Hp67ClockPhase::Phi2Low.phi2_low());
     }
 
     #[test]
