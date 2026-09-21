@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
-use super::{timing::Hp67WordTiming, wiring::Hp67Net};
+use super::{timing::{Hp67ClockPhase, Hp67WordTiming}, wiring::Hp67Net};
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
@@ -67,6 +67,11 @@ impl Hp67ElectricalBackplane {
     /// Current HP-67 serial bit coordinate (`b0..b55`).
     pub const fn word_bit(&self) -> u8 {
         self.word_timing.bit_index()
+    }
+
+    /// Current named HP-67 clock position inside the serial bit.
+    pub const fn clock_phase(&self) -> Hp67ClockPhase {
+        self.word_timing.clock_phase()
     }
 
     /// Current 4-bit digit coordinate (`0..13`).
