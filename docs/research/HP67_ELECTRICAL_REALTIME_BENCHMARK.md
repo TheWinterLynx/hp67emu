@@ -24,7 +24,7 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
 
 2. `dense staged scheduler / PHI`
    - advances the same PHI topology through the fixed HP-67 snapshot/stage/commit scheduler contract;
-   - exercises immutable resolved snapshots, fixed pending drive slots and atomic commit with no normal-path heap allocation;
+   - exercises a zero-copy borrowed resolved snapshot, fixed pending drive slots and atomic commit with no normal-path heap allocation;
    - measures the scheduler representation intended for M14B devices, independently of IS/ROM work.
 
 3. `IS ACT<->ROM structural fetch`
