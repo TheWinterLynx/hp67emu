@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hp67emu::emulation::Drive;
+use hp67emu::emulation::{Drive, LogicLevel};
 use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActArchitecturalState,
     ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67Driver,
@@ -69,6 +69,29 @@ where
     summarize(samples)
 }
 
+fn measure_phi_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStats; 3] {
+    let paths: [fn(usize) -> u64; 3] = [
+        raw_phi_stream,
+        stage_commit_phi_stream,
+        staged_phi_scheduler_stream,
+    ];
+    let mut samples: [Vec<Duration>; 3] =
+        std::array::from_fn(|_| Vec::with_capacity(rounds));
+    let mut checksum = 0u64;
+
+    for round in 0..rounds {
+        for offset in 0..paths.len() {
+            let index = (round + offset) % paths.len();
+            let start = Instant::now();
+            checksum ^= black_box(paths[index](words));
+            samples[index].push(start.elapsed());
+        }
+    }
+
+    black_box(checksum);
+    samples.map(summarize)
+}
+
 fn us_per_word(duration: Duration, words: usize) -> f64 {
     duration.as_secs_f64() * 1_000_000.0 / words as f64
 }
@@ -92,6 +115,8 @@ fn raw_phi_stream(words: usize) -> u64 {
 
     for _ in 0..words {
         for _ in 0..edges_per_word {
+            black_box(backplane.level(Hp67Net::Phi1));
+            black_box(backplane.level(Hp67Net::Phi2));
             backplane.advance_clock_edge();
         }
         checksum ^= black_box(backplane.tick().get());
@@ -108,6 +133,9 @@ fn stage_commit_phi_stream(words: usize) -> u64 {
 
     for _ in 0..words {
         for _ in 0..edges_per_word {
+            black_box(fabric.level(Hp67Net::Phi1));
+            black_box(fabric.level(Hp67Net::Phi2));
+
             match (fabric.tick().get() + 1) & 0b11 {
                 1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
                 2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
@@ -330,6 +358,112 @@ fn firmware_production_stream(words: usize) -> u64 {
     checksum
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PhiTraceSample {
+    tick: u64,
+    phi1: LogicLevel,
+    phi2: LogicLevel,
+}
+
+fn raw_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
+    let mut backplane = Hp67ElectricalBackplane::default();
+    let mut trace = Vec::with_capacity(edges + 1);
+    trace.push(PhiTraceSample {
+        tick: backplane.tick().get(),
+        phi1: backplane.level(Hp67Net::Phi1),
+        phi2: backplane.level(Hp67Net::Phi2),
+    });
+
+    for _ in 0..edges {
+        backplane.advance_clock_edge();
+        trace.push(PhiTraceSample {
+            tick: backplane.tick().get(),
+            phi1: backplane.level(Hp67Net::Phi1),
+            phi2: backplane.level(Hp67Net::Phi2),
+        });
+    }
+
+    trace
+}
+
+fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
+    let mut fabric = Hp67ElectricalFabric::default();
+    let mut trace = Vec::with_capacity(edges + 1);
+    trace.push(PhiTraceSample {
+        tick: fabric.tick().get(),
+        phi1: fabric.level(Hp67Net::Phi1),
+        phi2: fabric.level(Hp67Net::Phi2),
+    });
+
+    for _ in 0..edges {
+        match (fabric.tick().get() + 1) & 0b11 {
+            1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+            2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+            3 => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+            _ => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+        }
+        fabric
+            .commit_staged()
+            .expect("dense PHI stage/commit trace must remain contention-free");
+        trace.push(PhiTraceSample {
+            tick: fabric.tick().get(),
+            phi1: fabric.level(Hp67Net::Phi1),
+            phi2: fabric.level(Hp67Net::Phi2),
+        });
+    }
+
+    trace
+}
+
+fn staged_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
+    let mut fabric = Hp67ElectricalFabric::default();
+    let mut trace = Vec::with_capacity(edges + 1);
+    trace.push(PhiTraceSample {
+        tick: fabric.tick().get(),
+        phi1: fabric.level(Hp67Net::Phi1),
+        phi2: fabric.level(Hp67Net::Phi2),
+    });
+
+    for _ in 0..edges {
+        {
+            let (snapshot, mut stager) = fabric
+                .begin_evaluation()
+                .expect("dense PHI trace snapshot must be contention-free");
+            match (snapshot.tick().get() + 1) & 0b11 {
+                1 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+                2 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+                3 => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+                _ => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+            }
+        }
+        fabric
+            .commit_staged()
+            .expect("dense staged PHI trace must remain contention-free");
+        trace.push(PhiTraceSample {
+            tick: fabric.tick().get(),
+            phi1: fabric.level(Hp67Net::Phi1),
+            phi2: fabric.level(Hp67Net::Phi2),
+        });
+    }
+
+    trace
+}
+
+#[test]
+fn matched_phi_paths_preserve_identical_trace_and_tick_progression() {
+    let edges = BITS_PER_WORD as usize * CLOCK_EDGES_PER_BIT as usize * 3;
+    let raw = raw_phi_trace(edges);
+    let stage_commit = stage_commit_phi_trace(edges);
+    let staged = staged_phi_trace(edges);
+
+    assert_eq!(stage_commit, raw);
+    assert_eq!(staged, raw);
+    assert_eq!(
+        raw.last().expect("PHI trace must contain its final sample").tick,
+        edges as u64
+    );
+}
+
 #[test]
 #[ignore = "release-only wall-clock benchmark; run explicitly with --ignored --nocapture"]
 fn hp67_electrical_realtime_benchmark() {
@@ -346,9 +480,8 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(production_dual_path_stream(warmup_words));
     black_box(firmware_production_stream(warmup_words));
 
-    let raw_phi = measure_rounds(rounds, words, raw_phi_stream);
-    let stage_commit_phi = measure_rounds(rounds, words, stage_commit_phi_stream);
-    let staged_phi = measure_rounds(rounds, words, staged_phi_scheduler_stream);
+    let [raw_phi, stage_commit_phi, staged_phi] =
+        measure_phi_rounds_interleaved(rounds, words);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
     let architectural = measure_rounds(rounds, words, architectural_execution_stream);
