@@ -1,8 +1,6 @@
 use super::*;
 
-use hp67emu::machines::hp67::{
-    Hp67CardTrack, Hp67Key, Hp67MagneticCard, HP67_DISPLAY_SCAN_SLOTS,
-};
+use hp67emu::machines::hp67::{Hp67CardTrack, Hp67Key, Hp67MagneticCard, HP67_DISPLAY_SCAN_SLOTS};
 
 const CARD_PASS_CYCLE_LIMIT: usize = 65_536;
 const CARD_PROMPT_CYCLE_LIMIT: usize = 16_384;
@@ -288,15 +286,15 @@ fn press_a_through_firmware(live: &mut Hp67LiveMachine) -> Result<u16, String> {
 }
 
 fn expected_display(text: &str) -> Result<[u8; HP67_DISPLAY_SCAN_SLOTS], String> {
-    const DIGITS: [u8; 10] = [
-        0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f,
-    ];
+    const DIGITS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
     let mut segments = [0u8; HP67_DISPLAY_SCAN_SLOTS];
     let mut slot = 1usize;
     for character in text.chars() {
         if slot >= HP67_DISPLAY_SCAN_SLOTS {
-            return Err(format!("expected display '{text}' exceeds physical display width"));
+            return Err(format!(
+                "expected display '{text}' exceeds physical display width"
+            ));
         }
         segments[slot] = match character {
             '0'..='9' => DIGITS[character.to_digit(10).unwrap() as usize],
