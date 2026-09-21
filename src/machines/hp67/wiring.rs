@@ -50,6 +50,7 @@ pub const CHIPSET: &[Hp67Chip] = &[
 ];
 
 /// Named digital nets already supported by direct HP-67 evidence.
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Hp67Net {
     Phi1,
@@ -69,7 +70,13 @@ pub enum Hp67Net {
 }
 
 impl Hp67Net {
-    pub const ALL: [Self; 14] = [
+    pub const COUNT: usize = 14;
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    pub const ALL: [Self; Self::COUNT] = [
         Self::Phi1,
         Self::Phi2,
         Self::Isa,
@@ -100,6 +107,13 @@ mod tests {
         assert_eq!(parts.len(), count);
     }
 
+    #[test]
+    fn hp67_net_indices_are_dense_and_match_declared_order() {
+        assert_eq!(Hp67Net::ALL.len(), Hp67Net::COUNT);
+        for (index, net) in Hp67Net::ALL.into_iter().enumerate() {
+            assert_eq!(net.index(), index);
+        }
+    }
     #[test]
     fn required_serial_and_display_control_nets_are_present() {
         for required in [
