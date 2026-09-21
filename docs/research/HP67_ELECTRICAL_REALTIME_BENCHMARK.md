@@ -1,0 +1,69 @@
+# HP-67 electrical realtime benchmark
+
+This benchmark measures whether the current HP-67 electrical/structural path can be computed faster than the observed physical calculator while preserving continuous state across thousands of 56-bit machine words.
+
+## Physical reference
+
+The current hardware evidence lock records an observed physical HP-67 machine-word time of approximately **320 us** for one 56-bit word.
+
+That corresponds to:
+
+- 3,125 machine words/s;
+- 175,000 serial bit-cells/s;
+- 700,000 named PHI transitions/s in the current four-transition topology.
+
+The last number is a scheduler workload comparison only. M14A does not claim four equal-duration physical subphases.
+
+## Measured paths
+
+`tests/hp67_electrical_realtime_benchmark.rs` reports three progressively heavier continuous paths:
+
+1. `PHI backplane / resolved clock nets`
+   - advances all four named PHI transitions for every bit-cell;
+   - drives/resolves the HP-67 PHI nets continuously.
+
+2. `IS ACT<->ROM structural fetch`
+   - includes the PHI path above;
+   - resolves shared IS ownership;
+   - serializes ACT->ROM 12-bit addresses at b16..b27;
+   - reconstructs the ROM address from resolved IS;
+   - serializes ROM->ACT 10-bit instruction words at b46..b55;
+   - reconstructs the returned word at the ACT endpoint.
+
+3. `IS + ROM0 display + serial ACT execution`
+   - includes the previous path;
+   - adds ROM0 display traffic;
+   - advances the 15-word display phase continuously;
+   - advances one serial ACT instruction through b0..b55 for every measured word.
+
+Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 5,000 words therefore represent approximately 1.6 seconds of physical HP-67 machine time per round.
+
+## Interpretation
+
+The `vs hardware` column is:
+
+`physical HP-67 word time / host median time per emulated word`
+
+Therefore:
+
+- `1.00x` means the current model computes at real HP-67 speed;
+- `10.00x` means ten times realtime computational headroom;
+- `<1.00x` means the current model cannot yet sustain realtime on that host.
+
+This is a **performance/headroom benchmark**, not a claim that M14 electrical fidelity is complete.
+
+The benchmark deliberately prints the fidelity gaps still outside the measured path: DATA/RAM electrical transfers, PHI-relative IS/DATA launch/sample edges, electrically scheduled STR/RCD, exact PHI widths/dead time and propagation delays. As those become real devices/events, they should be added to the full row rather than creating a faster shortcut path.
+
+## Run
+
+Use release mode and keep the benchmark ignored during normal test gates:
+
+```powershell
+$env:RUSTFLAGS='-Dwarnings'; cargo test --release --locked --test hp67_electrical_realtime_benchmark hp67_electrical_realtime_benchmark -- --ignored --nocapture
+```
+
+Optional workload controls:
+
+- `HP67_BENCH_WORDS` — words per round, default 5000;
+- `HP67_BENCH_ROUNDS` — measured rounds, default 7;
+- `HP67_BENCH_WARMUP_WORDS` — warm-up words per path, default 250.
