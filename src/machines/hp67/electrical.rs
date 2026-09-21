@@ -252,7 +252,11 @@ mod tests {
                 Hp67Net::Isa => LogicLevel::Low,
                 _ => LogicLevel::Floating,
             };
-            assert_eq!(fabric.level(net), expected, "unexpected idle level for {net:?}");
+            assert_eq!(
+                fabric.level(net),
+                expected,
+                "unexpected idle level for {net:?}"
+            );
         }
     }
 
@@ -286,17 +290,18 @@ mod tests {
     fn simultaneous_opposite_drives_report_contention_after_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
         fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
-        fabric.stage_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder, Drive::Low);
+        fabric.stage_drive(
+            Hp67Net::Data,
+            Hp67Driver::StructuralRomResponder,
+            Drive::Low,
+        );
 
         assert_eq!(
             fabric.commit_staged(),
             Err(Hp67ElectricalError::Contention {
                 tick: Tick::new(1),
                 net: Hp67Net::Data,
-                drivers: vec![
-                    Hp67Driver::Act1820_2530,
-                    Hp67Driver::StructuralRomResponder,
-                ],
+                drivers: vec![Hp67Driver::Act1820_2530, Hp67Driver::StructuralRomResponder,],
             })
         );
     }
