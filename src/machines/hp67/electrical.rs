@@ -346,11 +346,7 @@ mod tests {
             assert_eq!(snapshot.level(Hp67Net::Str), LogicLevel::Floating);
 
             stager.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
-            stager.stage_drive(
-                Hp67Net::Str,
-                Hp67Driver::RomDisplay1818_0268,
-                Drive::Low,
-            );
+            stager.stage_drive(Hp67Net::Str, Hp67Driver::RomDisplay1818_0268, Drive::Low);
 
             assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
             assert_eq!(snapshot.level(Hp67Net::Str), LogicLevel::Floating);
