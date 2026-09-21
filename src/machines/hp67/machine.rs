@@ -6,10 +6,10 @@
 //! replace its durations/edge placement from hardware evidence while retaining
 //! the same observable net and word-coordinate boundaries.
 
-use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick};
+use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
 use super::{
-    timing::{Hp67ClockEdge, Hp67ClockPhase, BITS_PER_DIGIT, BITS_PER_WORD},
+    timing::{Hp67ClockEdge, Hp67ClockPhase, Hp67WordTiming},
     wiring::Hp67Net,
 };
 
@@ -18,7 +18,9 @@ const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 /// Pin-level connection fabric for HP-67 devices.
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalBackplane {
-    tick: u64,
+    clock: TwoPhaseClock,
+    clock_phase: Hp67ClockPhase,
+    word_timing: Hp67WordTiming,
     nets: [Net; Hp67Net::COUNT],
 }
 
@@ -45,38 +47,38 @@ impl Default for Hp67ElectricalBackplane {
         nets[Hp67Net::Phi1.index()].set_drive(CLOCK_DRIVER, Drive::High);
         nets[Hp67Net::Phi2.index()].set_drive(CLOCK_DRIVER, Drive::High);
 
-        Self { tick: 0, nets }
+        Self {
+            clock: TwoPhaseClock::default(),
+            clock_phase: Hp67ClockPhase::InterphaseAfterPhi2,
+            word_timing: Hp67WordTiming::default(),
+            nets,
+        }
     }
 }
 
 impl Hp67ElectricalBackplane {
-    pub const fn tick(&self) -> Tick {
-        Tick::new(self.tick)
+    pub fn tick(&self) -> Tick {
+        self.clock.tick()
     }
 
     /// Current HP-67 serial bit coordinate (`b0..b55`).
     pub const fn word_bit(&self) -> u8 {
-        ((self.tick >> 2) % BITS_PER_WORD as u64) as u8
+        self.word_timing.bit_index()
     }
 
     /// Current named HP-67 clock position inside the serial bit.
     pub const fn clock_phase(&self) -> Hp67ClockPhase {
-        match self.tick & 0b11 {
-            1 => Hp67ClockPhase::Phi1Low,
-            2 => Hp67ClockPhase::InterphaseAfterPhi1,
-            3 => Hp67ClockPhase::Phi2Low,
-            _ => Hp67ClockPhase::InterphaseAfterPhi2,
-        }
+        self.clock_phase
     }
 
     /// Current 4-bit digit coordinate (`0..13`).
     pub const fn word_digit(&self) -> u8 {
-        self.word_bit() / BITS_PER_DIGIT
+        self.word_timing.digit_index()
     }
 
     /// Monotonic machine-word coordinate since timing reset.
     pub const fn word_index(&self) -> u64 {
-        self.tick / (BITS_PER_WORD as u64 * 4)
+        self.word_timing.word_index()
     }
 
     pub fn level(&self, net: Hp67Net) -> LogicLevel {
@@ -94,40 +96,38 @@ impl Hp67ElectricalBackplane {
     /// low-going pulses. Pulse width/dead time remain uncalibrated; only the pin
     /// polarity and non-overlap relationship are source-backed here.
     pub fn advance_clock_edge(&mut self) -> (Tick, Hp67ClockEdge) {
-        self.tick = self.tick.wrapping_add(1);
+        let (next_phase, edge) = self.clock_phase.advance();
+        let _ = self.clock.advance();
+        self.clock_phase = next_phase;
 
-        // One monotonic transition counter is sufficient to derive PHI phase,
-        // bit, digit and word coordinates exactly. Keeping one canonical clock
-        // coordinate avoids advancing three redundant state machines per edge.
-        let edge = match self.tick & 0b11 {
-            1 => {
+        // Exactly one physical PHI output changes at each transition. Keeping
+        // the untouched line stable avoids redundant net-driver work without
+        // collapsing any electrical edge or changing the observable waveform.
+        match edge {
+            Hp67ClockEdge::Phi1Falling => {
                 self.drive(Hp67Net::Phi1, CLOCK_DRIVER, Drive::Low);
-                Hp67ClockEdge::Phi1Falling
             }
-            2 => {
+            Hp67ClockEdge::Phi1Rising => {
                 self.drive(Hp67Net::Phi1, CLOCK_DRIVER, Drive::High);
-                Hp67ClockEdge::Phi1Rising
             }
-            3 => {
+            Hp67ClockEdge::Phi2Falling => {
                 self.drive(Hp67Net::Phi2, CLOCK_DRIVER, Drive::Low);
-                Hp67ClockEdge::Phi2Falling
             }
-            _ => {
+            Hp67ClockEdge::Phi2Rising => {
                 self.drive(Hp67Net::Phi2, CLOCK_DRIVER, Drive::High);
-                Hp67ClockEdge::Phi2Rising
             }
-        };
+        }
 
         debug_assert_eq!(
             self.level(Hp67Net::Phi1) == LogicLevel::Low,
-            self.clock_phase().phi1_low()
+            self.clock_phase.phi1_low()
         );
         debug_assert_eq!(
             self.level(Hp67Net::Phi2) == LogicLevel::Low,
-            self.clock_phase().phi2_low()
+            self.clock_phase.phi2_low()
         );
-
-        (Tick::new(self.tick), edge)
+        self.word_timing.advance_clock_subphase();
+        (self.clock.tick(), edge)
     }
 
     pub fn advance_clock(&mut self) -> Tick {
