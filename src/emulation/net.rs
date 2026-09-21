@@ -92,6 +92,29 @@ impl Net {
     /// sorted compact vector avoids tree allocation/traversal on every PHI edge
     /// while preserving deterministic DriverId ordering for diagnostics.
     pub fn set_drive(&mut self, driver: DriverId, drive: Drive) {
+        if self.drives.is_empty() {
+            if drive != Drive::HighZ {
+                self.drives.push((driver, drive));
+                self.add_drive_count(drive);
+            }
+            return;
+        }
+
+        // Calculator nets overwhelmingly have a single active output pin. Keep
+        // that path branch-only and avoid even the tiny binary-search machinery.
+        if self.drives.len() == 1 && self.drives[0].0 == driver {
+            let previous = self.drives[0].1;
+            if drive == Drive::HighZ {
+                self.remove_drive_count(previous);
+                self.drives.clear();
+            } else if previous != drive {
+                self.remove_drive_count(previous);
+                self.drives[0].1 = drive;
+                self.add_drive_count(drive);
+            }
+            return;
+        }
+
         match self
             .drives
             .binary_search_by_key(&driver, |(candidate, _)| *candidate)
