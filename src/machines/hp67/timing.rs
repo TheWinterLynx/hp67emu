@@ -301,16 +301,19 @@ pub const HP67_EDGE_CONTRACTS_V1: &[Hp67EdgeContract] = &[
 ];
 
 pub const fn edge_contract(transfer: Hp67TimedTransfer) -> &'static Hp67EdgeContract {
-    let mut index = 0;
-    while index < HP67_EDGE_CONTRACTS_V1.len() {
-        let contract = &HP67_EDGE_CONTRACTS_V1[index];
-        if contract.transfer as u8 == transfer as u8 {
-            return contract;
-        }
-        index += 1;
-    }
-    panic!("missing HP-67 edge contract")
+    let index = match transfer {
+        Hp67TimedTransfer::SyncTransition => 0,
+        Hp67TimedTransfer::ActToRomAddress => 1,
+        Hp67TimedTransfer::RomToActInstruction => 2,
+        Hp67TimedTransfer::ActToRomRamData => 3,
+        Hp67TimedTransfer::RomRamToActData => 4,
+        Hp67TimedTransfer::ActToRom0Display => 5,
+        Hp67TimedTransfer::Rom0ToCathodeStr => 6,
+        Hp67TimedTransfer::ActToCathodeRcd => 7,
+    };
+    &HP67_EDGE_CONTRACTS_V1[index]
 }
+
 /// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsaWindow {
