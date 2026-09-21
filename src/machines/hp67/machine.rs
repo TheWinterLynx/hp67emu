@@ -10,7 +10,10 @@ use std::collections::BTreeMap;
 
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
-use super::{timing::{Hp67ClockPhase, Hp67WordTiming}, wiring::Hp67Net};
+use super::{
+    timing::{Hp67ClockPhase, Hp67WordTiming},
+    wiring::Hp67Net,
+};
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
