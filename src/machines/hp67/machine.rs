@@ -101,16 +101,8 @@ impl Hp67ElectricalBackplane {
     /// polarity and non-overlap relationship are source-backed here.
     pub fn advance_clock(&mut self) -> Tick {
         let levels = self.clock.advance();
-        self.drive(
-            Hp67Net::Phi1,
-            CLOCK_DRIVER,
-            hp67_clock_drive(levels.phi1),
-        );
-        self.drive(
-            Hp67Net::Phi2,
-            CLOCK_DRIVER,
-            hp67_clock_drive(levels.phi2),
-        );
+        self.drive(Hp67Net::Phi1, CLOCK_DRIVER, hp67_clock_drive(levels.phi1));
+        self.drive(Hp67Net::Phi2, CLOCK_DRIVER, hp67_clock_drive(levels.phi2));
         self.word_timing.advance_clock_subphase();
         self.clock.tick()
     }
