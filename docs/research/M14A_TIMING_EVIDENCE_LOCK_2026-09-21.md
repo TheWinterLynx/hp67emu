@@ -26,7 +26,7 @@ PHI2 active -> PHI1 high, PHI2 low
 interphase  -> PHI1 high, PHI2 high
 ```
 
-This locks polarity and ordering only. It does not claim equal durations, absolute widths, dead-time length or voltage amplitude.
+This locks polarity and ordering only. It does not claim equal durations, absolute widths, dead-time length or voltage amplitude. The electrical backplane now tracks this current phase explicitly and returns the crossed physical edge on every scheduler step; the separate word-timing counter remains only a completed-subphase/bit coordinate.
 
 ### SYNC edge anchor
 
