@@ -108,14 +108,9 @@ fn structural_fetch_stream(words: usize) -> u64 {
     let mut last_fetched = 0u16;
 
     for _ in 0..words {
-        last_fetched = run_structural_fetch_cycle(
-            &mut backplane,
-            BENCH_ADDRESS,
-            &mut act,
-            &mut rom,
-            &source,
-        )
-        .expect("continuous structural fetch must complete");
+        last_fetched =
+            run_structural_fetch_cycle(&mut backplane, BENCH_ADDRESS, &mut act, &mut rom, &source)
+                .expect("continuous structural fetch must complete");
         checksum = checksum.wrapping_add(last_fetched as u64);
     }
 
