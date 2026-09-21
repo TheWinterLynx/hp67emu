@@ -9,7 +9,7 @@
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick};
 
 use super::{
-    timing::{BITS_PER_DIGIT, BITS_PER_WORD, Hp67ClockEdge, Hp67ClockPhase},
+    timing::{Hp67ClockEdge, Hp67ClockPhase, BITS_PER_DIGIT, BITS_PER_WORD},
     wiring::Hp67Net,
 };
 
