@@ -17,3 +17,4 @@ Each net stores a fixed drive array plus cached low/high driver counts, so both 
 
 ## Invariants
 A staged drive never changes the currently resolved level. Every device participating in one future scheduler tick can therefore read the same immutable snapshot. Opposite committed drives resolve to Contention; contention diagnostics may allocate only on the exceptional error path. No timing edge, passive bias or physical driver ownership is inferred by this representation itself.
+\n## Regression strategy\nUnit tests lock evidenced idle levels, snapshot invisibility before commit, final-write-wins staging, contention reporting, and direct-index drive updates. A cross-check exhaustively compares every two-driver HighZ/Low/High combination on floating DATA and pull-down ISA against the generic Net resolver so the dense production representation cannot silently diverge from reference electrical semantics.\n
