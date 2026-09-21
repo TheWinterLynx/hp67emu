@@ -115,6 +115,22 @@ impl Hp67ClockPhase {
     }
 }
 
+/// Named HP-67 clock transitions used by source-backed timing contracts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67ClockEdge {
+    Phi1Falling,
+    Phi1Rising,
+    Phi2Falling,
+    Phi2Rising,
+}
+
+/// Direct page-70 HP-67 captures show both the rising and falling transitions
+/// of SYNC aligned with the rising edge of PHI2.
+///
+/// This is an observed edge relationship, not a propagation-delay claim. The
+/// current scheduler still lacks calibrated sub-microsecond transition timing.
+pub const HP67_SYNC_TRANSITION_EDGE: Hp67ClockEdge = Hp67ClockEdge::Phi2Rising;
+
 /// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsaWindow {
@@ -359,6 +375,14 @@ mod tests {
             let fetch = !matches!(isa_window_for_bit(bit), IsaWindow::Other);
             assert!(!(display && fetch));
         }
+    }
+
+    #[test]
+    fn hp67_sync_transitions_are_anchored_to_phi2_rising() {
+        assert_eq!(
+            HP67_SYNC_TRANSITION_EDGE,
+            Hp67ClockEdge::Phi2Rising
+        );
     }
 
     #[test]
