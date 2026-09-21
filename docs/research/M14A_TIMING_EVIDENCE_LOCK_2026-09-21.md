@@ -26,7 +26,13 @@ PHI2 active -> PHI1 high, PHI2 low
 interphase  -> PHI1 high, PHI2 high
 ```
 
-This locks polarity and ordering only. It does not claim equal durations, absolute widths, dead-time length, voltage amplitude or the exact bus launch/sample edge.
+This locks polarity and ordering only. It does not claim equal durations, absolute widths, dead-time length or voltage amplitude.
+
+### SYNC edge anchor
+
+The first two expanded page-70 captures isolate the rising and falling transitions of SYNC against PHI1/PHI2. Both SYNC transitions align with the **rising edge of PHI2**. M14A records that observation as `HP67_SYNC_TRANSITION_EDGE = Phi2Rising`.
+
+This does not yet assign launch/sample edges to IS or DATA and does not claim a quantified propagation delay.
 
 ### Canonical word and ROM fetch
 
