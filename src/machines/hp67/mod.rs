@@ -15,6 +15,7 @@ pub mod card_transport;
 pub mod crc;
 pub mod display;
 pub mod display_snapshot;
+pub mod electrical;
 pub mod fetch;
 pub mod hp67firmware;
 pub mod isa;
@@ -65,6 +66,7 @@ pub use display_snapshot::{
     display_byte_from_act_registers, structural_display_scan_from_act_registers,
     StructuralDisplaySlot,
 };
+pub use electrical::{Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot};
 pub use fetch::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
     FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
@@ -95,4 +97,4 @@ pub use timing::{
     HP67_OBSERVED_WORD_TIME_US, HP67_SYNC_TRANSITION_EDGE, ROM_ADDRESS_BITS, ROM_ADDRESS_FIRST_BIT,
     ROM_ADDRESS_LAST_BIT, ROM_WORD_BITS, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT,
 };
-pub use wiring::{Hp67Chip, Hp67Net, CHIPSET};
+pub use wiring::{Hp67Chip, Hp67Driver, Hp67Net, CHIPSET};
