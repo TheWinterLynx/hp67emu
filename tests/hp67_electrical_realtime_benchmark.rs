@@ -327,7 +327,11 @@ fn hp67_electrical_realtime_benchmark() {
     print_row("IS ACT<->ROM structural fetch", &fetch, words);
     print_row("IS + ROM0 display + serial ACT execution", &full, words);
     print_row("architectural execution only", &architectural, words);
-    print_row("production dual architectural + structural", &production, words);
+    print_row(
+        "production dual architectural + structural",
+        &production,
+        words,
+    );
     print_row("real firmware architectural + structural", &firmware, words);
     println!();
     println!(
