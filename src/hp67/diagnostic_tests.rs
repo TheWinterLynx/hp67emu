@@ -2,6 +2,7 @@ use super::*;
 
 use hp67emu::machines::hp67::{Hp67CardTrack, Hp67Key, Hp67MagneticCard, HP67_DISPLAY_SCAN_SLOTS};
 
+const DISPLAY_SLOTS: usize = HP67_DISPLAY_SCAN_SLOTS as usize;
 const CARD_PASS_CYCLE_LIMIT: usize = 65_536;
 const CARD_PROMPT_CYCLE_LIMIT: usize = 16_384;
 const CARD_SETTLE_CYCLE_LIMIT: usize = 16_384;
@@ -285,13 +286,13 @@ fn press_a_through_firmware(live: &mut Hp67LiveMachine) -> Result<u16, String> {
     Err("A-key did not reach firmware dispatch within 512 cycles".to_owned())
 }
 
-fn expected_display(text: &str) -> Result<[u8; HP67_DISPLAY_SCAN_SLOTS], String> {
+fn expected_display(text: &str) -> Result<[u8; DISPLAY_SLOTS], String> {
     const DIGITS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
-    let mut segments = [0u8; HP67_DISPLAY_SCAN_SLOTS];
+    let mut segments = [0u8; DISPLAY_SLOTS];
     let mut slot = 1usize;
     for character in text.chars() {
-        if slot >= HP67_DISPLAY_SCAN_SLOTS {
+        if slot >= DISPLAY_SLOTS {
             return Err(format!(
                 "expected display '{text}' exceeds physical display width"
             ));
