@@ -108,16 +108,35 @@ fn staged_phi_scheduler_stream(words: usize) -> u64 {
 
     for _ in 0..words {
         for _ in 0..edges_per_word {
-            let snapshot = fabric
-                .snapshot()
-                .expect("dense scheduler snapshot must be contention-free");
-            black_box(snapshot);
+            {
+                let (snapshot, mut stager) = fabric
+                    .begin_evaluation()
+                    .expect("dense scheduler snapshot must be contention-free");
+                black_box(snapshot.level(Hp67Net::Phi1));
+                black_box(snapshot.level(Hp67Net::Phi2));
 
-            match (fabric.tick().get() + 1) & 0b11 {
-                1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
-                2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
-                3 => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
-                _ => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+                match (snapshot.tick().get() + 1) & 0b11 {
+                    1 => stager.stage_drive(
+                        Hp67Net::Phi1,
+                        Hp67Driver::Act1820_2530,
+                        Drive::Low,
+                    ),
+                    2 => stager.stage_drive(
+                        Hp67Net::Phi1,
+                        Hp67Driver::Act1820_2530,
+                        Drive::High,
+                    ),
+                    3 => stager.stage_drive(
+                        Hp67Net::Phi2,
+                        Hp67Driver::Act1820_2530,
+                        Drive::Low,
+                    ),
+                    _ => stager.stage_drive(
+                        Hp67Net::Phi2,
+                        Hp67Driver::Act1820_2530,
+                        Drive::High,
+                    ),
+                }
             }
 
             fabric
