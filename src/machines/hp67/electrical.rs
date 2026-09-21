@@ -118,8 +118,9 @@ impl<'a> Hp67ElectricalStager<'a> {
 /// Fixed-topology HP-67 electrical state and staged drive commit buffer.
 ///
 /// Normal ticks allocate nothing. Pending output changes are indexed directly
-/// by net and driver, and a fixed dirty-key array makes commit cost proportional
-/// to outputs that actually changed rather than all possible combinations.
+/// by net and driver. Per-net driver bitmasks plus one dirty-net bitmask make
+/// commit cost proportional to outputs that actually changed rather than all
+/// possible device/net combinations.
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalFabric {
     tick: Tick,
@@ -334,6 +335,30 @@ mod tests {
         fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::HighZ);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
+    }
+
+    #[test]
+    fn bitmask_commit_applies_multiple_nets_and_drivers_atomically() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        {
+            let (snapshot, mut stager) = fabric.begin_evaluation().unwrap();
+            assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
+            assert_eq!(snapshot.level(Hp67Net::Str), LogicLevel::Floating);
+
+            stager.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
+            stager.stage_drive(
+                Hp67Net::Str,
+                Hp67Driver::RomDisplay1818_0268,
+                Drive::Low,
+            );
+
+            assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
+            assert_eq!(snapshot.level(Hp67Net::Str), LogicLevel::Floating);
+        }
+
+        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+        assert_eq!(fabric.level(Hp67Net::Str), LogicLevel::Low);
     }
 
     #[test]
