@@ -46,14 +46,16 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Define the canonical 56-bit word numbering and bit numbering convention (`b0..b55`, 14 digits × 4 bits).
 - [x] Add an HP-67-specific word-timing scaffold that keeps the abstract PHI sequence aligned with the 56-bit coordinate without inventing physical durations.
 - [x] Confirm HP-67 IS/ISA passive/active behavior and fetch ownership: weak/passive low, active high/release, ACT address window followed by selected-ROM response.
-- [ ] Confirm DATA bus idle state, active-drive polarity and ownership rules.
+- [x] Lock the direct HP-67 DATA stream phase: 56 bits LSB-first, serial bit 0 at machine-word `b2`, bits 54/55 wrapping into next-word `b0`/`b1`.
+- [ ] Confirm DATA bus idle state, active-drive polarity and exact PHI-relative ownership rules.
 - [x] Record HP-67-specific evidence that SYNC is present for normal instruction fetches and suppressed for the implied-GOTO target word following an `IF`.
 - [x] Fix the HP-67 SYNC decision window to `b46..b55`; leave exact PHI sampling edge open.
 - [x] Fix the HP-67 IS fetch windows from direct logic-analyser evidence: 12-bit ROM address LSB-first at `b16..b27`, 10-bit ROM result LSB-first at `b46..b55`.
 - [x] Add tested IS serializers that emit address/ROM bits LSB-first and represent zero as bus release against the passive low bias.
 - [x] Add structural ACT↔ROM serial fetch endpoints that reconstruct the 12-bit address and 10-bit result only from resolved IS levels, plus a one-cycle fetch/execution pipeline latch.
-- [ ] Convert the expanded page-70 HP-67 PHI/SYNC/IS waveforms into explicit launch/sample-edge conventions and propagation constraints.
-- [ ] Confirm RCD timing from ACT and STR timing from ROM0.
+- [ ] Convert the expanded page-70 HP-67 PHI/SYNC/IS/DATA waveforms into explicit launch/sample-edge conventions and propagation constraints.
+- [x] Lock source-backed display timing facts: STR occurs on display bit 7; low-going STR starts the segment interval; normal segments are about 40 us, DP about 30 us, DP-to-STR gap about 5 us and STR pulse about 5 us; low-going RCD resets the cathode scan and overlaps final-slot STR.
+- [ ] Convert STR/RCD observations into exact PHI-relative electrical edges and propagation constraints.
 - [ ] Record uncertainty/source level for every pin semantic; no undocumented assumption enters chip code.
 - [ ] Define a versioned text/binary trace format for logic-analyzer comparison.
 - [x] Record the direct physical HP-67 startup instruction evidence at `0x000`, `0x001` and `0x0f8` and expose it through `rom_compare verify-startup`.
