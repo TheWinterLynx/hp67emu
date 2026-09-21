@@ -586,6 +586,7 @@ mod tests {
             assert_eq!(contract.evidence, Hp67TimingEvidence::SourceBlocked);
         }
     }
+
     #[test]
     fn hp67_sync_transitions_are_anchored_to_phi2_rising() {
         assert_eq!(HP67_SYNC_TRANSITION_EDGE, Hp67ClockEdge::Phi2Rising);
