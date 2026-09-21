@@ -162,7 +162,6 @@ fn full_current_structural_stream(words: usize) -> u64 {
     checksum
 }
 
-
 fn architectural_execution_stream(words: usize) -> u64 {
     let mut machine = Hp67ArchitecturalMachine::default();
     let mut checksum = 0u64;
