@@ -97,6 +97,14 @@ Pages 76-77 provide direct HP-67 display timing observations:
 
 The microsecond values are measured/approximate scope values, not oscillator design constants.
 
+## Versioned edge contract table
+
+M14A now encodes `HP67_EDGE_CONTRACT_VERSION = 1` and `HP67_EDGE_CONTRACTS_V1` in `timing.rs`. Every relevant transfer has an explicit driver, receiver, signal-transition class, launch edge, sample edge, propagation bound, source page and evidence class.
+
+Crucially, unknown values are represented as `None` plus `SourceBlocked`; they are not filled from the temporary four-slot scaffold. At present only the SYNC transition has a direct PHI-relative anchor (`Phi2Rising`). ACT→ROM address, ROM→ACT instruction, both DATA directions, ACT→ROM0 display, STR and RCD remain explicitly blocked at the PHI launch/sample level.
+
+A regression test requires all currently blocked rows to keep `launch_edge`, `sample_edge` and propagation unset. This is intended to make later accidental timing invention fail loudly.
+
 ## PROVEN but not yet encoded as an edge scheduler
 
 Page 70 contains expanded HP-67 captures specifically showing:
@@ -138,7 +146,7 @@ The following remain blocked or insufficiently quantified by the reviewed HP-67 
 
 ## Exit criterion for M14A timing lock
 
-Before replacing the scaffold, add a versioned edge table that names, for each relevant net and transfer:
+Before replacing the scaffold, complete the versioned edge table that now names, for each relevant net and transfer:
 
 - driver;
 - receiver;
