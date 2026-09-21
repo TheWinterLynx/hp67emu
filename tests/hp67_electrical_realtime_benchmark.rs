@@ -6,8 +6,9 @@ use std::{
 
 use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActArchitecturalState,
-    ActSerialEndpoint, Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67RomWordSource,
-    Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
+    ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67ElectricalBackplane,
+    Hp67Firmware, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD,
+    HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 5_000;
@@ -226,6 +227,53 @@ fn production_dual_path_stream(words: usize) -> u64 {
     checksum
 }
 
+
+fn firmware_production_stream(words: usize) -> u64 {
+    let source = Hp67Firmware::default();
+    let mut machine = Hp67ArchitecturalMachine::default();
+    let mut backplane = Hp67ElectricalBackplane::default();
+    let mut act = ActSerialEndpoint::new(0);
+    let mut rom = RomFetchEndpoint::default();
+    let mut rom0 = Rom0DisplayEndpoint::default();
+    let mut pipeline = FetchPipelineLatch::default();
+    let mut checksum = 0u64;
+
+    for _ in 0..words {
+        pipeline.begin_cycle();
+
+        if let Some(word) = pipeline.executing_word() {
+            act.begin_execution(word, &machine.act.state)
+                .expect("firmware serial execution must start");
+            let execution = machine
+                .execute_word(word)
+                .expect("versioned HP-67 firmware word must execute");
+            checksum = checksum.wrapping_add(execution.next_pc as u64);
+        }
+
+        let bank = machine.prepare_hp67_fetch();
+        source.select_bank(bank);
+        let address = machine.pc();
+        let result = run_structural_display_fetch_cycle(
+            &mut backplane,
+            address,
+            &machine.act.state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("continuous real-firmware production path must complete");
+        pipeline.complete_cycle(result.fetched_word);
+        checksum = checksum
+            .wrapping_add(result.fetched_word as u64)
+            .wrapping_add(result.display_byte as u64)
+            .wrapping_add(u64::from(result.rcd_falling));
+    }
+
+    assert_eq!(backplane.word_index(), words as u64);
+    checksum
+}
+
 #[test]
 #[ignore = "release-only wall-clock benchmark; run explicitly with --ignored --nocapture"]
 fn hp67_electrical_realtime_benchmark() {
@@ -238,12 +286,14 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(full_current_structural_stream(warmup_words));
     black_box(architectural_execution_stream(warmup_words));
     black_box(production_dual_path_stream(warmup_words));
+    black_box(firmware_production_stream(warmup_words));
 
     let raw_phi = measure_rounds(rounds, words, raw_phi_stream);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
     let architectural = measure_rounds(rounds, words, architectural_execution_stream);
     let production = measure_rounds(rounds, words, production_dual_path_stream);
+    let firmware = measure_rounds(rounds, words, firmware_production_stream);
 
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
@@ -279,11 +329,12 @@ fn hp67_electrical_realtime_benchmark() {
     print_row("IS + ROM0 display + serial ACT execution", &full, words);
     print_row("architectural execution only", &architectural, words);
     print_row("production dual architectural + structural", &production, words);
+    print_row("real firmware architectural + structural", &firmware, words);
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "The production-dual row also includes the current instruction-boundary architectural execution that the live machine runs in parallel with serial execution. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }
