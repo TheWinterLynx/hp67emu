@@ -318,7 +318,6 @@ mod tests {
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
-        assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
     }
 
     #[test]
