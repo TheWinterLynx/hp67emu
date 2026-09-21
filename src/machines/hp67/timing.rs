@@ -75,10 +75,12 @@ pub const ROM_WORD_BITS: u8 = 10;
 /// Last HP-67 bit time carrying the fetched 10-bit ROM word on IS/ISA.
 pub const ROM_WORD_LAST_BIT: u8 = ROM_WORD_FIRST_BIT + ROM_WORD_BITS - 1;
 
-// The current generic TwoPhaseClock scaffold is PHI1-high, dead, PHI2-high,
-// dead. Until measured widths are installed, one complete four-slot sequence
-// is treated as one serial bit time. This is a scheduler coordinate, not an
-// assertion that every slot has the same physical duration.
+// The generic TwoPhaseClock scaffold marks abstract active-PHI1, interphase,
+// active-PHI2, interphase slots. The HP-67 backplane maps an active phase to
+// the directly observed low-going PHI pin pulse. Until measured widths are
+// installed, one complete four-slot sequence is treated as one serial bit time.
+// This is a scheduler coordinate, not an assertion that every slot has the same
+// physical duration.
 const CLOCK_SUBPHASES_PER_BIT: u8 = 4;
 
 /// HP-67-specific name for the four currently represented positions inside one
