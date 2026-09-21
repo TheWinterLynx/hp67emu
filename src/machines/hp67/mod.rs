@@ -84,8 +84,7 @@ pub use magnetic_card::{
 };
 pub use timing::{
     data_serial_bit_for_word_bit, display_data_serial_bit, isa_window_for_bit,
-    sync_decision_window, Hp67ClockPhase, Hp67WordTiming, IsaWindow, BITS_PER_DIGIT,
-    BITS_PER_WORD,
+    sync_decision_window, Hp67ClockPhase, Hp67WordTiming, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
     DATA_STREAM_BITS, DATA_STREAM_FIRST_WORD_BIT, DIGITS_PER_WORD, DISPLAY_DATA_BITS,
     DISPLAY_DATA_FIRST_BIT, DISPLAY_DATA_LAST_BIT, DISPLAY_STR_BIT, HP67_OBSERVED_DISPLAY_DP_ON_US,
     HP67_OBSERVED_DISPLAY_DP_TO_STR_GAP_US, HP67_OBSERVED_DISPLAY_REFRESH_US,
