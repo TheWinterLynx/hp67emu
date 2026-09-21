@@ -3,10 +3,12 @@
 //! The physical Woodstock datapath is a 56-bit serial word: fourteen 4-bit
 //! digit times. This module defines the project's bit numbering convention as
 //! `b0..b55` and tracks that position. HP-67-specific logic-analyser evidence
-//! anchors ROM0 display data at b0..b7, the ROM address window at b16..b27 and
-//! the 10-bit ROM response at b46..b55. Absolute pulse widths and exact PHI
-//! launch/sample edges remain deliberately unspecified until tied to a reviewed
-//! waveform.
+//! anchors ROM0 display data at b0..b7, the ROM address window at b16..b27,
+//! the 10-bit ROM response at b46..b55, and the 56-bit DATA stream with its
+//! serial bit 0 appearing at machine-word bit b2. Display scope captures also
+//! bound STR/LED timing at the microsecond level. Exact PHI launch/sample edges
+//! remain deliberately unspecified until the waveform edge relationships are
+//! converted into a reviewed scheduler contract.
 
 /// Number of serial bits in one HP-67 digit/nibble.
 pub const BITS_PER_DIGIT: u8 = 4;
@@ -28,16 +30,36 @@ pub const HP67_OBSERVED_POWER_ON_SYNC_DELAY_US: u64 = 35_000;
 /// Approximate delay after switch-on at which the measured power-on signals start stabilizing.
 pub const HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US: u64 = 330;
 
+/// Approximate on-time of a normal LED segment in the measured HP-67 display scan.
+pub const HP67_OBSERVED_DISPLAY_SEGMENT_ON_US: u64 = 40;
+/// Approximate on-time of the decimal-point LED in the measured HP-67 display scan.
+pub const HP67_OBSERVED_DISPLAY_DP_ON_US: u64 = 30;
+/// Approximate quiet gap between the decimal-point LED ending and the STR pulse.
+pub const HP67_OBSERVED_DISPLAY_DP_TO_STR_GAP_US: u64 = 5;
+/// Approximate STR pulse width measured on the physical HP-67.
+pub const HP67_OBSERVED_DISPLAY_STR_PULSE_US: u64 = 5;
+
 /// First HP-67 bit time carrying the eight-bit ROM0 display code on IS.
 pub const DISPLAY_DATA_FIRST_BIT: u8 = 0;
 /// Number of serial bits in one ROM0 display code, LSB first.
 pub const DISPLAY_DATA_BITS: u8 = 8;
 /// Last HP-67 bit time carrying the ROM0 display code on IS.
 pub const DISPLAY_DATA_LAST_BIT: u8 = DISPLAY_DATA_FIRST_BIT + DISPLAY_DATA_BITS - 1;
-/// Coarse bit coordinate at which the ROM0 STR pulse is observed.
+/// Bit coordinate in which the ROM0 STR pulse occurs.
 ///
-/// This does not specify the final PHI-relative launch edge or pulse width.
+/// The HP-67 scope capture explicitly places STR on display-data bit 7 and
+/// shows the low-going STR edge starting the segment interval. The exact
+/// PHI-relative edge/propagation relationship is still not encoded here.
 pub const DISPLAY_STR_BIT: u8 = DISPLAY_DATA_LAST_BIT;
+
+/// HP-67 machine-word bit where serial DATA bit 0 appears.
+///
+/// Direct HP-67 captures show the 56-bit DATA register stream LSB first, with
+/// serial bit 0 at machine-word cycle b2. Consequently serial bits 54 and 55
+/// cross the word boundary and appear at b0 and b1 of the following word.
+pub const DATA_STREAM_FIRST_WORD_BIT: u8 = 2;
+/// Number of serial bits in one complete DATA register stream.
+pub const DATA_STREAM_BITS: u8 = BITS_PER_WORD;
 
 /// First HP-67 bit time carrying the 12-bit ROM address on IS/ISA.
 pub const ROM_ADDRESS_FIRST_BIT: u8 = 16;
@@ -80,6 +102,14 @@ pub const fn display_data_serial_bit(bit_index: u8) -> Option<u8> {
     } else {
         None
     }
+}
+
+/// Map an HP-67 machine-word coordinate to the serial bit number visible on DATA.
+///
+/// The stream is continuous across instruction-word boundaries: b2 carries DATA
+/// bit 0, b55 carries bit 53, and the next word's b0/b1 carry bits 54/55.
+pub const fn data_serial_bit_for_word_bit(bit_index: u8) -> u8 {
+    (bit_index + (BITS_PER_WORD - DATA_STREAM_FIRST_WORD_BIT)) % DATA_STREAM_BITS
 }
 
 /// Classify one `b0..b55` coordinate by its evidenced HP-67 instruction-fetch
@@ -139,6 +169,11 @@ impl Hp67WordTiming {
     /// Current ROM0 display-code serial bit, if this is b0..b7.
     pub const fn display_data_serial_bit(&self) -> Option<u8> {
         display_data_serial_bit(self.bit_index)
+    }
+
+    /// Current DATA serial bit according to the measured HP-67 b2 phase offset.
+    pub const fn data_serial_bit(&self) -> u8 {
+        data_serial_bit_for_word_bit(self.bit_index)
     }
 
     /// Current evidenced IS/ISA instruction-fetch role.
@@ -202,6 +237,10 @@ mod tests {
         assert_eq!(HP67_OBSERVED_DISPLAY_REFRESH_US, 4_800);
         assert_eq!(HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, 35_000);
         assert_eq!(HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US, 330);
+        assert_eq!(HP67_OBSERVED_DISPLAY_SEGMENT_ON_US, 40);
+        assert_eq!(HP67_OBSERVED_DISPLAY_DP_ON_US, 30);
+        assert_eq!(HP67_OBSERVED_DISPLAY_DP_TO_STR_GAP_US, 5);
+        assert_eq!(HP67_OBSERVED_DISPLAY_STR_PULSE_US, 5);
         assert_eq!(
             HP67_OBSERVED_DISPLAY_REFRESH_US,
             HP67_OBSERVED_WORD_TIME_US * 15
@@ -219,6 +258,26 @@ mod tests {
         }
         assert_eq!(display_data_serial_bit(8), None);
         assert_eq!(display_data_serial_bit(55), None);
+    }
+
+    #[test]
+    fn hp67_data_stream_is_lsb_first_with_bit_zero_at_machine_bit_two() {
+        assert_eq!(DATA_STREAM_FIRST_WORD_BIT, 2);
+        assert_eq!(DATA_STREAM_BITS, 56);
+        assert_eq!(data_serial_bit_for_word_bit(2), 0);
+        assert_eq!(data_serial_bit_for_word_bit(3), 1);
+        assert_eq!(data_serial_bit_for_word_bit(55), 53);
+        assert_eq!(data_serial_bit_for_word_bit(0), 54);
+        assert_eq!(data_serial_bit_for_word_bit(1), 55);
+
+        let mut seen = [false; BITS_PER_WORD as usize];
+        for word_bit in 0..BITS_PER_WORD {
+            let serial_bit = data_serial_bit_for_word_bit(word_bit);
+            assert!(serial_bit < BITS_PER_WORD);
+            assert!(!seen[serial_bit as usize]);
+            seen[serial_bit as usize] = true;
+        }
+        assert!(seen.into_iter().all(|value| value));
     }
 
     #[test]
