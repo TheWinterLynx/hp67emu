@@ -168,8 +168,14 @@ mod tests {
             let phi1 = backplane.level(Hp67Net::Phi1);
             let phi2 = backplane.level(Hp67Net::Phi2);
             assert!(!(phi1 == LogicLevel::Low && phi2 == LogicLevel::Low));
-            assert_eq!(phi1 == LogicLevel::Low, backplane.clock_phase().phi1_low());
-            assert_eq!(phi2 == LogicLevel::Low, backplane.clock_phase().phi2_low());
+            assert_eq!(
+                phi1 == LogicLevel::Low,
+                backplane.clock_phase().phi1_low()
+            );
+            assert_eq!(
+                phi2 == LogicLevel::Low,
+                backplane.clock_phase().phi2_low()
+            );
             observed.push((phi1, phi2));
             edges.push(edge);
         }
