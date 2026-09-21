@@ -157,10 +157,7 @@ mod tests {
     #[test]
     fn hp67_clock_pulses_are_active_low_and_never_overlap() {
         let mut backplane = Hp67ElectricalBackplane::default();
-        assert_eq!(
-            backplane.clock_phase(),
-            Hp67ClockPhase::InterphaseAfterPhi2
-        );
+        assert_eq!(backplane.clock_phase(), Hp67ClockPhase::InterphaseAfterPhi2);
         let mut observed = Vec::new();
         let mut edges = Vec::new();
         for _ in 0..8 {
@@ -168,14 +165,8 @@ mod tests {
             let phi1 = backplane.level(Hp67Net::Phi1);
             let phi2 = backplane.level(Hp67Net::Phi2);
             assert!(!(phi1 == LogicLevel::Low && phi2 == LogicLevel::Low));
-            assert_eq!(
-                phi1 == LogicLevel::Low,
-                backplane.clock_phase().phi1_low()
-            );
-            assert_eq!(
-                phi2 == LogicLevel::Low,
-                backplane.clock_phase().phi2_low()
-            );
+            assert_eq!(phi1 == LogicLevel::Low, backplane.clock_phase().phi1_low());
+            assert_eq!(phi2 == LogicLevel::Low, backplane.clock_phase().phi2_low());
             observed.push((phi1, phi2));
             edges.push(edge);
         }
