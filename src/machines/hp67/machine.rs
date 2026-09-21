@@ -10,8 +10,7 @@ use crate::emulation::{Drive, LogicLevel, Tick};
 
 use super::{
     electrical::{
-        Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot,
-        Hp67ElectricalStager,
+        Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot, Hp67ElectricalStager,
     },
     timing::{Hp67ClockEdge, Hp67ClockPhase, BITS_PER_DIGIT, BITS_PER_WORD},
     wiring::{Hp67Driver, Hp67Net},
