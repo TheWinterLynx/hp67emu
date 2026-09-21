@@ -78,19 +78,42 @@ pub enum Hp67ElectricalError {
 }
 
 /// Immutable resolved input image shared by every device evaluation in one tick.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Hp67ElectricalSnapshot {
+#[derive(Debug, Clone, Copy)]
+pub struct Hp67ElectricalSnapshot<'a> {
     tick: Tick,
-    levels: [LogicLevel; Hp67Net::COUNT],
+    levels: &'a [LogicLevel; Hp67Net::COUNT],
 }
 
-impl Hp67ElectricalSnapshot {
+impl<'a> Hp67ElectricalSnapshot<'a> {
     pub const fn tick(&self) -> Tick {
         self.tick
     }
 
     pub const fn level(&self, net: Hp67Net) -> LogicLevel {
         self.levels[net.index()]
+    }
+}
+
+/// Mutable staging half of one HP-67 device-evaluation interval.
+///
+/// It deliberately has no access to committed nets, so publishing outputs cannot
+/// change what any device samples during the same evaluation interval.
+pub struct Hp67ElectricalStager<'a> {
+    pending: &'a mut [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
+    dirty_keys: &'a mut [(u8, u8); MAX_PENDING_DRIVES],
+    dirty_len: &'a mut usize,
+}
+
+impl<'a> Hp67ElectricalStager<'a> {
+    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
+        let net_index = net.index();
+        let driver_index = driver.index();
+        if self.pending[net_index][driver_index].is_none() {
+            debug_assert!(*self.dirty_len < MAX_PENDING_DRIVES);
+            self.dirty_keys[*self.dirty_len] = (net_index as u8, driver_index as u8);
+            *self.dirty_len += 1;
+        }
+        self.pending[net_index][driver_index] = Some(drive);
     }
 }
 
@@ -172,30 +195,41 @@ impl Hp67ElectricalFabric {
         self.tick
     }
 
-    /// Resolve one immutable input image before any device publishes next-tick outputs.
-    pub fn snapshot(&self) -> Result<Hp67ElectricalSnapshot, Hp67ElectricalError> {
+    /// Borrow the already-resolved inputs and the independent output staging
+    /// buffer for one device-evaluation interval without copying all net levels.
+    ///
+    /// The returned snapshot references only committed resolved levels. The
+    /// stager references only pending outputs, so Rust enforces that staged
+    /// writes cannot mutate what any device samples in this interval.
+    pub fn begin_evaluation(
+        &mut self,
+    ) -> Result<(Hp67ElectricalSnapshot<'_>, Hp67ElectricalStager<'_>), Hp67ElectricalError> {
         if self.contention_net_count != 0 {
             return Err(self.contention_error(self.tick));
         }
-        Ok(Hp67ElectricalSnapshot {
-            tick: self.tick,
-            levels: self.resolved_levels,
-        })
+
+        let tick = self.tick;
+        let snapshot = Hp67ElectricalSnapshot {
+            tick,
+            levels: &self.resolved_levels,
+        };
+        let stager = Hp67ElectricalStager {
+            pending: &mut self.pending,
+            dirty_keys: &mut self.dirty_keys,
+            dirty_len: &mut self.dirty_len,
+        };
+        Ok((snapshot, stager))
     }
 
-    /// Stage one device output without changing any currently resolved input.
-    ///
-    /// Repeated writes by the same physical driver to the same net in one
-    /// evaluation interval use final-write-wins semantics.
+    /// Convenience staging entry point for transitional callers that do not
+    /// need to hold a zero-copy resolved snapshot.
     pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
-        let net_index = net.index();
-        let driver_index = driver.index();
-        if self.pending[net_index][driver_index].is_none() {
-            debug_assert!(self.dirty_len < MAX_PENDING_DRIVES);
-            self.dirty_keys[self.dirty_len] = (net_index as u8, driver_index as u8);
-            self.dirty_len += 1;
-        }
-        self.pending[net_index][driver_index] = Some(drive);
+        let mut stager = Hp67ElectricalStager {
+            pending: &mut self.pending,
+            dirty_keys: &mut self.dirty_keys,
+            dirty_len: &mut self.dirty_len,
+        };
+        stager.stage_drive(net, driver, drive);
     }
 
     /// Commit every staged device output atomically and advance one scheduler tick.
@@ -272,14 +306,16 @@ mod tests {
     #[test]
     fn staged_outputs_are_invisible_until_atomic_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        let snapshot = fabric.snapshot().unwrap();
-        assert_eq!(snapshot.tick(), Tick::ZERO);
-        assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
+        {
+            let (snapshot, mut stager) = fabric.begin_evaluation().unwrap();
+            assert_eq!(snapshot.tick(), Tick::ZERO);
+            assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
 
-        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
+            stager.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
+            assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
+        }
+
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
-        assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
-
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
         assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
