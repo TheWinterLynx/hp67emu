@@ -592,6 +592,9 @@ impl Hp67LiveMachine {
 }
 
 #[cfg(test)]
+mod diagnostic_tests;
+
+#[cfg(test)]
 mod m12_tests;
 
 #[cfg(test)]
