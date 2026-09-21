@@ -15,17 +15,6 @@ use super::{
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
-const fn hp67_clock_drive(active: bool) -> Drive {
-    // Direct HP-67 captures show PHI1/PHI2 as alternating low-going pulses
-    // from an otherwise high level. `TwoPhaseClock` expresses which phase is
-    // active; the machine-specific backplane maps that abstract activity to
-    // the evidenced HP-67 pin polarity.
-    if active {
-        Drive::Low
-    } else {
-        Drive::High
-    }
-}
 
 /// Pin-level connection fabric for HP-67 devices.
 #[derive(Debug, Clone)]
