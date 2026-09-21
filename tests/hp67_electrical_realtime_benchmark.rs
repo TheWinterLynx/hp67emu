@@ -75,8 +75,7 @@ fn measure_phi_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStat
         stage_commit_phi_stream,
         staged_phi_scheduler_stream,
     ];
-    let mut samples: [Vec<Duration>; 3] =
-        std::array::from_fn(|_| Vec::with_capacity(rounds));
+    let mut samples: [Vec<Duration>; 3] = std::array::from_fn(|_| Vec::with_capacity(rounds));
     let mut checksum = 0u64;
 
     for round in 0..rounds {
@@ -480,8 +479,7 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(production_dual_path_stream(warmup_words));
     black_box(firmware_production_stream(warmup_words));
 
-    let [raw_phi, stage_commit_phi, staged_phi] =
-        measure_phi_rounds_interleaved(rounds, words);
+    let [raw_phi, stage_commit_phi, staged_phi] = measure_phi_rounds_interleaved(rounds, words);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
     let architectural = measure_rounds(rounds, words, architectural_execution_stream);
