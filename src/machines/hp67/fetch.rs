@@ -8,7 +8,7 @@
 //! up through a caller-supplied source, and the ROM returns the 10-bit word
 //! LSB-first at b46..b55 for the ACT endpoint to reconstruct.
 
-use crate::emulation::{Drive, DriverId, LogicLevel};
+use crate::emulation::{Drive, LogicLevel};
 
 use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
@@ -24,13 +24,13 @@ use super::{
         display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
         ROM_ADDRESS_BITS, ROM_WORD_BITS,
     },
-    wiring::Hp67Net,
+    wiring::{Hp67Driver, Hp67Net},
 };
 
 const COMPLETE_ADDRESS_MASK: u16 = (1u16 << ROM_ADDRESS_BITS) - 1;
 const COMPLETE_WORD_MASK: u16 = (1u16 << ROM_WORD_BITS) - 1;
-const ACT_IS_DRIVER: DriverId = DriverId::new("hp67-act-fetch-is");
-const ROM_IS_DRIVER: DriverId = DriverId::new("hp67-rom-fetch-is");
+const ACT_IS_DRIVER: Hp67Driver = Hp67Driver::Act1820_2530;
+const ROM_IS_DRIVER: Hp67Driver = Hp67Driver::StructuralRomResponder;
 
 /// ROM lookup boundary used by the serial fetch responder.
 ///
