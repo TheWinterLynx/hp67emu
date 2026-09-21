@@ -12,7 +12,7 @@ This module is deliberately temporary scaffolding. It must not become the produc
 
 ## Relationships
 
-Consumes `ActRegister` state from `act.rs`, the source-backed ROM0 decoder and `CathodeDriver1820_1749` from `display.rs`, the shared `Hp67ElectricalBackplane` from `machine.rs`, the `b0..b7` display-bit mapping from `timing.rs`, and the resolved `Hp67Net::Isa` wiring model. `hp67_poweron_smoke.rs` uses `structural_display_scan_from_act_registers()` as a boot-idle regression gate so that the real-firmware checkpoint also verifies the expected structural display result.
+Consumes `ActRegister` state from `act.rs`, the source-backed ROM0 decoder and `CathodeDriver1820_1749` from `display.rs`, the shared `Hp67ElectricalBackplane` from `machine.rs`, the `b0..b7` display-bit mapping from `timing.rs`, and the resolved `Hp67Net::Isa` wiring model using the dense `Hp67Driver::Act1820_2530` output slot. `hp67_poweron_smoke.rs` uses `structural_display_scan_from_act_registers()` as a boot-idle regression gate so that the real-firmware checkpoint also verifies the expected structural display result.
 
 The module complements, but does not replace, the structural ACT/ROM fetch path in `fetch.rs`. A later milestone should merge display serialization and instruction fetch into one coherent word-cycle driven by the production ACT electrical state.
 
@@ -26,6 +26,6 @@ It also locks the known firmware-idle `A`/`B` state to the expected code sequenc
 
 `display_register_index_for_scan_slot()` maps exponent units to ACT digit 0, exponent tens to digit 1, the shared-sign position to digit 2, mantissa scan slots to digits 13 down through 3, and the fifteenth duplicate exponent-units slot back to digit 0. `display_byte_from_act_registers()` forms the diagnostic byte as `(B[n] << 4) | A[n]`, masking both values to four bits.
 
-`structural_display_scan_from_act_registers()` creates a structural HP-67 backplane, ROM0 display endpoint, and cathode driver. For each of the fifteen scan slots it advances one complete 56-bit structural word, drives only the evidenced display window `b0..b7`, samples the resolved IS level into ROM0, advances the four-subphase timing scaffold for each word bit, decodes the completed byte, advances the cathode slot, and records the result.
+`structural_display_scan_from_act_registers()` creates a structural HP-67 backplane, ROM0 display endpoint, and cathode driver. For each of the fifteen scan slots it advances one complete 56-bit structural word, drives only the evidenced display window `b0..b7` through the ACT's dense electrical driver slot, samples the resolved IS level into ROM0, advances the four-subphase timing scaffold for each word bit, decodes the completed byte, advances the cathode slot, and records the result.
 
 The implementation intentionally does not claim exact PHI launch/sample edges, exact STR/RCD pulse placement, analog LED current, or final bit-serial ACT behavior. Those remain separate evidence-driven milestones.
