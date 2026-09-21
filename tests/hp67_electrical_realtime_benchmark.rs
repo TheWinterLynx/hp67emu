@@ -4,11 +4,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hp67emu::emulation::Drive;
 use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActArchitecturalState,
-    ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67ElectricalBackplane,
-    Hp67Firmware, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD,
-    HP67_OBSERVED_WORD_TIME_US,
+    ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67Driver,
+    Hp67ElectricalBackplane, Hp67ElectricalFabric, Hp67Firmware, Hp67Net, Hp67RomWordSource,
+    Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 50_000;
@@ -97,6 +98,51 @@ fn raw_phi_stream(words: usize) -> u64 {
     }
 
     assert_eq!(backplane.word_index(), words as u64);
+    checksum
+}
+
+fn staged_phi_scheduler_stream(words: usize) -> u64 {
+    let mut fabric = Hp67ElectricalFabric::default();
+    let edges_per_word = BITS_PER_WORD as u64 * CLOCK_EDGES_PER_BIT;
+    let mut checksum = 0u64;
+
+    for _ in 0..words {
+        for _ in 0..edges_per_word {
+            let snapshot = fabric
+                .snapshot()
+                .expect("dense scheduler snapshot must be contention-free");
+            black_box(snapshot);
+
+            match (fabric.tick().get() + 1) & 0b11 {
+                1 => fabric.stage_drive(
+                    Hp67Net::Phi1,
+                    Hp67Driver::Act1820_2530,
+                    Drive::Low,
+                ),
+                2 => fabric.stage_drive(
+                    Hp67Net::Phi1,
+                    Hp67Driver::Act1820_2530,
+                    Drive::High,
+                ),
+                3 => fabric.stage_drive(
+                    Hp67Net::Phi2,
+                    Hp67Driver::Act1820_2530,
+                    Drive::Low,
+                ),
+                _ => fabric.stage_drive(
+                    Hp67Net::Phi2,
+                    Hp67Driver::Act1820_2530,
+                    Drive::High,
+                ),
+            }
+
+            fabric
+                .commit_staged()
+                .expect("dense PHI scheduling must remain contention-free");
+        }
+        checksum ^= black_box(fabric.tick().get());
+    }
+
     checksum
 }
 
@@ -281,6 +327,7 @@ fn hp67_electrical_realtime_benchmark() {
     let warmup_words = env_usize("HP67_BENCH_WARMUP_WORDS", DEFAULT_WARMUP_WORDS);
 
     black_box(raw_phi_stream(warmup_words));
+    black_box(staged_phi_scheduler_stream(warmup_words));
     black_box(structural_fetch_stream(warmup_words));
     black_box(full_current_structural_stream(warmup_words));
     black_box(architectural_execution_stream(warmup_words));
@@ -288,6 +335,7 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(firmware_production_stream(warmup_words));
 
     let raw_phi = measure_rounds(rounds, words, raw_phi_stream);
+    let staged_phi = measure_rounds(rounds, words, staged_phi_scheduler_stream);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
     let architectural = measure_rounds(rounds, words, architectural_execution_stream);
@@ -324,6 +372,7 @@ fn hp67_electrical_realtime_benchmark() {
     );
     println!("{}", "-".repeat(111));
     print_row("PHI backplane / resolved clock nets", &raw_phi, words);
+    print_row("dense staged scheduler / PHI", &staged_phi, words);
     print_row("IS ACT<->ROM structural fetch", &fetch, words);
     print_row("IS + ROM0 display + serial ACT execution", &full, words);
     print_row("architectural execution only", &architectural, words);
