@@ -16,7 +16,7 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
 
 ## Measured paths
 
-`tests/hp67_electrical_realtime_benchmark.rs` reports five continuous paths:
+`tests/hp67_electrical_realtime_benchmark.rs` reports six continuous paths:
 
 1. `PHI backplane / resolved clock nets`
    - advances all four named PHI transitions for every bit-cell;
@@ -43,6 +43,11 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
 5. `production dual architectural + structural`
    - mirrors the current live-machine ordering: bind serial pre-state, execute the architectural fallback, then traverse the structural display/fetch word;
    - is the relevant current throughput baseline until the serial/electrical path becomes authoritative and the architectural bridge can be removed.
+
+6. `real firmware architectural + structural`
+   - runs the versioned `Hp67Firmware` image instead of a constant ROM fixture;
+   - follows the fetched HP-67 control flow while keeping the same dual architectural+structural execution arrangement;
+   - is the most representative CPU/ROM throughput row in this benchmark, although UI, card transport and future DATA/RAM electrical devices remain outside its scope.
 
 Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 5,000 words therefore represent approximately 1.6 seconds of physical HP-67 machine time per round.
 
