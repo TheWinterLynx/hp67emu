@@ -11,7 +11,22 @@ Primary source:
 
 No PHI launch/sample edge is invented here. The existing four-subphase PHI scheduler remains a scaffold until the waveform edge relationships are converted into an explicit reviewed contract.
 
-## PROVEN / EXACT at machine-bit level
+## PROVEN / EXACT at machine-bit / pin-polarity level
+
+### PHI pin polarity and phase order
+
+The expanded direct HP-67 captures on page 70 show PHI1 and PHI2 resting high and producing alternating low-going pulses. The pulses do not overlap in the shown captures.
+
+M14A therefore maps the generic scheduler's abstract active phase to an HP-67 **low** pin level:
+
+```text
+PHI1 active -> PHI1 low,  PHI2 high
+interphase  -> PHI1 high, PHI2 high
+PHI2 active -> PHI1 high, PHI2 low
+interphase  -> PHI1 high, PHI2 high
+```
+
+This locks polarity and ordering only. It does not claim equal durations, absolute widths, dead-time length, voltage amplitude or the exact bus launch/sample edge.
 
 ### Canonical word and ROM fetch
 
