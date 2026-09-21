@@ -115,6 +115,17 @@ impl Hp67ClockPhase {
     pub const fn phi2_low(self) -> bool {
         matches!(self, Self::Phi2Low)
     }
+
+    /// Advance one HP-67 clock transition and return both the new level phase
+    /// and the physical pin edge crossed to get there.
+    pub const fn advance(self) -> (Self, Hp67ClockEdge) {
+        match self {
+            Self::InterphaseAfterPhi2 => (Self::Phi1Low, Hp67ClockEdge::Phi1Falling),
+            Self::Phi1Low => (Self::InterphaseAfterPhi1, Hp67ClockEdge::Phi1Rising),
+            Self::InterphaseAfterPhi1 => (Self::Phi2Low, Hp67ClockEdge::Phi2Falling),
+            Self::Phi2Low => (Self::InterphaseAfterPhi2, Hp67ClockEdge::Phi2Rising),
+        }
+    }
 }
 
 /// Named HP-67 clock transitions used by source-backed timing contracts.
@@ -253,11 +264,12 @@ impl Hp67WordTiming {
         self.clock_subphase
     }
 
-    /// HP-67-specific named phase for the current scheduler coordinate.
+    /// HP-67-specific named phase that the next scheduler transition enters.
     ///
-    /// This exposes source-backed pin polarity/order without claiming physical
-    /// phase durations.
-    pub const fn clock_phase(&self) -> Hp67ClockPhase {
+    /// Hp67WordTiming counts completed scaffold subphases. The electrical
+    /// backplane owns the actual current PHI pin phase; this method deliberately
+    /// exposes only the next phase implied by the remaining bit-cell schedule.
+    pub const fn next_clock_phase(&self) -> Hp67ClockPhase {
         Hp67ClockPhase::from_subphase(self.clock_subphase)
     }
 
@@ -395,6 +407,28 @@ mod tests {
         assert_eq!(
             Hp67ClockPhase::from_subphase(3),
             Hp67ClockPhase::InterphaseAfterPhi2
+        );
+        assert_eq!(
+            Hp67ClockPhase::InterphaseAfterPhi2.advance(),
+            (Hp67ClockPhase::Phi1Low, Hp67ClockEdge::Phi1Falling)
+        );
+        assert_eq!(
+            Hp67ClockPhase::Phi1Low.advance(),
+            (
+                Hp67ClockPhase::InterphaseAfterPhi1,
+                Hp67ClockEdge::Phi1Rising
+            )
+        );
+        assert_eq!(
+            Hp67ClockPhase::InterphaseAfterPhi1.advance(),
+            (Hp67ClockPhase::Phi2Low, Hp67ClockEdge::Phi2Falling)
+        );
+        assert_eq!(
+            Hp67ClockPhase::Phi2Low.advance(),
+            (
+                Hp67ClockPhase::InterphaseAfterPhi2,
+                Hp67ClockEdge::Phi2Rising
+            )
         );
         assert!(Hp67ClockPhase::Phi1Low.phi1_low());
         assert!(!Hp67ClockPhase::Phi1Low.phi2_low());
