@@ -227,7 +227,6 @@ fn production_dual_path_stream(words: usize) -> u64 {
     checksum
 }
 
-
 fn firmware_production_stream(words: usize) -> u64 {
     let source = Hp67Firmware::default();
     let mut machine = Hp67ArchitecturalMachine::default();
