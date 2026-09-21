@@ -14,6 +14,18 @@ use super::{timing::Hp67WordTiming, wiring::Hp67Net};
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
+const fn hp67_clock_drive(active: bool) -> Drive {
+    // Direct HP-67 captures show PHI1/PHI2 as alternating low-going pulses
+    // from an otherwise high level. `TwoPhaseClock` expresses which phase is
+    // active; the machine-specific backplane maps that abstract activity to
+    // the evidenced HP-67 pin polarity.
+    if active {
+        Drive::Low
+    } else {
+        Drive::High
+    }
+}
+
 /// Pin-level connection fabric for HP-67 devices.
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalBackplane {
@@ -83,17 +95,21 @@ impl Hp67ElectricalBackplane {
 
     /// Advance the temporary timing scaffold by one non-overlapping clock
     /// sub-phase and advance the HP-67 56-bit coordinate accordingly.
+    ///
+    /// Page-70 HP-67 captures show both PHI pins normally high with alternating
+    /// low-going pulses. Pulse width/dead time remain uncalibrated; only the pin
+    /// polarity and non-overlap relationship are source-backed here.
     pub fn advance_clock(&mut self) -> Tick {
         let levels = self.clock.advance();
         self.drive(
             Hp67Net::Phi1,
             CLOCK_DRIVER,
-            if levels.phi1 { Drive::High } else { Drive::Low },
+            hp67_clock_drive(levels.phi1),
         );
         self.drive(
             Hp67Net::Phi2,
             CLOCK_DRIVER,
-            if levels.phi2 { Drive::High } else { Drive::Low },
+            hp67_clock_drive(levels.phi2),
         );
         self.word_timing.advance_clock_subphase();
         self.clock.tick()
@@ -123,14 +139,29 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_clock_never_drives_both_phases_high() {
+    fn hp67_clock_pulses_are_active_low_and_never_overlap() {
         let mut backplane = Hp67ElectricalBackplane::default();
-        for _ in 0..64 {
+        let mut observed = Vec::new();
+        for _ in 0..8 {
             backplane.advance_clock();
-            let phi1 = backplane.level(Hp67Net::Phi1) == LogicLevel::High;
-            let phi2 = backplane.level(Hp67Net::Phi2) == LogicLevel::High;
-            assert!(!(phi1 && phi2));
+            let phi1 = backplane.level(Hp67Net::Phi1);
+            let phi2 = backplane.level(Hp67Net::Phi2);
+            assert!(!(phi1 == LogicLevel::Low && phi2 == LogicLevel::Low));
+            observed.push((phi1, phi2));
         }
+        assert_eq!(
+            observed,
+            vec![
+                (LogicLevel::Low, LogicLevel::High),
+                (LogicLevel::High, LogicLevel::High),
+                (LogicLevel::High, LogicLevel::Low),
+                (LogicLevel::High, LogicLevel::High),
+                (LogicLevel::Low, LogicLevel::High),
+                (LogicLevel::High, LogicLevel::High),
+                (LogicLevel::High, LogicLevel::Low),
+                (LogicLevel::High, LogicLevel::High),
+            ]
+        );
     }
 
     #[test]
