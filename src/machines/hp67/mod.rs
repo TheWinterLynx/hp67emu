@@ -66,7 +66,9 @@ pub use display_snapshot::{
     display_byte_from_act_registers, structural_display_scan_from_act_registers,
     StructuralDisplaySlot,
 };
-pub use electrical::{Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot};
+pub use electrical::{
+    Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot, Hp67ElectricalStager,
+};
 pub use fetch::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
     FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
