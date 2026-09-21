@@ -103,6 +103,7 @@ impl Hp67ElectricalSnapshot {
 pub struct Hp67ElectricalFabric {
     tick: Tick,
     nets: [Hp67DenseNet; Hp67Net::COUNT],
+    resolved_levels: [LogicLevel; Hp67Net::COUNT],
     pending: [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
     dirty_keys: [(u8, u8); MAX_PENDING_DRIVES],
     dirty_len: usize,
@@ -126,9 +127,12 @@ impl Default for Hp67ElectricalFabric {
         nets[Hp67Net::Phi1.index()].set_drive(Hp67Driver::Act1820_2530, Drive::High);
         nets[Hp67Net::Phi2.index()].set_drive(Hp67Driver::Act1820_2530, Drive::High);
 
+        let resolved_levels = std::array::from_fn(|index| nets[index].level());
+
         Self {
             tick: Tick::ZERO,
             nets,
+            resolved_levels,
             pending: [[None; Hp67Driver::COUNT]; Hp67Net::COUNT],
             dirty_keys: [(0, 0); MAX_PENDING_DRIVES],
             dirty_len: 0,
@@ -142,8 +146,8 @@ impl Hp67ElectricalFabric {
         self.tick
     }
 
-    pub fn level(&self, net: Hp67Net) -> LogicLevel {
-        self.nets[net.index()].level()
+    pub const fn level(&self, net: Hp67Net) -> LogicLevel {
+        self.resolved_levels[net.index()]
     }
 
     pub fn drive(&self, net: Hp67Net, driver: Hp67Driver) -> Drive {
@@ -175,7 +179,7 @@ impl Hp67ElectricalFabric {
         }
         Ok(Hp67ElectricalSnapshot {
             tick: self.tick,
-            levels: std::array::from_fn(|index| self.nets[index].level()),
+            levels: self.resolved_levels,
         })
     }
 
@@ -215,10 +219,15 @@ impl Hp67ElectricalFabric {
     }
 
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
-        let was_contentious = self.nets[net_index].level() == LogicLevel::Contention;
+        let previous_level = self.resolved_levels[net_index];
         self.nets[net_index].set_drive(driver, drive);
-        let is_contentious = self.nets[net_index].level() == LogicLevel::Contention;
-        match (was_contentious, is_contentious) {
+        let next_level = self.nets[net_index].level();
+        self.resolved_levels[net_index] = next_level;
+
+        match (
+            previous_level == LogicLevel::Contention,
+            next_level == LogicLevel::Contention,
+        ) {
             (false, true) => self.contention_net_count += 1,
             (true, false) => self.contention_net_count -= 1,
             _ => {}
@@ -228,7 +237,7 @@ impl Hp67ElectricalFabric {
     fn contention_error(&self, tick: Tick) -> Hp67ElectricalError {
         let net = Hp67Net::ALL
             .into_iter()
-            .find(|net| self.nets[net.index()].level() == LogicLevel::Contention)
+            .find(|net| self.resolved_levels[net.index()] == LogicLevel::Contention)
             .expect("cached HP-67 contention count must identify a contentious net");
         let dense = &self.nets[net.index()];
         let drivers = Hp67Driver::ALL
