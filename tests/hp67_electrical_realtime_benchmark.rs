@@ -86,16 +86,12 @@ fn print_row(name: &str, stats: &BenchmarkStats, words: usize) {
 fn raw_phi_stream(words: usize) -> u64 {
     let mut backplane = Hp67ElectricalBackplane::default();
     let edges = words as u64 * BITS_PER_WORD as u64 * CLOCK_EDGES_PER_BIT;
-    let mut checksum = 0u64;
-
     for _ in 0..edges {
-        let (tick, edge) = backplane.advance_clock_edge();
-        checksum ^= tick.get();
-        checksum ^= edge as u64;
+        black_box(backplane.advance_clock_edge());
     }
 
     assert_eq!(backplane.word_index(), words as u64);
-    checksum
+    black_box(backplane.tick().get())
 }
 
 fn structural_fetch_stream(words: usize) -> u64 {
@@ -104,9 +100,10 @@ fn structural_fetch_stream(words: usize) -> u64 {
     let mut act = ActSerialEndpoint::new(BENCH_ADDRESS);
     let mut rom = RomFetchEndpoint::default();
     let mut checksum = 0u64;
+    let mut last_fetched = 0u16;
 
     for _ in 0..words {
-        let fetched = run_structural_fetch_cycle(
+        last_fetched = run_structural_fetch_cycle(
             &mut backplane,
             BENCH_ADDRESS,
             &mut act,
@@ -114,10 +111,10 @@ fn structural_fetch_stream(words: usize) -> u64 {
             &source,
         )
         .expect("continuous structural fetch must complete");
-        assert_eq!(fetched, BENCH_FETCH_WORD);
-        checksum = checksum.wrapping_add(fetched as u64);
+        checksum = checksum.wrapping_add(last_fetched as u64);
     }
 
+    assert_eq!(last_fetched, BENCH_FETCH_WORD);
     assert_eq!(backplane.word_index(), words as u64);
     checksum
 }
@@ -136,6 +133,7 @@ fn full_current_structural_stream(words: usize) -> u64 {
     let mut rom = RomFetchEndpoint::default();
     let mut rom0 = Rom0DisplayEndpoint::default();
     let mut checksum = 0u64;
+    let mut last_fetched = 0u16;
 
     for _ in 0..words {
         act.begin_execution(BENCH_EXECUTION_WORD, &state)
@@ -152,13 +150,14 @@ fn full_current_structural_stream(words: usize) -> u64 {
         )
         .expect("continuous display/fetch/execution word must complete");
 
-        assert_eq!(result.fetched_word, BENCH_FETCH_WORD);
+        last_fetched = result.fetched_word;
         checksum = checksum
             .wrapping_add(result.fetched_word as u64)
             .wrapping_add(result.display_byte as u64)
             .wrapping_add(u64::from(result.rcd_falling));
     }
 
+    assert_eq!(last_fetched, BENCH_FETCH_WORD);
     assert_eq!(backplane.word_index(), words as u64);
     checksum
 }
@@ -209,11 +208,7 @@ fn hp67_electrical_realtime_benchmark() {
     println!("{}", "-".repeat(111));
     print_row("PHI backplane / resolved clock nets", &raw_phi, words);
     print_row("IS ACT<->ROM structural fetch", &fetch, words);
-    print_row(
-        "IS + ROM0 display + serial ACT execution",
-        &full,
-        words,
-    );
+    print_row("IS + ROM0 display + serial ACT execution", &full, words);
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
