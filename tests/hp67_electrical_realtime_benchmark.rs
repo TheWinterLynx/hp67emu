@@ -6,8 +6,8 @@ use std::{
 
 use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActArchitecturalState,
-    ActSerialEndpoint, Hp67ElectricalBackplane, Hp67RomWordSource, Rom0DisplayEndpoint,
-    RomFetchEndpoint, BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
+    ActSerialEndpoint, Hp67ArchitecturalMachine, Hp67ElectricalBackplane, Hp67RomWordSource,
+    Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 5_000;
@@ -162,6 +162,71 @@ fn full_current_structural_stream(words: usize) -> u64 {
     checksum
 }
 
+
+fn architectural_execution_stream(words: usize) -> u64 {
+    let mut machine = Hp67ArchitecturalMachine::default();
+    let mut checksum = 0u64;
+
+    for _ in 0..words {
+        let execution = machine
+            .execute_word(BENCH_EXECUTION_WORD)
+            .expect("architectural benchmark word must execute");
+        checksum = checksum
+            .wrapping_add(execution.next_pc as u64)
+            .wrapping_add(machine.act.state.c[0] as u64);
+    }
+
+    checksum
+}
+
+fn production_dual_path_stream(words: usize) -> u64 {
+    let source = BenchmarkRom;
+    let mut machine = Hp67ArchitecturalMachine::default();
+    machine.act.state.display_enable = true;
+    for digit in 0..machine.act.state.a.len() {
+        machine.act.state.a[digit] = (digit % 10) as u8;
+        machine.act.state.b[digit] = 0;
+    }
+
+    let mut backplane = Hp67ElectricalBackplane::default();
+    let mut act = ActSerialEndpoint::new(BENCH_ADDRESS);
+    let mut rom = RomFetchEndpoint::default();
+    let mut rom0 = Rom0DisplayEndpoint::default();
+    let mut checksum = 0u64;
+    let mut last_fetched = 0u16;
+
+    for _ in 0..words {
+        act.begin_execution(BENCH_EXECUTION_WORD, &machine.act.state)
+            .expect("serial execution must start");
+
+        let execution = machine
+            .execute_word(BENCH_EXECUTION_WORD)
+            .expect("architectural benchmark word must execute");
+
+        let result = run_structural_display_fetch_cycle(
+            &mut backplane,
+            BENCH_ADDRESS,
+            &machine.act.state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+        )
+        .expect("production-equivalent dual path must complete");
+
+        last_fetched = result.fetched_word;
+        checksum = checksum
+            .wrapping_add(execution.next_pc as u64)
+            .wrapping_add(result.fetched_word as u64)
+            .wrapping_add(result.display_byte as u64)
+            .wrapping_add(u64::from(result.rcd_falling));
+    }
+
+    assert_eq!(last_fetched, BENCH_FETCH_WORD);
+    assert_eq!(backplane.word_index(), words as u64);
+    checksum
+}
+
 #[test]
 #[ignore = "release-only wall-clock benchmark; run explicitly with --ignored --nocapture"]
 fn hp67_electrical_realtime_benchmark() {
@@ -172,10 +237,14 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(raw_phi_stream(warmup_words));
     black_box(structural_fetch_stream(warmup_words));
     black_box(full_current_structural_stream(warmup_words));
+    black_box(architectural_execution_stream(warmup_words));
+    black_box(production_dual_path_stream(warmup_words));
 
     let raw_phi = measure_rounds(rounds, words, raw_phi_stream);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
+    let architectural = measure_rounds(rounds, words, architectural_execution_stream);
+    let production = measure_rounds(rounds, words, production_dual_path_stream);
 
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
@@ -209,11 +278,13 @@ fn hp67_electrical_realtime_benchmark() {
     print_row("PHI backplane / resolved clock nets", &raw_phi, words);
     print_row("IS ACT<->ROM structural fetch", &fetch, words);
     print_row("IS + ROM0 display + serial ACT execution", &full, words);
+    print_row("architectural execution only", &architectural, words);
+    print_row("production dual architectural + structural", &production, words);
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "Not yet represented electrically in this benchmark: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The production-dual row also includes the current instruction-boundary architectural execution that the live machine runs in parallel with serial execution. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }
