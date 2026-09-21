@@ -49,7 +49,7 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
    - follows the fetched HP-67 control flow while keeping the same dual architectural+structural execution arrangement;
    - is the most representative CPU/ROM throughput row in this benchmark, although UI, card transport and future DATA/RAM electrical devices remain outside its scope.
 
-Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 5,000 words therefore represent approximately 1.6 seconds of physical HP-67 machine time per round.
+Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 50,000 words therefore represent approximately 16 seconds of physical HP-67 machine time per round. At the current >100x host speed this also keeps each measured host interval long enough that ordinary Windows scheduling and turbo changes are less likely to masquerade as a few-percent emulator regression.
 
 ## Interpretation
 
@@ -77,6 +77,6 @@ $env:RUSTFLAGS='-Dwarnings'; cargo test --release --locked --test hp67_electrica
 
 Optional workload controls:
 
-- `HP67_BENCH_WORDS` — words per round, default 5000;
+- `HP67_BENCH_WORDS` — words per round, default 50000;
 - `HP67_BENCH_ROUNDS` — measured rounds, default 7;
-- `HP67_BENCH_WARMUP_WORDS` — warm-up words per path, default 250.
+- `HP67_BENCH_WARMUP_WORDS` — warm-up words per path, default 2500.
