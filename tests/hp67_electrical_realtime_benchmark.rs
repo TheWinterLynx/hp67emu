@@ -85,13 +85,18 @@ fn print_row(name: &str, stats: &BenchmarkStats, words: usize) {
 
 fn raw_phi_stream(words: usize) -> u64 {
     let mut backplane = Hp67ElectricalBackplane::default();
-    let edges = words as u64 * BITS_PER_WORD as u64 * CLOCK_EDGES_PER_BIT;
-    for _ in 0..edges {
-        black_box(backplane.advance_clock_edge());
+    let edges_per_word = BITS_PER_WORD as u64 * CLOCK_EDGES_PER_BIT;
+    let mut checksum = 0u64;
+
+    for _ in 0..words {
+        for _ in 0..edges_per_word {
+            backplane.advance_clock_edge();
+        }
+        checksum ^= black_box(backplane.tick().get());
     }
 
     assert_eq!(backplane.word_index(), words as u64);
-    black_box(backplane.tick().get())
+    checksum
 }
 
 fn structural_fetch_stream(words: usize) -> u64 {
