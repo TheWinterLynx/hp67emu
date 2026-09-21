@@ -36,6 +36,18 @@ In order:
 
 Never trade fidelity for shorter code, prettier APIs, fewer cycles, easier UI logic or speculative generalization.
 
+## Fidelity claim taxonomy
+
+Every hardware/timing claim must be treated as one of these three classes:
+
+- **PROVEN / EXACT** — directly supported by sufficiently strong evidence and regression-locked at the level being claimed.
+- **WORKING APPROXIMATION** — useful for integration, but not yet electrically proven at the required level. It must be named as an approximation, isolated where practical, document what it proves and does not prove, and have a replacement criterion.
+- **SOURCE-BLOCKED** — real behavior matters but the evidence is insufficient. Do not guess. Keep an explicit TODO, unsupported/error path, documented uncertainty or research task.
+
+A plausible implementation is not preferable to an explicit unknown.
+
+Functional correctness through real firmware does not automatically prove electrical cycle accuracy. A 12/12 diagnostic pass is strong end-to-end functional evidence, but it does not by itself prove exact PHI-relative edges, intra-word register/ALU mutation timing, DATA ownership, STR/RCD ordering, reset waveform, display current integration or magnetic sense/bit-cell timing.
+
 ## Evidence policy
 
 Before changing hardware-visible semantics or timing, read:
@@ -301,6 +313,22 @@ For new ROM/card data:
 The project uses independent Teenix, x11-calc and Nonpareil-derived comparisons. Preserve that approach: agreement is evidence, not a reason to merge their implementations.
 
 Official HP application manuals and checked-in Standard Pac/Games Pac/diagnostic media are behavioral references for card loading, two-pass use, pauses/output and diagnostics. Reproduce those behaviors through the real calculator path; never special-case a named application to make an example pass.
+
+## Source-of-truth precedence
+
+When repository documents disagree, use this order:
+
+1. explicit repository-owner instruction for the current task;
+2. actual behavior/invariants on current `main`;
+3. executable regression tests;
+4. newest audit/research documents;
+5. this `AGENTS.md`;
+6. architecture/source-policy documents;
+7. older roadmap/TODO/CI prose.
+
+Then fix the stale lower-priority document instead of silently following it.
+
+In particular, historical prose that predates the current hard formatting gate or current milestone state must not override the executable/current repository contract.
 
 ## Development workflow
 
