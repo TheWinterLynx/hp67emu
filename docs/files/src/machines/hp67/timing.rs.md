@@ -14,3 +14,6 @@ Define 4 bits per digit, 14 digits per word and 56 bits per word; encode ROM0 di
 
 ## Implementation
 `Hp67WordTiming` still advances through the temporary four-subphase PHI scaffold. The `HP67_OBSERVED_*_US` constants are measured scope observations rather than oscillator design constants. `data_serial_bit_for_word_bit()` captures only the directly observed DATA phase relationship. `Hp67ClockEdge` names PHI transitions and `Hp67ClockPhase::advance()` defines the exact topological edge sequence without assigning durations. `Hp67WordTiming` tracks completed subphases only; the electrical backplane owns the current pin phase. `HP67_SYNC_TRANSITION_EDGE` locks the direct page-70 observation that SYNC changes on PHI2 rising. Exact PHI1/PHI2 pulse widths, dead time, IS/DATA launch/sample edges and per-device propagation remain intentionally open; STR-on-bit-7 and low-going STR/RCD behavior are source-backed at the bit/event level.
+
+
+M14A also defines versioned edge-contract table V1. It records ownership/source metadata for SYNC, IS address/instruction traffic, DATA in both directions, ROM0 display traffic, STR and RCD. Unknown launch/sample edges and propagation are deliberately represented as source-blocked values and protected by regression tests rather than inferred from the temporary scheduler.
