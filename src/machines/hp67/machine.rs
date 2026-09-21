@@ -6,8 +6,6 @@
 //! replace its durations/edge placement from hardware evidence while retaining
 //! the same observable net and word-coordinate boundaries.
 
-use std::collections::BTreeMap;
-
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
 use super::{
@@ -35,26 +33,24 @@ pub struct Hp67ElectricalBackplane {
     clock: TwoPhaseClock,
     clock_phase: Hp67ClockPhase,
     word_timing: Hp67WordTiming,
-    nets: BTreeMap<Hp67Net, Net>,
+    nets: [Net; Hp67Net::COUNT],
 }
 
 impl Default for Hp67ElectricalBackplane {
     fn default() -> Self {
-        let nets = Hp67Net::ALL
-            .into_iter()
-            .map(|net| {
-                // HP-67 hardware probing shows the shared IS line resting low
-                // through a weak internal path while active participants pull
-                // it high and otherwise release it.  Other nets remain
-                // floating until their own passive behavior is evidenced.
-                let bias = if net == Hp67Net::Isa {
-                    Bias::PullDown
-                } else {
-                    Bias::Floating
-                };
-                (net, Net::new(bias))
-            })
-            .collect();
+        let nets = std::array::from_fn(|index| {
+            let net = Hp67Net::ALL[index];
+            // HP-67 hardware probing shows the shared IS line resting low
+            // through a weak internal path while active participants pull
+            // it high and otherwise release it. Other nets remain floating
+            // until their own passive behavior is evidenced.
+            let bias = if net == Hp67Net::Isa {
+                Bias::PullDown
+            } else {
+                Bias::Floating
+            };
+            Net::new(bias)
+        });
         Self {
             clock: TwoPhaseClock::default(),
             clock_phase: Hp67ClockPhase::InterphaseAfterPhi2,
@@ -90,17 +86,11 @@ impl Hp67ElectricalBackplane {
     }
 
     pub fn level(&self, net: Hp67Net) -> LogicLevel {
-        self.nets
-            .get(&net)
-            .expect("all Hp67Net values are installed in the backplane")
-            .level()
+        self.nets[net.index()].level()
     }
 
     pub fn drive(&mut self, net: Hp67Net, driver: DriverId, drive: Drive) {
-        self.nets
-            .get_mut(&net)
-            .expect("all Hp67Net values are installed in the backplane")
-            .set_drive(driver, drive);
+        self.nets[net.index()].set_drive(driver, drive);
     }
 
     /// Advance the temporary timing scaffold by one non-overlapping clock
