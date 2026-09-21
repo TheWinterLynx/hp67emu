@@ -9,6 +9,7 @@ The documentation regression uses these companion files as the source-level owne
 - [src/hp67.rs](files/src/hp67.rs.md)
 - [src/hp67/m12_tests.rs](files/src/hp67/m12_tests.rs.md)
 - [src/panel.rs](files/src/panel.rs.md)
+- [src/program_library.rs](files/src/program_library.rs.md)
 - [src/ui/mod.rs](files/src/ui/mod.rs.md)
 - [src/ui/classic_display.rs](files/src/ui/classic_display.rs.md)
 - [src/ui/program_card.rs](files/src/ui/program_card.rs.md)
@@ -34,3 +35,13 @@ The documentation regression uses these companion files as the source-level owne
 
 - [tests/documentation_contract.rs](files/tests/documentation_contract.rs.md)
 - [tests/architecture_contract.rs](files/tests/architecture_contract.rs.md)
+
+## Development tools
+
+- [tools/convert_hp67_card.py](files/tools/convert_hp67_card.py.md)
+- [tools/extract_hp67_card_artwork.py](files/tools/extract_hp67_card_artwork.py.md)
+- [tools/generate_hp67_diagnostic_pacs.py](files/tools/generate_hp67_diagnostic_pacs.py.md)
+
+## Media format reference
+
+- [HP-67 program media formats](HP67_CARD_FORMATS.md)

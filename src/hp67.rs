@@ -592,6 +592,9 @@ impl Hp67LiveMachine {
 }
 
 #[cfg(test)]
+mod diagnostic_tests;
+
+#[cfg(test)]
 mod m12_tests;
 
 #[cfg(test)]
@@ -601,7 +604,7 @@ mod tests {
         emulation::Drive,
         machines::hp67::{
             ActDisplayWordSerializer, ActOperation, Hp67CardTrack, Hp67Key, Hp67MagneticTrack,
-            CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE,
+            TeenixHppImport, CRC_FLAG_CARD_PRESENT, CRC_FLAG_F7_STATUS, CRC_FLAG_WRITE_MODE,
             HP67_CARD_RECORDS_PER_TRACK, HP67_DISPLAY_SCAN_SLOTS, HP67_NOMINAL_CARD_RECORD_US,
         },
     };
@@ -975,6 +978,89 @@ mod tests {
         }
 
         panic!("live card lifecycle never reached the CRC record stream");
+    }
+
+    #[test]
+    fn moon_rocket_card_load_and_a_key_execute_without_disabling_live_machine() {
+        let imported = TeenixHppImport::from_bytes(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/HP-67 Standard Pac/SD1-14A_1 Moon Rocket Lander.hpp"
+        )))
+        .expect("checked-in Moon Rocket Lander card must decode");
+        assert_eq!(imported.header_id, 3);
+
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+
+        live.insert_magnetic_card(imported.into_card(), CardInsertionEnd::End1)
+            .expect("Moon Rocket Lander card must insert");
+        wait_for_live_card_record_stream(&mut live);
+
+        for _ in 0..32_768 {
+            live.step_firmware_cycle().unwrap();
+            if live.card_transport_complete() {
+                break;
+            }
+        }
+        assert!(live.card_transport_complete());
+        assert!(live.take_completed_magnetic_card().is_some());
+
+        for _ in 0..4_096 {
+            live.step_firmware_cycle().unwrap();
+            if live.main_wait_visits >= 3
+                && !live.machine.act.state.status[15]
+                && !live.card_motor_on()
+            {
+                break;
+            }
+        }
+
+        let dispatch = press_live_key_to_dispatch_for_card_test(&mut live, Hp67Key::A);
+        eprintln!(
+            "Moon Rocket A dispatch={dispatch:04o} pc={:04o} ram2f={:x?} ram3d={:x?}",
+            live.machine.pc(),
+            live.machine.ram.read(0x2f),
+            live.machine.ram.read(0x3d)
+        );
+
+        let mut saw_nonblank = live
+            .display_frame()
+            .segments()
+            .iter()
+            .copied()
+            .any(|segments| segments != 0);
+        for cycle_after_a in 0..32_768 {
+            match live.step_firmware_cycle_with_execution() {
+                Ok(_) => {
+                    saw_nonblank |= live
+                        .display_frame()
+                        .segments()
+                        .iter()
+                        .copied()
+                        .any(|segments| segments != 0);
+                }
+                Err(error) => {
+                    panic!(
+                        "Moon Rocket A disabled the live machine after {cycle_after_a} cycles: {error}; pc={:04o} ram2f={:x?} ram3d={:x?} display={:02x?} A={:x?} B={:x?} C={:x?}",
+                        live.machine.pc(),
+                        live.machine.ram.read(0x2f),
+                        live.machine.ram.read(0x3d),
+                        live.display_frame().segments(),
+                        live.machine.act.state.a,
+                        live.machine.act.state.b,
+                        live.machine.act.state.c,
+                    );
+                }
+            }
+        }
+
+        assert!(
+            saw_nonblank,
+            "Moon Rocket A ran without a live-machine error but never produced a visible display"
+        );
     }
 
     #[test]

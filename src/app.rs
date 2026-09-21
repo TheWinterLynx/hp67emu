@@ -22,11 +22,17 @@ use crate::{
 };
 
 const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
+const PROGRAM_LIBRARY_VIEWPORT_KEY: &str = "hp67-program-library-viewport";
+const CARD_SAVE_VIEWPORT_KEY: &str = "hp67-card-save-viewport";
+const CARD_ARTWORK_ATLAS_WIDTH: u32 = 499;
+const CARD_ARTWORK_ATLAS_ROW_HEIGHT: u32 = 80;
+const CARD_ARTWORK_ATLAS_ROWS: u32 = 35;
 
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
     card_logo: TextureHandle,
+    card_artwork_atlas: Option<image::RgbaImage>,
     live_machine: Option<Hp67LiveMachine>,
     card_media: Option<Hp67MagneticCard>,
     card_import_name: Option<String>,
@@ -43,6 +49,28 @@ pub struct Hp67App {
     program_library_status: Option<String>,
     card_library_entry: Option<usize>,
     card_artwork_texture: Option<TextureHandle>,
+}
+
+fn decode_embedded_card_artwork_atlas() -> Result<image::RgbaImage, String> {
+    let atlas = image::load_from_memory_with_format(
+        include_bytes!("../assets/hp67-card-artwork-atlas.png"),
+        image::ImageFormat::Png,
+    )
+    .map_err(|error| format!("invalid embedded PNG: {error}"))?
+    .to_rgba8();
+
+    let expected = (
+        CARD_ARTWORK_ATLAS_WIDTH,
+        CARD_ARTWORK_ATLAS_ROW_HEIGHT * CARD_ARTWORK_ATLAS_ROWS,
+    );
+    if atlas.dimensions() != expected {
+        return Err(format!(
+            "unexpected dimensions {:?}; expected {expected:?}",
+            atlas.dimensions()
+        ));
+    }
+
+    Ok(atlas)
 }
 
 impl Hp67App {
@@ -82,6 +110,14 @@ impl Hp67App {
             TextureOptions::LINEAR,
         );
 
+        let card_artwork_atlas = match decode_embedded_card_artwork_atlas() {
+            Ok(atlas) => Some(atlas),
+            Err(error) => {
+                eprintln!("HP-67 card artwork atlas disabled: {error}");
+                None
+            }
+        };
+
         let live_machine = match Hp67LiveMachine::power_on_default() {
             Ok(machine) => Some(machine),
             Err(error) => {
@@ -94,6 +130,7 @@ impl Hp67App {
             state: Hp67State::default(),
             photo,
             card_logo,
+            card_artwork_atlas,
             live_machine,
             card_media: None,
             card_import_name: None,
@@ -281,22 +318,44 @@ impl Hp67App {
             .get(index)
             .ok_or_else(|| format!("program library index {index} is out of range"))?;
         let loaded = entry.load_card()?;
-        let artwork_texture = match entry.artwork_path {
-            Some(path) if Path::new(path).is_file() => {
-                let bytes = fs::read(path)
-                    .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
-                let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
-                    .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?
-                    .to_rgba8();
-                let size = [decoded.width() as usize, decoded.height() as usize];
-                let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
-                Some(ctx.load_texture(
-                    format!("hp67-program-card-artwork-{index}"),
-                    image,
-                    TextureOptions::LINEAR,
-                ))
+        let artwork_texture = if let (Some(row), Some(atlas)) =
+            (entry.artwork_atlas_row(), self.card_artwork_atlas.as_ref())
+        {
+            let y = row as u32 * CARD_ARTWORK_ATLAS_ROW_HEIGHT;
+            let decoded = image::imageops::crop_imm(
+                atlas,
+                0,
+                y,
+                CARD_ARTWORK_ATLAS_WIDTH,
+                CARD_ARTWORK_ATLAS_ROW_HEIGHT,
+            )
+            .to_image();
+            let size = [decoded.width() as usize, decoded.height() as usize];
+            let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
+            Some(ctx.load_texture(
+                format!("hp67-program-card-artwork-{index}"),
+                image,
+                TextureOptions::LINEAR,
+            ))
+        } else {
+            match entry.artwork_path {
+                Some(path) if Path::new(path).is_file() => {
+                    let bytes = fs::read(path)
+                        .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
+                    let decoded =
+                        image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+                            .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?
+                            .to_rgba8();
+                    let size = [decoded.width() as usize, decoded.height() as usize];
+                    let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
+                    Some(ctx.load_texture(
+                        format!("hp67-program-card-artwork-{index}"),
+                        image,
+                        TextureOptions::LINEAR,
+                    ))
+                }
+                _ => None,
             }
-            _ => None,
         };
 
         self.card_media = Some(loaded.card);
@@ -317,90 +376,164 @@ impl Hp67App {
             return;
         }
 
-        let mut open = true;
+        let mut keep_open = true;
         let mut selected = self.program_library_selected;
         let mut load_requested = None;
         let status = self.program_library_status.clone();
+        let reader_free = !self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
 
-        egui::Window::new("HP-67 Program Card Library")
-            .default_size([520.0, 620.0])
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.label(format!(
-                    "{} programs from checked-in magnetic-card images",
-                    PROGRAM_LIBRARY.len()
-                ));
-                ui.separator();
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of(PROGRAM_LIBRARY_VIEWPORT_KEY),
+            egui::ViewportBuilder::default()
+                .with_title("HP-67 Program Card Library")
+                .with_inner_size([960.0, 680.0])
+                .with_min_inner_size([720.0, 480.0])
+                .with_resizable(true),
+            |ctx, _class| {
+                if ctx.input(|input| input.viewport().close_requested()) {
+                    keep_open = false;
+                    return;
+                }
 
-                egui::ScrollArea::vertical()
-                    .max_height(400.0)
-                    .show(ui, |ui| {
-                        let mut previous_pack = "";
-                        for (index, entry) in PROGRAM_LIBRARY.iter().enumerate() {
-                            if entry.pack != previous_pack {
-                                if !previous_pack.is_empty() {
-                                    ui.add_space(6.0);
-                                }
-                                ui.heading(entry.pack);
-                                previous_pack = entry.pack;
-                            }
-                            let label = if entry.reference.is_empty() {
-                                entry.title.to_owned()
-                            } else {
-                                format!("{} - {}", entry.reference, entry.title)
-                            };
+                egui::TopBottomPanel::top("hp67-program-library-header").show(ctx, |ui| {
+                    ui.label(format!(
+                        "{} programs from checked-in magnetic-card images",
+                        PROGRAM_LIBRARY.len()
+                    ));
+                });
+
+                egui::TopBottomPanel::bottom("hp67-program-library-actions").show(ctx, |ui| {
+                    if let Some(index) = selected {
+                        let entry = &PROGRAM_LIBRARY[index];
+                        ui.horizontal(|ui| {
                             if ui
-                                .selectable_label(selected == Some(index), label)
+                                .add_enabled(reader_free, egui::Button::new("Load card"))
                                 .clicked()
                             {
-                                selected = Some(index);
+                                load_requested = Some(index);
                             }
-                        }
+                            if !reader_free {
+                                ui.label(
+                                    "Remove the card from the reader before loading another one.",
+                                );
+                            } else {
+                                ui.label(format!("{} - {}", entry.reference, entry.title));
+                            }
+                        });
+                    }
+
+                    if let Some(status) = status.as_deref() {
+                        ui.separator();
+                        ui.label(status);
+                    }
+                });
+
+                egui::SidePanel::left("hp67-program-library-packs")
+                    .default_width(330.0)
+                    .min_width(240.0)
+                    .max_width(480.0)
+                    .resizable(true)
+                    .show(ctx, |ui| {
+                        ui.strong("Program packs");
+                        ui.separator();
+
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                let mut pack_start = 0usize;
+                                while pack_start < PROGRAM_LIBRARY.len() {
+                                    let pack = PROGRAM_LIBRARY[pack_start].pack;
+                                    let mut pack_end = pack_start + 1;
+                                    while pack_end < PROGRAM_LIBRARY.len()
+                                        && PROGRAM_LIBRARY[pack_end].pack == pack
+                                    {
+                                        pack_end += 1;
+                                    }
+
+                                    egui::CollapsingHeader::new(format!(
+                                        "{} ({})",
+                                        pack,
+                                        pack_end - pack_start
+                                    ))
+                                    .id_source(("hp67-program-pack", pack))
+                                    .default_open(false)
+                                    .show(ui, |ui| {
+                                        for (index, entry) in
+                                            PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
+                                        {
+                                            let index = pack_start + index;
+                                            let label = if entry.reference.is_empty() {
+                                                entry.title.to_owned()
+                                            } else {
+                                                format!("{} - {}", entry.reference, entry.title)
+                                            };
+                                            if ui
+                                                .selectable_label(selected == Some(index), label)
+                                                .clicked()
+                                            {
+                                                selected = Some(index);
+                                            }
+                                        }
+                                    });
+
+                                    pack_start = pack_end;
+                                }
+                            });
                     });
 
-                ui.separator();
-                if let Some(index) = selected {
-                    let entry = &PROGRAM_LIBRARY[index];
-                    ui.strong(entry.title);
-                    if !entry.reference.is_empty() {
-                        ui.label(format!("Reference: {}", entry.reference));
-                    }
-                    ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
-                    if let Some(pdf) = entry.source_pdf {
-                        ui.label(format!("Artwork/manual source: {pdf}"));
-                    } else {
-                        ui.label("Artwork/manual source: no pack PDF checked in");
-                    }
-                    if let Some(path) = entry.artwork_path {
-                        if Path::new(path).is_file() {
-                            ui.label(format!("Artwork: {path}"));
-                        } else {
-                            ui.label(format!("Artwork pending extraction: {path}"));
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.strong("Program listing");
+                    ui.add_space(4.0);
+
+                    if let Some(index) = selected {
+                        let entry = &PROGRAM_LIBRARY[index];
+                        ui.heading(entry.title);
+                        if !entry.reference.is_empty() {
+                            ui.label(format!("Reference: {}", entry.reference));
                         }
-                    }
+                        ui.label(format!("Pack: {}", entry.pack));
+                        ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
+                        if let Some(pdf) = entry.source_pdf {
+                            let source = if entry.artwork_atlas_row().is_some() {
+                                "embedded card crop"
+                            } else {
+                                "manual only"
+                            };
+                            ui.label(format!("Artwork/manual source: {pdf} ({source})"));
+                        } else {
+                            ui.label("Artwork/manual source: no pack PDF checked in");
+                        }
+                        ui.separator();
 
-                    let reader_free = !self
-                        .live_machine
-                        .as_ref()
-                        .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
-                    if ui
-                        .add_enabled(reader_free, egui::Button::new("Load card"))
-                        .clicked()
-                    {
-                        load_requested = Some(index);
+                        match entry.program_listing() {
+                            Ok(listing) => {
+                                egui::ScrollArea::both()
+                                    .id_source("hp67-program-listing-scroll")
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(listing).monospace(),
+                                            )
+                                            .wrap(false),
+                                        );
+                                    });
+                            }
+                            Err(error) => {
+                                ui.label(format!("Cannot decode listing: {error}"));
+                            }
+                        }
+                    } else {
+                        ui.label("Select a program from a pack to view its listing.");
                     }
-                    if !reader_free {
-                        ui.label("Remove the card from the reader before loading another one.");
-                    }
-                }
+                });
+            },
+        );
 
-                if let Some(status) = status.as_deref() {
-                    ui.separator();
-                    ui.label(status);
-                }
-            });
-
-        self.program_library_open = open;
+        self.program_library_open = keep_open;
         self.program_library_selected = selected;
 
         if let Some(index) = load_requested {
@@ -419,23 +552,38 @@ impl Hp67App {
             return;
         }
 
-        let mut open = true;
+        let mut keep_open = true;
         let mut save_requested = false;
-        egui::Window::new("Save magnetic card")
-            .collapsible(false)
-            .resizable(false)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.label("Save as .hp67card or .hp67raw");
-                ui.text_edit_singleline(&mut self.card_save_path);
-                if let Some(status) = &self.card_save_status {
-                    ui.label(status.as_str());
+        let mut save_path = self.card_save_path.clone();
+        let status = self.card_save_status.clone();
+
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of(CARD_SAVE_VIEWPORT_KEY),
+            egui::ViewportBuilder::default()
+                .with_title("Save magnetic card")
+                .with_inner_size([520.0, 150.0])
+                .with_resizable(false),
+            |ctx, _class| {
+                if ctx.input(|input| input.viewport().close_requested()) {
+                    keep_open = false;
+                    return;
                 }
-                if ui.button("Save").clicked() {
-                    save_requested = true;
-                }
-            });
-        self.card_save_dialog_open = open;
+
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.label("Save as .hp67card or .hp67raw");
+                    ui.text_edit_singleline(&mut save_path);
+                    if let Some(status) = status.as_deref() {
+                        ui.label(status);
+                    }
+                    if ui.button("Save").clicked() {
+                        save_requested = true;
+                    }
+                });
+            },
+        );
+
+        self.card_save_dialog_open = keep_open;
+        self.card_save_path = save_path;
 
         if save_requested {
             let path = self.card_save_path.clone();
@@ -735,10 +883,12 @@ impl eframe::App for Hp67App {
                 if panel.card_waiting_reader_clicked {
                     self.withdraw_waiting_card();
                 }
-                if panel.card_parked_left_double_clicked {
-                    if opposite_track_requested {
-                        self.insert_current_card(self.card_insertion_end.opposite());
-                    } else if self.card_media.is_some() {
+                if opposite_track_requested
+                    && (panel.card_parked_left_clicked || panel.card_parked_left_double_clicked)
+                {
+                    self.insert_current_card(self.card_insertion_end.opposite());
+                } else if panel.card_parked_left_double_clicked {
+                    if self.card_media.is_some() {
                         self.card_insertion_end = self.card_insertion_end.opposite();
                         self.card_phase = ProgramCardPhase::Idle;
                         self.card_phase_started = None;
@@ -770,11 +920,14 @@ impl eframe::App for Hp67App {
                             }
                             self.reset_card_presentation_after_power_off();
                         } else if !was_power_on && self.state.power_on {
-                            let reset_error = self
-                                .live_machine
-                                .as_mut()
-                                .and_then(|machine| machine.reset_power_on().err());
-                            if let Some(error) = reset_error {
+                            let reset_result = if let Some(machine) = self.live_machine.as_mut() {
+                                machine.reset_power_on()
+                            } else {
+                                Hp67LiveMachine::power_on_default().map(|machine| {
+                                    self.live_machine = Some(machine);
+                                })
+                            };
+                            if let Err(error) = reset_result {
                                 eprintln!("HP-67 live power-on reset failed: {error}");
                                 self.live_machine = None;
                             }
@@ -801,7 +954,7 @@ impl eframe::App for Hp67App {
                     machine.set_key_contact(contact);
                 }
 
-                top_keys::paint(ui, host, &self.photo);
+                top_keys::paint(ui, host, &self.photo, panel.key_contact);
                 sliders::paint(ui, host, &self.photo, &self.state);
             });
 
@@ -866,6 +1019,79 @@ impl eframe::App for Hp67App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn embedded_card_artwork_atlas_decodes_and_has_expected_dimensions() {
+        let atlas = decode_embedded_card_artwork_atlas()
+            .expect("embedded card artwork atlas must decode during the test gate");
+        assert_eq!(
+            atlas.dimensions(),
+            (
+                CARD_ARTWORK_ATLAS_WIDTH,
+                CARD_ARTWORK_ATLAS_ROW_HEIGHT * CARD_ARTWORK_ATLAS_ROWS,
+            )
+        );
+
+        for row in 0..CARD_ARTWORK_ATLAS_ROWS {
+            let y0 = row * CARD_ARTWORK_ATLAS_ROW_HEIGHT;
+            let y1 = y0 + CARD_ARTWORK_ATLAS_ROW_HEIGHT;
+            for y in y0..y1 {
+                for x in 0..CARD_ARTWORK_ATLAS_WIDTH {
+                    assert_eq!(
+                        atlas.get_pixel(x, y).0[3],
+                        255,
+                        "artwork atlas row {row} must be fully opaque at ({x}, {y})"
+                    );
+                }
+            }
+        }
+
+        // SD1-01A Moving Average has two compact solid-white registration
+        // blocks along its top edge. Detect compact bright runs instead of
+        // hard-coding x positions so the regression follows the source crop
+        // even if canonical card registration shifts by a few pixels.
+        let mut bright_columns = Vec::new();
+        for x in 0..CARD_ARTWORK_ATLAS_WIDTH {
+            let mut bright = 0usize;
+            for y in 0..8 {
+                let pixel = atlas.get_pixel(x, y).0;
+                if pixel[0] >= 220 && pixel[1] >= 220 && pixel[2] >= 220 {
+                    bright += 1;
+                }
+            }
+            if bright >= 2 {
+                bright_columns.push(x);
+            }
+        }
+
+        let mut compact_runs = Vec::new();
+        if let Some(&first) = bright_columns.first() {
+            let mut start = first;
+            let mut previous = first;
+            for &x in bright_columns.iter().skip(1) {
+                if x <= previous + 1 {
+                    previous = x;
+                    continue;
+                }
+                let width = previous - start + 1;
+                if (2..=12).contains(&width) {
+                    compact_runs.push((start, previous));
+                }
+                start = x;
+                previous = x;
+            }
+            let width = previous - start + 1;
+            if (2..=12).contains(&width) {
+                compact_runs.push((start, previous));
+            }
+        }
+
+        assert!(
+            compact_runs.len() >= 2,
+            "SD1-01A top registration blocks were lost or hollowed: {compact_runs:?}"
+        );
+    }
+
     use hp67emu::machines::hp67::{Hp67CardTrack, Hp67MagneticTrack};
 
     #[test]
