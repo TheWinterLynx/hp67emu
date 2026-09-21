@@ -57,7 +57,7 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
    - follows the fetched HP-67 control flow while keeping the same dual architectural+structural execution arrangement;
    - is the most representative CPU/ROM throughput row in this benchmark, although UI, card transport and future DATA/RAM electrical devices remain outside its scope.
 
-Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 50,000 words therefore represent approximately 16 seconds of physical HP-67 machine time per round. At the current >100x host speed this also keeps each measured host interval long enough that ordinary Windows scheduling and turbo changes are less likely to masquerade as a few-percent emulator regression.
+Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 50,000 words therefore represent approximately 16 seconds of physical HP-67 machine time per round. At the current >100x host speed this also keeps each measured host interval long enough that ordinary Windows scheduling and turbo changes are less likely to masquerade as a few-percent emulator regression. The three PHI comparison rows use identical pre-transition observation: PHI1 and PHI2 are both read and passed through `black_box` before every one of the 224 transitions per word. Their rounds are measured interleaved with a rotating execution order, so the immediate/stage+commit/staged comparison is not biased by one path always running earlier or later in the benchmark.
 
 ## Interpretation
 
@@ -71,7 +71,7 @@ Therefore:
 - `10.00x` means ten times realtime computational headroom;
 - `<1.00x` means the current model cannot yet sustain realtime on that host.
 
-This is a **performance/headroom benchmark**, not a claim that M14 electrical fidelity is complete.
+This is a **performance/headroom benchmark**, not a claim that M14 electrical fidelity is complete. The matched PHI observation barriers are intentionally artificial benchmark instrumentation; only differences between the three identically observed PHI rows should be attributed to scheduler representation.
 
 The benchmark deliberately prints the fidelity gaps still outside the measured path: DATA/RAM electrical transfers, PHI-relative IS/DATA launch/sample edges, electrically scheduled STR/RCD, exact PHI widths/dead time and propagation delays. As those become real devices/events, they should be added to the full row rather than creating a faster shortcut path.
 
