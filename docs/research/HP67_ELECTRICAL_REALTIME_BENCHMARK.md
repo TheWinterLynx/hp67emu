@@ -16,7 +16,7 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
 
 ## Measured paths
 
-`tests/hp67_electrical_realtime_benchmark.rs` reports three progressively heavier continuous paths:
+`tests/hp67_electrical_realtime_benchmark.rs` reports five continuous paths:
 
 1. `PHI backplane / resolved clock nets`
    - advances all four named PHI transitions for every bit-cell;
@@ -35,6 +35,14 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
    - adds ROM0 display traffic;
    - advances the 15-word display phase continuously;
    - advances one serial ACT instruction through b0..b55 for every measured word.
+
+4. `architectural execution only`
+   - isolates the current instruction-boundary `Hp67ArchitecturalMachine::execute_word()` path;
+   - exposes host-side semantic/transactional cost that is not part of the structural row.
+
+5. `production dual architectural + structural`
+   - mirrors the current live-machine ordering: bind serial pre-state, execute the architectural fallback, then traverse the structural display/fetch word;
+   - is the relevant current throughput baseline until the serial/electrical path becomes authoritative and the architectural bridge can be removed.
 
 Every benchmark round uses one uninterrupted backplane/ACT/ROM state stream. The default 5,000 words therefore represent approximately 1.6 seconds of physical HP-67 machine time per round.
 
