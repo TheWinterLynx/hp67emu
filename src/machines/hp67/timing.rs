@@ -144,6 +144,173 @@ pub enum Hp67ClockEdge {
 /// current scheduler still lacks calibrated sub-microsecond transition timing.
 pub const HP67_SYNC_TRANSITION_EDGE: Hp67ClockEdge = Hp67ClockEdge::Phi2Rising;
 
+/// Version of the reviewed HP-67 PHI-relative edge-contract table.
+pub const HP67_EDGE_CONTRACT_VERSION: u8 = 1;
+
+/// Physical participant named by one timing-contract row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67TimingParticipant {
+    Act,
+    Rom,
+    RomRam,
+    Rom0,
+    CathodeDriver,
+    Unresolved,
+}
+
+/// Signal transition described by one timing-contract row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67SignalTransition {
+    Rising,
+    Falling,
+    Both,
+    SerialData,
+}
+
+/// Evidence status of one timing-contract row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67TimingEvidence {
+    DirectCapture,
+    SourceBlocked,
+}
+
+/// Named transfer covered by the M14A timing lock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67TimedTransfer {
+    SyncTransition,
+    ActToRomAddress,
+    RomToActInstruction,
+    ActToRomRamData,
+    RomRamToActData,
+    ActToRom0Display,
+    Rom0ToCathodeStr,
+    ActToCathodeRcd,
+}
+
+/// One reviewed PHI-relative timing contract.
+///
+/// `None` is deliberate: it means the reviewed sources do not yet justify that
+/// edge or propagation value. Production edge scheduling must not invent one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hp67EdgeContract {
+    pub transfer: Hp67TimedTransfer,
+    pub driver: Hp67TimingParticipant,
+    pub receiver: Hp67TimingParticipant,
+    pub signal_transition: Hp67SignalTransition,
+    pub launch_edge: Option<Hp67ClockEdge>,
+    pub sample_edge: Option<Hp67ClockEdge>,
+    pub max_propagation_ns: Option<u32>,
+    pub source_page: u8,
+    pub evidence: Hp67TimingEvidence,
+}
+
+/// Reviewed M14A edge table.
+///
+/// Only SYNC currently has an exact PHI-relative transition anchor. The other
+/// rows preserve known ownership while explicitly keeping launch/sample edges
+/// source-blocked instead of silently inheriting the four-slot scaffold.
+pub const HP67_EDGE_CONTRACTS_V1: &[Hp67EdgeContract] = &[
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::SyncTransition,
+        driver: Hp67TimingParticipant::Unresolved,
+        receiver: Hp67TimingParticipant::Unresolved,
+        signal_transition: Hp67SignalTransition::Both,
+        launch_edge: Some(HP67_SYNC_TRANSITION_EDGE),
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 70,
+        evidence: Hp67TimingEvidence::DirectCapture,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToRomAddress,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::Rom,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 70,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::RomToActInstruction,
+        driver: Hp67TimingParticipant::Rom,
+        receiver: Hp67TimingParticipant::Act,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 70,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToRomRamData,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::RomRam,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 68,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::RomRamToActData,
+        driver: Hp67TimingParticipant::RomRam,
+        receiver: Hp67TimingParticipant::Act,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 74,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToRom0Display,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::Rom0,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 76,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::Rom0ToCathodeStr,
+        driver: Hp67TimingParticipant::Rom0,
+        receiver: Hp67TimingParticipant::CathodeDriver,
+        signal_transition: Hp67SignalTransition::Falling,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 77,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToCathodeRcd,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::CathodeDriver,
+        signal_transition: Hp67SignalTransition::Falling,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 77,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+];
+
+pub const fn edge_contract(transfer: Hp67TimedTransfer) -> &'static Hp67EdgeContract {
+    let mut index = 0;
+    while index < HP67_EDGE_CONTRACTS_V1.len() {
+        let contract = &HP67_EDGE_CONTRACTS_V1[index];
+        if contract.transfer as u8 == transfer as u8 {
+            return contract;
+        }
+        index += 1;
+    }
+    panic!("missing HP-67 edge contract")
+}
 /// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsaWindow {
@@ -391,6 +558,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn m14a_edge_table_never_invents_blocked_phi_edges() {
+        assert_eq!(HP67_EDGE_CONTRACT_VERSION, 1);
+        assert_eq!(HP67_EDGE_CONTRACTS_V1.len(), 8);
+
+        let sync = edge_contract(Hp67TimedTransfer::SyncTransition);
+        assert_eq!(sync.launch_edge, Some(Hp67ClockEdge::Phi2Rising));
+        assert_eq!(sync.evidence, Hp67TimingEvidence::DirectCapture);
+
+        for transfer in [
+            Hp67TimedTransfer::ActToRomAddress,
+            Hp67TimedTransfer::RomToActInstruction,
+            Hp67TimedTransfer::ActToRomRamData,
+            Hp67TimedTransfer::RomRamToActData,
+            Hp67TimedTransfer::ActToRom0Display,
+            Hp67TimedTransfer::Rom0ToCathodeStr,
+            Hp67TimedTransfer::ActToCathodeRcd,
+        ] {
+            let contract = edge_contract(transfer);
+            assert_eq!(contract.launch_edge, None);
+            assert_eq!(contract.sample_edge, None);
+            assert_eq!(contract.max_propagation_ns, None);
+            assert_eq!(contract.evidence, Hp67TimingEvidence::SourceBlocked);
+        }
+    }
     #[test]
     fn hp67_sync_transitions_are_anchored_to_phi2_rising() {
         assert_eq!(HP67_SYNC_TRANSITION_EDGE, Hp67ClockEdge::Phi2Rising);
