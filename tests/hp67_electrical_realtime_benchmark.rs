@@ -11,9 +11,9 @@ use hp67emu::machines::hp67::{
     HP67_OBSERVED_WORD_TIME_US,
 };
 
-const DEFAULT_WORDS_PER_ROUND: usize = 5_000;
+const DEFAULT_WORDS_PER_ROUND: usize = 50_000;
 const DEFAULT_ROUNDS: usize = 7;
-const DEFAULT_WARMUP_WORDS: usize = 250;
+const DEFAULT_WARMUP_WORDS: usize = 2_500;
 const CLOCK_EDGES_PER_BIT: u64 = 4;
 const BENCH_ADDRESS: u16 = 0x07b;
 const BENCH_EXECUTION_WORD: u16 = 0x11a;
