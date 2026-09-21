@@ -62,16 +62,18 @@ The current resolver is a generic digital primitive. Exact HP bus polarity, pass
 
 ## Deterministic device scheduling
 
-Devices implement the conceptual split in `ElectricalDevice`:
+Devices obey one scheduling contract:
 
 1. **resolve** all nets from already-committed drives;
 2. **snapshot/sample** the same resolved inputs for every device;
 3. **evaluate** each device for the current tick;
-4. **collect** proposed output drives;
+4. **collect/stage** proposed output drives;
 5. **commit** all drives together;
 6. advance time.
 
-No chip may observe another chip merely because it happened to be earlier in a Rust `Vec`. This rule is central to cycle accuracy and repeatable traces.
+No chip may observe another chip merely because it happened to be earlier in an implementation container. This rule is central to cycle accuracy and repeatable traces.
+
+The generic `ElectricalScheduler` remains the model-independent reference implementation of that contract. It intentionally uses ordered maps and boxed devices for clarity and arbitrary topologies. The HP-67 production machine does **not** use that representation in its edge hot path: `src/machines/hp67/electrical.rs` implements the same contract with fixed `Hp67Net` and `Hp67Driver` indices, fixed pending buffers and direct resolved-level counters. Normal HP-67 ticks therefore require no map construction, no driver-name lookup and no heap allocation. This specialization is an implementation detail only; it must never alter source-backed electrical ordering, passive bias, contention visibility or trace semantics.
 
 ## HP-67 machine composition
 
@@ -143,4 +145,6 @@ Shared chips can later move to families such as `src/chips/woodstock/` once at l
 
 ## Current architectural debt
 
-`src/hp67.rs` is a temporary UI-facing state object. It owns formatted display text and semantic key actions only so the front panel remains testable before the core exists. It must disappear once the HP-67 electrical machine reaches power-on/display/key milestones.
+`src/hp67.rs` still contains the temporary live-machine bridge that runs instruction-boundary architectural execution alongside the structural serial path. That bridge remains a correctness oracle until timed ACT/RAM device state becomes authoritative; it must not survive as the source of truth in the final fidelity mode. The measured architectural fallback cost is small compared with the electrical path, so removal is driven by correctness/ownership rather than micro-optimization.
+
+The generic map-backed `ElectricalScheduler` is retained as reusable reference infrastructure, not as the HP-67 production scheduler. The HP-67-specific dense fabric now owns the fixed topology needed for M14B and later device scheduling.
