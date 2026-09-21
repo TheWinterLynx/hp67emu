@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use crate::emulation::{Bias, Drive, DriverId, LogicLevel, Net, Tick, TwoPhaseClock};
 
 use super::{
-    timing::{Hp67ClockPhase, Hp67WordTiming},
+    timing::{Hp67ClockEdge, Hp67ClockPhase, Hp67WordTiming},
     wiring::Hp67Net,
 };
 
@@ -33,6 +33,7 @@ const fn hp67_clock_drive(active: bool) -> Drive {
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalBackplane {
     clock: TwoPhaseClock,
+    clock_phase: Hp67ClockPhase,
     word_timing: Hp67WordTiming,
     nets: BTreeMap<Hp67Net, Net>,
 }
@@ -56,6 +57,7 @@ impl Default for Hp67ElectricalBackplane {
             .collect();
         Self {
             clock: TwoPhaseClock::default(),
+            clock_phase: Hp67ClockPhase::InterphaseAfterPhi2,
             word_timing: Hp67WordTiming::default(),
             nets,
         }
@@ -74,7 +76,7 @@ impl Hp67ElectricalBackplane {
 
     /// Current named HP-67 clock position inside the serial bit.
     pub const fn clock_phase(&self) -> Hp67ClockPhase {
-        self.word_timing.clock_phase()
+        self.clock_phase
     }
 
     /// Current 4-bit digit coordinate (`0..13`).
@@ -107,12 +109,26 @@ impl Hp67ElectricalBackplane {
     /// Page-70 HP-67 captures show both PHI pins normally high with alternating
     /// low-going pulses. Pulse width/dead time remain uncalibrated; only the pin
     /// polarity and non-overlap relationship are source-backed here.
-    pub fn advance_clock(&mut self) -> Tick {
+    pub fn advance_clock_edge(&mut self) -> (Tick, Hp67ClockEdge) {
+        let (next_phase, edge) = self.clock_phase.advance();
         let levels = self.clock.advance();
+        self.clock_phase = next_phase;
         self.drive(Hp67Net::Phi1, CLOCK_DRIVER, hp67_clock_drive(levels.phi1));
         self.drive(Hp67Net::Phi2, CLOCK_DRIVER, hp67_clock_drive(levels.phi2));
+        debug_assert_eq!(
+            self.level(Hp67Net::Phi1) == LogicLevel::Low,
+            self.clock_phase.phi1_low()
+        );
+        debug_assert_eq!(
+            self.level(Hp67Net::Phi2) == LogicLevel::Low,
+            self.clock_phase.phi2_low()
+        );
         self.word_timing.advance_clock_subphase();
-        self.clock.tick()
+        (self.clock.tick(), edge)
+    }
+
+    pub fn advance_clock(&mut self) -> Tick {
+        self.advance_clock_edge().0
     }
 }
 
@@ -141,13 +157,21 @@ mod tests {
     #[test]
     fn hp67_clock_pulses_are_active_low_and_never_overlap() {
         let mut backplane = Hp67ElectricalBackplane::default();
+        assert_eq!(
+            backplane.clock_phase(),
+            Hp67ClockPhase::InterphaseAfterPhi2
+        );
         let mut observed = Vec::new();
+        let mut edges = Vec::new();
         for _ in 0..8 {
-            backplane.advance_clock();
+            let (_, edge) = backplane.advance_clock_edge();
             let phi1 = backplane.level(Hp67Net::Phi1);
             let phi2 = backplane.level(Hp67Net::Phi2);
             assert!(!(phi1 == LogicLevel::Low && phi2 == LogicLevel::Low));
+            assert_eq!(phi1 == LogicLevel::Low, backplane.clock_phase().phi1_low());
+            assert_eq!(phi2 == LogicLevel::Low, backplane.clock_phase().phi2_low());
             observed.push((phi1, phi2));
+            edges.push(edge);
         }
         assert_eq!(
             observed,
@@ -160,6 +184,19 @@ mod tests {
                 (LogicLevel::High, LogicLevel::High),
                 (LogicLevel::High, LogicLevel::Low),
                 (LogicLevel::High, LogicLevel::High),
+            ]
+        );
+        assert_eq!(
+            edges,
+            vec![
+                Hp67ClockEdge::Phi1Falling,
+                Hp67ClockEdge::Phi1Rising,
+                Hp67ClockEdge::Phi2Falling,
+                Hp67ClockEdge::Phi2Rising,
+                Hp67ClockEdge::Phi1Falling,
+                Hp67ClockEdge::Phi1Rising,
+                Hp67ClockEdge::Phi2Falling,
+                Hp67ClockEdge::Phi2Rising,
             ]
         );
     }
