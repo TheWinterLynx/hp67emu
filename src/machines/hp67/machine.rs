@@ -15,7 +15,6 @@ use super::{
 
 const CLOCK_DRIVER: DriverId = DriverId::new("hp67-act-clock-scaffold");
 
-
 /// Pin-level connection fabric for HP-67 devices.
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalBackplane {
