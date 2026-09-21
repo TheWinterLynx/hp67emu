@@ -84,35 +84,19 @@ impl Hp67ElectricalBackplane {
         // transitions per word through a generic named-driver container.
         let edge = match tick.get() & 0b11 {
             1 => {
-                self.drive(
-                    Hp67Net::Phi1,
-                    Hp67Driver::Act1820_2530,
-                    Drive::Low,
-                );
+                self.drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low);
                 Hp67ClockEdge::Phi1Falling
             }
             2 => {
-                self.drive(
-                    Hp67Net::Phi1,
-                    Hp67Driver::Act1820_2530,
-                    Drive::High,
-                );
+                self.drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High);
                 Hp67ClockEdge::Phi1Rising
             }
             3 => {
-                self.drive(
-                    Hp67Net::Phi2,
-                    Hp67Driver::Act1820_2530,
-                    Drive::Low,
-                );
+                self.drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low);
                 Hp67ClockEdge::Phi2Falling
             }
             _ => {
-                self.drive(
-                    Hp67Net::Phi2,
-                    Hp67Driver::Act1820_2530,
-                    Drive::High,
-                );
+                self.drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High);
                 Hp67ClockEdge::Phi2Rising
             }
         };
