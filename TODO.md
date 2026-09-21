@@ -55,6 +55,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add tested IS serializers that emit address/ROM bits LSB-first and represent zero as bus release against the passive low bias.
 - [x] Add structural ACT↔ROM serial fetch endpoints that reconstruct the 12-bit address and 10-bit result only from resolved IS levels, plus a one-cycle fetch/execution pipeline latch.
 - [x] Lock the page-70 SYNC edge anchor: both rising and falling SYNC transitions align with PHI2 rising.
+- [x] Separate current HP-67 PHI pin phase from the word-timing subphase counter and expose the physical edge crossed by each scheduler step.
 - [ ] Convert the remaining page-70 HP-67 IS/DATA waveforms into explicit driver launch/sample-edge conventions and propagation constraints.
 - [x] Lock source-backed display timing facts: STR occurs on display bit 7; low-going STR starts the segment interval; normal segments are about 40 us, DP about 30 us, DP-to-STR gap about 5 us and STR pulse about 5 us; low-going RCD resets the cathode scan and overlaps final-slot STR.
 - [ ] Convert STR/RCD observations into exact PHI-relative electrical edges and propagation constraints.
