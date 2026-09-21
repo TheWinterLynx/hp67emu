@@ -33,3 +33,17 @@ The Standard Pac directory also contains `SD1-15A-Diagnostic-Program.hp67card`, 
 container conversion of the existing source-backed SD1-15A Teenix sides. The separately supplied
 `SD-15C` fixture is kept unchanged under `HP-67 Diagnostic Cards`; it is not renamed or silently
 substituted for SD1-15A.
+
+
+## Automated Cargo suite
+
+All twelve native cards can be executed end-to-end through the real firmware, card transport,
+physical A-key dispatch and raw LED display path with:
+
+```powershell
+cargo test --release --locked --bin hp67emu live_custom_diagnostic_pac_suite_reports_ok_ko -- --ignored --nocapture
+```
+
+The suite keeps running after an individual failure so the output contains one `OK`/`KO` row
+per card. The Cargo test fails at the end if any diagnostic is `KO`; a clean run ends with
+`DIAGNOSTIC SUITE OK: 12/12 passed`.
