@@ -116,26 +116,10 @@ fn staged_phi_scheduler_stream(words: usize) -> u64 {
                 black_box(snapshot.level(Hp67Net::Phi2));
 
                 match (snapshot.tick().get() + 1) & 0b11 {
-                    1 => stager.stage_drive(
-                        Hp67Net::Phi1,
-                        Hp67Driver::Act1820_2530,
-                        Drive::Low,
-                    ),
-                    2 => stager.stage_drive(
-                        Hp67Net::Phi1,
-                        Hp67Driver::Act1820_2530,
-                        Drive::High,
-                    ),
-                    3 => stager.stage_drive(
-                        Hp67Net::Phi2,
-                        Hp67Driver::Act1820_2530,
-                        Drive::Low,
-                    ),
-                    _ => stager.stage_drive(
-                        Hp67Net::Phi2,
-                        Hp67Driver::Act1820_2530,
-                        Drive::High,
-                    ),
+                    1 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+                    2 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+                    3 => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+                    _ => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
                 }
             }
 
