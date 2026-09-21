@@ -16,35 +16,40 @@ The last number is a scheduler workload comparison only. M14A does not claim fou
 
 ## Measured paths
 
-`tests/hp67_electrical_realtime_benchmark.rs` reports six continuous paths:
+`tests/hp67_electrical_realtime_benchmark.rs` reports seven continuous paths:
 
 1. `PHI backplane / resolved clock nets`
    - advances all four named PHI transitions for every bit-cell;
    - drives/resolves the HP-67 PHI nets continuously.
 
-2. `IS ACT<->ROM structural fetch`
-   - includes the PHI path above;
+2. `dense staged scheduler / PHI`
+   - advances the same PHI topology through the fixed HP-67 snapshot/stage/commit scheduler contract;
+   - exercises immutable resolved snapshots, fixed pending drive slots and atomic commit with no normal-path heap allocation;
+   - measures the scheduler representation intended for M14B devices, independently of IS/ROM work.
+
+3. `IS ACT<->ROM structural fetch`
+   - includes the immediate PHI path above;
    - resolves shared IS ownership;
    - serializes ACT->ROM 12-bit addresses at b16..b27;
    - reconstructs the ROM address from resolved IS;
    - serializes ROM->ACT 10-bit instruction words at b46..b55;
    - reconstructs the returned word at the ACT endpoint.
 
-3. `IS + ROM0 display + serial ACT execution`
+4. `IS + ROM0 display + serial ACT execution`
    - includes the previous path;
    - adds ROM0 display traffic;
    - advances the 15-word display phase continuously;
    - advances one serial ACT instruction through b0..b55 for every measured word.
 
-4. `architectural execution only`
+5. `architectural execution only`
    - isolates the current instruction-boundary `Hp67ArchitecturalMachine::execute_word()` path;
    - exposes host-side semantic/transactional cost that is not part of the structural row.
 
-5. `production dual architectural + structural`
+6. `production dual architectural + structural`
    - mirrors the current live-machine ordering: bind serial pre-state, execute the architectural fallback, then traverse the structural display/fetch word;
    - is the relevant current throughput baseline until the serial/electrical path becomes authoritative and the architectural bridge can be removed.
 
-6. `real firmware architectural + structural`
+7. `real firmware architectural + structural`
    - runs the versioned `Hp67Firmware` image instead of a constant ROM fixture;
    - follows the fetched HP-67 control flow while keeping the same dual architectural+structural execution arrangement;
    - is the most representative CPU/ROM throughput row in this benchmark, although UI, card transport and future DATA/RAM electrical devices remain outside its scope.
