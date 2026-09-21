@@ -106,6 +106,7 @@ pub struct Hp67ElectricalFabric {
     pending: [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
     dirty_keys: [(u8, u8); MAX_PENDING_DRIVES],
     dirty_len: usize,
+    contention_net_count: u8,
 }
 
 impl Default for Hp67ElectricalFabric {
@@ -131,6 +132,7 @@ impl Default for Hp67ElectricalFabric {
             pending: [[None; Hp67Driver::COUNT]; Hp67Net::COUNT],
             dirty_keys: [(0, 0); MAX_PENDING_DRIVES],
             dirty_len: 0,
+            contention_net_count: 0,
         }
     }
 }
@@ -153,7 +155,7 @@ impl Hp67ElectricalFabric {
     /// M14B device evaluation should prefer stage_drive plus commit_staged so
     /// every device reads one immutable snapshot.
     pub fn set_drive_immediate(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
-        self.nets[net.index()].set_drive(driver, drive);
+        self.apply_drive(net.index(), driver, drive);
     }
 
     /// Advance canonical electrical time without staged outputs.
@@ -168,7 +170,9 @@ impl Hp67ElectricalFabric {
 
     /// Resolve one immutable input image before any device publishes next-tick outputs.
     pub fn snapshot(&self) -> Result<Hp67ElectricalSnapshot, Hp67ElectricalError> {
-        self.ensure_no_contention(self.tick)?;
+        if self.contention_net_count != 0 {
+            return Err(self.contention_error(self.tick));
+        }
         Ok(Hp67ElectricalSnapshot {
             tick: self.tick,
             levels: std::array::from_fn(|index| self.nets[index].level()),
@@ -200,26 +204,38 @@ impl Hp67ElectricalFabric {
                 .take()
                 .expect("dirty HP-67 electrical slot must contain a staged drive");
             let driver = Hp67Driver::ALL[driver_index];
-            self.nets[net_index].set_drive(driver, drive);
+            self.apply_drive(net_index, driver, drive);
         }
         self.dirty_len = 0;
         let tick = self.advance_tick();
-        self.ensure_no_contention(tick)?;
+        if self.contention_net_count != 0 {
+            return Err(self.contention_error(tick));
+        }
         Ok(tick)
     }
 
-    fn ensure_no_contention(&self, tick: Tick) -> Result<(), Hp67ElectricalError> {
-        for net in Hp67Net::ALL {
-            let dense = &self.nets[net.index()];
-            if dense.level() == LogicLevel::Contention {
-                let drivers = Hp67Driver::ALL
-                    .into_iter()
-                    .filter(|driver| dense.drive(*driver) != Drive::HighZ)
-                    .collect();
-                return Err(Hp67ElectricalError::Contention { tick, net, drivers });
-            }
+    fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
+        let was_contentious = self.nets[net_index].level() == LogicLevel::Contention;
+        self.nets[net_index].set_drive(driver, drive);
+        let is_contentious = self.nets[net_index].level() == LogicLevel::Contention;
+        match (was_contentious, is_contentious) {
+            (false, true) => self.contention_net_count += 1,
+            (true, false) => self.contention_net_count -= 1,
+            _ => {}
         }
-        Ok(())
+    }
+
+    fn contention_error(&self, tick: Tick) -> Hp67ElectricalError {
+        let net = Hp67Net::ALL
+            .into_iter()
+            .find(|net| self.nets[net.index()].level() == LogicLevel::Contention)
+            .expect("cached HP-67 contention count must identify a contentious net");
+        let dense = &self.nets[net.index()];
+        let drivers = Hp67Driver::ALL
+            .into_iter()
+            .filter(|driver| dense.drive(*driver) != Drive::HighZ)
+            .collect();
+        Hp67ElectricalError::Contention { tick, net, drivers }
     }
 }
 
