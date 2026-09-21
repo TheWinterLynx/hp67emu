@@ -270,11 +270,7 @@ mod tests {
     fn simultaneous_opposite_drives_report_contention_after_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
         fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
-        fabric.stage_drive(
-            Hp67Net::Data,
-            Hp67Driver::StructuralRomResponder,
-            Drive::Low,
-        );
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder, Drive::Low);
 
         assert_eq!(
             fabric.commit_staged(),
@@ -309,11 +305,7 @@ mod tests {
 
                     let mut dense = Hp67ElectricalFabric::default();
                     dense.set_drive_immediate(net, Hp67Driver::Act1820_2530, act_drive);
-                    dense.set_drive_immediate(
-                        net,
-                        Hp67Driver::StructuralRomResponder,
-                        rom_drive,
-                    );
+                    dense.set_drive_immediate(net, Hp67Driver::StructuralRomResponder, rom_drive);
 
                     assert_eq!(
                         dense.level(net),
