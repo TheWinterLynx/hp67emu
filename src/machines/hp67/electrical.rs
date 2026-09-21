@@ -290,6 +290,42 @@ mod tests {
     }
 
     #[test]
+    fn dense_resolution_matches_generic_net_for_all_two_driver_states() {
+        use crate::emulation::{DriverId, Net};
+
+        const REF_ACT: DriverId = DriverId::new("reference-act");
+        const REF_ROM: DriverId = DriverId::new("reference-rom");
+        let drives = [Drive::HighZ, Drive::Low, Drive::High];
+
+        for (net, bias) in [
+            (Hp67Net::Data, Bias::Floating),
+            (Hp67Net::Isa, Bias::PullDown),
+        ] {
+            for act_drive in drives {
+                for rom_drive in drives {
+                    let mut reference = Net::new(bias);
+                    reference.set_drive(REF_ACT, act_drive);
+                    reference.set_drive(REF_ROM, rom_drive);
+
+                    let mut dense = Hp67ElectricalFabric::default();
+                    dense.set_drive_immediate(net, Hp67Driver::Act1820_2530, act_drive);
+                    dense.set_drive_immediate(
+                        net,
+                        Hp67Driver::StructuralRomResponder,
+                        rom_drive,
+                    );
+
+                    assert_eq!(
+                        dense.level(net),
+                        reference.level(),
+                        "dense resolver drift for {net:?}: ACT={act_drive:?}, ROM={rom_drive:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn dense_driver_slots_update_resolved_level_in_constant_index_space() {
         let mut fabric = Hp67ElectricalFabric::default();
         fabric.set_drive_immediate(Hp67Net::Isa, Hp67Driver::Act1820_2530, Drive::High);
