@@ -42,7 +42,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## Next: evidence and timing
 
 - [ ] Transcribe the HP-67 schematic into a reviewed pin/net table.
-- [ ] Confirm exact HP-67 PHI1/PHI2 pulse width, period and non-overlap from primary/service or scope evidence.
+- [x] Lock direct HP-67 PHI1/PHI2 pin polarity and ordering from page-70 captures: normally high, alternating low-going non-overlapping pulses.
+- [ ] Confirm exact HP-67 PHI1/PHI2 pulse width, period and dead-time durations from primary/service or quantified scope evidence.
 - [x] Define the canonical 56-bit word numbering and bit numbering convention (`b0..b55`, 14 digits × 4 bits).
 - [x] Add an HP-67-specific word-timing scaffold that keeps the abstract PHI sequence aligned with the 56-bit coordinate without inventing physical durations.
 - [x] Confirm HP-67 IS/ISA passive/active behavior and fetch ownership: weak/passive low, active high/release, ACT address window followed by selected-ROM response.
