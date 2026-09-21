@@ -114,6 +114,7 @@ mod tests {
             assert_eq!(net.index(), index);
         }
     }
+
     #[test]
     fn required_serial_and_display_control_nets_are_present() {
         for required in [
