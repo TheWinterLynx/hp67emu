@@ -520,28 +520,27 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        if let Some(endpoint) = rom0.as_deref_mut() {
-            if display_data_serial_bit(expected_bit).is_some() {
-                endpoint.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
-            }
-        }
-
-        if matches!(
-            isa_window_for_bit(expected_bit),
-            IsaWindow::RomAddress { .. }
-        ) {
-            rom.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa), source)?;
-        }
-
-        if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomWord { .. }) {
-            act.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
-        }
-
-        if backplane.level(Hp67Net::Isa) == LogicLevel::Contention {
+        let is_level = backplane.level(Hp67Net::Isa);
+        if is_level == LogicLevel::Contention {
             return Err(SerialFetchError::IsaContention {
                 word_bit: expected_bit,
             }
             .into());
+        }
+
+        let display_bit = display_data_serial_bit(expected_bit);
+        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+            endpoint.sample_for_bit(expected_bit, is_level)?;
+        }
+
+        match isa_window_for_bit(expected_bit) {
+            IsaWindow::RomAddress { .. } => {
+                rom.sample_for_bit(expected_bit, is_level, source)?;
+            }
+            IsaWindow::RomWord { .. } => {
+                act.sample_for_bit(expected_bit, is_level)?;
+            }
+            IsaWindow::Other => {}
         }
 
         for _ in 0..4 {
