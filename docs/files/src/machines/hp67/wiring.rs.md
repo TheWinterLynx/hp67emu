@@ -13,4 +13,4 @@ Consumed by `machine.rs` and future HP-67 chip modules. Evidence for each entry 
 Enumerate confirmed chips, expose part numbers, enumerate currently confirmed core nets, and keep uncertain signals out until verified.
 
 ## Implementation
-`Hp67Chip` maps enum variants to physical part numbers and `CHIPSET` provides the inventory. `Hp67Net` names PHI1/PHI2, ISA, DATA, SYNC, RCD, STR, F1/F2 and KC1–KC5. Tests catch duplicate part numbers and accidental removal of required core nets.
+`Hp67Chip` maps enum variants to physical part numbers and `CHIPSET` provides the inventory. `Hp67Net` names PHI1/PHI2, ISA, DATA, SYNC, RCD, STR, F1/F2 and KC1–KC5. The net enum is `repr(u8)` with a tested dense `index()`/`COUNT` contract so the HP-67 hot path can use fixed arrays instead of tree maps without changing electrical semantics. Tests catch duplicate part numbers, index/order drift and accidental removal of required core nets.
