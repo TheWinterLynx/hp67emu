@@ -486,6 +486,15 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         endpoint.begin_word();
     }
 
+    // Each endpoint owns its named IS driver. Reset that ownership once at the
+    // word boundary, then publish only actual drive-state transitions below.
+    // This preserves every resolved bit-cell level while avoiding redundant
+    // High-Z/same-level writes on the shared electrical net.
+    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    let mut previous_act_drive = Drive::HighZ;
+    let mut previous_rom_drive = Drive::HighZ;
+
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
@@ -500,8 +509,16 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             }
             Err(error) => return Err(error.into()),
         };
-        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
-        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
+        if act_drive != previous_act_drive {
+            backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
+            previous_act_drive = act_drive;
+        }
+
+        let rom_drive = rom.drive_for_bit(expected_bit);
+        if rom_drive != previous_rom_drive {
+            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom_drive);
+            previous_rom_drive = rom_drive;
+        }
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             if display_data_serial_bit(expected_bit).is_some() {
@@ -514,7 +531,6 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::RomAddress { .. }
         ) {
             rom.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa), source)?;
-            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
         }
 
         if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomWord { .. }) {
