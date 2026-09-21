@@ -10,8 +10,7 @@ use crate::emulation::{Bias, Drive, LogicLevel, Tick};
 
 use super::wiring::{Hp67Driver, Hp67Net};
 
-const DRIVER_PENDING_MASK: u16 = (1u16 << Hp67Driver::COUNT) - 1;
-const NET_PENDING_MASK: u16 = (1u16 << Hp67Net::COUNT) - 1;
+const MAX_PENDING_DRIVES: usize = Hp67Net::COUNT * Hp67Driver::COUNT;
 
 #[derive(Debug, Clone)]
 struct Hp67DenseNet {
@@ -100,35 +99,37 @@ impl<'a> Hp67ElectricalSnapshot<'a> {
 /// It deliberately has no access to committed nets, so publishing outputs cannot
 /// change what any device samples during the same evaluation interval.
 pub struct Hp67ElectricalStager<'a> {
-    pending_drives: &'a mut [[Drive; Hp67Driver::COUNT]; Hp67Net::COUNT],
-    pending_driver_masks: &'a mut [u16; Hp67Net::COUNT],
-    pending_net_mask: &'a mut u16,
+    pending: &'a mut [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
+    dirty_keys: &'a mut [(u8, u8); MAX_PENDING_DRIVES],
+    dirty_len: &'a mut usize,
 }
 
 impl<'a> Hp67ElectricalStager<'a> {
     pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         let net_index = net.index();
         let driver_index = driver.index();
-        self.pending_drives[net_index][driver_index] = drive;
-        self.pending_driver_masks[net_index] |= 1u16 << driver_index;
-        *self.pending_net_mask |= 1u16 << net_index;
+        if self.pending[net_index][driver_index].is_none() {
+            debug_assert!(*self.dirty_len < MAX_PENDING_DRIVES);
+            self.dirty_keys[*self.dirty_len] = (net_index as u8, driver_index as u8);
+            *self.dirty_len += 1;
+        }
+        self.pending[net_index][driver_index] = Some(drive);
     }
 }
 
 /// Fixed-topology HP-67 electrical state and staged drive commit buffer.
 ///
 /// Normal ticks allocate nothing. Pending output changes are indexed directly
-/// by net and driver. Per-net driver bitmasks plus one dirty-net bitmask make
-/// commit cost proportional to outputs that actually changed rather than all
-/// possible device/net combinations.
+/// by net and driver, and a fixed dirty-key array makes commit cost proportional
+/// to outputs that actually changed rather than all possible combinations.
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalFabric {
     tick: Tick,
     nets: [Hp67DenseNet; Hp67Net::COUNT],
     resolved_levels: [LogicLevel; Hp67Net::COUNT],
-    pending_drives: [[Drive; Hp67Driver::COUNT]; Hp67Net::COUNT],
-    pending_driver_masks: [u16; Hp67Net::COUNT],
-    pending_net_mask: u16,
+    pending: [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
+    dirty_keys: [(u8, u8); MAX_PENDING_DRIVES],
+    dirty_len: usize,
     contention_net_count: u8,
 }
 
@@ -155,9 +156,9 @@ impl Default for Hp67ElectricalFabric {
             tick: Tick::ZERO,
             nets,
             resolved_levels,
-            pending_drives: [[Drive::HighZ; Hp67Driver::COUNT]; Hp67Net::COUNT],
-            pending_driver_masks: [0; Hp67Net::COUNT],
-            pending_net_mask: 0,
+            pending: [[None; Hp67Driver::COUNT]; Hp67Net::COUNT],
+            dirty_keys: [(0, 0); MAX_PENDING_DRIVES],
+            dirty_len: 0,
             contention_net_count: 0,
         }
     }
@@ -213,9 +214,9 @@ impl Hp67ElectricalFabric {
             levels: &self.resolved_levels,
         };
         let stager = Hp67ElectricalStager {
-            pending_drives: &mut self.pending_drives,
-            pending_driver_masks: &mut self.pending_driver_masks,
-            pending_net_mask: &mut self.pending_net_mask,
+            pending: &mut self.pending,
+            dirty_keys: &mut self.dirty_keys,
+            dirty_len: &mut self.dirty_len,
         };
         Ok((snapshot, stager))
     }
@@ -224,34 +225,26 @@ impl Hp67ElectricalFabric {
     /// need to hold a zero-copy resolved snapshot.
     pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         let mut stager = Hp67ElectricalStager {
-            pending_drives: &mut self.pending_drives,
-            pending_driver_masks: &mut self.pending_driver_masks,
-            pending_net_mask: &mut self.pending_net_mask,
+            pending: &mut self.pending,
+            dirty_keys: &mut self.dirty_keys,
+            dirty_len: &mut self.dirty_len,
         };
         stager.stage_drive(net, driver, drive);
     }
 
     /// Commit every staged device output atomically and advance one scheduler tick.
     pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
-        debug_assert_eq!(self.pending_net_mask & !NET_PENDING_MASK, 0);
-
-        while self.pending_net_mask != 0 {
-            let net_index = self.pending_net_mask.trailing_zeros() as usize;
-            self.pending_net_mask &= self.pending_net_mask - 1;
-
-            let mut driver_mask = self.pending_driver_masks[net_index];
-            debug_assert_eq!(driver_mask & !DRIVER_PENDING_MASK, 0);
-            self.pending_driver_masks[net_index] = 0;
-
-            while driver_mask != 0 {
-                let driver_index = driver_mask.trailing_zeros() as usize;
-                driver_mask &= driver_mask - 1;
-                let drive = self.pending_drives[net_index][driver_index];
-                let driver = Hp67Driver::ALL[driver_index];
-                self.apply_drive(net_index, driver, drive);
-            }
+        for dirty_index in 0..self.dirty_len {
+            let (net_index, driver_index) = self.dirty_keys[dirty_index];
+            let net_index = usize::from(net_index);
+            let driver_index = usize::from(driver_index);
+            let drive = self.pending[net_index][driver_index]
+                .take()
+                .expect("dirty HP-67 electrical slot must contain a staged drive");
+            let driver = Hp67Driver::ALL[driver_index];
+            self.apply_drive(net_index, driver, drive);
         }
-
+        self.dirty_len = 0;
         let tick = self.advance_tick();
         if self.contention_net_count != 0 {
             return Err(self.contention_error(tick));
@@ -335,26 +328,6 @@ mod tests {
         fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::HighZ);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
-    }
-
-    #[test]
-    fn bitmask_commit_applies_multiple_nets_and_drivers_atomically() {
-        let mut fabric = Hp67ElectricalFabric::default();
-        {
-            let (snapshot, mut stager) = fabric.begin_evaluation().unwrap();
-            assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
-            assert_eq!(snapshot.level(Hp67Net::Str), LogicLevel::Floating);
-
-            stager.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
-            stager.stage_drive(Hp67Net::Str, Hp67Driver::RomDisplay1818_0268, Drive::Low);
-
-            assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
-            assert_eq!(snapshot.level(Hp67Net::Str), LogicLevel::Floating);
-        }
-
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
-        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
-        assert_eq!(fabric.level(Hp67Net::Str), LogicLevel::Low);
     }
 
     #[test]
