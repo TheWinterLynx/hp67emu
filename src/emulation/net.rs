@@ -193,6 +193,7 @@ mod tests {
         assert_eq!(net.level(), LogicLevel::Floating);
         assert_eq!(net.active_driver_count(), 0);
     }
+
     #[test]
     fn active_driver_diagnostics_are_stably_sorted() {
         let mut net = Net::new(Bias::Floating);
