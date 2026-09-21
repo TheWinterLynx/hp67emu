@@ -1,6 +1,8 @@
 use super::*;
 
-use hp67emu::machines::hp67::{Hp67CardTrack, Hp67Key, Hp67MagneticCard};
+use hp67emu::machines::hp67::{
+    Hp67CardTrack, Hp67Key, Hp67MagneticCard, HP67_DISPLAY_SCAN_SLOTS,
+};
 
 const CARD_PASS_CYCLE_LIMIT: usize = 65_536;
 const CARD_PROMPT_CYCLE_LIMIT: usize = 16_384;
