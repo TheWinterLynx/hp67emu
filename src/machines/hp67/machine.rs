@@ -38,12 +38,12 @@ pub struct Hp67ElectricalBackplane {
 
 impl Default for Hp67ElectricalBackplane {
     fn default() -> Self {
-        let nets = std::array::from_fn(|index| {
+        let mut nets = std::array::from_fn(|index| {
             let net = Hp67Net::ALL[index];
             // HP-67 hardware probing shows the shared IS line resting low
             // through a weak internal path while active participants pull
-            // it high and otherwise release it. Other nets remain floating
-            // until their own passive behavior is evidenced.
+            // it high and otherwise release it. Other non-clock nets remain
+            // floating until their own passive behavior is evidenced.
             let bias = if net == Hp67Net::Isa {
                 Bias::PullDown
             } else {
@@ -51,6 +51,14 @@ impl Default for Hp67ElectricalBackplane {
             };
             Net::new(bias)
         });
+
+        // Direct HP-67 captures show PHI1/PHI2 normally high between their
+        // alternating low-going pulses. Seed those ACT clock outputs in the
+        // actual interphase level instead of starting the named phase with
+        // electrically floating pins.
+        nets[Hp67Net::Phi1.index()].set_drive(CLOCK_DRIVER, Drive::High);
+        nets[Hp67Net::Phi2.index()].set_drive(CLOCK_DRIVER, Drive::High);
+
         Self {
             clock: TwoPhaseClock::default(),
             clock_phase: Hp67ClockPhase::InterphaseAfterPhi2,
@@ -101,10 +109,27 @@ impl Hp67ElectricalBackplane {
     /// polarity and non-overlap relationship are source-backed here.
     pub fn advance_clock_edge(&mut self) -> (Tick, Hp67ClockEdge) {
         let (next_phase, edge) = self.clock_phase.advance();
-        let levels = self.clock.advance();
+        let _ = self.clock.advance();
         self.clock_phase = next_phase;
-        self.drive(Hp67Net::Phi1, CLOCK_DRIVER, hp67_clock_drive(levels.phi1));
-        self.drive(Hp67Net::Phi2, CLOCK_DRIVER, hp67_clock_drive(levels.phi2));
+
+        // Exactly one physical PHI output changes at each transition. Keeping
+        // the untouched line stable avoids redundant net-driver work without
+        // collapsing any electrical edge or changing the observable waveform.
+        match edge {
+            Hp67ClockEdge::Phi1Falling => {
+                self.drive(Hp67Net::Phi1, CLOCK_DRIVER, Drive::Low);
+            }
+            Hp67ClockEdge::Phi1Rising => {
+                self.drive(Hp67Net::Phi1, CLOCK_DRIVER, Drive::High);
+            }
+            Hp67ClockEdge::Phi2Falling => {
+                self.drive(Hp67Net::Phi2, CLOCK_DRIVER, Drive::Low);
+            }
+            Hp67ClockEdge::Phi2Rising => {
+                self.drive(Hp67Net::Phi2, CLOCK_DRIVER, Drive::High);
+            }
+        }
+
         debug_assert_eq!(
             self.level(Hp67Net::Phi1) == LogicLevel::Low,
             self.clock_phase.phi1_low()
@@ -128,13 +153,13 @@ mod tests {
     use crate::machines::hp67::timing::BITS_PER_WORD;
 
     #[test]
-    fn declared_nets_exist_and_only_is_has_an_evidenced_passive_low_bias() {
+    fn declared_nets_start_at_their_evidenced_idle_levels() {
         let backplane = Hp67ElectricalBackplane::default();
         for net in Hp67Net::ALL {
-            let expected = if net == Hp67Net::Isa {
-                LogicLevel::Low
-            } else {
-                LogicLevel::Floating
+            let expected = match net {
+                Hp67Net::Phi1 | Hp67Net::Phi2 => LogicLevel::High,
+                Hp67Net::Isa => LogicLevel::Low,
+                _ => LogicLevel::Floating,
             };
             assert_eq!(
                 backplane.level(net),
@@ -142,6 +167,7 @@ mod tests {
                 "unexpected initial level for {net:?}"
             );
         }
+        assert_eq!(backplane.clock_phase(), Hp67ClockPhase::InterphaseAfterPhi2);
     }
 
     #[test]
