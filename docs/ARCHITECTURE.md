@@ -148,3 +148,8 @@ Shared chips can later move to families such as `src/chips/woodstock/` once at l
 `src/hp67.rs` still contains the temporary live-machine bridge that runs instruction-boundary architectural execution alongside the structural serial path. That bridge remains a correctness oracle until timed ACT/RAM device state becomes authoritative; it must not survive as the source of truth in the final fidelity mode. The measured architectural fallback cost is small compared with the electrical path, so removal is driven by correctness/ownership rather than micro-optimization.
 
 The generic map-backed `ElectricalScheduler` is retained as reusable reference infrastructure, not as the HP-67 production scheduler. The HP-67-specific dense fabric now owns the fixed topology needed for M14B and later device scheduling.
+
+
+### M14A dense scheduler performance decision
+
+The 2026-09-22 matched-observation benchmark validated the typed pending-entry + slot-marker scheduler representation: full staged PHI measured 1.221 us/word (262.05x the observed ~320 us HP-67 word time) on the validation host, versus 2.954 us/word before the representation change. The project therefore keeps the zero-copy resolved snapshot and direct typed pending entries as the M14B scheduler foundation. Further optimization should be driven by measured regressions after real DATA/RAM/STR/RCD devices are added, rather than by synthetic PHI microbenchmark tuning alone.
