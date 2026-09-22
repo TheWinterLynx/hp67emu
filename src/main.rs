@@ -1,4 +1,7 @@
-#![cfg_attr(all(not(debug_assertions), not(test)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(not(debug_assertions), not(test), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 mod app;
 mod hp67;
@@ -6,8 +9,10 @@ mod panel;
 mod program_library;
 mod ui;
 
+#[cfg(not(target_arch = "wasm32"))]
 use eframe::egui;
 
+#[cfg(not(target_arch = "wasm32"))]
 fn native_options() -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -20,6 +25,7 @@ fn native_options() -> eframe::NativeOptions {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     eframe::run_native(
         "HP-67 Emulator",
@@ -28,6 +34,21 @@ fn main() -> eframe::Result<()> {
     )
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    wasm_bindgen_futures::spawn_local(async {
+        eframe::WebRunner::new()
+            .start(
+                "the_canvas_id",
+                eframe::WebOptions::default(),
+                Box::new(|cc| Box::new(app::Hp67App::new(cc))),
+            )
+            .await
+            .expect("failed to start HP-67 web emulator");
+    });
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
 #[test]
 fn native_window_is_resizable_without_a_maximum_size() {
     let options = native_options();
