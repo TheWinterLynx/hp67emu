@@ -107,3 +107,8 @@ Optional workload controls:
 - `HP67_BENCH_WORDS` — words per round, default 50000;
 - `HP67_BENCH_ROUNDS` — measured rounds, default 7;
 - `HP67_BENCH_WARMUP_WORDS` — warm-up words per path, default 2500.
+
+
+## Commit/timing separation
+
+The dense scheduler no longer advances `Tick` inside `commit_staged()`. PHI benchmark paths explicitly call `advance_tick()` after each successful staged commit, so the measured topology remains four transitions per bit-cell and 224 transitions per word. This is an architectural separation only: it does not add a new physical subphase or claim a propagation delay. Future evidence-backed settling events can commit electrical state without falsely incrementing the PHI coordinate.
