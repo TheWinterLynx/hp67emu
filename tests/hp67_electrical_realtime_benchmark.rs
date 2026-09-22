@@ -136,13 +136,14 @@ fn stage_commit_phi_stream(words: usize) -> u64 {
             black_box(fabric.level(Hp67Net::Phi2));
 
             {
+                let next_phase = (fabric.tick().get() + 1) & 0b11;
                 let mut staging = fabric
                     .begin_staging()
                     .expect("dense PHI staging must remain contention-free");
                 let mut act = staging
                     .claim_driver(Hp67Driver::Act1820_2530)
                     .expect("ACT must own one staged-output capability");
-                match (fabric.tick().get() + 1) & 0b11 {
+                match next_phase {
                     1 => act.stage_drive(Hp67Net::Phi1, Drive::Low),
                     2 => act.stage_drive(Hp67Net::Phi1, Drive::High),
                     3 => act.stage_drive(Hp67Net::Phi2, Drive::Low),
@@ -407,13 +408,14 @@ fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
 
     for _ in 0..edges {
         {
+            let next_phase = (fabric.tick().get() + 1) & 0b11;
             let mut staging = fabric
                 .begin_staging()
                 .expect("dense PHI staging trace must remain contention-free");
             let mut act = staging
                 .claim_driver(Hp67Driver::Act1820_2530)
                 .expect("ACT must own one staged-output capability");
-            match (fabric.tick().get() + 1) & 0b11 {
+            match next_phase {
                 1 => act.stage_drive(Hp67Net::Phi1, Drive::Low),
                 2 => act.stage_drive(Hp67Net::Phi1, Drive::High),
                 3 => act.stage_drive(Hp67Net::Phi2, Drive::Low),
