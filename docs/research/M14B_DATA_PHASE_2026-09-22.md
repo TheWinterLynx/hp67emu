@@ -115,3 +115,10 @@ The next benchmark-only slice adds a DATA-aware variant of the structural displa
 
 
 The conditional and fused RAM experiments deliberately ignore transfer plans whose address is not installed in `ActRamImage`. This keeps CRC/card data ports out of the RAM slice: CRC DATA behavior remains a separate peripheral/electrical milestone and is not inferred from RAM serialization.
+
+
+## Live integration after fused-loop validation
+
+The fused shape has now been wired into `Hp67LiveMachine` for installed RAM addresses only. For each executing RAM transfer, the live machine captures the source payload from pre-instruction state, executes the existing architectural oracle, then advances logical DATA inside the same structural word loop. The next-word b0/b1 tail completes the pending frame and the reconstructed register is checked exactly against the expected payload. Non-DATA words stay on the original structural fast path. CRC/card ports are deliberately excluded.
+
+This is still a WORKING APPROXIMATION at the RAM device boundary: the live path now carries the correct logical cross-word DATA phase, but no claim is made yet about the physical DATA pin voltage convention, PHI-relative drive/sample edges, propagation or which 1818-* package owns each RAM address.
