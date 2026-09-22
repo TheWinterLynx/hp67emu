@@ -44,15 +44,20 @@ pub const fn act_data_transfer_plan(
 ) -> Option<Hp67DataTransferPlan> {
     let low = word & 0o77;
     let operand = ((word >> 6) & 0x0f) as u8;
-    if word == 0o1360 || low == 0o50 {
-        let address = if low == 0o50 {
-            (state.ram_address & 0xf0) | operand
-        } else {
-            state.ram_address
-        };
+    if word == 0o1360 {
         Some(Hp67DataTransferPlan {
             direction: Hp67DataTransferDirection::ActToPeripheral,
-            address,
+            address: state.ram_address,
+        })
+    } else if word == 0o0070 {
+        Some(Hp67DataTransferPlan {
+            direction: Hp67DataTransferDirection::PeripheralToAct,
+            address: state.ram_address,
+        })
+    } else if low == 0o50 {
+        Some(Hp67DataTransferPlan {
+            direction: Hp67DataTransferDirection::ActToPeripheral,
+            address: (state.ram_address & 0xf0) | operand,
         })
     } else if low == 0o70 {
         Some(Hp67DataTransferPlan {
@@ -299,13 +304,22 @@ mod tests {
         let mut state = ActArchitecturalState::default();
         state.ram_address = 0x20;
 
+        state.ram_address = 0x27;
         assert_eq!(
             act_data_transfer_plan(0o1360, &state),
             Some(Hp67DataTransferPlan {
                 direction: Hp67DataTransferDirection::ActToPeripheral,
-                address: 0x20,
+                address: 0x27,
             })
         );
+        assert_eq!(
+            act_data_transfer_plan(0o0070, &state),
+            Some(Hp67DataTransferPlan {
+                direction: Hp67DataTransferDirection::PeripheralToAct,
+                address: 0x27,
+            })
+        );
+        state.ram_address = 0x20;
         assert_eq!(
             act_data_transfer_plan((3 << 6) | 0o50, &state),
             Some(Hp67DataTransferPlan {
