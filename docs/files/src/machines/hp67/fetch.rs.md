@@ -39,3 +39,10 @@ M12 ROM0 modifier recoding: the HP-29C Service Manual states that Woodstock send
 ## M14B fused DATA experiment
 
 The internal structural word transport is now generic over a monomorphized per-bit visitor. Existing production/fetch/display callers pass a no-op closure, which is intended to optimize away completely; the new `run_structural_display_fetch_data_phase_cycle()` passes `Hp67DataSerialWordPath::visit_word_bit()` so DATA logical phase advances inside the same b0..b55 loop as IS/display/fetch. This function remains an experiment and does not drive `Hp67Net::Data` or choose DATA polarity/PHI edges. A normal regression proves that one DATA frame can span two structural words without disturbing ROM fetch or the word counter.
+
+
+## M14B monomorphic fast-path correction
+
+After validating live fused DATA, the established no-DATA structural benchmark showed a large slowdown in the fixed-word `full structural` and `production dual` rows even though real-firmware throughput remained near its historical value. The shared transport had been generalized with a per-bit generic visitor to support DATA. To protect the long-lived structural fast path from optimizer/codegen sensitivity, `run_structural_word_transport()` has been restored as a dedicated monomorphic no-DATA function, while `run_structural_word_transport_with_data()` is its DATA-aware twin. The live DATA path uses only the DATA-aware twin; existing non-DATA callers use the original-shaped transport again.
+
+This deliberate duplication is a performance/fidelity boundary: the historical no-DATA path must remain stable, and new DATA work must not impose even compile-time specialization risk on it. Both functions still share the same source-backed IS/display/fetch logic and differ only by the explicit `Hp67DataSerialWordPath::visit_word_bit()` call in the DATA variant.
