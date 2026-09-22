@@ -1,11 +1,12 @@
 use std::time::Duration;
 
 use hp67emu::machines::hp67::{
-    decode_rom0_display_byte, display_register_index_for_scan_slot,
-    run_structural_display_fetch_cycle, ActOperation, ActSerialEndpoint, ActSerialRegister,
-    CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch,
-    Hp67ArchitecturalExecution, Hp67ArchitecturalMachine, Hp67ArchitecturalOperation,
-    Hp67CardTransport, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
+    run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle, ActOperation,
+    ActRegister, ActSerialEndpoint, ActSerialRegister, CardInsertionEnd, CathodeDriver1820_1749,
+    CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
+    Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
     Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
     CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
     HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
@@ -212,6 +213,8 @@ pub struct Hp67LiveMachine {
     display_rom0: Rom0DisplayEndpoint,
     cathode: CathodeDriver1820_1749,
     pipeline: FetchPipelineLatch,
+    data_serial: Hp67DataSerialWordPath,
+    pending_ram_data_expected: Option<ActRegister>,
     machine: Hp67ArchitecturalMachine,
     keyboard: Hp67Keyboard,
     card_transport: Hp67CardTransport,
@@ -236,6 +239,8 @@ impl Hp67LiveMachine {
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
             pipeline: FetchPipelineLatch::default(),
+            data_serial: Hp67DataSerialWordPath::default(),
+            pending_ram_data_expected: None,
             machine: Hp67ArchitecturalMachine::default(),
             keyboard: Hp67Keyboard::default(),
             card_transport: Hp67CardTransport::default(),
@@ -263,6 +268,8 @@ impl Hp67LiveMachine {
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
         self.pipeline = FetchPipelineLatch::default();
+        self.data_serial = Hp67DataSerialWordPath::default();
+        self.pending_ram_data_expected = None;
         self.machine = Hp67ArchitecturalMachine::default();
         self.keyboard = Hp67Keyboard::default();
         self.card_transport = Hp67CardTransport::default();
@@ -411,9 +418,19 @@ impl Hp67LiveMachine {
 
         let mut idle_after_word = false;
         let mut executed = None;
+        let mut ram_data_payload = None;
         self.pipeline.begin_cycle();
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
+
+            if let Some(plan) = act_data_transfer_plan(word, &self.machine.act.state) {
+                if let Some(ram_word) = self.machine.ram.read(plan.address) {
+                    ram_data_payload = Some(match plan.direction {
+                        Hp67DataTransferDirection::ActToPeripheral => self.machine.act.state.c,
+                        Hp67DataTransferDirection::PeripheralToAct => ram_word,
+                    });
+                }
+            }
             let startup_serial_state = if self.display_control_seen {
                 None
             } else {
@@ -482,7 +499,7 @@ impl Hp67LiveMachine {
                 && self.machine.act.state.key_buffer.is_none();
         }
 
-        self.transport_fetch_word(cycle)?;
+        self.transport_fetch_word(cycle, ram_data_payload)?;
 
         if let Some(word) = self.pipeline.executing_word() {
             let serial_execution = self.act_serial.serial_execution().ok_or_else(|| {
@@ -519,7 +536,11 @@ impl Hp67LiveMachine {
         Ok(executed)
     }
 
-    fn transport_fetch_word(&mut self, cycle: u64) -> Result<(), String> {
+    fn transport_fetch_word(
+        &mut self,
+        cycle: u64,
+        ram_data_payload: Option<ActRegister>,
+    ) -> Result<(), String> {
         let requested_bank = self.machine.prepare_hp67_fetch();
         self.source.select_bank(requested_bank);
         let address = self.machine.pc();
@@ -533,16 +554,56 @@ impl Hp67LiveMachine {
         let display_state = startup_display_state
             .as_ref()
             .unwrap_or(&self.machine.act.state);
-        let result = run_structural_display_fetch_cycle(
-            &mut self.backplane,
-            address,
-            display_state,
-            &mut self.act_serial,
-            &mut self.fetch_rom,
-            &mut self.display_rom0,
-            &self.source,
-        )
-        .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?;
+        let result = if self.data_serial.frame_in_progress() || ram_data_payload.is_some() {
+            let fused = run_structural_display_fetch_data_phase_cycle(
+                &mut self.backplane,
+                address,
+                display_state,
+                &mut self.act_serial,
+                &mut self.fetch_rom,
+                &mut self.display_rom0,
+                &self.source,
+                &mut self.data_serial,
+                ram_data_payload,
+            )
+            .map_err(|error| {
+                format!("live cycle {cycle} shared DATA word failed: {error:?}")
+            })?;
+
+            match (self.pending_ram_data_expected.take(), fused.completed_data) {
+                (Some(expected), Some(actual)) if actual == expected => {}
+                (Some(expected), Some(actual)) => {
+                    return Err(format!(
+                        "live cycle {cycle} RAM DATA mismatch: expected={expected:?} actual={actual:?}"
+                    ));
+                }
+                (Some(expected), None) => {
+                    return Err(format!(
+                        "live cycle {cycle} RAM DATA frame did not complete: expected={expected:?}"
+                    ));
+                }
+                (None, Some(actual)) => {
+                    return Err(format!(
+                        "live cycle {cycle} RAM DATA frame completed unexpectedly: actual={actual:?}"
+                    ));
+                }
+                (None, None) => {}
+            }
+
+            self.pending_ram_data_expected = ram_data_payload;
+            fused.word
+        } else {
+            run_structural_display_fetch_cycle(
+                &mut self.backplane,
+                address,
+                display_state,
+                &mut self.act_serial,
+                &mut self.fetch_rom,
+                &mut self.display_rom0,
+                &self.source,
+            )
+            .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
+        };
         self.pipeline.complete_cycle(result.fetched_word);
 
         let scan_slot = result.str_event.scan_slot;
