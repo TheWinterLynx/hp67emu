@@ -61,3 +61,6 @@ The first WASM slice intentionally preserves the native filesystem import/save c
 
 
 WASM viewport adaptation: browser builds must not use `Context::show_viewport_immediate` for the Program Library or Save Card surfaces because eframe web cannot provide independent native child windows. On `wasm32`, the Program Library is therefore an ordinary movable/resizable `egui::Window` with both title-bar close control and an explicit `Close` button; a successful `Load card` also closes it immediately so the calculator becomes visible again. The native build retains the independent child viewport implementation unchanged. The browser Save Card surface is likewise a closable embedded window and explicitly reports that browser export is not implemented yet instead of attempting a native path write.
+
+
+WASM warning-clean boundary: native-only path-based card export helpers are now `cfg(not(target_arch = "wasm32"))` so a `-Dwarnings` wasm build does not retain dead filesystem save code that the browser UI intentionally cannot invoke. The browser Program Library also renders the same `source_pdf` provenance metadata as desktop, keeping the shared `ProgramLibraryEntry` fields live on both targets.
