@@ -105,10 +105,9 @@ impl Hp67DataSerialSource {
         debug_assert!(word_bit < BITS_PER_WORD);
         match word_bit {
             0 | 1 => self.previous_tail.map(|tail| tail[word_bit as usize]),
-            _ => self
-                .current
-                .as_ref()
-                .map(|register| data_register_serial_bit(register, data_serial_bit_for_word_bit(word_bit))),
+            _ => self.current.as_ref().map(|register| {
+                data_register_serial_bit(register, data_serial_bit_for_word_bit(word_bit))
+            }),
         }
     }
 
@@ -302,8 +301,6 @@ mod tests {
     #[test]
     fn transfer_plan_matches_ram_read_write_address_semantics() {
         let mut state = ActArchitecturalState::default();
-        state.ram_address = 0x20;
-
         state.ram_address = 0x27;
         assert_eq!(
             act_data_transfer_plan(0o1360, &state),
