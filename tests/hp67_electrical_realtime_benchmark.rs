@@ -458,7 +458,9 @@ fn matched_phi_paths_preserve_identical_trace_and_tick_progression() {
     assert_eq!(stage_commit, raw);
     assert_eq!(staged, raw);
     assert_eq!(
-        raw.last().expect("PHI trace must contain its final sample").tick,
+        raw.last()
+            .expect("PHI trace must contain its final sample")
+            .tick,
         edges as u64
     );
 }
