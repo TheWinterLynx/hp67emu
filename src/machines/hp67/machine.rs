@@ -78,7 +78,7 @@ impl Hp67ElectricalBackplane {
         self.fabric.stage_drive(owner, net, drive);
     }
 
-    pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
+    pub fn commit_staged(&mut self) -> Result<(), Hp67ElectricalError> {
         self.fabric.commit_staged()
     }
 
