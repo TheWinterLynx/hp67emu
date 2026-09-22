@@ -135,20 +135,11 @@ fn stage_commit_phi_stream(words: usize) -> u64 {
             black_box(fabric.level(Hp67Net::Phi1));
             black_box(fabric.level(Hp67Net::Phi2));
 
-            {
-                let next_phase = (fabric.tick().get() + 1) & 0b11;
-                let mut staging = fabric
-                    .begin_staging()
-                    .expect("dense PHI staging must remain contention-free");
-                let mut act = staging
-                    .claim_driver(Hp67Driver::Act1820_2530)
-                    .expect("ACT must own one staged-output capability");
-                match next_phase {
-                    1 => act.stage_drive(Hp67Net::Phi1, Drive::Low),
-                    2 => act.stage_drive(Hp67Net::Phi1, Drive::High),
-                    3 => act.stage_drive(Hp67Net::Phi2, Drive::Low),
-                    _ => act.stage_drive(Hp67Net::Phi2, Drive::High),
-                }
+            match (fabric.tick().get() + 1) & 0b11 {
+                1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+                2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+                3 => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+                _ => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
             }
 
             fabric
@@ -175,14 +166,11 @@ fn staged_phi_scheduler_stream(words: usize) -> u64 {
                 black_box(snapshot.level(Hp67Net::Phi1));
                 black_box(snapshot.level(Hp67Net::Phi2));
 
-                let mut act = stager
-                    .claim_driver(Hp67Driver::Act1820_2530)
-                    .expect("ACT must own one staged-output capability");
                 match (snapshot.tick().get() + 1) & 0b11 {
-                    1 => act.stage_drive(Hp67Net::Phi1, Drive::Low),
-                    2 => act.stage_drive(Hp67Net::Phi1, Drive::High),
-                    3 => act.stage_drive(Hp67Net::Phi2, Drive::Low),
-                    _ => act.stage_drive(Hp67Net::Phi2, Drive::High),
+                    1 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+                    2 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+                    3 => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+                    _ => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
                 }
             }
 
@@ -407,20 +395,11 @@ fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
     });
 
     for _ in 0..edges {
-        {
-            let next_phase = (fabric.tick().get() + 1) & 0b11;
-            let mut staging = fabric
-                .begin_staging()
-                .expect("dense PHI staging trace must remain contention-free");
-            let mut act = staging
-                .claim_driver(Hp67Driver::Act1820_2530)
-                .expect("ACT must own one staged-output capability");
-            match next_phase {
-                1 => act.stage_drive(Hp67Net::Phi1, Drive::Low),
-                2 => act.stage_drive(Hp67Net::Phi1, Drive::High),
-                3 => act.stage_drive(Hp67Net::Phi2, Drive::Low),
-                _ => act.stage_drive(Hp67Net::Phi2, Drive::High),
-            }
+        match (fabric.tick().get() + 1) & 0b11 {
+            1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+            2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+            3 => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+            _ => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
         }
         fabric
             .commit_staged()
@@ -449,14 +428,11 @@ fn staged_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
             let (snapshot, mut stager) = fabric
                 .begin_evaluation()
                 .expect("dense PHI trace snapshot must be contention-free");
-            let mut act = stager
-                .claim_driver(Hp67Driver::Act1820_2530)
-                .expect("ACT must own one staged-output capability");
             match (snapshot.tick().get() + 1) & 0b11 {
-                1 => act.stage_drive(Hp67Net::Phi1, Drive::Low),
-                2 => act.stage_drive(Hp67Net::Phi1, Drive::High),
-                3 => act.stage_drive(Hp67Net::Phi2, Drive::Low),
-                _ => act.stage_drive(Hp67Net::Phi2, Drive::High),
+                1 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
+                2 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
+                3 => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
+                _ => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
             }
         }
         fabric
