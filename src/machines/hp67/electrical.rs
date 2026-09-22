@@ -88,6 +88,25 @@ pub enum Hp67ElectricalError {
         net: Hp67Net,
         drivers: Vec<Hp67Driver>,
     },
+    DriverAlreadyOwned {
+        driver: Hp67Driver,
+    },
+}
+
+/// Opaque one-time ownership token for one HP-67 electrical output identity.
+///
+/// A fabric issues at most one token for each Hp67Driver. Device composition
+/// keeps the token and reuses it across every later evaluation, so ownership is
+/// validated once rather than on every electrical edge.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Hp67DriverOwner {
+    driver: Hp67Driver,
+}
+
+impl Hp67DriverOwner {
+    pub const fn driver(&self) -> Hp67Driver {
+        self.driver
+    }
 }
 
 /// Immutable resolved input image shared by every device evaluation in one tick.
@@ -118,7 +137,8 @@ pub struct Hp67ElectricalStager<'a> {
 }
 
 impl<'a> Hp67ElectricalStager<'a> {
-    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
+    pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
+        let driver = owner.driver;
         let net_index = net.index();
         let driver_index = driver.index();
         let marker = &mut self.pending_slot_markers[net_index][driver_index];
@@ -151,6 +171,7 @@ pub struct Hp67ElectricalFabric {
     pending_slot_markers: [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
     pending_changes: [Hp67PendingDrive; MAX_PENDING_DRIVES],
     pending_len: usize,
+    owned_drivers: [bool; Hp67Driver::COUNT],
     contention_net_count: u8,
 }
 
@@ -180,6 +201,7 @@ impl Default for Hp67ElectricalFabric {
             pending_slot_markers: [[0; Hp67Driver::COUNT]; Hp67Net::COUNT],
             pending_changes: [EMPTY_PENDING_DRIVE; MAX_PENDING_DRIVES],
             pending_len: 0,
+            owned_drivers: [false; Hp67Driver::COUNT],
             contention_net_count: 0,
         }
     }
@@ -196,6 +218,22 @@ impl Hp67ElectricalFabric {
 
     pub fn drive(&self, net: Hp67Net, driver: Hp67Driver) -> Drive {
         self.nets[net.index()].drive(driver)
+    }
+
+    /// Claim one physical output identity once during machine composition.
+    ///
+    /// The returned token is intentionally non-Clone and non-Copy. Repeated
+    /// runtime evaluations reuse the same token without rechecking ownership.
+    pub fn claim_driver_owner(
+        &mut self,
+        driver: Hp67Driver,
+    ) -> Result<Hp67DriverOwner, Hp67ElectricalError> {
+        let owned = &mut self.owned_drivers[driver.index()];
+        if *owned {
+            return Err(Hp67ElectricalError::DriverAlreadyOwned { driver });
+        }
+        *owned = true;
+        Ok(Hp67DriverOwner { driver })
     }
 
     /// Immediate committed drive used by the current M14A structural bridge.
@@ -244,13 +282,13 @@ impl Hp67ElectricalFabric {
 
     /// Convenience staging entry point for transitional callers that do not
     /// need to hold a zero-copy resolved snapshot.
-    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
+    pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
         let mut stager = Hp67ElectricalStager {
             pending_slot_markers: &mut self.pending_slot_markers,
             pending_changes: &mut self.pending_changes,
             pending_len: &mut self.pending_len,
         };
-        stager.stage_drive(net, driver, drive);
+        stager.stage_drive(owner, net, drive);
     }
 
     /// Commit every staged device output atomically and advance one scheduler tick.
