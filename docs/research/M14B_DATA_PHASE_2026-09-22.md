@@ -129,3 +129,10 @@ This is still a WORKING APPROXIMATION at the RAM device boundary: the live path 
 The first interleaved M14B DATA comparison still lived inside `hp67_electrical_realtime_benchmark.rs`. One owner run then reported unrelated standalone rows moving sharply (`PHI backplane` 1.686 us/word, structural fetch 1.478, full structural 1.594) while the production and firmware rows stayed near 1.0 us/word. Because raw PHI itself had not changed and the PHI comparison was already interleaved, that run could not be interpreted as a DATA or machine regression. It exposed code-generation sensitivity in the enlarged benchmark binary.
 
 The corrective action is architectural for the benchmark itself: restore the established electrical benchmark source to its M14A shape and move all M14B DATA-only/shadow/fused measurements into `tests/hp67_data_realtime_benchmark.rs`, a separate integration-test binary with its own companion documentation. The stable benchmark and the DATA experiment must now be run independently. The live fused DATA implementation remains unchanged by this correction.
+
+
+## Post-isolation benchmark interpretation
+
+The isolated owner run restored raw PHI and most established scheduler/firmware numbers to their historical neighborhood and confirmed the M14B comparison independently: baseline firmware `0.973 us/word`, shadow `0.990`, fused `0.980`, isolated DATA `0.063`. Thus fused logical DATA is within about `0.7%` of baseline in the rotating interleaved comparison, while the deliberately pessimistic second-loop shadow is about `1.7%` slower.
+
+However, the restored electrical benchmark still showed `full structural` at `1.312 us/word` and `production dual` at `1.344`, well above the M14A historical medians near `0.946` and `1.000`. Because both fixed-word paths share the generalized structural transport whereas the real-firmware row remained `0.961`, the remaining regression is treated as a code-generation/performance problem in the generalized no-DATA transport, not as a DATA correctness failure. The corrective slice restores a monomorphic no-DATA transport and keeps the DATA-aware loop in a separate function before M14B can be closed.
