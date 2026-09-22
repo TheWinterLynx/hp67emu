@@ -95,3 +95,6 @@ After performance validation, the next step is to attach logical DATA ownership 
 ## Fused-loop experiment
 
 The next benchmark-only slice adds a DATA-aware variant of the structural display/fetch cycle. It reuses the existing b0..b55 loop and invokes logical DATA visitation from that loop only on transfer or tail-completion words. Existing production callers still instantiate the same structural transport with a monomorphized no-op DATA visitor; therefore any material movement in the established benchmark rows is treated as a regression and blocks integration.
+
+
+The conditional and fused RAM experiments deliberately ignore transfer plans whose address is not installed in `ActRamImage`. This keeps CRC/card data ports out of the RAM slice: CRC DATA behavior remains a separate peripheral/electrical milestone and is not inferred from RAM serialization.
