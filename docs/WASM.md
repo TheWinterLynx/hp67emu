@@ -59,3 +59,7 @@ Browser filesystem import/export is not yet promoted as working functionality. T
 Secondary eframe viewports are a desktop feature. On web, egui may embed unsupported child viewports into the root UI. The calculator itself is the acceptance target for the first browser slice; Program Library and Save Card presentation will be adapted after the first real browser run if required.
 
 No GitHub Actions or automatic deployment are introduced by this slice.
+
+## Trunk release / wasm-opt compatibility
+
+Current rustc can emit standard WebAssembly bulk-memory instructions such as `memory.copy`. Trunk's cached Binaryen `wasm-opt` may validate release output with those features disabled unless the Rust asset passes the matching feature flags. `index.html` therefore supplies `--enable-bulk-memory` and `--enable-nontrapping-float-to-int` through Trunk's documented `data-wasm-opt-params` attribute. A flood of validator messages about `memory.copy operations require bulk memory operations` is one root cause repeated across many generated functions, not hundreds of independent emulator failures.
