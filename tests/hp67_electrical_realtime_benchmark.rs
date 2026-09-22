@@ -372,11 +372,13 @@ fn firmware_data_shadow_stream(words: usize) -> u64 {
         let mut current_payload = None;
         if let Some(word) = pipeline.executing_word() {
             if let Some(plan) = act_data_transfer_plan(word, &machine.act.state) {
-                current_payload = match plan.direction {
-                    Hp67DataTransferDirection::ActToPeripheral => Some(machine.act.state.c),
-                    Hp67DataTransferDirection::PeripheralToAct => machine.ram.read(plan.address),
-                };
-                checksum = checksum.wrapping_add(u64::from(plan.address));
+                if let Some(ram_word) = machine.ram.read(plan.address) {
+                    current_payload = Some(match plan.direction {
+                        Hp67DataTransferDirection::ActToPeripheral => machine.act.state.c,
+                        Hp67DataTransferDirection::PeripheralToAct => ram_word,
+                    });
+                    checksum = checksum.wrapping_add(u64::from(plan.address));
+                }
             }
 
             act.begin_execution(word, &machine.act.state)
@@ -452,11 +454,13 @@ fn firmware_data_fused_stream(words: usize) -> u64 {
         let mut current_payload = None;
         if let Some(word) = pipeline.executing_word() {
             if let Some(plan) = act_data_transfer_plan(word, &machine.act.state) {
-                current_payload = match plan.direction {
-                    Hp67DataTransferDirection::ActToPeripheral => Some(machine.act.state.c),
-                    Hp67DataTransferDirection::PeripheralToAct => machine.ram.read(plan.address),
-                };
-                checksum = checksum.wrapping_add(u64::from(plan.address));
+                if let Some(ram_word) = machine.ram.read(plan.address) {
+                    current_payload = Some(match plan.direction {
+                        Hp67DataTransferDirection::ActToPeripheral => machine.act.state.c,
+                        Hp67DataTransferDirection::PeripheralToAct => ram_word,
+                    });
+                    checksum = checksum.wrapping_add(u64::from(plan.address));
+                }
             }
 
             act.begin_execution(word, &machine.act.state)
