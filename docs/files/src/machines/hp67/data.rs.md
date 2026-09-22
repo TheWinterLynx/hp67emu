@@ -18,7 +18,7 @@ Decode ACT RAM read/write-class instructions into transfer direction/address whi
 
 ## Implementation
 
-`Hp67DataSerialSource` latches the current register for b2..b55 and carries only its bits 54/55 into the next word's b0/b1. `Hp67DataSerialSink` keeps an incomplete frame alive across that same boundary and returns a completed `ActRegister` only after the following b1. Back-to-back transfers are supported: the previous frame completes at b1 and the next frame begins at b2. `Hp67DataTransferPlan` mirrors the existing ACT architectural address semantics for direct and register-select RAM read/write classes without making any electrical timing claim. It returns `None` while ACT is in `ThenGoto`, because that 10-bit ROM word is branch payload rather than an executable RAM opcode.
+`Hp67DataSerialSource` latches the current register for b2..b55 and carries only its bits 54/55 into the next word's b0/b1. `Hp67DataSerialSink` keeps an incomplete frame alive across that same boundary and returns a completed `ActRegister` only after the following b1. `Hp67DataSerialWordPath` composes those two primitives so a caller can visit DATA from an already-existing b0..b55 loop instead of running a second loop. Back-to-back transfers are supported: the previous frame completes at b1 and the next frame begins at b2. `Hp67DataTransferPlan` mirrors the existing ACT architectural address semantics for direct and register-select RAM read/write classes without making any electrical timing claim. It returns `None` while ACT is in `ThenGoto`, because that 10-bit ROM word is branch payload rather than an executable RAM opcode.
 
 ## Fidelity boundary
 
@@ -27,3 +27,6 @@ Decode ACT RAM read/write-class instructions into transfer direction/address whi
 **WORKING ARCHITECTURAL BRIDGE:** instruction classification and RAM address selection reuse the already validated ACT semantic model.
 
 **SOURCE-BLOCKED:** DATA passive level, active drive polarity, exact driver-enable timing, PHI launch/sample edges, propagation delay and physical 1818-* chip/address mapping.
+
+
+The fused word-path API exposes `frame_in_progress()` so the caller can select the DATA-aware transport only for a transfer word or the one following tail-completion word. This is specifically intended to preserve the no-DATA fast path.
