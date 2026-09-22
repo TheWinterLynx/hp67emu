@@ -92,8 +92,12 @@ pub enum Hp67ElectricalError {
         tick: Tick,
         driver: Hp67Driver,
     },
-    EvaluationAlreadyOpen { tick: Tick },
-    CommitWithoutEvaluation { tick: Tick },
+    EvaluationAlreadyOpen {
+        tick: Tick,
+    },
+    CommitWithoutEvaluation {
+        tick: Tick,
+    },
 }
 
 /// Immutable resolved input image shared by every device evaluation in one tick.
