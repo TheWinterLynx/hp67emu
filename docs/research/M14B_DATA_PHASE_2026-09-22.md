@@ -122,3 +122,10 @@ The conditional and fused RAM experiments deliberately ignore transfer plans who
 The fused shape has now been wired into `Hp67LiveMachine` for installed RAM addresses only. For each executing RAM transfer, the live machine captures the source payload from pre-instruction state, executes the existing architectural oracle, then advances logical DATA inside the same structural word loop. The next-word b0/b1 tail completes the pending frame and the reconstructed register is checked exactly against the expected payload. Non-DATA words stay on the original structural fast path. CRC/card ports are deliberately excluded.
 
 This is still a WORKING APPROXIMATION at the RAM device boundary: the live path now carries the correct logical cross-word DATA phase, but no claim is made yet about the physical DATA pin voltage convention, PHI-relative drive/sample edges, propagation or which 1818-* package owns each RAM address.
+
+
+## Benchmark isolation correction
+
+The first interleaved M14B DATA comparison still lived inside `hp67_electrical_realtime_benchmark.rs`. One owner run then reported unrelated standalone rows moving sharply (`PHI backplane` 1.686 us/word, structural fetch 1.478, full structural 1.594) while the production and firmware rows stayed near 1.0 us/word. Because raw PHI itself had not changed and the PHI comparison was already interleaved, that run could not be interpreted as a DATA or machine regression. It exposed code-generation sensitivity in the enlarged benchmark binary.
+
+The corrective action is architectural for the benchmark itself: restore the established electrical benchmark source to its M14A shape and move all M14B DATA-only/shadow/fused measurements into `tests/hp67_data_realtime_benchmark.rs`, a separate integration-test binary with its own companion documentation. The stable benchmark and the DATA experiment must now be run independently. The live fused DATA implementation remains unchanged by this correction.
