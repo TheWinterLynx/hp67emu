@@ -32,7 +32,7 @@ The DATA row is intentionally measured after all established M14A/production row
 
 ## Conditional real-firmware DATA shadow
 
-A second M14B experiment duplicates the real-firmware benchmark path but only invokes the logical DATA phase engine when the currently executing word is an architecturally recognized transfer backed by the temporary RAM image. The transfer plan is computed from the pre-instruction ACT state, writes source C, reads source the selected architectural RAM word, and completed frames are compared against their pending expected payload. Idle firmware words do not run a second 56-bit DATA loop. This row remains separate from production and is printed after every established baseline row; it exists solely to quantify realistic incremental overhead before DATA is allowed into the live structural loop.
+A second M14B experiment duplicates the real-firmware benchmark path but only invokes the logical DATA phase engine when the currently executing word is an architecturally recognized transfer whose selected address is actually installed in the temporary RAM image. The transfer plan is computed from the pre-instruction ACT state, installed-RAM writes source C, installed-RAM reads source the selected architectural RAM word, and completed frames are compared against their pending expected payload. Idle firmware words do not run a second 56-bit DATA loop. This row remains separate from production and is printed after every established baseline row; it exists solely to quantify realistic incremental overhead before DATA is allowed into the live structural loop.
 
 
 ## Fused DATA experiment
