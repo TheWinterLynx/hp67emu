@@ -56,7 +56,7 @@ The front end uses `web_time::Instant` at the host pacing boundary so elapsed br
 
 Browser filesystem import/export is not yet promoted as working functionality. The native code still owns path-based `.hpp`, `.hp67raw` and `.hp67card` import/save. Embedded program-library media and artwork do not need browser filesystem access and are expected to remain available.
 
-Secondary eframe viewports are a desktop feature. On web, egui may embed unsupported child viewports into the root UI. The calculator itself is the acceptance target for the first browser slice; Program Library and Save Card presentation will be adapted after the first real browser run if required.
+Secondary eframe viewports are a desktop feature. The first browser run confirmed that the desktop Program Library viewport occupied the web root and could not be closed. Browser builds now use an ordinary movable/resizable `egui::Window` for Program Library, with title-bar and explicit Close controls; loading a card closes the window automatically. Save Card also uses a closable embedded window on web and currently reports that browser export is not implemented. Native child viewports remain unchanged.
 
 No GitHub Actions or automatic deployment are introduced by this slice.
 
