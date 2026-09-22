@@ -12,6 +12,19 @@ use super::wiring::{Hp67Driver, Hp67Net};
 
 const MAX_PENDING_DRIVES: usize = Hp67Net::COUNT * Hp67Driver::COUNT;
 
+#[derive(Debug, Clone, Copy)]
+struct Hp67PendingDrive {
+    net: Hp67Net,
+    driver: Hp67Driver,
+    drive: Drive,
+}
+
+const EMPTY_PENDING_DRIVE: Hp67PendingDrive = Hp67PendingDrive {
+    net: Hp67Net::Phi1,
+    driver: Hp67Driver::Act1820_2530,
+    drive: Drive::HighZ,
+};
+
 #[derive(Debug, Clone)]
 struct Hp67DenseNet {
     bias: Bias,
@@ -99,21 +112,28 @@ impl<'a> Hp67ElectricalSnapshot<'a> {
 /// It deliberately has no access to committed nets, so publishing outputs cannot
 /// change what any device samples during the same evaluation interval.
 pub struct Hp67ElectricalStager<'a> {
-    pending: &'a mut [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
-    dirty_keys: &'a mut [(u8, u8); MAX_PENDING_DRIVES],
-    dirty_len: &'a mut usize,
+    pending_slot_markers: &'a mut [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
+    pending_changes: &'a mut [Hp67PendingDrive; MAX_PENDING_DRIVES],
+    pending_len: &'a mut usize,
 }
 
 impl<'a> Hp67ElectricalStager<'a> {
     pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         let net_index = net.index();
         let driver_index = driver.index();
-        if self.pending[net_index][driver_index].is_none() {
-            debug_assert!(*self.dirty_len < MAX_PENDING_DRIVES);
-            self.dirty_keys[*self.dirty_len] = (net_index as u8, driver_index as u8);
-            *self.dirty_len += 1;
+        let marker = &mut self.pending_slot_markers[net_index][driver_index];
+
+        if *marker == 0 {
+            debug_assert!(*self.pending_len < MAX_PENDING_DRIVES);
+            let pending_index = *self.pending_len;
+            self.pending_changes[pending_index] = Hp67PendingDrive { net, driver, drive };
+            *marker = (pending_index + 1) as u8;
+            *self.pending_len += 1;
+        } else {
+            let pending_index = usize::from(*marker - 1);
+            debug_assert!(pending_index < *self.pending_len);
+            self.pending_changes[pending_index].drive = drive;
         }
-        self.pending[net_index][driver_index] = Some(drive);
     }
 }
 
@@ -127,9 +147,9 @@ pub struct Hp67ElectricalFabric {
     tick: Tick,
     nets: [Hp67DenseNet; Hp67Net::COUNT],
     resolved_levels: [LogicLevel; Hp67Net::COUNT],
-    pending: [[Option<Drive>; Hp67Driver::COUNT]; Hp67Net::COUNT],
-    dirty_keys: [(u8, u8); MAX_PENDING_DRIVES],
-    dirty_len: usize,
+    pending_slot_markers: [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
+    pending_changes: [Hp67PendingDrive; MAX_PENDING_DRIVES],
+    pending_len: usize,
     contention_net_count: u8,
 }
 
@@ -156,9 +176,9 @@ impl Default for Hp67ElectricalFabric {
             tick: Tick::ZERO,
             nets,
             resolved_levels,
-            pending: [[None; Hp67Driver::COUNT]; Hp67Net::COUNT],
-            dirty_keys: [(0, 0); MAX_PENDING_DRIVES],
-            dirty_len: 0,
+            pending_slot_markers: [[0; Hp67Driver::COUNT]; Hp67Net::COUNT],
+            pending_changes: [EMPTY_PENDING_DRIVE; MAX_PENDING_DRIVES],
+            pending_len: 0,
             contention_net_count: 0,
         }
     }
@@ -214,9 +234,9 @@ impl Hp67ElectricalFabric {
             levels: &self.resolved_levels,
         };
         let stager = Hp67ElectricalStager {
-            pending: &mut self.pending,
-            dirty_keys: &mut self.dirty_keys,
-            dirty_len: &mut self.dirty_len,
+            pending_slot_markers: &mut self.pending_slot_markers,
+            pending_changes: &mut self.pending_changes,
+            pending_len: &mut self.pending_len,
         };
         Ok((snapshot, stager))
     }
@@ -225,26 +245,24 @@ impl Hp67ElectricalFabric {
     /// need to hold a zero-copy resolved snapshot.
     pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         let mut stager = Hp67ElectricalStager {
-            pending: &mut self.pending,
-            dirty_keys: &mut self.dirty_keys,
-            dirty_len: &mut self.dirty_len,
+            pending_slot_markers: &mut self.pending_slot_markers,
+            pending_changes: &mut self.pending_changes,
+            pending_len: &mut self.pending_len,
         };
         stager.stage_drive(net, driver, drive);
     }
 
     /// Commit every staged device output atomically and advance one scheduler tick.
     pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
-        for dirty_index in 0..self.dirty_len {
-            let (net_index, driver_index) = self.dirty_keys[dirty_index];
-            let net_index = usize::from(net_index);
-            let driver_index = usize::from(driver_index);
-            let drive = self.pending[net_index][driver_index]
-                .take()
-                .expect("dirty HP-67 electrical slot must contain a staged drive");
-            let driver = Hp67Driver::ALL[driver_index];
-            self.apply_drive(net_index, driver, drive);
+        for pending_index in 0..self.pending_len {
+            let pending = self.pending_changes[pending_index];
+            let marker =
+                &mut self.pending_slot_markers[pending.net.index()][pending.driver.index()];
+            debug_assert_eq!(*marker, (pending_index + 1) as u8);
+            *marker = 0;
+            self.apply_drive(pending.net.index(), pending.driver, pending.drive);
         }
-        self.dirty_len = 0;
+        self.pending_len = 0;
         let tick = self.advance_tick();
         if self.contention_net_count != 0 {
             return Err(self.contention_error(tick));
@@ -328,6 +346,19 @@ mod tests {
         fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::HighZ);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
+    }
+
+    #[test]
+    fn staged_slot_marker_is_reusable_after_commit() {
+        let mut fabric = Hp67ElectricalFabric::default();
+
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
+        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::Low);
+        assert_eq!(fabric.commit_staged(), Ok(Tick::new(2)));
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Low);
     }
 
     #[test]
