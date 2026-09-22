@@ -7,9 +7,10 @@ use std::{
 use hp67emu::emulation::{Drive, LogicLevel};
 use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActArchitecturalState,
-    ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67Driver,
-    Hp67ElectricalBackplane, Hp67ElectricalFabric, Hp67Firmware, Hp67Net, Hp67RomWordSource,
-    Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
+    ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67DataSerialSink,
+    Hp67DataSerialSource, Hp67Driver, Hp67ElectricalBackplane, Hp67ElectricalFabric, Hp67Firmware,
+    Hp67Net, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD,
+    HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 50_000;
@@ -319,6 +320,37 @@ fn production_dual_path_stream(words: usize) -> u64 {
     checksum
 }
 
+fn data_phase_stream(words: usize) -> u64 {
+    let mut source = Hp67DataSerialSource::default();
+    let mut sink = Hp67DataSerialSink::default();
+    let mut checksum = 0u64;
+    let mut completed = 0usize;
+
+    for word_index in 0..words {
+        let register =
+            std::array::from_fn(|digit| (word_index as u8).wrapping_add(digit as u8 * 3) & 0x0f);
+        source.begin_word(Some(register));
+        sink.begin_word(true);
+
+        for word_bit in 0..BITS_PER_WORD {
+            if let Some(reconstructed) = sink
+                .sample_word_bit(word_bit, source.logical_bit_for_word_bit(word_bit))
+                .expect("continuous DATA phase stream must remain structurally valid")
+            {
+                completed += 1;
+                checksum = reconstructed
+                    .into_iter()
+                    .fold(checksum, |sum, digit| sum.wrapping_add(u64::from(digit)));
+            }
+        }
+
+        source.complete_word();
+    }
+
+    assert_eq!(completed, words.saturating_sub(1));
+    checksum ^ completed as u64
+}
+
 fn firmware_production_stream(words: usize) -> u64 {
     let source = Hp67Firmware::default();
     let mut machine = Hp67ArchitecturalMachine::default();
@@ -504,6 +536,11 @@ fn hp67_electrical_realtime_benchmark() {
     let production = measure_rounds(rounds, words, production_dual_path_stream);
     let firmware = measure_rounds(rounds, words, firmware_production_stream);
 
+    // Keep the new M14B DATA phase microbenchmark after all established rows so
+    // it cannot perturb their measurement order or replace a production path.
+    black_box(data_phase_stream(warmup_words));
+    let data_phase = measure_rounds(rounds, words, data_phase_stream);
+
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
     let physical_bits_per_second = physical_words_per_second * BITS_PER_WORD as f64;
@@ -545,11 +582,12 @@ fn hp67_electrical_realtime_benchmark() {
         words,
     );
     print_row("real firmware architectural + structural", &firmware, words);
+    print_row("DATA logical phase source + sink", &data_phase, words);
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. The final DATA row is an isolated M14B logical-phase microbenchmark for the source-backed b2/next-b1 frame geometry; it is not yet part of production electrical execution. Not yet represented electrically: DATA polarity/drive ownership, physical RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }
