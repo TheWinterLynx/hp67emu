@@ -735,6 +735,56 @@ mod tests {
     }
 
     #[test]
+    fn fused_data_phase_shares_structural_word_without_disturbing_fetch() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0x07b);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+        let mut data = Hp67DataSerialWordPath::default();
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+
+        let payload: super::super::act::ActRegister =
+            std::array::from_fn(|digit| ((digit as u8 * 5) + 1) & 0x0f);
+
+        let first = run_structural_display_fetch_data_phase_cycle(
+            &mut backplane,
+            0x07b,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+            &mut data,
+            Some(payload),
+        )
+        .expect("first fused DATA word must complete");
+        assert_eq!(first.word.fetched_word, 0x04c);
+        assert_eq!(first.completed_data, None);
+        assert!(data.frame_in_progress());
+
+        let second = run_structural_display_fetch_data_phase_cycle(
+            &mut backplane,
+            0x07b,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+            &mut data,
+            None,
+        )
+        .expect("following DATA tail word must complete");
+        assert_eq!(second.word.fetched_word, 0x04c);
+        assert_eq!(second.completed_data, Some(payload));
+        assert!(!data.frame_in_progress());
+        assert_eq!(backplane.word_index(), 2);
+    }
+
+    #[test]
     fn display_and_fetch_share_one_resolved_word_cycle() {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
