@@ -136,3 +136,18 @@ The corrective action is architectural for the benchmark itself: restore the est
 The isolated owner run restored raw PHI and most established scheduler/firmware numbers to their historical neighborhood and confirmed the M14B comparison independently: baseline firmware `0.973 us/word`, shadow `0.990`, fused `0.980`, isolated DATA `0.063`. Thus fused logical DATA is within about `0.7%` of baseline in the rotating interleaved comparison, while the deliberately pessimistic second-loop shadow is about `1.7%` slower.
 
 However, the restored electrical benchmark still showed `full structural` at `1.312 us/word` and `production dual` at `1.344`, well above the M14A historical medians near `0.946` and `1.000`. Because both fixed-word paths share the generalized structural transport whereas the real-firmware row remained `0.961`, the remaining regression is treated as a code-generation/performance problem in the generalized no-DATA transport, not as a DATA correctness failure. The corrective slice restores a monomorphic no-DATA transport and keeps the DATA-aware loop in a separate function before M14B can be closed.
+
+
+## Monomorphic fast-path validation
+
+The owner rerun after splitting the no-DATA and DATA-aware transports restored the historical fixed-word performance shape:
+
+| Path | Median us/word | Realtime multiple |
+| --- | ---: | ---: |
+| full structural | 0.926 | 345.54x |
+| production dual | 0.982 | 325.82x |
+| real firmware dual | 0.924 | 346.28x |
+
+The isolated interleaved M14B comparison simultaneously measured baseline firmware `0.995 us/word`, shadow `1.006`, fused `0.994`, and isolated DATA `0.064`. Fused is therefore effectively coincident with baseline in this run, while the second-loop shadow retains a measurable extra cost.
+
+This confirms that the generalized visitor had perturbed fixed-word code generation and that the dedicated monomorphic fast path removes that regression. A differential regression now locks the duplicated transports together semantically when no DATA frame is active. One final release Diagnostic Pac run is required after this transport split before marking M14B closed.
