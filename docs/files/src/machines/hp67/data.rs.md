@@ -14,11 +14,11 @@ Uses `ActArchitecturalState`/`ActRegister` only as the current semantic source t
 
 ## Responsibilities
 
-Decode ACT RAM read/write-class instructions into transfer direction/address, expose one register bit in the documented digit-LSB-first order, preserve bits 54/55 across the machine-word boundary, reconstruct back-to-back 56-bit frames, and reject missing/unexpected logical samples or out-of-order word-bit traversal.
+Decode ACT RAM read/write-class instructions into transfer direction/address while refusing to classify a THEN-GOTO payload as an opcode, expose one register bit in the documented digit-LSB-first order, preserve bits 54/55 across the machine-word boundary, reconstruct back-to-back 56-bit frames, and reject missing/unexpected logical samples or out-of-order word-bit traversal.
 
 ## Implementation
 
-`Hp67DataSerialSource` latches the current register for b2..b55 and carries only its bits 54/55 into the next word's b0/b1. `Hp67DataSerialSink` keeps an incomplete frame alive across that same boundary and returns a completed `ActRegister` only after the following b1. Back-to-back transfers are supported: the previous frame completes at b1 and the next frame begins at b2. `Hp67DataTransferPlan` mirrors the existing ACT architectural address semantics for direct and register-select RAM read/write classes without making any electrical timing claim.
+`Hp67DataSerialSource` latches the current register for b2..b55 and carries only its bits 54/55 into the next word's b0/b1. `Hp67DataSerialSink` keeps an incomplete frame alive across that same boundary and returns a completed `ActRegister` only after the following b1. Back-to-back transfers are supported: the previous frame completes at b1 and the next frame begins at b2. `Hp67DataTransferPlan` mirrors the existing ACT architectural address semantics for direct and register-select RAM read/write classes without making any electrical timing claim. It returns `None` while ACT is in `ThenGoto`, because that 10-bit ROM word is branch payload rather than an executable RAM opcode.
 
 ## Fidelity boundary
 
