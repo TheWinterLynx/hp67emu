@@ -90,3 +90,8 @@ The same-run incremental cost of the conditional shadow is **0.023 us/word (~2.3
 ## Next slice
 
 After performance validation, the next step is to attach logical DATA ownership to ACT/peripheral endpoints while keeping polarity and PHI edges source-blocked. Physical 1818-* device/address mapping must be verified before the temporary architectural RAM image is partitioned into named chips.
+
+
+## Fused-loop experiment
+
+The next benchmark-only slice adds a DATA-aware variant of the structural display/fetch cycle. It reuses the existing b0..b55 loop and invokes logical DATA visitation from that loop only on transfer or tail-completion words. Existing production callers still instantiate the same structural transport with a monomorphized no-op DATA visitor; therefore any material movement in the established benchmark rows is treated as a regression and blocks integration.
