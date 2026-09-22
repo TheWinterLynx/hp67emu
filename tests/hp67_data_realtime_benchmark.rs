@@ -372,7 +372,11 @@ fn hp67_data_realtime_benchmark() {
     );
     println!("{}", "-".repeat(115));
     print_row("real firmware architectural + structural", &firmware, words);
-    print_row("real firmware + conditional RAM DATA shadow", &shadow, words);
+    print_row(
+        "real firmware + conditional RAM DATA shadow",
+        &shadow,
+        words,
+    );
     print_row("real firmware + fused RAM DATA phase", &fused, words);
     print_row("DATA logical phase source + sink", &data, words);
     println!();
