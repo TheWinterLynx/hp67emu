@@ -13,6 +13,7 @@ pub mod architectural;
 pub mod card_flux;
 pub mod card_transport;
 pub mod crc;
+pub mod data;
 pub mod display;
 pub mod display_snapshot;
 pub mod electrical;
@@ -49,6 +50,10 @@ pub use card_flux::{
 pub use card_transport::{
     Hp67CardSpeed, Hp67CardSpeedError, Hp67CardTransport, Hp67CardTransportError,
     HP67_MAX_CARD_SPEED_PERCENT, HP67_MIN_CARD_SPEED_PERCENT, HP67_NOMINAL_CARD_RECORD_US,
+};
+pub use data::{
+    act_data_transfer_plan, data_register_serial_bit, Hp67DataSerialError, Hp67DataSerialSink,
+    Hp67DataSerialSource, Hp67DataTransferDirection, Hp67DataTransferPlan,
 };
 pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
