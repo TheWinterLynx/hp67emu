@@ -363,9 +363,7 @@ mod tests {
     #[test]
     fn staged_outputs_are_invisible_until_atomic_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        let act = fabric
-            .claim_driver_owner(Hp67Driver::Act1820_2530)
-            .unwrap();
+        let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
         {
             let (snapshot, mut stager) = fabric.begin_evaluation().unwrap();
             assert_eq!(snapshot.tick(), Tick::ZERO);
@@ -383,9 +381,7 @@ mod tests {
     #[test]
     fn repeated_staging_by_one_driver_is_final_write_wins_without_duplicate_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        let act = fabric
-            .claim_driver_owner(Hp67Driver::Act1820_2530)
-            .unwrap();
+        let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
         fabric.stage_drive(&act, Hp67Net::Data, Drive::High);
         fabric.stage_drive(&act, Hp67Net::Data, Drive::Low);
         fabric.stage_drive(&act, Hp67Net::Data, Drive::HighZ);
@@ -396,9 +392,7 @@ mod tests {
     #[test]
     fn staged_slot_marker_is_reusable_after_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        let act = fabric
-            .claim_driver_owner(Hp67Driver::Act1820_2530)
-            .unwrap();
+        let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
 
         fabric.stage_drive(&act, Hp67Net::Data, Drive::High);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
@@ -412,9 +406,7 @@ mod tests {
     #[test]
     fn driver_ownership_is_claimed_once_and_reused_across_evaluations() {
         let mut fabric = Hp67ElectricalFabric::default();
-        let act = fabric
-            .claim_driver_owner(Hp67Driver::Act1820_2530)
-            .unwrap();
+        let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
         assert_eq!(act.driver(), Hp67Driver::Act1820_2530);
         assert_eq!(
             fabric.claim_driver_owner(Hp67Driver::Act1820_2530),
@@ -433,9 +425,7 @@ mod tests {
     #[test]
     fn simultaneous_opposite_drives_report_contention_after_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        let act = fabric
-            .claim_driver_owner(Hp67Driver::Act1820_2530)
-            .unwrap();
+        let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
         let rom = fabric
             .claim_driver_owner(Hp67Driver::StructuralRomResponder)
             .unwrap();
