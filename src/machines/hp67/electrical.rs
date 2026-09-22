@@ -515,6 +515,48 @@ mod tests {
     }
 
     #[test]
+    fn device_evaluation_order_does_not_change_final_contention_result() {
+        fn run(reverse: bool) -> (Hp67ElectricalError, LogicLevel, Tick) {
+            let mut fabric = Hp67ElectricalFabric::default();
+            {
+                let mut staging = fabric.begin_staging().unwrap();
+                if reverse {
+                    {
+                        let mut rom = staging
+                            .claim_driver(Hp67Driver::StructuralRomResponder)
+                            .unwrap();
+                        rom.stage_drive(Hp67Net::Data, Drive::Low);
+                    }
+                    {
+                        let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
+                        act.stage_drive(Hp67Net::Data, Drive::High);
+                    }
+                } else {
+                    {
+                        let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
+                        act.stage_drive(Hp67Net::Data, Drive::High);
+                    }
+                    {
+                        let mut rom = staging
+                            .claim_driver(Hp67Driver::StructuralRomResponder)
+                            .unwrap();
+                        rom.stage_drive(Hp67Net::Data, Drive::Low);
+                    }
+                }
+            }
+
+            let error = fabric.commit_staged().unwrap_err();
+            (error, fabric.level(Hp67Net::Data), fabric.tick())
+        }
+
+        let forward = run(false);
+        let reverse = run(true);
+        assert_eq!(forward, reverse);
+        assert_eq!(forward.1, LogicLevel::Contention);
+        assert_eq!(forward.2, Tick::new(1));
+    }
+
+    #[test]
     fn dense_resolution_matches_generic_net_for_all_two_driver_states() {
         use crate::emulation::{DriverId, Net};
 
