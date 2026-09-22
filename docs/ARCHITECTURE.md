@@ -162,3 +162,10 @@ The 2026-09-22 full validation gate, diagnostic PAC suite and matched-PHI regres
 ### Electrical commit versus timing progression
 
 The HP-67 dense fabric deliberately separates atomic electrical commit from `Tick` advancement. A commit is an observability boundary for staged drives; it is not by itself a PHI edge or a statement about elapsed physical time. The current four-transition PHI scaffold explicitly advances one tick after each PHI commit, preserving today's trace exactly. This separation leaves room for future evidence-backed zero-time settling or propagation events without corrupting the serial bit/word coordinate.
+
+
+### M14B DATA phase foundation
+
+M14B begins with a logical DATA phase engine rather than an invented electrical DATA protocol. Direct HP-67 evidence fixes the 56-bit stream phase (b2 = serial bit 0; bits 54/55 wrap to following-word b0/b1), so `data.rs` models that cross-word lifetime explicitly and can reconstruct back-to-back frames. It does not yet drive `Hp67Net::Data`: DATA polarity, passive bias, PHI launch/sample edges, propagation and physical RAM chip/address mapping remain source-blocked.
+
+Performance is treated as an architectural invariant during this transition. New DATA work is benchmarked in isolation after the established M14A rows before it is allowed into production execution; an integration that materially regresses the validated M14A rows is rejected or redesigned rather than accepted as the price of fidelity.
