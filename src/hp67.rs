@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
-    run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle, ActOperation,
-    ActRegister, ActSerialEndpoint, ActSerialRegister, CardInsertionEnd, CathodeDriver1820_1749,
-    CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
-    Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
-    Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
-    Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint,
-    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
+    run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
+    ActOperation, ActRegister, ActSerialEndpoint, ActSerialRegister, CardInsertionEnd,
+    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
+    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
+    Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
+    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
+    RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
     HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
@@ -566,9 +566,7 @@ impl Hp67LiveMachine {
                 &mut self.data_serial,
                 ram_data_payload,
             )
-            .map_err(|error| {
-                format!("live cycle {cycle} shared DATA word failed: {error:?}")
-            })?;
+            .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?;
 
             match (self.pending_ram_data_expected.take(), fused.completed_data) {
                 (Some(expected), Some(actual)) if actual == expected => {}
