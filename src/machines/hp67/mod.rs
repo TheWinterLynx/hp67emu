@@ -67,7 +67,8 @@ pub use display_snapshot::{
     StructuralDisplaySlot,
 };
 pub use electrical::{
-    Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot, Hp67ElectricalStager,
+    Hp67DriverStager, Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot,
+    Hp67ElectricalStager,
 };
 pub use fetch::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
