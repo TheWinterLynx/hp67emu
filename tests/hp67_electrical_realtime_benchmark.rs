@@ -94,10 +94,7 @@ fn measure_phi_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStat
     samples.map(summarize)
 }
 
-fn measure_firmware_data_rounds_interleaved(
-    rounds: usize,
-    words: usize,
-) -> [BenchmarkStats; 3] {
+fn measure_firmware_data_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStats; 3] {
     let paths: [fn(usize) -> u64; 3] = [
         firmware_production_stream,
         firmware_data_shadow_stream,
