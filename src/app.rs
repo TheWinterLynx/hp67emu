@@ -1,8 +1,6 @@
-use std::{
-    fs,
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::{fs, path::Path, time::Duration};
+
+use web_time::Instant;
 
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 use hp67emu::machines::hp67::{
