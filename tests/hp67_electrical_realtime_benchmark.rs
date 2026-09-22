@@ -94,6 +94,31 @@ fn measure_phi_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStat
     samples.map(summarize)
 }
 
+fn measure_firmware_data_rounds_interleaved(
+    rounds: usize,
+    words: usize,
+) -> [BenchmarkStats; 3] {
+    let paths: [fn(usize) -> u64; 3] = [
+        firmware_production_stream,
+        firmware_data_shadow_stream,
+        firmware_data_fused_stream,
+    ];
+    let mut samples: [Vec<Duration>; 3] = std::array::from_fn(|_| Vec::with_capacity(rounds));
+    let mut checksum = 0u64;
+
+    for round in 0..rounds {
+        for offset in 0..paths.len() {
+            let index = (round + offset) % paths.len();
+            let start = Instant::now();
+            checksum ^= black_box(paths[index](words));
+            samples[index].push(start.elapsed());
+        }
+    }
+
+    black_box(checksum);
+    samples.map(summarize)
+}
+
 fn us_per_word(duration: Duration, words: usize) -> f64 {
     duration.as_secs_f64() * 1_000_000.0 / words as f64
 }
@@ -701,22 +726,23 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(architectural_execution_stream(warmup_words));
     black_box(production_dual_path_stream(warmup_words));
     black_box(firmware_production_stream(warmup_words));
+    black_box(firmware_data_shadow_stream(warmup_words));
+    black_box(firmware_data_fused_stream(warmup_words));
 
     let [raw_phi, stage_commit_phi, staged_phi] = measure_phi_rounds_interleaved(rounds, words);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
     let architectural = measure_rounds(rounds, words, architectural_execution_stream);
     let production = measure_rounds(rounds, words, production_dual_path_stream);
-    let firmware = measure_rounds(rounds, words, firmware_production_stream);
 
-    // Keep the new M14B DATA phase microbenchmark after all established rows so
-    // it cannot perturb their measurement order or replace a production path.
+    // Measure the three real-firmware DATA variants in rotating order so the
+    // small deltas are not dominated by path-order drift, host turbo or cooling.
+    let [firmware, firmware_data_shadow, firmware_data_fused] =
+        measure_firmware_data_rounds_interleaved(rounds, words);
+
+    // Keep the isolated logical DATA cost separate from the firmware comparison.
     black_box(data_phase_stream(warmup_words));
     let data_phase = measure_rounds(rounds, words, data_phase_stream);
-    black_box(firmware_data_shadow_stream(warmup_words));
-    let firmware_data_shadow = measure_rounds(rounds, words, firmware_data_shadow_stream);
-    black_box(firmware_data_fused_stream(warmup_words));
-    let firmware_data_fused = measure_rounds(rounds, words, firmware_data_fused_stream);
 
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
@@ -775,6 +801,6 @@ fn hp67_electrical_realtime_benchmark() {
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. The DATA logical row is an isolated M14B phase microbenchmark. The conditional shadow row repeats real firmware but runs a second 56-bit DATA loop only for recognized transfers. The fused row instead visits logical DATA from the existing structural b0..b55 loop on transfer/tail words and uses the untouched production function on all other words. Both remain benchmark experiments and do not alter live production execution. Not yet represented electrically: DATA polarity/drive ownership, physical RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution. The three real-firmware DATA comparison rows are measured in rotating interleaved order: baseline without logical DATA, the deliberately pessimistic second-loop shadow, and the fused logical RAM DATA shape now used by the live machine. The isolated DATA row measures only source/sink phase cost. The fused live shape still does not make DATA electrically complete: DATA polarity/drive ownership, physical RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays remain unresolved. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }
