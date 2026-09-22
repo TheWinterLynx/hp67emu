@@ -139,9 +139,10 @@ impl<'a> Hp67ElectricalStager<'a> {
 
 /// Fixed-topology HP-67 electrical state and staged drive commit buffer.
 ///
-/// Normal ticks allocate nothing. Pending output changes are indexed directly
-/// by net and driver, and a fixed dirty-key array makes commit cost proportional
-/// to outputs that actually changed rather than all possible combinations.
+/// Normal ticks allocate nothing. A fixed slot-marker matrix deduplicates
+/// `(net, driver)` publication while a fixed typed pending list carries the
+/// final staged drive directly into commit, so commit work stays proportional
+/// to outputs that were staged rather than all possible combinations.
 #[derive(Debug, Clone)]
 pub struct Hp67ElectricalFabric {
     tick: Tick,
