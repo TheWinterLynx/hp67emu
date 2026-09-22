@@ -6,12 +6,13 @@ use std::{
 
 use hp67emu::emulation::{Drive, LogicLevel};
 use hp67emu::machines::hp67::{
-    act_data_transfer_plan, run_structural_display_fetch_cycle, run_structural_fetch_cycle,
+    act_data_transfer_plan, run_structural_display_fetch_cycle,
+    run_structural_display_fetch_data_phase_cycle, run_structural_fetch_cycle,
     ActArchitecturalState, ActRegister, ActSerialEndpoint, FetchPipelineLatch,
-    Hp67ArchitecturalMachine, Hp67DataSerialSink, Hp67DataSerialSource, Hp67DataTransferDirection,
-    Hp67Driver, Hp67ElectricalBackplane, Hp67ElectricalFabric, Hp67Firmware, Hp67Net,
-    Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD,
-    HP67_OBSERVED_WORD_TIME_US,
+    Hp67ArchitecturalMachine, Hp67DataSerialSink, Hp67DataSerialSource, Hp67DataSerialWordPath,
+    Hp67DataTransferDirection, Hp67Driver, Hp67ElectricalBackplane, Hp67ElectricalFabric,
+    Hp67Firmware, Hp67Net, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint,
+    BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 50_000;
@@ -433,6 +434,92 @@ fn firmware_data_shadow_stream(words: usize) -> u64 {
     checksum
 }
 
+fn firmware_data_fused_stream(words: usize) -> u64 {
+    let firmware = Hp67Firmware::default();
+    let mut machine = Hp67ArchitecturalMachine::default();
+    let mut backplane = Hp67ElectricalBackplane::default();
+    let mut act = ActSerialEndpoint::new(0);
+    let mut rom = RomFetchEndpoint::default();
+    let mut rom0 = Rom0DisplayEndpoint::default();
+    let mut pipeline = FetchPipelineLatch::default();
+    let mut data = Hp67DataSerialWordPath::default();
+    let mut pending_expected: Option<ActRegister> = None;
+    let mut checksum = 0u64;
+
+    for _ in 0..words {
+        pipeline.begin_cycle();
+
+        let mut current_payload = None;
+        if let Some(word) = pipeline.executing_word() {
+            if let Some(plan) = act_data_transfer_plan(word, &machine.act.state) {
+                current_payload = match plan.direction {
+                    Hp67DataTransferDirection::ActToPeripheral => Some(machine.act.state.c),
+                    Hp67DataTransferDirection::PeripheralToAct => machine.ram.read(plan.address),
+                };
+                checksum = checksum.wrapping_add(u64::from(plan.address));
+            }
+
+            act.begin_execution(word, &machine.act.state)
+                .expect("firmware fused DATA serial execution must start");
+            let execution = machine
+                .execute_word(word)
+                .expect("versioned HP-67 firmware fused DATA word must execute");
+            checksum = checksum.wrapping_add(execution.next_pc as u64);
+        }
+
+        let bank = machine.prepare_hp67_fetch();
+        firmware.select_bank(bank);
+        let address = machine.pc();
+
+        let result = if data.frame_in_progress() || current_payload.is_some() {
+            let fused = run_structural_display_fetch_data_phase_cycle(
+                &mut backplane,
+                address,
+                &machine.act.state,
+                &mut act,
+                &mut rom,
+                &mut rom0,
+                &firmware,
+                &mut data,
+                current_payload,
+            )
+            .expect("continuous real-firmware fused DATA path must complete");
+
+            if let Some(reconstructed) = fused.completed_data {
+                let expected = pending_expected
+                    .take()
+                    .expect("completed fused DATA frame must have a pending payload");
+                assert_eq!(reconstructed, expected);
+                checksum = reconstructed
+                    .into_iter()
+                    .fold(checksum, |sum, digit| sum.wrapping_add(u64::from(digit)));
+            }
+            pending_expected = current_payload;
+            fused.word
+        } else {
+            run_structural_display_fetch_cycle(
+                &mut backplane,
+                address,
+                &machine.act.state,
+                &mut act,
+                &mut rom,
+                &mut rom0,
+                &firmware,
+            )
+            .expect("continuous real-firmware non-DATA word must complete")
+        };
+
+        pipeline.complete_cycle(result.fetched_word);
+        checksum = checksum
+            .wrapping_add(result.fetched_word as u64)
+            .wrapping_add(result.display_byte as u64)
+            .wrapping_add(u64::from(result.rcd_falling));
+    }
+
+    assert_eq!(backplane.word_index(), words as u64);
+    checksum
+}
+
 fn firmware_production_stream(words: usize) -> u64 {
     let source = Hp67Firmware::default();
     let mut machine = Hp67ArchitecturalMachine::default();
@@ -624,6 +711,8 @@ fn hp67_electrical_realtime_benchmark() {
     let data_phase = measure_rounds(rounds, words, data_phase_stream);
     black_box(firmware_data_shadow_stream(warmup_words));
     let firmware_data_shadow = measure_rounds(rounds, words, firmware_data_shadow_stream);
+    black_box(firmware_data_fused_stream(warmup_words));
+    let firmware_data_fused = measure_rounds(rounds, words, firmware_data_fused_stream);
 
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
@@ -672,11 +761,16 @@ fn hp67_electrical_realtime_benchmark() {
         &firmware_data_shadow,
         words,
     );
+    print_row(
+        "real firmware + fused RAM DATA phase",
+        &firmware_data_fused,
+        words,
+    );
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. The DATA logical row is an isolated M14B phase microbenchmark. The final shadow row repeats real firmware while conditionally exercising the logical DATA source/sink only for architecturally recognized RAM-backed transfers; it is a performance experiment and does not alter production execution. Not yet represented electrically: DATA polarity/drive ownership, physical RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. The DATA logical row is an isolated M14B phase microbenchmark. The conditional shadow row repeats real firmware but runs a second 56-bit DATA loop only for recognized transfers. The fused row instead visits logical DATA from the existing structural b0..b55 loop on transfer/tail words and uses the untouched production function on all other words. Both remain benchmark experiments and do not alter live production execution. Not yet represented electrically: DATA polarity/drive ownership, physical RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }
