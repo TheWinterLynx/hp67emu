@@ -15,6 +15,7 @@ pub mod card_transport;
 pub mod crc;
 pub mod display;
 pub mod display_snapshot;
+pub mod electrical;
 pub mod fetch;
 pub mod hp67firmware;
 pub mod isa;
@@ -65,6 +66,10 @@ pub use display_snapshot::{
     display_byte_from_act_registers, structural_display_scan_from_act_registers,
     StructuralDisplaySlot,
 };
+pub use electrical::{
+    Hp67DriverOwner, Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot,
+    Hp67ElectricalStager,
+};
 pub use fetch::{
     run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
     FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
@@ -83,11 +88,16 @@ pub use magnetic_card::{
     HP67_CARD_RECORDS_PER_TRACK,
 };
 pub use timing::{
-    display_data_serial_bit, isa_window_for_bit, sync_decision_window, Hp67WordTiming, IsaWindow,
-    BITS_PER_DIGIT, BITS_PER_WORD, DIGITS_PER_WORD, DISPLAY_DATA_BITS, DISPLAY_DATA_FIRST_BIT,
-    DISPLAY_DATA_LAST_BIT, DISPLAY_STR_BIT, HP67_OBSERVED_DISPLAY_REFRESH_US,
+    data_serial_bit_for_word_bit, display_data_serial_bit, edge_contract, isa_window_for_bit,
+    sync_decision_window, Hp67ClockEdge, Hp67ClockPhase, Hp67EdgeContract, Hp67SignalTransition,
+    Hp67TimedTransfer, Hp67TimingEvidence, Hp67TimingParticipant, Hp67WordTiming, IsaWindow,
+    BITS_PER_DIGIT, BITS_PER_WORD, DATA_STREAM_BITS, DATA_STREAM_FIRST_WORD_BIT, DIGITS_PER_WORD,
+    DISPLAY_DATA_BITS, DISPLAY_DATA_FIRST_BIT, DISPLAY_DATA_LAST_BIT, DISPLAY_STR_BIT,
+    HP67_EDGE_CONTRACTS_V1, HP67_EDGE_CONTRACT_VERSION, HP67_OBSERVED_DISPLAY_DP_ON_US,
+    HP67_OBSERVED_DISPLAY_DP_TO_STR_GAP_US, HP67_OBSERVED_DISPLAY_REFRESH_US,
+    HP67_OBSERVED_DISPLAY_SEGMENT_ON_US, HP67_OBSERVED_DISPLAY_STR_PULSE_US,
     HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    HP67_OBSERVED_WORD_TIME_US, ROM_ADDRESS_BITS, ROM_ADDRESS_FIRST_BIT, ROM_ADDRESS_LAST_BIT,
-    ROM_WORD_BITS, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT,
+    HP67_OBSERVED_WORD_TIME_US, HP67_SYNC_TRANSITION_EDGE, ROM_ADDRESS_BITS, ROM_ADDRESS_FIRST_BIT,
+    ROM_ADDRESS_LAST_BIT, ROM_WORD_BITS, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT,
 };
-pub use wiring::{Hp67Chip, Hp67Net, CHIPSET};
+pub use wiring::{Hp67Chip, Hp67Driver, Hp67Net, CHIPSET};

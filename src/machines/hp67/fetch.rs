@@ -8,7 +8,7 @@
 //! up through a caller-supplied source, and the ROM returns the 10-bit word
 //! LSB-first at b46..b55 for the ACT endpoint to reconstruct.
 
-use crate::emulation::{Drive, DriverId, LogicLevel};
+use crate::emulation::{Drive, LogicLevel};
 
 use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
@@ -24,13 +24,13 @@ use super::{
         display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
         ROM_ADDRESS_BITS, ROM_WORD_BITS,
     },
-    wiring::Hp67Net,
+    wiring::{Hp67Driver, Hp67Net},
 };
 
 const COMPLETE_ADDRESS_MASK: u16 = (1u16 << ROM_ADDRESS_BITS) - 1;
 const COMPLETE_WORD_MASK: u16 = (1u16 << ROM_WORD_BITS) - 1;
-const ACT_IS_DRIVER: DriverId = DriverId::new("hp67-act-fetch-is");
-const ROM_IS_DRIVER: DriverId = DriverId::new("hp67-rom-fetch-is");
+const ACT_IS_DRIVER: Hp67Driver = Hp67Driver::Act1820_2530;
+const ROM_IS_DRIVER: Hp67Driver = Hp67Driver::StructuralRomResponder;
 
 /// ROM lookup boundary used by the serial fetch responder.
 ///
@@ -486,46 +486,68 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         endpoint.begin_word();
     }
 
+    // The selected ACT display source is immutable for the whole b0..b7
+    // window: executing words read the pre-instruction snapshot and fetch-only
+    // words read the supplied live state. Encode it once per machine word
+    // instead of rebuilding the same ROM0 byte for all eight serial bits.
+    let display_byte = match act.encoded_display_byte(act_state) {
+        Ok(byte) => byte,
+        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+        Err(error) => return Err(error.into()),
+    };
+
+    // Each endpoint owns its named IS driver. Reset that ownership once at the
+    // word boundary, then publish only actual drive-state transitions below.
+    // This preserves every resolved bit-cell level while avoiding redundant
+    // High-Z/same-level writes on the shared electrical net.
+    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    let mut previous_act_drive = Drive::HighZ;
+    let mut previous_rom_drive = Drive::HighZ;
+
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
 
-        let act_drive = match act.drive_for_bit(expected_bit, act_state) {
-            Ok(drive) => drive,
-            Err(ActDisplaySerialError::UnsupportedModifier { .. })
-                if display_data_serial_bit(expected_bit).is_some() =>
-            {
-                let serial_bit = display_data_serial_bit(expected_bit)
-                    .expect("guarded display bit must have a serial index");
-                wired_high_drive(((HP67_ROM0_BLANK_CODE >> serial_bit) & 1) != 0)
+        let display_bit = display_data_serial_bit(expected_bit);
+        let act_drive = if let Some(serial_bit) = display_bit {
+            match display_byte {
+                Some(code) => wired_high_drive(((code >> serial_bit) & 1) != 0),
+                None => Drive::HighZ,
             }
-            Err(error) => return Err(error.into()),
+        } else {
+            act_address_drive(act.address(), expected_bit)
         };
-        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
-        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
-
-        if let Some(endpoint) = rom0.as_deref_mut() {
-            if display_data_serial_bit(expected_bit).is_some() {
-                endpoint.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
-            }
+        if act_drive != previous_act_drive {
+            backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
+            previous_act_drive = act_drive;
         }
 
-        if matches!(
-            isa_window_for_bit(expected_bit),
-            IsaWindow::RomAddress { .. }
-        ) {
-            rom.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa), source)?;
-            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom.drive_for_bit(expected_bit));
+        let rom_drive = rom.drive_for_bit(expected_bit);
+        if rom_drive != previous_rom_drive {
+            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom_drive);
+            previous_rom_drive = rom_drive;
         }
 
-        if matches!(isa_window_for_bit(expected_bit), IsaWindow::RomWord { .. }) {
-            act.sample_for_bit(expected_bit, backplane.level(Hp67Net::Isa))?;
-        }
-
-        if backplane.level(Hp67Net::Isa) == LogicLevel::Contention {
+        let is_level = backplane.level(Hp67Net::Isa);
+        if is_level == LogicLevel::Contention {
             return Err(SerialFetchError::IsaContention {
                 word_bit: expected_bit,
             }
             .into());
+        }
+
+        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+            endpoint.sample_for_bit(expected_bit, is_level)?;
+        }
+
+        match isa_window_for_bit(expected_bit) {
+            IsaWindow::RomAddress { .. } => {
+                rom.sample_for_bit(expected_bit, is_level, source)?;
+            }
+            IsaWindow::RomWord { .. } => {
+                act.sample_for_bit(expected_bit, is_level)?;
+            }
+            IsaWindow::Other => {}
         }
 
         for _ in 0..4 {

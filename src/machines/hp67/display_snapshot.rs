@@ -6,7 +6,7 @@
 //! source-backed ROM0/cathode model. Exact PHI launch/sample edges and final STR/RCD pulse timing
 //! remain outside this bridge.
 
-use crate::emulation::{Drive, DriverId, LogicLevel};
+use crate::emulation::{Drive, LogicLevel};
 
 use super::{
     act::{display_register_index_for_scan_slot, ActRegister, ACT_WORD_DIGITS},
@@ -17,10 +17,10 @@ use super::{
     },
     machine::Hp67ElectricalBackplane,
     timing::{display_data_serial_bit, BITS_PER_WORD},
-    wiring::Hp67Net,
+    wiring::{Hp67Driver, Hp67Net},
 };
 
-const ACT_DISPLAY_IS_DRIVER: DriverId = DriverId::new("hp67-act-display-snapshot-is");
+const ACT_DISPLAY_IS_DRIVER: Hp67Driver = Hp67Driver::Act1820_2530;
 
 /// One decoded display slot captured from architectural A/B state through the structural IS path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

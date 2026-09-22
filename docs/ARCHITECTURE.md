@@ -62,16 +62,18 @@ The current resolver is a generic digital primitive. Exact HP bus polarity, pass
 
 ## Deterministic device scheduling
 
-Devices implement the conceptual split in `ElectricalDevice`:
+Devices obey one scheduling contract:
 
 1. **resolve** all nets from already-committed drives;
 2. **snapshot/sample** the same resolved inputs for every device;
 3. **evaluate** each device for the current tick;
-4. **collect** proposed output drives;
+4. **collect/stage** proposed output drives;
 5. **commit** all drives together;
-6. advance time.
+6. advance time only when the scheduled event actually advances the timing coordinate.
 
-No chip may observe another chip merely because it happened to be earlier in a Rust `Vec`. This rule is central to cycle accuracy and repeatable traces.
+No chip may observe another chip merely because it happened to be earlier in an implementation container. This rule is central to cycle accuracy and repeatable traces. Physical output ownership is validated once during HP-67 machine composition: each `Hp67Driver` can issue only one opaque owner token, which the device then reuses across runtime evaluations without a per-edge ownership ledger.
+
+The generic `ElectricalScheduler` remains the model-independent reference implementation of that contract. It intentionally uses ordered maps and boxed devices for clarity and arbitrary topologies. The HP-67 production machine does **not** use that representation in its edge hot path: `src/machines/hp67/electrical.rs` implements the same contract with fixed `Hp67Net` and `Hp67Driver` indices, fixed typed pending-drive entries with slot markers, cached resolved levels and direct driver counters. Normal HP-67 ticks therefore require no map construction, no driver-name lookup, no whole-net-set re-resolution and no heap allocation. This specialization is an implementation detail only; it must never alter source-backed electrical ordering, passive bias, contention visibility or trace semantics.
 
 ## HP-67 machine composition
 
@@ -143,4 +145,20 @@ Shared chips can later move to families such as `src/chips/woodstock/` once at l
 
 ## Current architectural debt
 
-`src/hp67.rs` is a temporary UI-facing state object. It owns formatted display text and semantic key actions only so the front panel remains testable before the core exists. It must disappear once the HP-67 electrical machine reaches power-on/display/key milestones.
+`src/hp67.rs` still contains the temporary live-machine bridge that runs instruction-boundary architectural execution alongside the structural serial path. That bridge remains a correctness oracle until timed ACT/RAM device state becomes authoritative; it must not survive as the source of truth in the final fidelity mode. The measured architectural fallback cost is small compared with the electrical path, so removal is driven by correctness/ownership rather than micro-optimization.
+
+The generic map-backed `ElectricalScheduler` is retained as reusable reference infrastructure, not as the HP-67 production scheduler. The HP-67-specific dense fabric now owns the fixed topology needed for M14B and later device scheduling.
+
+
+### M14A dense scheduler performance decision
+
+The 2026-09-22 matched-observation benchmark validated the typed pending-entry + slot-marker scheduler representation: full staged PHI measured 1.221 us/word (262.05x the observed ~320 us HP-67 word time) on the validation host, versus 2.954 us/word before the representation change. The project therefore keeps the zero-copy resolved snapshot and direct typed pending entries as the M14B scheduler foundation. Further optimization should be driven by measured regressions after real DATA/RAM/STR/RCD devices are added, rather than by synthetic PHI microbenchmark tuning alone.
+
+
+### M14A scheduler exit state
+
+The 2026-09-22 full validation gate, diagnostic PAC suite and matched-PHI regression passed with composition-time driver ownership and commit/time separation enabled. The final M14A staged-PHI benchmark measured 1.171 us/word (273.27x the observed ~320 us physical word time) on the validation host, while real-firmware dual execution measured 0.955 us/word (335.24x). M14A therefore exits with the dense scheduler architecture accepted for M14B. Remaining DATA/RAM/STR/RCD edge placement and propagation details stay source-blocked and must not be inferred from this performance result.
+
+### Electrical commit versus timing progression
+
+The HP-67 dense fabric deliberately separates atomic electrical commit from `Tick` advancement. A commit is an observability boundary for staged drives; it is not by itself a PHI edge or a statement about elapsed physical time. The current four-transition PHI scaffold explicitly advances one tick after each PHI commit, preserving today's trace exactly. This separation leaves room for future evidence-backed zero-time settling or propagation events without corrupting the serial bit/word coordinate.

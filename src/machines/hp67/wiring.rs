@@ -49,7 +49,55 @@ pub const CHIPSET: &[Hp67Chip] = &[
     Hp67Chip::DisplayTransistorArray1858_0050,
 ];
 
+/// Dense output-driver slots used by the HP-67 electrical fabric.
+///
+/// Physical ICs receive one stable slot each. `StructuralRomResponder` is an
+/// explicit temporary slot for the current aggregate ROM fetch endpoint; M14B
+/// will replace it with the selected physical 1818-* device without changing
+/// the fabric or scheduler representation. `External` is reserved for
+/// hardware-facing contacts/stimulus, not calculator IC behavior.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Hp67Driver {
+    Act1820_2530,
+    StructuralRomResponder,
+    RomRam1818_0231,
+    RomRam1818_0232,
+    RomDisplay1818_0268,
+    RomRam1818_0550,
+    RomRam1818_0551,
+    CathodeDriver1820_1749,
+    CardReaderController1820_1751,
+    CardSenseAmplifier1826_0322,
+    DisplayTransistorArray1858_0050,
+    External,
+}
+
+impl Hp67Driver {
+    pub const COUNT: usize = 12;
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    pub const ALL: [Self; Self::COUNT] = [
+        Self::Act1820_2530,
+        Self::StructuralRomResponder,
+        Self::RomRam1818_0231,
+        Self::RomRam1818_0232,
+        Self::RomDisplay1818_0268,
+        Self::RomRam1818_0550,
+        Self::RomRam1818_0551,
+        Self::CathodeDriver1820_1749,
+        Self::CardReaderController1820_1751,
+        Self::CardSenseAmplifier1826_0322,
+        Self::DisplayTransistorArray1858_0050,
+        Self::External,
+    ];
+}
+
 /// Named digital nets already supported by direct HP-67 evidence.
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Hp67Net {
     Phi1,
@@ -69,7 +117,13 @@ pub enum Hp67Net {
 }
 
 impl Hp67Net {
-    pub const ALL: [Self; 14] = [
+    pub const COUNT: usize = 14;
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    pub const ALL: [Self; Self::COUNT] = [
         Self::Phi1,
         Self::Phi2,
         Self::Isa,
@@ -98,6 +152,22 @@ mod tests {
         parts.sort_unstable();
         parts.dedup();
         assert_eq!(parts.len(), count);
+    }
+
+    #[test]
+    fn hp67_driver_indices_are_dense_and_match_declared_order() {
+        assert_eq!(Hp67Driver::ALL.len(), Hp67Driver::COUNT);
+        for (index, driver) in Hp67Driver::ALL.into_iter().enumerate() {
+            assert_eq!(driver.index(), index);
+        }
+    }
+
+    #[test]
+    fn hp67_net_indices_are_dense_and_match_declared_order() {
+        assert_eq!(Hp67Net::ALL.len(), Hp67Net::COUNT);
+        for (index, net) in Hp67Net::ALL.into_iter().enumerate() {
+            assert_eq!(net.index(), index);
+        }
     }
 
     #[test]

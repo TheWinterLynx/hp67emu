@@ -30,12 +30,14 @@ Cycle accuracy is only meaningful if implementation claims can be traced to hard
 **HP-67 PHI/SYNC/IS logic-analyser waveforms**
 
 - https://literature.hpcalc.org/community/classic-notes.pdf
-- The section headed **“Woodstock – HP-67”** contains HP-67-specific logic-analyser captures of PHI1, PHI2, Sync and Is.
+- The section headed **“Woodstock – HP-67”** contains HP-67-specific logic-analyser captures of PHI1, PHI2, Sync, Is and Data.
 - Pages 64-66 establish exact instruction-fetch coordinates: the 12-bit ROM address is sent LSB-first during bit times `16..27`; the selected ROM returns its 10-bit word LSB-first during bit times `46..55`; a normal instruction has SYNC asserted over those final ten times, while after an `IF` the same 10-bit word arrives with SYNC low and is consumed as the implied-GOTO destination.
 - Page 73 shows HP-67 power-on behavior: signals start stabilizing at about 330 us and valid SYNC/fetch activity starts at about 35 ms after switch-on.
 - Page 74 records shared-bus behavior: IS is weakly/passively biased low and active participants pull it high rather than actively driving zero; only one device is intended to control the bus at a time.
-- Page 76 reports an observed HP-67 56-bit word time of about 320 us and a fifteen-STR display refresh of about 4.8 ms; pages 76-77 also anchor ROM0 display byte `0x00` as digit `0` and document the shared-sign decode. These whole-interval measurements may pace visible startup behavior, but they do not settle exact PHI launch/sample edges, RCD/STR overlap ordering or propagation delay.
-- The implementation/evidence mapping is recorded in `docs/research/HP67_ISA_TIMING.md`.
+- Page 70 directly shows PHI1/PHI2 as alternating low-going pulses from a normally high level; the observed pulses do not overlap. Its expanded SYNC captures also show both SYNC rising and falling transitions aligned with the rising edge of PHI2. This fixes clock pin polarity/order and the SYNC edge anchor, but not pulse widths/dead time, quantified propagation delay, or the exact IS/DATA launch/sample edges.
+- Pages 67, 69 and 74 directly constrain DATA timing: the 56-bit register stream is LSB-first, serial DATA bit 0 appears at machine-word bit `b2`, and RAM-read bits 54/55 wrap into `b0`/`b1` of the following word. This machine-bit phase is now source-backed; DATA passive level, active-drive polarity and PHI-relative launch/sample edges remain open.
+- Pages 76-77 report an observed HP-67 56-bit word time of about 320 us and a fifteen-STR display refresh of about 4.8 ms. They also report about 40 us normal-segment on-time, about 30 us decimal-point on-time, about 5 us gap before a roughly 5 us STR pulse, place STR on display-data bit 7, show the low-going STR edge beginning the segment interval, and indicate cathode reset on the low-going RCD edge with RCD overlapping the final STR pulse. These measurements still do not by themselves settle the exact PHI launch/sample edge convention or propagation delay.
+- The implementation/evidence mapping is recorded in `docs/research/HP67_ISA_TIMING.md`; the M14A DATA/display timing lock is recorded in `docs/research/M14A_TIMING_EVIDENCE_LOCK_2026-09-21.md`.
 
 ### Tier B — detailed HP-family timing/service evidence
 
@@ -110,8 +112,8 @@ The following must have a source citation or a captured regression trace before 
 
 - exact HP-67 PHI1/PHI2 frequency, pulse width and dead time;
 - exact PHI launch/sample edge and propagation delay for each IS address/ROM bit;
-- DATA passive level, active-drive polarity and ownership timing;
-- RCD and STR edge placement;
+- DATA passive level, active-drive polarity and exact PHI-relative ownership timing; the DATA stream phase (`b2` = serial bit 0, wrapping bits 54/55 into next-word `b0`/`b1`) is source-backed;
+- exact PHI-relative RCD and STR edge placement/propagation; STR-on-bit-7, low-going STR segment start, low-going RCD cathode reset and final-slot overlap are source-backed;
 - ACT reset sequencing beyond currently observed high-level power-on behavior;
 - opcode semantics that differ across chipset generations;
 - keyboard matrix wiring and mode-switch flag path;

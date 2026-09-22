@@ -3,10 +3,12 @@
 //! The physical Woodstock datapath is a 56-bit serial word: fourteen 4-bit
 //! digit times. This module defines the project's bit numbering convention as
 //! `b0..b55` and tracks that position. HP-67-specific logic-analyser evidence
-//! anchors ROM0 display data at b0..b7, the ROM address window at b16..b27 and
-//! the 10-bit ROM response at b46..b55. Absolute pulse widths and exact PHI
-//! launch/sample edges remain deliberately unspecified until tied to a reviewed
-//! waveform.
+//! anchors ROM0 display data at b0..b7, the ROM address window at b16..b27,
+//! the 10-bit ROM response at b46..b55, and the 56-bit DATA stream with its
+//! serial bit 0 appearing at machine-word bit b2. Display scope captures also
+//! bound STR/LED timing at the microsecond level. Exact PHI launch/sample edges
+//! remain deliberately unspecified until the waveform edge relationships are
+//! converted into a reviewed scheduler contract.
 
 /// Number of serial bits in one HP-67 digit/nibble.
 pub const BITS_PER_DIGIT: u8 = 4;
@@ -28,16 +30,36 @@ pub const HP67_OBSERVED_POWER_ON_SYNC_DELAY_US: u64 = 35_000;
 /// Approximate delay after switch-on at which the measured power-on signals start stabilizing.
 pub const HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US: u64 = 330;
 
+/// Approximate on-time of a normal LED segment in the measured HP-67 display scan.
+pub const HP67_OBSERVED_DISPLAY_SEGMENT_ON_US: u64 = 40;
+/// Approximate on-time of the decimal-point LED in the measured HP-67 display scan.
+pub const HP67_OBSERVED_DISPLAY_DP_ON_US: u64 = 30;
+/// Approximate quiet gap between the decimal-point LED ending and the STR pulse.
+pub const HP67_OBSERVED_DISPLAY_DP_TO_STR_GAP_US: u64 = 5;
+/// Approximate STR pulse width measured on the physical HP-67.
+pub const HP67_OBSERVED_DISPLAY_STR_PULSE_US: u64 = 5;
+
 /// First HP-67 bit time carrying the eight-bit ROM0 display code on IS.
 pub const DISPLAY_DATA_FIRST_BIT: u8 = 0;
 /// Number of serial bits in one ROM0 display code, LSB first.
 pub const DISPLAY_DATA_BITS: u8 = 8;
 /// Last HP-67 bit time carrying the ROM0 display code on IS.
 pub const DISPLAY_DATA_LAST_BIT: u8 = DISPLAY_DATA_FIRST_BIT + DISPLAY_DATA_BITS - 1;
-/// Coarse bit coordinate at which the ROM0 STR pulse is observed.
+/// Bit coordinate in which the ROM0 STR pulse occurs.
 ///
-/// This does not specify the final PHI-relative launch edge or pulse width.
+/// The HP-67 scope capture explicitly places STR on display-data bit 7 and
+/// shows the low-going STR edge starting the segment interval. The exact
+/// PHI-relative edge/propagation relationship is still not encoded here.
 pub const DISPLAY_STR_BIT: u8 = DISPLAY_DATA_LAST_BIT;
+
+/// HP-67 machine-word bit where serial DATA bit 0 appears.
+///
+/// Direct HP-67 captures show the 56-bit DATA register stream LSB first, with
+/// serial bit 0 at machine-word cycle b2. Consequently serial bits 54 and 55
+/// cross the word boundary and appear at b0 and b1 of the following word.
+pub const DATA_STREAM_FIRST_WORD_BIT: u8 = 2;
+/// Number of serial bits in one complete DATA register stream.
+pub const DATA_STREAM_BITS: u8 = BITS_PER_WORD;
 
 /// First HP-67 bit time carrying the 12-bit ROM address on IS/ISA.
 pub const ROM_ADDRESS_FIRST_BIT: u8 = 16;
@@ -53,11 +75,244 @@ pub const ROM_WORD_BITS: u8 = 10;
 /// Last HP-67 bit time carrying the fetched 10-bit ROM word on IS/ISA.
 pub const ROM_WORD_LAST_BIT: u8 = ROM_WORD_FIRST_BIT + ROM_WORD_BITS - 1;
 
-// The current generic TwoPhaseClock scaffold is PHI1-high, dead, PHI2-high,
-// dead. Until measured widths are installed, one complete four-slot sequence
-// is treated as one serial bit time. This is a scheduler coordinate, not an
-// assertion that every slot has the same physical duration.
+// The generic TwoPhaseClock scaffold marks abstract active-PHI1, interphase,
+// active-PHI2, interphase slots. The HP-67 backplane maps an active phase to
+// the directly observed low-going PHI pin pulse. Until measured widths are
+// installed, one complete four-slot sequence is treated as one serial bit time.
+// This is a scheduler coordinate, not an assertion that every slot has the same
+// physical duration.
 const CLOCK_SUBPHASES_PER_BIT: u8 = 4;
+
+/// HP-67-specific name for the four currently represented positions inside one
+/// serial bit.
+///
+/// Direct HP-67 page-70 captures establish the pin polarity/order: PHI1 is a
+/// low-going pulse, both clocks return high, PHI2 is a low-going pulse, then
+/// both clocks return high again. The enum deliberately names topology rather
+/// than duration; the physical widths/dead times remain uncalibrated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67ClockPhase {
+    Phi1Low,
+    InterphaseAfterPhi1,
+    Phi2Low,
+    InterphaseAfterPhi2,
+}
+
+impl Hp67ClockPhase {
+    pub const fn from_subphase(subphase: u8) -> Self {
+        match subphase & 0b11 {
+            0 => Self::Phi1Low,
+            1 => Self::InterphaseAfterPhi1,
+            2 => Self::Phi2Low,
+            _ => Self::InterphaseAfterPhi2,
+        }
+    }
+
+    pub const fn phi1_low(self) -> bool {
+        matches!(self, Self::Phi1Low)
+    }
+
+    pub const fn phi2_low(self) -> bool {
+        matches!(self, Self::Phi2Low)
+    }
+
+    /// Advance one HP-67 clock transition and return both the new level phase
+    /// and the physical pin edge crossed to get there.
+    pub const fn advance(self) -> (Self, Hp67ClockEdge) {
+        match self {
+            Self::InterphaseAfterPhi2 => (Self::Phi1Low, Hp67ClockEdge::Phi1Falling),
+            Self::Phi1Low => (Self::InterphaseAfterPhi1, Hp67ClockEdge::Phi1Rising),
+            Self::InterphaseAfterPhi1 => (Self::Phi2Low, Hp67ClockEdge::Phi2Falling),
+            Self::Phi2Low => (Self::InterphaseAfterPhi2, Hp67ClockEdge::Phi2Rising),
+        }
+    }
+}
+
+/// Named HP-67 clock transitions used by source-backed timing contracts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67ClockEdge {
+    Phi1Falling,
+    Phi1Rising,
+    Phi2Falling,
+    Phi2Rising,
+}
+
+/// Direct page-70 HP-67 captures show both the rising and falling transitions
+/// of SYNC aligned with the rising edge of PHI2.
+///
+/// This is an observed edge relationship, not a propagation-delay claim. The
+/// current scheduler still lacks calibrated sub-microsecond transition timing.
+pub const HP67_SYNC_TRANSITION_EDGE: Hp67ClockEdge = Hp67ClockEdge::Phi2Rising;
+
+/// Version of the reviewed HP-67 PHI-relative edge-contract table.
+pub const HP67_EDGE_CONTRACT_VERSION: u8 = 1;
+
+/// Physical participant named by one timing-contract row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67TimingParticipant {
+    Act,
+    Rom,
+    RomRam,
+    Rom0,
+    CathodeDriver,
+    Unresolved,
+}
+
+/// Signal transition described by one timing-contract row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67SignalTransition {
+    Rising,
+    Falling,
+    Both,
+    SerialData,
+}
+
+/// Evidence status of one timing-contract row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67TimingEvidence {
+    DirectCapture,
+    SourceBlocked,
+}
+
+/// Named transfer covered by the M14A timing lock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hp67TimedTransfer {
+    SyncTransition,
+    ActToRomAddress,
+    RomToActInstruction,
+    ActToRomRamData,
+    RomRamToActData,
+    ActToRom0Display,
+    Rom0ToCathodeStr,
+    ActToCathodeRcd,
+}
+
+/// One reviewed PHI-relative timing contract.
+///
+/// `None` is deliberate: it means the reviewed sources do not yet justify that
+/// edge or propagation value. Production edge scheduling must not invent one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hp67EdgeContract {
+    pub transfer: Hp67TimedTransfer,
+    pub driver: Hp67TimingParticipant,
+    pub receiver: Hp67TimingParticipant,
+    pub signal_transition: Hp67SignalTransition,
+    pub launch_edge: Option<Hp67ClockEdge>,
+    pub sample_edge: Option<Hp67ClockEdge>,
+    pub max_propagation_ns: Option<u32>,
+    pub source_page: u8,
+    pub evidence: Hp67TimingEvidence,
+}
+
+/// Reviewed M14A edge table.
+///
+/// Only SYNC currently has an exact PHI-relative transition anchor. The other
+/// rows preserve known ownership while explicitly keeping launch/sample edges
+/// source-blocked instead of silently inheriting the four-slot scaffold.
+pub const HP67_EDGE_CONTRACTS_V1: &[Hp67EdgeContract] = &[
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::SyncTransition,
+        driver: Hp67TimingParticipant::Unresolved,
+        receiver: Hp67TimingParticipant::Unresolved,
+        signal_transition: Hp67SignalTransition::Both,
+        launch_edge: Some(HP67_SYNC_TRANSITION_EDGE),
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 70,
+        evidence: Hp67TimingEvidence::DirectCapture,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToRomAddress,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::Rom,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 70,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::RomToActInstruction,
+        driver: Hp67TimingParticipant::Rom,
+        receiver: Hp67TimingParticipant::Act,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 70,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToRomRamData,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::RomRam,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 68,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::RomRamToActData,
+        driver: Hp67TimingParticipant::RomRam,
+        receiver: Hp67TimingParticipant::Act,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 74,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToRom0Display,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::Rom0,
+        signal_transition: Hp67SignalTransition::SerialData,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 76,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::Rom0ToCathodeStr,
+        driver: Hp67TimingParticipant::Rom0,
+        receiver: Hp67TimingParticipant::CathodeDriver,
+        signal_transition: Hp67SignalTransition::Falling,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 77,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+    Hp67EdgeContract {
+        transfer: Hp67TimedTransfer::ActToCathodeRcd,
+        driver: Hp67TimingParticipant::Act,
+        receiver: Hp67TimingParticipant::CathodeDriver,
+        signal_transition: Hp67SignalTransition::Falling,
+        launch_edge: None,
+        sample_edge: None,
+        max_propagation_ns: None,
+        source_page: 77,
+        evidence: Hp67TimingEvidence::SourceBlocked,
+    },
+];
+
+pub const fn edge_contract(transfer: Hp67TimedTransfer) -> &'static Hp67EdgeContract {
+    let index = match transfer {
+        Hp67TimedTransfer::SyncTransition => 0,
+        Hp67TimedTransfer::ActToRomAddress => 1,
+        Hp67TimedTransfer::RomToActInstruction => 2,
+        Hp67TimedTransfer::ActToRomRamData => 3,
+        Hp67TimedTransfer::RomRamToActData => 4,
+        Hp67TimedTransfer::ActToRom0Display => 5,
+        Hp67TimedTransfer::Rom0ToCathodeStr => 6,
+        Hp67TimedTransfer::ActToCathodeRcd => 7,
+    };
+    &HP67_EDGE_CONTRACTS_V1[index]
+}
 
 /// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +335,14 @@ pub const fn display_data_serial_bit(bit_index: u8) -> Option<u8> {
     } else {
         None
     }
+}
+
+/// Map an HP-67 machine-word coordinate to the serial bit number visible on DATA.
+///
+/// The stream is continuous across instruction-word boundaries: b2 carries DATA
+/// bit 0, b55 carries bit 53, and the next word's b0/b1 carry bits 54/55.
+pub const fn data_serial_bit_for_word_bit(bit_index: u8) -> u8 {
+    (bit_index + (BITS_PER_WORD - DATA_STREAM_FIRST_WORD_BIT)) % DATA_STREAM_BITS
 }
 
 /// Classify one `b0..b55` coordinate by its evidenced HP-67 instruction-fetch
@@ -141,6 +404,11 @@ impl Hp67WordTiming {
         display_data_serial_bit(self.bit_index)
     }
 
+    /// Current DATA serial bit according to the measured HP-67 b2 phase offset.
+    pub const fn data_serial_bit(&self) -> u8 {
+        data_serial_bit_for_word_bit(self.bit_index)
+    }
+
     /// Current evidenced IS/ISA instruction-fetch role.
     pub const fn isa_window(&self) -> IsaWindow {
         isa_window_for_bit(self.bit_index)
@@ -164,6 +432,15 @@ impl Hp67WordTiming {
     /// Current slot inside the temporary four-slot two-phase clock period.
     pub const fn clock_subphase(&self) -> u8 {
         self.clock_subphase
+    }
+
+    /// HP-67-specific named phase that the next scheduler transition enters.
+    ///
+    /// Hp67WordTiming counts completed scaffold subphases. The electrical
+    /// backplane owns the actual current PHI pin phase; this method deliberately
+    /// exposes only the next phase implied by the remaining bit-cell schedule.
+    pub const fn next_clock_phase(&self) -> Hp67ClockPhase {
+        Hp67ClockPhase::from_subphase(self.clock_subphase)
     }
 
     /// Advance one scheduler clock sub-phase.
@@ -202,6 +479,10 @@ mod tests {
         assert_eq!(HP67_OBSERVED_DISPLAY_REFRESH_US, 4_800);
         assert_eq!(HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, 35_000);
         assert_eq!(HP67_OBSERVED_POWER_ON_SIGNAL_STABILIZE_US, 330);
+        assert_eq!(HP67_OBSERVED_DISPLAY_SEGMENT_ON_US, 40);
+        assert_eq!(HP67_OBSERVED_DISPLAY_DP_ON_US, 30);
+        assert_eq!(HP67_OBSERVED_DISPLAY_DP_TO_STR_GAP_US, 5);
+        assert_eq!(HP67_OBSERVED_DISPLAY_STR_PULSE_US, 5);
         assert_eq!(
             HP67_OBSERVED_DISPLAY_REFRESH_US,
             HP67_OBSERVED_WORD_TIME_US * 15
@@ -219,6 +500,26 @@ mod tests {
         }
         assert_eq!(display_data_serial_bit(8), None);
         assert_eq!(display_data_serial_bit(55), None);
+    }
+
+    #[test]
+    fn hp67_data_stream_is_lsb_first_with_bit_zero_at_machine_bit_two() {
+        assert_eq!(DATA_STREAM_FIRST_WORD_BIT, 2);
+        assert_eq!(DATA_STREAM_BITS, 56);
+        assert_eq!(data_serial_bit_for_word_bit(2), 0);
+        assert_eq!(data_serial_bit_for_word_bit(3), 1);
+        assert_eq!(data_serial_bit_for_word_bit(55), 53);
+        assert_eq!(data_serial_bit_for_word_bit(0), 54);
+        assert_eq!(data_serial_bit_for_word_bit(1), 55);
+
+        let mut seen = [false; BITS_PER_WORD as usize];
+        for word_bit in 0..BITS_PER_WORD {
+            let serial_bit = data_serial_bit_for_word_bit(word_bit);
+            assert!(serial_bit < BITS_PER_WORD);
+            assert!(!seen[serial_bit as usize]);
+            seen[serial_bit as usize] = true;
+        }
+        assert!(seen.into_iter().all(|value| value));
     }
 
     #[test]
@@ -258,6 +559,77 @@ mod tests {
             let fetch = !matches!(isa_window_for_bit(bit), IsaWindow::Other);
             assert!(!(display && fetch));
         }
+    }
+
+    #[test]
+    fn m14a_edge_table_never_invents_blocked_phi_edges() {
+        assert_eq!(HP67_EDGE_CONTRACT_VERSION, 1);
+        assert_eq!(HP67_EDGE_CONTRACTS_V1.len(), 8);
+
+        let sync = edge_contract(Hp67TimedTransfer::SyncTransition);
+        assert_eq!(sync.launch_edge, Some(Hp67ClockEdge::Phi2Rising));
+        assert_eq!(sync.evidence, Hp67TimingEvidence::DirectCapture);
+
+        for transfer in [
+            Hp67TimedTransfer::ActToRomAddress,
+            Hp67TimedTransfer::RomToActInstruction,
+            Hp67TimedTransfer::ActToRomRamData,
+            Hp67TimedTransfer::RomRamToActData,
+            Hp67TimedTransfer::ActToRom0Display,
+            Hp67TimedTransfer::Rom0ToCathodeStr,
+            Hp67TimedTransfer::ActToCathodeRcd,
+        ] {
+            let contract = edge_contract(transfer);
+            assert_eq!(contract.launch_edge, None);
+            assert_eq!(contract.sample_edge, None);
+            assert_eq!(contract.max_propagation_ns, None);
+            assert_eq!(contract.evidence, Hp67TimingEvidence::SourceBlocked);
+        }
+    }
+
+    #[test]
+    fn hp67_sync_transitions_are_anchored_to_phi2_rising() {
+        assert_eq!(HP67_SYNC_TRANSITION_EDGE, Hp67ClockEdge::Phi2Rising);
+    }
+
+    #[test]
+    fn hp67_clock_phase_names_lock_active_low_order_without_durations() {
+        assert_eq!(Hp67ClockPhase::from_subphase(0), Hp67ClockPhase::Phi1Low);
+        assert_eq!(
+            Hp67ClockPhase::from_subphase(1),
+            Hp67ClockPhase::InterphaseAfterPhi1
+        );
+        assert_eq!(Hp67ClockPhase::from_subphase(2), Hp67ClockPhase::Phi2Low);
+        assert_eq!(
+            Hp67ClockPhase::from_subphase(3),
+            Hp67ClockPhase::InterphaseAfterPhi2
+        );
+        assert_eq!(
+            Hp67ClockPhase::InterphaseAfterPhi2.advance(),
+            (Hp67ClockPhase::Phi1Low, Hp67ClockEdge::Phi1Falling)
+        );
+        assert_eq!(
+            Hp67ClockPhase::Phi1Low.advance(),
+            (
+                Hp67ClockPhase::InterphaseAfterPhi1,
+                Hp67ClockEdge::Phi1Rising
+            )
+        );
+        assert_eq!(
+            Hp67ClockPhase::InterphaseAfterPhi1.advance(),
+            (Hp67ClockPhase::Phi2Low, Hp67ClockEdge::Phi2Falling)
+        );
+        assert_eq!(
+            Hp67ClockPhase::Phi2Low.advance(),
+            (
+                Hp67ClockPhase::InterphaseAfterPhi2,
+                Hp67ClockEdge::Phi2Rising
+            )
+        );
+        assert!(Hp67ClockPhase::Phi1Low.phi1_low());
+        assert!(!Hp67ClockPhase::Phi1Low.phi2_low());
+        assert!(!Hp67ClockPhase::Phi2Low.phi1_low());
+        assert!(Hp67ClockPhase::Phi2Low.phi2_low());
     }
 
     #[test]
