@@ -127,6 +127,9 @@ fn raw_phi_stream(words: usize) -> u64 {
 
 fn stage_commit_phi_stream(words: usize) -> u64 {
     let mut fabric = Hp67ElectricalFabric::default();
+    let act = fabric
+        .claim_driver_owner(Hp67Driver::Act1820_2530)
+        .expect("ACT ownership must be unique");
     let edges_per_word = BITS_PER_WORD as u64 * CLOCK_EDGES_PER_BIT;
     let mut checksum = 0u64;
 
@@ -136,10 +139,10 @@ fn stage_commit_phi_stream(words: usize) -> u64 {
             black_box(fabric.level(Hp67Net::Phi2));
 
             match (fabric.tick().get() + 1) & 0b11 {
-                1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
-                2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
-                3 => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
-                _ => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+                1 => fabric.stage_drive(&act, Hp67Net::Phi1, Drive::Low),
+                2 => fabric.stage_drive(&act, Hp67Net::Phi1, Drive::High),
+                3 => fabric.stage_drive(&act, Hp67Net::Phi2, Drive::Low),
+                _ => fabric.stage_drive(&act, Hp67Net::Phi2, Drive::High),
             }
 
             fabric
@@ -154,6 +157,9 @@ fn stage_commit_phi_stream(words: usize) -> u64 {
 
 fn staged_phi_scheduler_stream(words: usize) -> u64 {
     let mut fabric = Hp67ElectricalFabric::default();
+    let act = fabric
+        .claim_driver_owner(Hp67Driver::Act1820_2530)
+        .expect("ACT ownership must be unique");
     let edges_per_word = BITS_PER_WORD as u64 * CLOCK_EDGES_PER_BIT;
     let mut checksum = 0u64;
 
@@ -167,10 +173,10 @@ fn staged_phi_scheduler_stream(words: usize) -> u64 {
                 black_box(snapshot.level(Hp67Net::Phi2));
 
                 match (snapshot.tick().get() + 1) & 0b11 {
-                    1 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
-                    2 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
-                    3 => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
-                    _ => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+                    1 => stager.stage_drive(&act, Hp67Net::Phi1, Drive::Low),
+                    2 => stager.stage_drive(&act, Hp67Net::Phi1, Drive::High),
+                    3 => stager.stage_drive(&act, Hp67Net::Phi2, Drive::Low),
+                    _ => stager.stage_drive(&act, Hp67Net::Phi2, Drive::High),
                 }
             }
 
@@ -387,6 +393,9 @@ fn raw_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
 
 fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
     let mut fabric = Hp67ElectricalFabric::default();
+    let act = fabric
+        .claim_driver_owner(Hp67Driver::Act1820_2530)
+        .expect("ACT ownership must be unique");
     let mut trace = Vec::with_capacity(edges + 1);
     trace.push(PhiTraceSample {
         tick: fabric.tick().get(),
@@ -396,10 +405,10 @@ fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
 
     for _ in 0..edges {
         match (fabric.tick().get() + 1) & 0b11 {
-            1 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
-            2 => fabric.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
-            3 => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
-            _ => fabric.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+            1 => fabric.stage_drive(&act, Hp67Net::Phi1, Drive::Low),
+            2 => fabric.stage_drive(&act, Hp67Net::Phi1, Drive::High),
+            3 => fabric.stage_drive(&act, Hp67Net::Phi2, Drive::Low),
+            _ => fabric.stage_drive(&act, Hp67Net::Phi2, Drive::High),
         }
         fabric
             .commit_staged()
@@ -416,6 +425,9 @@ fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
 
 fn staged_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
     let mut fabric = Hp67ElectricalFabric::default();
+    let act = fabric
+        .claim_driver_owner(Hp67Driver::Act1820_2530)
+        .expect("ACT ownership must be unique");
     let mut trace = Vec::with_capacity(edges + 1);
     trace.push(PhiTraceSample {
         tick: fabric.tick().get(),
@@ -429,10 +441,10 @@ fn staged_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
                 .begin_evaluation()
                 .expect("dense PHI trace snapshot must be contention-free");
             match (snapshot.tick().get() + 1) & 0b11 {
-                1 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::Low),
-                2 => stager.stage_drive(Hp67Net::Phi1, Hp67Driver::Act1820_2530, Drive::High),
-                3 => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::Low),
-                _ => stager.stage_drive(Hp67Net::Phi2, Hp67Driver::Act1820_2530, Drive::High),
+                1 => stager.stage_drive(&act, Hp67Net::Phi1, Drive::Low),
+                2 => stager.stage_drive(&act, Hp67Net::Phi1, Drive::High),
+                3 => stager.stage_drive(&act, Hp67Net::Phi2, Drive::Low),
+                _ => stager.stage_drive(&act, Hp67Net::Phi2, Drive::High),
             }
         }
         fabric
