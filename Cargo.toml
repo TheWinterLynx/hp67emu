@@ -11,6 +11,10 @@ default-run = "hp67emu"
 [dependencies]
 eframe = { version = "=0.27.2", features = ["wgpu"] }
 image = { version = "=0.24.9", default-features = false, features = ["png"] }
+web-time = "=0.2.4"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "=0.4.78"
 
 [profile.release]
 lto = "thin"
