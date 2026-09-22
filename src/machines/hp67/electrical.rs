@@ -88,16 +88,6 @@ pub enum Hp67ElectricalError {
         net: Hp67Net,
         drivers: Vec<Hp67Driver>,
     },
-    DriverAlreadyClaimed {
-        tick: Tick,
-        driver: Hp67Driver,
-    },
-    EvaluationAlreadyOpen {
-        tick: Tick,
-    },
-    CommitWithoutEvaluation {
-        tick: Tick,
-    },
 }
 
 /// Immutable resolved input image shared by every device evaluation in one tick.
@@ -122,41 +112,13 @@ impl<'a> Hp67ElectricalSnapshot<'a> {
 /// It deliberately has no access to committed nets, so publishing outputs cannot
 /// change what any device samples during the same evaluation interval.
 pub struct Hp67ElectricalStager<'a> {
-    tick: Tick,
     pending_slot_markers: &'a mut [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
     pending_changes: &'a mut [Hp67PendingDrive; MAX_PENDING_DRIVES],
     pending_len: &'a mut usize,
-    claimed_drivers: [bool; Hp67Driver::COUNT],
-}
-
-/// Output capability bound to exactly one HP-67 electrical driver for one
-/// evaluation interval.
-pub struct Hp67DriverStager<'s, 'a> {
-    driver: Hp67Driver,
-    stager: &'s mut Hp67ElectricalStager<'a>,
 }
 
 impl<'a> Hp67ElectricalStager<'a> {
-    pub fn claim_driver(
-        &mut self,
-        driver: Hp67Driver,
-    ) -> Result<Hp67DriverStager<'_, 'a>, Hp67ElectricalError> {
-        let claimed = &mut self.claimed_drivers[driver.index()];
-        if *claimed {
-            return Err(Hp67ElectricalError::DriverAlreadyClaimed {
-                tick: self.tick,
-                driver,
-            });
-        }
-        *claimed = true;
-        Ok(Hp67DriverStager {
-            driver,
-            stager: self,
-        })
-    }
-
-    fn stage_claimed_drive(&mut self, driver: Hp67Driver, net: Hp67Net, drive: Drive) {
-        debug_assert!(self.claimed_drivers[driver.index()]);
+    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         let net_index = net.index();
         let driver_index = driver.index();
         let marker = &mut self.pending_slot_markers[net_index][driver_index];
@@ -175,16 +137,6 @@ impl<'a> Hp67ElectricalStager<'a> {
     }
 }
 
-impl Hp67DriverStager<'_, '_> {
-    pub fn driver(&self) -> Hp67Driver {
-        self.driver
-    }
-
-    pub fn stage_drive(&mut self, net: Hp67Net, drive: Drive) {
-        self.stager.stage_claimed_drive(self.driver, net, drive);
-    }
-}
-
 /// Fixed-topology HP-67 electrical state and staged drive commit buffer.
 ///
 /// Normal ticks allocate nothing. A fixed slot-marker matrix deduplicates
@@ -199,7 +151,6 @@ pub struct Hp67ElectricalFabric {
     pending_slot_markers: [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
     pending_changes: [Hp67PendingDrive; MAX_PENDING_DRIVES],
     pending_len: usize,
-    evaluation_open: bool,
     contention_net_count: u8,
 }
 
@@ -229,7 +180,6 @@ impl Default for Hp67ElectricalFabric {
             pending_slot_markers: [[0; Hp67Driver::COUNT]; Hp67Net::COUNT],
             pending_changes: [EMPTY_PENDING_DRIVE; MAX_PENDING_DRIVES],
             pending_len: 0,
-            evaluation_open: false,
             contention_net_count: 0,
         }
     }
@@ -275,7 +225,9 @@ impl Hp67ElectricalFabric {
     pub fn begin_evaluation(
         &mut self,
     ) -> Result<(Hp67ElectricalSnapshot<'_>, Hp67ElectricalStager<'_>), Hp67ElectricalError> {
-        self.open_evaluation()?;
+        if self.contention_net_count != 0 {
+            return Err(self.contention_error(self.tick));
+        }
 
         let tick = self.tick;
         let snapshot = Hp67ElectricalSnapshot {
@@ -283,35 +235,26 @@ impl Hp67ElectricalFabric {
             levels: &self.resolved_levels,
         };
         let stager = Hp67ElectricalStager {
-            tick,
             pending_slot_markers: &mut self.pending_slot_markers,
             pending_changes: &mut self.pending_changes,
             pending_len: &mut self.pending_len,
-            claimed_drivers: [false; Hp67Driver::COUNT],
         };
         Ok((snapshot, stager))
     }
 
-    /// Start an output-only evaluation interval for a device that does not need
-    /// to sample resolved inputs before publishing its next drives.
-    pub fn begin_staging(&mut self) -> Result<Hp67ElectricalStager<'_>, Hp67ElectricalError> {
-        self.open_evaluation()?;
-
-        Ok(Hp67ElectricalStager {
-            tick: self.tick,
+    /// Convenience staging entry point for transitional callers that do not
+    /// need to hold a zero-copy resolved snapshot.
+    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
+        let mut stager = Hp67ElectricalStager {
             pending_slot_markers: &mut self.pending_slot_markers,
             pending_changes: &mut self.pending_changes,
             pending_len: &mut self.pending_len,
-            claimed_drivers: [false; Hp67Driver::COUNT],
-        })
+        };
+        stager.stage_drive(net, driver, drive);
     }
 
     /// Commit every staged device output atomically and advance one scheduler tick.
     pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
-        if !self.evaluation_open {
-            return Err(Hp67ElectricalError::CommitWithoutEvaluation { tick: self.tick });
-        }
-
         for pending_index in 0..self.pending_len {
             let pending = self.pending_changes[pending_index];
             let marker =
@@ -321,23 +264,11 @@ impl Hp67ElectricalFabric {
             self.apply_drive(pending.net.index(), pending.driver, pending.drive);
         }
         self.pending_len = 0;
-        self.evaluation_open = false;
         let tick = self.advance_tick();
         if self.contention_net_count != 0 {
             return Err(self.contention_error(tick));
         }
         Ok(tick)
-    }
-
-    fn open_evaluation(&mut self) -> Result<(), Hp67ElectricalError> {
-        if self.contention_net_count != 0 {
-            return Err(self.contention_error(self.tick));
-        }
-        if self.evaluation_open {
-            return Err(Hp67ElectricalError::EvaluationAlreadyOpen { tick: self.tick });
-        }
-        self.evaluation_open = true;
-        Ok(())
     }
 
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
@@ -399,8 +330,7 @@ mod tests {
             assert_eq!(snapshot.tick(), Tick::ZERO);
             assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
 
-            let mut act = stager.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-            act.stage_drive(Hp67Net::Data, Drive::High);
+            stager.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
             assert_eq!(snapshot.level(Hp67Net::Data), LogicLevel::Floating);
         }
 
@@ -412,13 +342,9 @@ mod tests {
     #[test]
     fn repeated_staging_by_one_driver_is_final_write_wins_without_duplicate_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        {
-            let mut staging = fabric.begin_staging().unwrap();
-            let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-            act.stage_drive(Hp67Net::Data, Drive::High);
-            act.stage_drive(Hp67Net::Data, Drive::Low);
-            act.stage_drive(Hp67Net::Data, Drive::HighZ);
-        }
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::Low);
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::HighZ);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
     }
@@ -427,82 +353,24 @@ mod tests {
     fn staged_slot_marker_is_reusable_after_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
 
-        {
-            let mut staging = fabric.begin_staging().unwrap();
-            let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-            act.stage_drive(Hp67Net::Data, Drive::High);
-        }
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
 
-        {
-            let mut staging = fabric.begin_staging().unwrap();
-            let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-            act.stage_drive(Hp67Net::Data, Drive::Low);
-        }
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::Low);
         assert_eq!(fabric.commit_staged(), Ok(Tick::new(2)));
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Low);
     }
 
     #[test]
-    fn one_driver_identity_cannot_be_claimed_twice_in_one_evaluation() {
-        let mut fabric = Hp67ElectricalFabric::default();
-        let mut staging = fabric.begin_staging().unwrap();
-
-        {
-            let act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-            assert_eq!(act.driver(), Hp67Driver::Act1820_2530);
-        }
-
-        assert_eq!(
-            staging.claim_driver(Hp67Driver::Act1820_2530).err(),
-            Some(Hp67ElectricalError::DriverAlreadyClaimed {
-                tick: Tick::ZERO,
-                driver: Hp67Driver::Act1820_2530,
-            })
-        );
-    }
-
-    #[test]
-    fn evaluation_must_commit_before_another_can_begin() {
-        let mut fabric = Hp67ElectricalFabric::default();
-        {
-            let _staging = fabric.begin_staging().unwrap();
-        }
-
-        assert_eq!(
-            fabric.begin_staging().err(),
-            Some(Hp67ElectricalError::EvaluationAlreadyOpen { tick: Tick::ZERO })
-        );
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
-        assert!(fabric.begin_staging().is_ok());
-    }
-
-    #[test]
-    fn commit_requires_an_open_evaluation() {
-        let mut fabric = Hp67ElectricalFabric::default();
-        assert_eq!(
-            fabric.commit_staged(),
-            Err(Hp67ElectricalError::CommitWithoutEvaluation { tick: Tick::ZERO })
-        );
-    }
-
-    #[test]
     fn simultaneous_opposite_drives_report_contention_after_commit() {
         let mut fabric = Hp67ElectricalFabric::default();
-        {
-            let mut staging = fabric.begin_staging().unwrap();
-            {
-                let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-                act.stage_drive(Hp67Net::Data, Drive::High);
-            }
-            {
-                let mut rom = staging
-                    .claim_driver(Hp67Driver::StructuralRomResponder)
-                    .unwrap();
-                rom.stage_drive(Hp67Net::Data, Drive::Low);
-            }
-        }
+        fabric.stage_drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::High);
+        fabric.stage_drive(
+            Hp67Net::Data,
+            Hp67Driver::StructuralRomResponder,
+            Drive::Low,
+        );
 
         assert_eq!(
             fabric.commit_staged(),
@@ -512,48 +380,6 @@ mod tests {
                 drivers: vec![Hp67Driver::Act1820_2530, Hp67Driver::StructuralRomResponder,],
             })
         );
-    }
-
-    #[test]
-    fn device_evaluation_order_does_not_change_final_contention_result() {
-        fn run(reverse: bool) -> (Hp67ElectricalError, LogicLevel, Tick) {
-            let mut fabric = Hp67ElectricalFabric::default();
-            {
-                let mut staging = fabric.begin_staging().unwrap();
-                if reverse {
-                    {
-                        let mut rom = staging
-                            .claim_driver(Hp67Driver::StructuralRomResponder)
-                            .unwrap();
-                        rom.stage_drive(Hp67Net::Data, Drive::Low);
-                    }
-                    {
-                        let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-                        act.stage_drive(Hp67Net::Data, Drive::High);
-                    }
-                } else {
-                    {
-                        let mut act = staging.claim_driver(Hp67Driver::Act1820_2530).unwrap();
-                        act.stage_drive(Hp67Net::Data, Drive::High);
-                    }
-                    {
-                        let mut rom = staging
-                            .claim_driver(Hp67Driver::StructuralRomResponder)
-                            .unwrap();
-                        rom.stage_drive(Hp67Net::Data, Drive::Low);
-                    }
-                }
-            }
-
-            let error = fabric.commit_staged().unwrap_err();
-            (error, fabric.level(Hp67Net::Data), fabric.tick())
-        }
-
-        let forward = run(false);
-        let reverse = run(true);
-        assert_eq!(forward, reverse);
-        assert_eq!(forward.1, LogicLevel::Contention);
-        assert_eq!(forward.2, Tick::new(1));
     }
 
     #[test]
