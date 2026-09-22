@@ -1538,6 +1538,8 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "image",
+ "wasm-bindgen-futures",
+ "web-time",
 ]
 
 [[package]]
