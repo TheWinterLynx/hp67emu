@@ -65,3 +65,5 @@ No GitHub Actions or automatic deployment are introduced by this slice.
 Current rustc can emit standard WebAssembly bulk-memory instructions such as `memory.copy`. Trunk's cached Binaryen `wasm-opt` may validate release output with those features disabled unless the Rust asset passes the matching feature flags. `index.html` therefore supplies `--enable-bulk-memory` and `--enable-nontrapping-float-to-int` through Trunk's documented `data-wasm-opt-params` attribute. A flood of validator messages about `memory.copy operations require bulk memory operations` is one root cause repeated across many generated functions, not hundreds of independent emulator failures.
 
 The wasm target is built with `-Dwarnings` during validation. Native-only save helpers are compiled out on wasm rather than suppressed with dead-code allowances, and the web Program Library consumes the same source-PDF metadata as the native library.
+
+The browser Program Library places `Load card` in the top toolbar so the action remains visible regardless of listing scroll position. This is a wasm-only presentation adaptation; the native library layout is unchanged.
