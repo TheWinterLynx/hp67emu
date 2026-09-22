@@ -67,6 +67,18 @@ The owner validation gate passed, including the 12/12 Custom Diagnostic Pac suit
 
 The established M14A rows remained within ordinary host-run variance and the real-firmware row was effectively unchanged from the 0.955 us/word M14A reference. The isolated DATA phase engine costs only 0.061 us/word even when exercised continuously on every word, leaving substantial headroom for conditional integration. This is a computational-cost result, not an electrical-fidelity promotion.
 
+## Validated conditional firmware shadow result (2026-09-22)
+
+A second validation run kept the established paths green and measured the realistic conditional DATA shadow against the real-firmware control flow:
+
+| Path | Median us/word | Realtime multiple |
+| --- | ---: | ---: |
+| real firmware architectural + structural | 1.017 | 314.67x |
+| real firmware + conditional RAM DATA shadow | 1.040 | 307.73x |
+| isolated DATA logical phase source + sink | 0.067 | 4757.80x |
+
+The same-run incremental cost of the conditional shadow is **0.023 us/word (~2.3%)**. This is acceptable as an experiment but is not yet paid by production. The next experiment must fuse DATA sampling into the already-existing structural b0..b55 loop rather than running a second 56-bit loop for transfer words. Existing production rows remain the regression baseline.
+
 ## Exit criterion for this slice
 
 - DATA source/sink round-trip is exact across at least two back-to-back frames;
