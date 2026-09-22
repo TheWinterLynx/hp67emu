@@ -169,3 +169,10 @@ The HP-67 dense fabric deliberately separates atomic electrical commit from `Tic
 M14B begins with a logical DATA phase engine rather than an invented electrical DATA protocol. Direct HP-67 evidence fixes the 56-bit stream phase (b2 = serial bit 0; bits 54/55 wrap to following-word b0/b1), so `data.rs` models that cross-word lifetime explicitly and can reconstruct back-to-back frames. It does not yet drive `Hp67Net::Data`: DATA polarity, passive bias, PHI launch/sample edges, propagation and physical RAM chip/address mapping remain source-blocked.
 
 Performance is treated as an architectural invariant during this transition. New DATA work is benchmarked in isolation after the established M14A rows before it is allowed into production execution; an integration that materially regresses the validated M14A rows is rejected or redesigned rather than accepted as the price of fidelity.
+
+
+### M14B live RAM DATA integration
+
+After the fused-loop benchmark validated no material runtime regression, the desktop live machine adopted the fused logical DATA path for addresses that are actually backed by `ActRamImage`. The pre-instruction ACT/RAM payload is selected before the architectural fallback mutates state; the same structural b0..b55 loop advances DATA phase; the prior frame completes at following-word b1; and the reconstructed payload is checked against the expected RAM transfer. Ordinary non-DATA words continue through the unchanged structural fast path.
+
+This integration is intentionally narrower than an electrical RAM model. It is a WORKING APPROXIMATION that removes the false single-word DATA assumption and exercises real firmware through the proven cross-word phase. `Hp67Net::Data` ownership/polarity, PHI launch/sample timing, propagation and physical 1818-* RAM mapping remain SOURCE-BLOCKED. CRC/card DATA ports are excluded from this RAM slice.
