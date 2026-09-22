@@ -42,7 +42,7 @@ pub const fn act_data_transfer_plan(
     word: u16,
     state: &ActArchitecturalState,
 ) -> Option<Hp67DataTransferPlan> {
-    if state.instruction_state == ActInstructionState::ThenGoto {
+    if matches!(state.instruction_state, ActInstructionState::ThenGoto) {
         return None;
     }
 
