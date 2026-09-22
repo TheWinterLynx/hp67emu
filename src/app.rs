@@ -583,6 +583,14 @@ impl Hp67App {
                         if ui.button("Close").clicked() {
                             close_requested = true;
                         }
+                        let selected_index = selected;
+                        let load_enabled = reader_free && selected_index.is_some();
+                        if ui
+                            .add_enabled(load_enabled, egui::Button::new("Load card"))
+                            .clicked()
+                        {
+                            load_requested = selected_index;
+                        }
                     });
                 });
                 ui.separator();
@@ -662,12 +670,6 @@ impl Hp67App {
                                     ui.label("Artwork/manual source: no pack PDF checked in");
                                 }
 
-                                if ui
-                                    .add_enabled(reader_free, egui::Button::new("Load card"))
-                                    .clicked()
-                                {
-                                    load_requested = Some(index);
-                                }
                                 if !reader_free {
                                     ui.label(
                                         "Remove the card from the reader before loading another one.",
