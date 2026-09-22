@@ -60,7 +60,7 @@ pub use crc::{
 };
 pub use data::{
     act_data_transfer_plan, data_register_serial_bit, Hp67DataSerialError, Hp67DataSerialSink,
-    Hp67DataSerialSource, Hp67DataTransferDirection, Hp67DataTransferPlan,
+    Hp67DataSerialSource, Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67DataTransferPlan,
 };
 pub use display::{
     decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, CathodeScanError,
@@ -76,8 +76,9 @@ pub use electrical::{
     Hp67ElectricalStager,
 };
 pub use fetch::{
-    run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
-    FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralWordError,
+    run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
+    run_structural_fetch_cycle, ActSerialEndpoint, FetchPipelineLatch, Hp67RomWordSource,
+    RomFetchEndpoint, SerialFetchError, StructuralDataWordResult, StructuralWordError,
     StructuralWordResult,
 };
 pub use hp67firmware::Hp67Firmware;
