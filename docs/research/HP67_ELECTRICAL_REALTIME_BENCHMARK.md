@@ -122,6 +122,23 @@ After moving duplicate-driver validation out of the per-edge hot path and into o
 
 The full staged scheduler therefore recovered from the per-edge ownership experiment's 1.894 us/word (168.93x) to 1.255 us/word (255.04x), within roughly 3% of the 1.221 us/word direct-pending baseline. Ownership is retained as a composition-time correctness invariant rather than a per-transition check. The stage+commit helper remains slower than the full staged path on this host and is treated as a diagnostic micro-path, not the intended M14B device evaluation API.
 
+## Validated commit/timing separation result (2026-09-22)
+
+After separating atomic electrical commit from explicit timing advancement, the matched-observation release benchmark measured:
+
+| Path | Median us/word | Realtime multiple |
+| --- | ---: | ---: |
+| PHI backplane / resolved clock nets | 0.691 | 463.15x |
+| dense stage+commit / PHI | 1.142 | 280.14x |
+| dense staged scheduler / PHI | 1.171 | 273.27x |
+| IS ACT<->ROM structural fetch | 0.869 | 368.25x |
+| IS + ROM0 display + serial ACT execution | 0.946 | 338.35x |
+| architectural execution only | 0.052 | 6171.17x |
+| production dual architectural + structural | 1.000 | 320.14x |
+| real firmware architectural + structural | 0.955 | 335.24x |
+
+All correctness gates, the custom diagnostic PAC suite and the matched PHI trace passed. The staged scheduler therefore improved from the one-time-ownership measurement of 1.255 us/word (255.04x) to 1.171 us/word (273.27x) on the same validation host. The architectural separation adds no performance penalty and removes the false invariant that every electrical visibility boundary must also advance the PHI/serial timing coordinate.
+
 ## Commit/timing separation
 
 The dense scheduler no longer advances `Tick` inside `commit_staged()`. PHI benchmark paths explicitly call `advance_tick()` after each successful staged commit, so the measured topology remains four transitions per bit-cell and 224 transitions per word. This is an architectural separation only: it does not add a new physical subphase or claim a propagation delay. Future evidence-backed settling events can commit electrical state without falsely incrementing the PHI coordinate.
