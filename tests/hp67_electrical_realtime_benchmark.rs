@@ -6,13 +6,10 @@ use std::{
 
 use hp67emu::emulation::{Drive, LogicLevel};
 use hp67emu::machines::hp67::{
-    act_data_transfer_plan, run_structural_display_fetch_cycle,
-    run_structural_display_fetch_data_phase_cycle, run_structural_fetch_cycle,
-    ActArchitecturalState, ActRegister, ActSerialEndpoint, FetchPipelineLatch,
-    Hp67ArchitecturalMachine, Hp67DataSerialSink, Hp67DataSerialSource, Hp67DataSerialWordPath,
-    Hp67DataTransferDirection, Hp67Driver, Hp67ElectricalBackplane, Hp67ElectricalFabric,
-    Hp67Firmware, Hp67Net, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD,
-    HP67_OBSERVED_WORD_TIME_US,
+    run_structural_display_fetch_cycle, run_structural_fetch_cycle, ActArchitecturalState,
+    ActSerialEndpoint, FetchPipelineLatch, Hp67ArchitecturalMachine, Hp67Driver,
+    Hp67ElectricalBackplane, Hp67ElectricalFabric, Hp67Firmware, Hp67Net, Hp67RomWordSource,
+    Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 50_000;
@@ -77,28 +74,6 @@ fn measure_phi_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStat
         raw_phi_stream,
         stage_commit_phi_stream,
         staged_phi_scheduler_stream,
-    ];
-    let mut samples: [Vec<Duration>; 3] = std::array::from_fn(|_| Vec::with_capacity(rounds));
-    let mut checksum = 0u64;
-
-    for round in 0..rounds {
-        for offset in 0..paths.len() {
-            let index = (round + offset) % paths.len();
-            let start = Instant::now();
-            checksum ^= black_box(paths[index](words));
-            samples[index].push(start.elapsed());
-        }
-    }
-
-    black_box(checksum);
-    samples.map(summarize)
-}
-
-fn measure_firmware_data_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStats; 3] {
-    let paths: [fn(usize) -> u64; 3] = [
-        firmware_production_stream,
-        firmware_data_shadow_stream,
-        firmware_data_fused_stream,
     ];
     let mut samples: [Vec<Duration>; 3] = std::array::from_fn(|_| Vec::with_capacity(rounds));
     let mut checksum = 0u64;
@@ -344,208 +319,6 @@ fn production_dual_path_stream(words: usize) -> u64 {
     checksum
 }
 
-fn data_phase_stream(words: usize) -> u64 {
-    let mut source = Hp67DataSerialSource::default();
-    let mut sink = Hp67DataSerialSink::default();
-    let mut checksum = 0u64;
-    let mut completed = 0usize;
-
-    for word_index in 0..words {
-        let register =
-            std::array::from_fn(|digit| (word_index as u8).wrapping_add(digit as u8 * 3) & 0x0f);
-        source.begin_word(Some(register));
-        sink.begin_word(true);
-
-        for word_bit in 0..BITS_PER_WORD {
-            if let Some(reconstructed) = sink
-                .sample_word_bit(word_bit, source.logical_bit_for_word_bit(word_bit))
-                .expect("continuous DATA phase stream must remain structurally valid")
-            {
-                completed += 1;
-                checksum = reconstructed
-                    .into_iter()
-                    .fold(checksum, |sum, digit| sum.wrapping_add(u64::from(digit)));
-            }
-        }
-
-        source.complete_word();
-    }
-
-    assert_eq!(completed, words.saturating_sub(1));
-    checksum ^ completed as u64
-}
-
-fn firmware_data_shadow_stream(words: usize) -> u64 {
-    let firmware = Hp67Firmware::default();
-    let mut machine = Hp67ArchitecturalMachine::default();
-    let mut backplane = Hp67ElectricalBackplane::default();
-    let mut act = ActSerialEndpoint::new(0);
-    let mut rom = RomFetchEndpoint::default();
-    let mut rom0 = Rom0DisplayEndpoint::default();
-    let mut pipeline = FetchPipelineLatch::default();
-    let mut data_source = Hp67DataSerialSource::default();
-    let mut data_sink = Hp67DataSerialSink::default();
-    let mut pending_expected: Option<ActRegister> = None;
-    let mut checksum = 0u64;
-
-    for _ in 0..words {
-        pipeline.begin_cycle();
-
-        let mut current_payload = None;
-        if let Some(word) = pipeline.executing_word() {
-            if let Some(plan) = act_data_transfer_plan(word, &machine.act.state) {
-                if let Some(ram_word) = machine.ram.read(plan.address) {
-                    current_payload = Some(match plan.direction {
-                        Hp67DataTransferDirection::ActToPeripheral => machine.act.state.c,
-                        Hp67DataTransferDirection::PeripheralToAct => ram_word,
-                    });
-                    checksum = checksum.wrapping_add(u64::from(plan.address));
-                }
-            }
-
-            act.begin_execution(word, &machine.act.state)
-                .expect("firmware DATA shadow serial execution must start");
-            let execution = machine
-                .execute_word(word)
-                .expect("versioned HP-67 firmware DATA shadow word must execute");
-            checksum = checksum.wrapping_add(execution.next_pc as u64);
-        }
-
-        if pending_expected.is_some() || current_payload.is_some() {
-            data_source.begin_word(current_payload);
-            data_sink.begin_word(current_payload.is_some());
-
-            for word_bit in 0..BITS_PER_WORD {
-                if let Some(reconstructed) = data_sink
-                    .sample_word_bit(word_bit, data_source.logical_bit_for_word_bit(word_bit))
-                    .expect("firmware DATA shadow must preserve the source-backed phase")
-                {
-                    let expected = pending_expected
-                        .take()
-                        .expect("completed DATA shadow frame must have a pending payload");
-                    assert_eq!(reconstructed, expected);
-                    checksum = reconstructed
-                        .into_iter()
-                        .fold(checksum, |sum, digit| sum.wrapping_add(u64::from(digit)));
-                }
-            }
-
-            data_source.complete_word();
-            pending_expected = current_payload;
-        }
-
-        let bank = machine.prepare_hp67_fetch();
-        firmware.select_bank(bank);
-        let address = machine.pc();
-        let result = run_structural_display_fetch_cycle(
-            &mut backplane,
-            address,
-            &machine.act.state,
-            &mut act,
-            &mut rom,
-            &mut rom0,
-            &firmware,
-        )
-        .expect("continuous real-firmware DATA shadow path must complete");
-        pipeline.complete_cycle(result.fetched_word);
-        checksum = checksum
-            .wrapping_add(result.fetched_word as u64)
-            .wrapping_add(result.display_byte as u64)
-            .wrapping_add(u64::from(result.rcd_falling));
-    }
-
-    assert_eq!(backplane.word_index(), words as u64);
-    checksum
-}
-
-fn firmware_data_fused_stream(words: usize) -> u64 {
-    let firmware = Hp67Firmware::default();
-    let mut machine = Hp67ArchitecturalMachine::default();
-    let mut backplane = Hp67ElectricalBackplane::default();
-    let mut act = ActSerialEndpoint::new(0);
-    let mut rom = RomFetchEndpoint::default();
-    let mut rom0 = Rom0DisplayEndpoint::default();
-    let mut pipeline = FetchPipelineLatch::default();
-    let mut data = Hp67DataSerialWordPath::default();
-    let mut pending_expected: Option<ActRegister> = None;
-    let mut checksum = 0u64;
-
-    for _ in 0..words {
-        pipeline.begin_cycle();
-
-        let mut current_payload = None;
-        if let Some(word) = pipeline.executing_word() {
-            if let Some(plan) = act_data_transfer_plan(word, &machine.act.state) {
-                if let Some(ram_word) = machine.ram.read(plan.address) {
-                    current_payload = Some(match plan.direction {
-                        Hp67DataTransferDirection::ActToPeripheral => machine.act.state.c,
-                        Hp67DataTransferDirection::PeripheralToAct => ram_word,
-                    });
-                    checksum = checksum.wrapping_add(u64::from(plan.address));
-                }
-            }
-
-            act.begin_execution(word, &machine.act.state)
-                .expect("firmware fused DATA serial execution must start");
-            let execution = machine
-                .execute_word(word)
-                .expect("versioned HP-67 firmware fused DATA word must execute");
-            checksum = checksum.wrapping_add(execution.next_pc as u64);
-        }
-
-        let bank = machine.prepare_hp67_fetch();
-        firmware.select_bank(bank);
-        let address = machine.pc();
-
-        let result = if data.frame_in_progress() || current_payload.is_some() {
-            let fused = run_structural_display_fetch_data_phase_cycle(
-                &mut backplane,
-                address,
-                &machine.act.state,
-                &mut act,
-                &mut rom,
-                &mut rom0,
-                &firmware,
-                &mut data,
-                current_payload,
-            )
-            .expect("continuous real-firmware fused DATA path must complete");
-
-            if let Some(reconstructed) = fused.completed_data {
-                let expected = pending_expected
-                    .take()
-                    .expect("completed fused DATA frame must have a pending payload");
-                assert_eq!(reconstructed, expected);
-                checksum = reconstructed
-                    .into_iter()
-                    .fold(checksum, |sum, digit| sum.wrapping_add(u64::from(digit)));
-            }
-            pending_expected = current_payload;
-            fused.word
-        } else {
-            run_structural_display_fetch_cycle(
-                &mut backplane,
-                address,
-                &machine.act.state,
-                &mut act,
-                &mut rom,
-                &mut rom0,
-                &firmware,
-            )
-            .expect("continuous real-firmware non-DATA word must complete")
-        };
-
-        pipeline.complete_cycle(result.fetched_word);
-        checksum = checksum
-            .wrapping_add(result.fetched_word as u64)
-            .wrapping_add(result.display_byte as u64)
-            .wrapping_add(u64::from(result.rcd_falling));
-    }
-
-    assert_eq!(backplane.word_index(), words as u64);
-    checksum
-}
-
 fn firmware_production_stream(words: usize) -> u64 {
     let source = Hp67Firmware::default();
     let mut machine = Hp67ArchitecturalMachine::default();
@@ -723,23 +496,13 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(architectural_execution_stream(warmup_words));
     black_box(production_dual_path_stream(warmup_words));
     black_box(firmware_production_stream(warmup_words));
-    black_box(firmware_data_shadow_stream(warmup_words));
-    black_box(firmware_data_fused_stream(warmup_words));
 
     let [raw_phi, stage_commit_phi, staged_phi] = measure_phi_rounds_interleaved(rounds, words);
     let fetch = measure_rounds(rounds, words, structural_fetch_stream);
     let full = measure_rounds(rounds, words, full_current_structural_stream);
     let architectural = measure_rounds(rounds, words, architectural_execution_stream);
     let production = measure_rounds(rounds, words, production_dual_path_stream);
-
-    // Measure the three real-firmware DATA variants in rotating order so the
-    // small deltas are not dominated by path-order drift, host turbo or cooling.
-    let [firmware, firmware_data_shadow, firmware_data_fused] =
-        measure_firmware_data_rounds_interleaved(rounds, words);
-
-    // Keep the isolated logical DATA cost separate from the firmware comparison.
-    black_box(data_phase_stream(warmup_words));
-    let data_phase = measure_rounds(rounds, words, data_phase_stream);
+    let firmware = measure_rounds(rounds, words, firmware_production_stream);
 
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
@@ -782,22 +545,11 @@ fn hp67_electrical_realtime_benchmark() {
         words,
     );
     print_row("real firmware architectural + structural", &firmware, words);
-    print_row("DATA logical phase source + sink", &data_phase, words);
-    print_row(
-        "real firmware + conditional RAM DATA shadow",
-        &firmware_data_shadow,
-        words,
-    );
-    print_row(
-        "real firmware + fused RAM DATA phase",
-        &firmware_data_fused,
-        words,
-    );
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution. The three real-firmware DATA comparison rows are measured in rotating interleaved order: baseline without logical DATA, the deliberately pessimistic second-loop shadow, and the fused logical RAM DATA shape now used by the live machine. The isolated DATA row measures only source/sink phase cost. The fused live shape still does not make DATA electrically complete: DATA polarity/drive ownership, physical RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays remain unresolved. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }
