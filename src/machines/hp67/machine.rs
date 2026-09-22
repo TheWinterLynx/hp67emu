@@ -66,8 +66,8 @@ impl Hp67ElectricalBackplane {
         self.fabric.begin_evaluation()
     }
 
-    pub fn begin_staging(&mut self) -> Result<Hp67ElectricalStager<'_>, Hp67ElectricalError> {
-        self.fabric.begin_staging()
+    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
+        self.fabric.stage_drive(net, driver, drive);
     }
 
     pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
