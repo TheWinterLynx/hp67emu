@@ -75,6 +75,25 @@ This is a **performance/headroom benchmark**, not a claim that M14 electrical fi
 
 The benchmark deliberately prints the fidelity gaps still outside the measured path: DATA/RAM electrical transfers, PHI-relative IS/DATA launch/sample edges, electrically scheduled STR/RCD, exact PHI widths/dead time and propagation delays. As those become real devices/events, they should be added to the full row rather than creating a faster shortcut path.
 
+## Validated direct-pending result (2026-09-22)
+
+On the validated Windows release run with matched PHI observation and interleaved PHI rounds:
+
+| Path | Median us/word | Realtime multiple |
+| --- | ---: | ---: |
+| PHI backplane / resolved clock nets | 0.718 | 445.68x |
+| dense stage+commit / PHI | 1.243 | 257.41x |
+| dense staged scheduler / PHI | 1.221 | 262.05x |
+| IS ACT<->ROM structural fetch | 0.889 | 359.83x |
+| IS + ROM0 display + serial ACT execution | 0.970 | 329.92x |
+| architectural execution only | 0.057 | 5581.14x |
+| production dual architectural + structural | 1.020 | 313.60x |
+| real firmware architectural + structural | 0.956 | 334.72x |
+
+The direct typed pending-entry experiment reduced the matched-observation stage+commit median from 2.903 to 1.243 us/word and the full staged scheduler median from 2.954 to 1.221 us/word. The difference between stage+commit and full staged is now below measurement noise in this run, so `begin_evaluation()` and the borrowed snapshot are not the performance bottleneck.
+
+The current staged scheduler therefore exceeds the project engineering headroom target of 150x on this host while preserving the resolve/snapshot/evaluate/stage/atomic-commit contract. This is a performance result only, not a fidelity promotion.
+
 ## Run
 
 Use release mode and keep the benchmark ignored during normal test gates:
