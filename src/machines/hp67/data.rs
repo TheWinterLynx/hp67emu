@@ -146,6 +146,10 @@ impl Default for Hp67DataSerialSink {
 }
 
 impl Hp67DataSerialSink {
+    pub const fn frame_in_progress(&self) -> bool {
+        self.assembling.is_some()
+    }
+
     pub fn begin_word(&mut self, start_frame_at_b2: bool) {
         debug_assert_eq!(self.expected_word_bit, 0);
         self.start_frame_at_b2 = start_frame_at_b2;
@@ -201,6 +205,49 @@ impl Hp67DataSerialSink {
             word_bit + 1
         };
         Ok(completed)
+    }
+}
+
+/// One DATA phase participant that is advanced from the same b0..b55 loop as
+/// the structural word transport.
+///
+/// It deliberately carries logical bits only. No electrical DATA polarity or
+/// PHI-relative launch/sample edge is implied by visiting one word coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Hp67DataSerialWordPath {
+    source: Hp67DataSerialSource,
+    sink: Hp67DataSerialSink,
+    current_payload: Option<ActRegister>,
+    completed_payload: Option<ActRegister>,
+}
+
+impl Hp67DataSerialWordPath {
+    pub const fn frame_in_progress(&self) -> bool {
+        self.sink.frame_in_progress()
+    }
+
+    pub fn begin_word(&mut self, payload: Option<ActRegister>) {
+        debug_assert!(self.completed_payload.is_none());
+        self.current_payload = payload;
+        self.source.begin_word(payload);
+        self.sink.begin_word(payload.is_some());
+    }
+
+    pub fn visit_word_bit(&mut self, word_bit: u8) -> Result<(), Hp67DataSerialError> {
+        let completed = self
+            .sink
+            .sample_word_bit(word_bit, self.source.logical_bit_for_word_bit(word_bit))?;
+        if completed.is_some() {
+            debug_assert!(self.completed_payload.is_none());
+            self.completed_payload = completed;
+        }
+        Ok(())
+    }
+
+    pub fn complete_word(&mut self) -> Option<ActRegister> {
+        self.source.complete_word();
+        self.current_payload = None;
+        self.completed_payload.take()
     }
 }
 
@@ -300,6 +347,34 @@ mod tests {
             }
         }
         assert_eq!(second_completed, Some(second));
+    }
+
+    #[test]
+    fn word_path_completes_previous_frame_and_starts_next_in_same_word() {
+        let first = patterned_register(4);
+        let second = patterned_register(11);
+        let mut path = Hp67DataSerialWordPath::default();
+
+        path.begin_word(Some(first));
+        for word_bit in 0..BITS_PER_WORD {
+            path.visit_word_bit(word_bit).unwrap();
+        }
+        assert_eq!(path.complete_word(), None);
+        assert!(path.frame_in_progress());
+
+        path.begin_word(Some(second));
+        for word_bit in 0..BITS_PER_WORD {
+            path.visit_word_bit(word_bit).unwrap();
+        }
+        assert_eq!(path.complete_word(), Some(first));
+        assert!(path.frame_in_progress());
+
+        path.begin_word(None);
+        for word_bit in 0..BITS_PER_WORD {
+            path.visit_word_bit(word_bit).unwrap();
+        }
+        assert_eq!(path.complete_word(), Some(second));
+        assert!(!path.frame_in_progress());
     }
 
     #[test]
