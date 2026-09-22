@@ -64,3 +64,6 @@ WASM viewport adaptation: browser builds must not use `Context::show_viewport_im
 
 
 WASM warning-clean boundary: native-only path-based card export helpers are now `cfg(not(target_arch = "wasm32"))` so a `-Dwarnings` wasm build does not retain dead filesystem save code that the browser UI intentionally cannot invoke. The browser Program Library also renders the same `source_pdf` provenance metadata as desktop, keeping the shared `ProgramLibraryEntry` fields live on both targets.
+
+
+WASM Program Library toolbar: the browser-only embedded library keeps its primary `Load card` action in the top toolbar, beside the close control, instead of inside the scrollable listing pane. The button is enabled only when a program is selected and the physical reader is free. Native desktop layout is unchanged.
