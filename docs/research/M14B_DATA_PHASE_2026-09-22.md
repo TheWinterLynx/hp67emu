@@ -79,6 +79,23 @@ A second validation run kept the established paths green and measured the realis
 
 The same-run incremental cost of the conditional shadow is **0.023 us/word (~2.3%)**. This is acceptable as an experiment but is not yet paid by production. The next experiment must fuse DATA sampling into the already-existing structural b0..b55 loop rather than running a second 56-bit loop for transfer words. Existing production rows remain the regression baseline.
 
+## Validated fused-loop result (2026-09-22)
+
+The full owner gate passed at commit `c8d4de6663c024d86700b6974341af0dd9f1ad55`: focused fused-DATA tests, 194 library tests, 73/74 desktop tests with only the intentionally ignored diagnostic, architecture/documentation/startup/reference tests, release build, and the explicit 12/12 Custom Diagnostic Pac suite all passed.
+
+Same-run release benchmark medians were:
+
+| Path | Median us/word | Realtime multiple |
+| --- | ---: | ---: |
+| real firmware architectural + structural | 0.964 | 331.84x |
+| DATA logical phase source + sink | 0.062 | 5190.26x |
+| conditional second-loop RAM DATA shadow | 0.932 | 343.24x |
+| fused RAM DATA phase | 0.957 | 334.27x |
+
+The fused path is effectively coincident with the untouched real-firmware baseline in the same run (`0.957` versus `0.964` us/word). The shadow row being faster than baseline in this run confirms that differences at this scale are dominated by host/codegen variance rather than a reliable negative cost. The acceptance criterion is therefore that fusion shows no material regression, not that any sub-percent ordering between these rows is meaningful.
+
+This validates the fused logical DATA path as the production integration shape. It does **not** promote DATA polarity, electrical ownership, PHI edge placement, propagation or physical RAM-chip mapping beyond SOURCE-BLOCKED.
+
 ## Exit criterion for this slice
 
 - DATA source/sink round-trip is exact across at least two back-to-back frames;
