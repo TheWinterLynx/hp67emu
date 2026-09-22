@@ -155,6 +155,10 @@ The generic map-backed `ElectricalScheduler` is retained as reusable reference i
 The 2026-09-22 matched-observation benchmark validated the typed pending-entry + slot-marker scheduler representation: full staged PHI measured 1.221 us/word (262.05x the observed ~320 us HP-67 word time) on the validation host, versus 2.954 us/word before the representation change. The project therefore keeps the zero-copy resolved snapshot and direct typed pending entries as the M14B scheduler foundation. Further optimization should be driven by measured regressions after real DATA/RAM/STR/RCD devices are added, rather than by synthetic PHI microbenchmark tuning alone.
 
 
+### M14A scheduler exit state
+
+The 2026-09-22 full validation gate, diagnostic PAC suite and matched-PHI regression passed with composition-time driver ownership and commit/time separation enabled. The final M14A staged-PHI benchmark measured 1.171 us/word (273.27x the observed ~320 us physical word time) on the validation host, while real-firmware dual execution measured 0.955 us/word (335.24x). M14A therefore exits with the dense scheduler architecture accepted for M14B. Remaining DATA/RAM/STR/RCD edge placement and propagation details stay source-blocked and must not be inferred from this performance result.
+
 ### Electrical commit versus timing progression
 
 The HP-67 dense fabric deliberately separates atomic electrical commit from `Tick` advancement. A commit is an observability boundary for staged drives; it is not by itself a PHI edge or a statement about elapsed physical time. The current four-transition PHI scaffold explicitly advances one tick after each PHI commit, preserving today's trace exactly. This separation leaves room for future evidence-backed zero-time settling or propagation events without corrupting the serial bit/word coordinate.
