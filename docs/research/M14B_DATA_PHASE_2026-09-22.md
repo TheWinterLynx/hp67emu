@@ -52,6 +52,21 @@ The established M14A validation reference on the same host is:
 
 The new DATA logical-phase benchmark is appended after all established rows so it cannot change their measurement order. It is measured in isolation before any production integration. If established rows regress materially, the integration is rejected or redesigned before adding more fidelity.
 
+## Validated foundation result (2026-09-22)
+
+The owner validation gate passed, including the 12/12 Custom Diagnostic Pac suite. Release benchmark results on the validation host were:
+
+| Path | Median us/word | Realtime multiple |
+| --- | ---: | ---: |
+| dense staged scheduler | 1.176 | 272.05x |
+| IS ACT<->ROM structural fetch | 0.897 | 356.71x |
+| IS + ROM0 display + serial ACT execution | 0.982 | 326.01x |
+| production dual architectural + structural | 1.038 | 308.26x |
+| real firmware architectural + structural | 0.955 | 334.96x |
+| DATA logical phase source + sink | 0.061 | 5233.55x |
+
+The established M14A rows remained within ordinary host-run variance and the real-firmware row was effectively unchanged from the 0.955 us/word M14A reference. The isolated DATA phase engine costs only 0.061 us/word even when exercised continuously on every word, leaving substantial headroom for conditional integration. This is a computational-cost result, not an electrical-fidelity promotion.
+
 ## Exit criterion for this slice
 
 - DATA source/sink round-trip is exact across at least two back-to-back frames;
