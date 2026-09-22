@@ -20,3 +20,6 @@ The electrical exports include the opaque `Hp67DriverOwner` token used to bind o
 
 
 M14B additionally exports `Hp67DataSerialSource`, `Hp67DataSerialSink`, transfer-plan/direction types and the register-bit helper. These expose only the source-backed logical DATA phase; they deliberately do not imply DATA pin polarity or PHI-relative edge timing.
+
+
+The M14B exports now include `Hp67DataSerialWordPath`, `run_structural_display_fetch_data_phase_cycle()` and `StructuralDataWordResult` for the fused logical-phase experiment. These names do not promote DATA to an electrical claim.
