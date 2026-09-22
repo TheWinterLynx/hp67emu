@@ -273,6 +273,7 @@ impl Hp67App {
         Ok(())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn save_card_file(&mut self, path: &Path) -> Result<(), String> {
         if self
             .live_machine
@@ -650,6 +651,16 @@ impl Hp67App {
                                     "Magnetic tracks supplied: {}",
                                     entry.track_count()
                                 ));
+                                if let Some(pdf) = entry.source_pdf {
+                                    let source = if entry.artwork_atlas_row().is_some() {
+                                        "embedded card crop"
+                                    } else {
+                                        "manual only"
+                                    };
+                                    ui.label(format!("Artwork/manual source: {pdf} ({source})"));
+                                } else {
+                                    ui.label("Artwork/manual source: no pack PDF checked in");
+                                }
 
                                 if ui
                                     .add_enabled(reader_free, egui::Button::new("Load card"))
@@ -908,6 +919,7 @@ fn reader_click_requires_new_blank(card_prepared: bool) -> bool {
     !card_prepared
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn serialize_card_for_extension(
     card: &Hp67MagneticCard,
     extension: &str,
