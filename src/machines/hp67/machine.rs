@@ -10,7 +10,8 @@ use crate::emulation::{Drive, LogicLevel, Tick};
 
 use super::{
     electrical::{
-        Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot, Hp67ElectricalStager,
+        Hp67DriverOwner, Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot,
+        Hp67ElectricalStager,
     },
     timing::{Hp67ClockEdge, Hp67ClockPhase, BITS_PER_DIGIT, BITS_PER_WORD},
     wiring::{Hp67Driver, Hp67Net},
@@ -66,8 +67,15 @@ impl Hp67ElectricalBackplane {
         self.fabric.begin_evaluation()
     }
 
-    pub fn stage_drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
-        self.fabric.stage_drive(net, driver, drive);
+    pub fn claim_driver_owner(
+        &mut self,
+        driver: Hp67Driver,
+    ) -> Result<Hp67DriverOwner, Hp67ElectricalError> {
+        self.fabric.claim_driver_owner(driver)
+    }
+
+    pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
+        self.fabric.stage_drive(owner, net, drive);
     }
 
     pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
