@@ -573,7 +573,6 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     Ok(act.fetched_word()?)
 }
 
-
 /// M14B DATA-aware twin of the established structural transport.
 ///
 /// This intentionally keeps the established no-DATA transport as a separate
