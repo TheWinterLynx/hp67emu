@@ -822,6 +822,61 @@ mod tests {
     }
 
     #[test]
+    fn data_aware_transport_without_frame_matches_monomorphic_fast_path() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+        state.a[0] = 0x07;
+        state.b[0] = 0x03;
+
+        let mut fast_backplane = Hp67ElectricalBackplane::default();
+        let mut fast_act = ActSerialEndpoint::new(0x07b);
+        let mut fast_rom = RomFetchEndpoint::default();
+        let mut fast_rom0 = Rom0DisplayEndpoint::default();
+
+        let mut data_backplane = Hp67ElectricalBackplane::default();
+        let mut data_act = ActSerialEndpoint::new(0x07b);
+        let mut data_rom = RomFetchEndpoint::default();
+        let mut data_rom0 = Rom0DisplayEndpoint::default();
+        let mut data = Hp67DataSerialWordPath::default();
+
+        let fast = run_structural_display_fetch_cycle(
+            &mut fast_backplane,
+            0x07b,
+            &state,
+            &mut fast_act,
+            &mut fast_rom,
+            &mut fast_rom0,
+            &source,
+        )
+        .expect("monomorphic fast path must complete");
+
+        let data_result = run_structural_display_fetch_data_phase_cycle(
+            &mut data_backplane,
+            0x07b,
+            &state,
+            &mut data_act,
+            &mut data_rom,
+            &mut data_rom0,
+            &source,
+            &mut data,
+            None,
+        )
+        .expect("DATA-aware transport without a frame must complete");
+
+        assert_eq!(data_result.word, fast);
+        assert_eq!(data_result.completed_data, None);
+        assert!(!data.frame_in_progress());
+        assert_eq!(data_backplane.tick(), fast_backplane.tick());
+        assert_eq!(data_backplane.word_index(), fast_backplane.word_index());
+        assert_eq!(data_backplane.word_bit(), fast_backplane.word_bit());
+        assert_eq!(data_rom.received_address(), fast_rom.received_address());
+        assert_eq!(data_act.display_scan_slot(), fast_act.display_scan_slot());
+    }
+
+    #[test]
     fn fused_data_phase_shares_structural_word_without_disturbing_fetch() {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
