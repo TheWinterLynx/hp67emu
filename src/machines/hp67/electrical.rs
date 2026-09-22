@@ -92,6 +92,12 @@ pub enum Hp67ElectricalError {
         tick: Tick,
         driver: Hp67Driver,
     },
+    EvaluationAlreadyOpen {
+        tick: Tick,
+    },
+    CommitWithoutEvaluation {
+        tick: Tick,
+    },
 }
 
 /// Immutable resolved input image shared by every device evaluation in one tick.
@@ -193,6 +199,7 @@ pub struct Hp67ElectricalFabric {
     pending_slot_markers: [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
     pending_changes: [Hp67PendingDrive; MAX_PENDING_DRIVES],
     pending_len: usize,
+    evaluation_open: bool,
     contention_net_count: u8,
 }
 
@@ -222,6 +229,7 @@ impl Default for Hp67ElectricalFabric {
             pending_slot_markers: [[0; Hp67Driver::COUNT]; Hp67Net::COUNT],
             pending_changes: [EMPTY_PENDING_DRIVE; MAX_PENDING_DRIVES],
             pending_len: 0,
+            evaluation_open: false,
             contention_net_count: 0,
         }
     }
@@ -267,9 +275,7 @@ impl Hp67ElectricalFabric {
     pub fn begin_evaluation(
         &mut self,
     ) -> Result<(Hp67ElectricalSnapshot<'_>, Hp67ElectricalStager<'_>), Hp67ElectricalError> {
-        if self.contention_net_count != 0 {
-            return Err(self.contention_error(self.tick));
-        }
+        self.open_evaluation()?;
 
         let tick = self.tick;
         let snapshot = Hp67ElectricalSnapshot {
@@ -289,9 +295,7 @@ impl Hp67ElectricalFabric {
     /// Start an output-only evaluation interval for a device that does not need
     /// to sample resolved inputs before publishing its next drives.
     pub fn begin_staging(&mut self) -> Result<Hp67ElectricalStager<'_>, Hp67ElectricalError> {
-        if self.contention_net_count != 0 {
-            return Err(self.contention_error(self.tick));
-        }
+        self.open_evaluation()?;
 
         Ok(Hp67ElectricalStager {
             tick: self.tick,
@@ -304,6 +308,10 @@ impl Hp67ElectricalFabric {
 
     /// Commit every staged device output atomically and advance one scheduler tick.
     pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
+        if !self.evaluation_open {
+            return Err(Hp67ElectricalError::CommitWithoutEvaluation { tick: self.tick });
+        }
+
         for pending_index in 0..self.pending_len {
             let pending = self.pending_changes[pending_index];
             let marker =
@@ -313,11 +321,23 @@ impl Hp67ElectricalFabric {
             self.apply_drive(pending.net.index(), pending.driver, pending.drive);
         }
         self.pending_len = 0;
+        self.evaluation_open = false;
         let tick = self.advance_tick();
         if self.contention_net_count != 0 {
             return Err(self.contention_error(tick));
         }
         Ok(tick)
+    }
+
+    fn open_evaluation(&mut self) -> Result<(), Hp67ElectricalError> {
+        if self.contention_net_count != 0 {
+            return Err(self.contention_error(self.tick));
+        }
+        if self.evaluation_open {
+            return Err(Hp67ElectricalError::EvaluationAlreadyOpen { tick: self.tick });
+        }
+        self.evaluation_open = true;
+        Ok(())
     }
 
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
@@ -440,6 +460,30 @@ mod tests {
                 tick: Tick::ZERO,
                 driver: Hp67Driver::Act1820_2530,
             })
+        );
+    }
+
+    #[test]
+    fn evaluation_must_commit_before_another_can_begin() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        {
+            let _staging = fabric.begin_staging().unwrap();
+        }
+
+        assert_eq!(
+            fabric.begin_staging().err(),
+            Some(Hp67ElectricalError::EvaluationAlreadyOpen { tick: Tick::ZERO })
+        );
+        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert!(fabric.begin_staging().is_ok());
+    }
+
+    #[test]
+    fn commit_requires_an_open_evaluation() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        assert_eq!(
+            fabric.commit_staged(),
+            Err(Hp67ElectricalError::CommitWithoutEvaluation { tick: Tick::ZERO })
         );
     }
 
