@@ -7,7 +7,7 @@
 //! polarity, passive bias and PHI-relative launch/sample edges unresolved.
 
 use super::{
-    act::{ActArchitecturalState, ActRegister, ACT_WORD_DIGITS},
+    act::{ActArchitecturalState, ActInstructionState, ActRegister, ACT_WORD_DIGITS},
     timing::{data_serial_bit_for_word_bit, BITS_PER_DIGIT, BITS_PER_WORD},
 };
 
@@ -42,6 +42,10 @@ pub const fn act_data_transfer_plan(
     word: u16,
     state: &ActArchitecturalState,
 ) -> Option<Hp67DataTransferPlan> {
+    if state.instruction_state == ActInstructionState::ThenGoto {
+        return None;
+    }
+
     let low = word & 0o77;
     let operand = ((word >> 6) & 0x0f) as u8;
     if word == 0o1360 {
@@ -332,6 +336,22 @@ mod tests {
             })
         );
         assert_eq!(act_data_transfer_plan(0o0000, &state), None);
+    }
+
+    #[test]
+    fn then_goto_payload_is_never_misclassified_as_a_data_transfer() {
+        let mut state = ActArchitecturalState {
+            instruction_state: ActInstructionState::ThenGoto,
+            ram_address: 0x20,
+            ..ActArchitecturalState::default()
+        };
+
+        assert_eq!(act_data_transfer_plan(0o1360, &state), None);
+        assert_eq!(act_data_transfer_plan((3 << 6) | 0o50, &state), None);
+        assert_eq!(act_data_transfer_plan((5 << 6) | 0o70, &state), None);
+
+        state.instruction_state = ActInstructionState::Normal;
+        assert!(act_data_transfer_plan(0o1360, &state).is_some());
     }
 
     #[test]
