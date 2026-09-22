@@ -69,7 +69,7 @@ Devices obey one scheduling contract:
 3. **evaluate** each device for the current tick;
 4. **collect/stage** proposed output drives;
 5. **commit** all drives together;
-6. advance time.
+6. advance time only when the scheduled event actually advances the timing coordinate.
 
 No chip may observe another chip merely because it happened to be earlier in an implementation container. This rule is central to cycle accuracy and repeatable traces. Physical output ownership is validated once during HP-67 machine composition: each `Hp67Driver` can issue only one opaque owner token, which the device then reuses across runtime evaluations without a per-edge ownership ledger.
 
@@ -153,3 +153,8 @@ The generic map-backed `ElectricalScheduler` is retained as reusable reference i
 ### M14A dense scheduler performance decision
 
 The 2026-09-22 matched-observation benchmark validated the typed pending-entry + slot-marker scheduler representation: full staged PHI measured 1.221 us/word (262.05x the observed ~320 us HP-67 word time) on the validation host, versus 2.954 us/word before the representation change. The project therefore keeps the zero-copy resolved snapshot and direct typed pending entries as the M14B scheduler foundation. Further optimization should be driven by measured regressions after real DATA/RAM/STR/RCD devices are added, rather than by synthetic PHI microbenchmark tuning alone.
+
+
+### Electrical commit versus timing progression
+
+The HP-67 dense fabric deliberately separates atomic electrical commit from `Tick` advancement. A commit is an observability boundary for staged drives; it is not by itself a PHI edge or a statement about elapsed physical time. The current four-transition PHI scaffold explicitly advances one tick after each PHI commit, preserving today's trace exactly. This separation leaves room for future evidence-backed zero-time settling or propagation events without corrupting the serial bit/word coordinate.
