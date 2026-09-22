@@ -38,3 +38,8 @@ A second M14B experiment duplicates the real-firmware benchmark path but only in
 ## Fused DATA experiment
 
 A third M14B row, `real firmware + fused RAM DATA phase`, uses the unchanged production structural function for ordinary words and switches to the DATA-aware structural function only when a transfer begins or a prior frame still needs its b0/b1 tail. The DATA visitor runs inside the existing 56-bit structural loop, so this row measures the cost of fusion rather than the deliberately pessimistic second-loop shadow. It remains benchmark-only until the owner validates both correctness and the absence of material regression in all established rows.
+
+
+## Interleaved firmware DATA comparison
+
+After live fused-RAM integration, the baseline firmware, second-loop DATA shadow and fused DATA firmware paths are measured in rotating interleaved order, analogous to the PHI comparison. This is required because their expected difference is only a few hundredths of a microsecond per word and sequential path-order drift can be larger than the effect being measured. The isolated logical DATA microbenchmark remains separate. The fused row now mirrors the live-machine integration shape for installed RAM addresses; it still does not represent an electrical DATA pin implementation.
