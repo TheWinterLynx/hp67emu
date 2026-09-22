@@ -14,6 +14,7 @@ use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
+    data::{Hp67DataSerialError, Hp67DataSerialWordPath},
     display::{
         Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS,
         HP67_ROM0_BLANK_CODE,
@@ -58,6 +59,7 @@ pub enum StructuralWordError {
     Display(Rom0DisplayError),
     ActDisplay(ActDisplaySerialError),
     ActExecution(ActSerialExecutionError),
+    Data(Hp67DataSerialError),
 }
 
 impl From<SerialFetchError> for StructuralWordError {
@@ -84,6 +86,12 @@ impl From<ActSerialExecutionError> for StructuralWordError {
     }
 }
 
+impl From<Hp67DataSerialError> for StructuralWordError {
+    fn from(error: Hp67DataSerialError) -> Self {
+        Self::Data(error)
+    }
+}
+
 /// Values reconstructed from one shared 56-bit HP-67 structural word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructuralWordResult {
@@ -91,6 +99,12 @@ pub struct StructuralWordResult {
     pub display_byte: u8,
     pub str_event: Rom0StrEvent,
     pub rcd_falling: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructuralDataWordResult {
+    pub word: StructuralWordResult,
+    pub completed_data: Option<super::act::ActRegister>,
 }
 
 fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, SerialFetchError> {
@@ -473,14 +487,19 @@ impl FetchPipelineLatch {
     }
 }
 
-fn run_structural_word_transport<S: Hp67RomWordSource>(
+fn run_structural_word_transport<S, F>(
     backplane: &mut Hp67ElectricalBackplane,
     act: &mut ActSerialEndpoint,
     act_state: Option<&ActArchitecturalState>,
     rom: &mut RomFetchEndpoint,
     source: &S,
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
-) -> Result<u16, StructuralWordError> {
+    mut visit_data_bit: F,
+) -> Result<u16, StructuralWordError>
+where
+    S: Hp67RomWordSource,
+    F: FnMut(u8) -> Result<(), StructuralWordError>,
+{
     rom.begin_cycle();
     if let Some(endpoint) = rom0.as_deref_mut() {
         endpoint.begin_word();
@@ -550,6 +569,8 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
+        visit_data_bit(expected_bit)?;
+
         for _ in 0..4 {
             backplane.advance_clock();
         }
@@ -572,12 +593,13 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
     source: &S,
 ) -> Result<u16, SerialFetchError> {
     act.begin_fetch_cycle(address);
-    match run_structural_word_transport(backplane, act, None, rom, source, None) {
+    match run_structural_word_transport(backplane, act, None, rom, source, None, |_| Ok(())) {
         Ok(word) => Ok(word),
         Err(StructuralWordError::Fetch(error)) => Err(error),
         Err(StructuralWordError::Display(_))
         | Err(StructuralWordError::ActDisplay(_))
-        | Err(StructuralWordError::ActExecution(_)) => {
+        | Err(StructuralWordError::ActExecution(_))
+        | Err(StructuralWordError::Data(_)) => {
             unreachable!("fetch-only structural cycle cannot produce a non-fetch error")
         }
     }
@@ -620,6 +642,7 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
         rom,
         source,
         Some(&mut *rom0),
+        |_| Ok(()),
     )?;
     let display_byte = rom0.display_byte()?;
     let str_event = rom0.str_falling_event(display_scan_slot)?;
@@ -629,6 +652,49 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
         display_byte,
         str_event,
         rcd_falling,
+    })
+}
+
+/// Experimental M14B structural word that advances logical DATA from the same
+/// b0..b55 loop used by IS/fetch/display.
+///
+/// DATA remains logical-only here. This function deliberately does not drive or
+/// sample `Hp67Net::Data`, choose DATA polarity, or assign a PHI edge.
+pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act_state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom: &mut RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    source: &S,
+    data: &mut Hp67DataSerialWordPath,
+    data_payload: Option<super::act::ActRegister>,
+) -> Result<StructuralDataWordResult, StructuralWordError> {
+    let display_scan_slot = act.display_scan_slot();
+    act.begin_display_fetch_cycle(address)?;
+    data.begin_word(data_payload);
+    let fetched_word = run_structural_word_transport(
+        backplane,
+        act,
+        Some(act_state),
+        rom,
+        source,
+        Some(&mut *rom0),
+        |word_bit| data.visit_word_bit(word_bit).map_err(Into::into),
+    )?;
+    let completed_data = data.complete_word();
+    let display_byte = rom0.display_byte()?;
+    let str_event = rom0.str_falling_event(display_scan_slot)?;
+    let rcd_falling = act.complete_display_word();
+    Ok(StructuralDataWordResult {
+        word: StructuralWordResult {
+            fetched_word,
+            display_byte,
+            str_event,
+            rcd_falling,
+        },
+        completed_data,
     })
 }
 
