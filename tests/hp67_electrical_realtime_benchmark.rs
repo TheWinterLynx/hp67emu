@@ -11,8 +11,8 @@ use hp67emu::machines::hp67::{
     ActArchitecturalState, ActRegister, ActSerialEndpoint, FetchPipelineLatch,
     Hp67ArchitecturalMachine, Hp67DataSerialSink, Hp67DataSerialSource, Hp67DataSerialWordPath,
     Hp67DataTransferDirection, Hp67Driver, Hp67ElectricalBackplane, Hp67ElectricalFabric,
-    Hp67Firmware, Hp67Net, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint,
-    BITS_PER_WORD, HP67_OBSERVED_WORD_TIME_US,
+    Hp67Firmware, Hp67Net, Hp67RomWordSource, Rom0DisplayEndpoint, RomFetchEndpoint, BITS_PER_WORD,
+    HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DEFAULT_WORDS_PER_ROUND: usize = 50_000;
