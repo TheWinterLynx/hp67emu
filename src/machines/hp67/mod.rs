@@ -51,16 +51,16 @@ pub use card_transport::{
     Hp67CardSpeed, Hp67CardSpeedError, Hp67CardTransport, Hp67CardTransportError,
     HP67_MAX_CARD_SPEED_PERCENT, HP67_MIN_CARD_SPEED_PERCENT, HP67_NOMINAL_CARD_RECORD_US,
 };
-pub use data::{
-    act_data_transfer_plan, data_register_serial_bit, Hp67DataSerialError, Hp67DataSerialSink,
-    Hp67DataSerialSource, Hp67DataTransferDirection, Hp67DataTransferPlan,
-};
 pub use crc::{
     decode_crc_opcode, CrcArchitecturalCore, CrcArchitecturalError, CrcInstruction,
     CRC_CARD_WORD_BITS, CRC_CARD_WORD_MASK, CRC_FLAG_BUFFER_READY, CRC_FLAG_CARD_PRESENT,
     CRC_FLAG_COUNT, CRC_FLAG_F7_STATUS, CRC_FLAG_MOTOR_ON, CRC_FLAG_PROGRAM_MODE,
     CRC_FLAG_WRITE_MODE, CRC_RAM_READ_ADDRESS, CRC_RAM_WRITE_ADDRESS, CRC_READ_BUFFER_COUNT,
     CRC_WRITE_BUFFER_COUNT,
+};
+pub use data::{
+    act_data_transfer_plan, data_register_serial_bit, Hp67DataSerialError, Hp67DataSerialSink,
+    Hp67DataSerialSource, Hp67DataTransferDirection, Hp67DataTransferPlan,
 };
 pub use display::{
     decode_rom0_display_byte, display_role_for_scan_slot, CathodeDriver1820_1749, CathodeScanError,
