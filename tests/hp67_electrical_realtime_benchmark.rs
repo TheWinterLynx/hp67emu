@@ -148,6 +148,7 @@ fn stage_commit_phi_stream(words: usize) -> u64 {
             fabric
                 .commit_staged()
                 .expect("dense PHI stage/commit must remain contention-free");
+            fabric.advance_tick();
         }
         checksum ^= black_box(fabric.tick().get());
     }
@@ -183,6 +184,7 @@ fn staged_phi_scheduler_stream(words: usize) -> u64 {
             fabric
                 .commit_staged()
                 .expect("dense PHI scheduling must remain contention-free");
+            fabric.advance_tick();
         }
         checksum ^= black_box(fabric.tick().get());
     }
@@ -413,6 +415,7 @@ fn stage_commit_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
         fabric
             .commit_staged()
             .expect("dense PHI stage/commit trace must remain contention-free");
+        fabric.advance_tick();
         trace.push(PhiTraceSample {
             tick: fabric.tick().get(),
             phi1: fabric.level(Hp67Net::Phi1),
@@ -450,6 +453,7 @@ fn staged_phi_trace(edges: usize) -> Vec<PhiTraceSample> {
         fabric
             .commit_staged()
             .expect("dense staged PHI trace must remain contention-free");
+        fabric.advance_tick();
         trace.push(PhiTraceSample {
             tick: fabric.tick().get(),
             phi1: fabric.level(Hp67Net::Phi1),
