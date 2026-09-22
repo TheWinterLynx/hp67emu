@@ -71,7 +71,7 @@ Devices obey one scheduling contract:
 5. **commit** all drives together;
 6. advance time.
 
-No chip may observe another chip merely because it happened to be earlier in an implementation container. This rule is central to cycle accuracy and repeatable traces. The HP-67 dense scheduler also binds staged outputs to a unique `Hp67Driver` capability per evaluation; attempting to claim the same physical driver twice is an error, so host iteration order cannot silently become final-write-wins ownership.
+No chip may observe another chip merely because it happened to be earlier in an implementation container. This rule is central to cycle accuracy and repeatable traces.
 
 The generic `ElectricalScheduler` remains the model-independent reference implementation of that contract. It intentionally uses ordered maps and boxed devices for clarity and arbitrary topologies. The HP-67 production machine does **not** use that representation in its edge hot path: `src/machines/hp67/electrical.rs` implements the same contract with fixed `Hp67Net` and `Hp67Driver` indices, fixed typed pending-drive entries with slot markers, cached resolved levels and direct driver counters. Normal HP-67 ticks therefore require no map construction, no driver-name lookup, no whole-net-set re-resolution and no heap allocation. This specialization is an implementation detail only; it must never alter source-backed electrical ordering, passive bias, contention visibility or trace semantics.
 
