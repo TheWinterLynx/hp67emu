@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#111210" />
+    <title>HP-67 Emulator</title>
+    <link data-trunk rel="rust" data-bin="hp67emu" />
+    <style>
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: rgb(17, 18, 16);
+        }
+
+        #the_canvas_id {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        #loading {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: #d8d8d8;
+            font: 14px system-ui, sans-serif;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading HP-67 emulator…</div>
+    <canvas id="the_canvas_id" tabindex="0"></canvas>
+    <script>
+        const canvas = document.getElementById("the_canvas_id");
+        canvas.addEventListener("focus", () => {
+            const loading = document.getElementById("loading");
+            if (loading) loading.remove();
+        }, { once: true });
+        canvas.focus();
+    </script>
+</body>
+</html>
