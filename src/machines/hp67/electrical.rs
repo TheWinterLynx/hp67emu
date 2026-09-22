@@ -291,8 +291,13 @@ impl Hp67ElectricalFabric {
         stager.stage_drive(owner, net, drive);
     }
 
-    /// Commit every staged device output atomically and advance one scheduler tick.
-    pub fn commit_staged(&mut self) -> Result<Tick, Hp67ElectricalError> {
+    /// Commit every staged device output atomically without advancing PHI/time.
+    ///
+    /// Committing electrical state and advancing the timing coordinate are
+    /// deliberately separate operations. The current PHI scaffold performs one
+    /// commit followed by one explicit tick advance, while future zero-time
+    /// settling/propagation events may commit without implying an extra PHI edge.
+    pub fn commit_staged(&mut self) -> Result<(), Hp67ElectricalError> {
         for pending_index in 0..self.pending_len {
             let pending = self.pending_changes[pending_index];
             let marker =
@@ -302,11 +307,10 @@ impl Hp67ElectricalFabric {
             self.apply_drive(pending.net.index(), pending.driver, pending.drive);
         }
         self.pending_len = 0;
-        let tick = self.advance_tick();
         if self.contention_net_count != 0 {
-            return Err(self.contention_error(tick));
+            return Err(self.contention_error(self.tick));
         }
-        Ok(tick)
+        Ok(())
     }
 
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
@@ -374,8 +378,23 @@ mod tests {
         }
 
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+    }
+
+    #[test]
+    fn commit_does_not_advance_timing_coordinate() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
+
+        fabric.stage_drive(&act, Hp67Net::Data, Drive::High);
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+
+        assert_eq!(fabric.advance_tick(), Tick::new(1));
+        assert_eq!(fabric.tick(), Tick::new(1));
     }
 
     #[test]
@@ -385,7 +404,8 @@ mod tests {
         fabric.stage_drive(&act, Hp67Net::Data, Drive::High);
         fabric.stage_drive(&act, Hp67Net::Data, Drive::Low);
         fabric.stage_drive(&act, Hp67Net::Data, Drive::HighZ);
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
     }
 
@@ -395,11 +415,13 @@ mod tests {
         let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
 
         fabric.stage_drive(&act, Hp67Net::Data, Drive::High);
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
 
         fabric.stage_drive(&act, Hp67Net::Data, Drive::Low);
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(2)));
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Low);
     }
 
@@ -416,9 +438,11 @@ mod tests {
         );
 
         fabric.stage_drive(&act, Hp67Net::Data, Drive::High);
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(1)));
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
         fabric.stage_drive(&act, Hp67Net::Data, Drive::Low);
-        assert_eq!(fabric.commit_staged(), Ok(Tick::new(2)));
+        assert_eq!(fabric.commit_staged(), Ok(()));
+        assert_eq!(fabric.tick(), Tick::ZERO);
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Low);
     }
 
@@ -435,7 +459,7 @@ mod tests {
         assert_eq!(
             fabric.commit_staged(),
             Err(Hp67ElectricalError::Contention {
-                tick: Tick::new(1),
+                tick: Tick::ZERO,
                 net: Hp67Net::Data,
                 drivers: vec![Hp67Driver::Act1820_2530, Hp67Driver::StructuralRomResponder,],
             })
