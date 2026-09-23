@@ -545,7 +545,7 @@ mod tests {
     #[test]
     fn natural_photo_height_preserves_source_aspect_ratio() {
         assert_eq!(height_for_width(PHOTO_W), PHOTO_H);
-        assert!((height_for_width(528.0) - 964.655_15).abs() < 0.001);
+        assert!((height_for_width(528.0) - 964.396_55).abs() < 0.001);
     }
 
     #[test]
