@@ -31,12 +31,19 @@ const CARD_ARTWORK_ATLAS_ROWS: u32 = 35;
 const WEB_PROGRAM_LIBRARY_COMPACT_WIDTH: f32 = 700.0;
 #[cfg(any(target_arch = "wasm32", test))]
 const WEB_PROGRAM_LIBRARY_COMPACT_HEIGHT: f32 = 560.0;
-#[cfg(target_arch = "wasm32")]
-const WEB_PROGRAM_LIBRARY_TOUCH_TARGET: f32 = 44.0;
+#[cfg(any(target_arch = "wasm32", test))]
+const WEB_TOUCH_TARGET: f32 = 44.0;
+#[cfg(any(target_arch = "wasm32", test))]
+const WEB_LANDSCAPE_PANEL_MAX_WIDTH: f32 = 528.0;
 
 #[cfg(any(target_arch = "wasm32", test))]
-fn web_program_library_prefers_compact(size: egui::Vec2) -> bool {
+fn web_prefers_compact_layout(size: egui::Vec2) -> bool {
     size.x < WEB_PROGRAM_LIBRARY_COMPACT_WIDTH || size.y < WEB_PROGRAM_LIBRARY_COMPACT_HEIGHT
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn web_prefers_scrollable_landscape(size: egui::Vec2) -> bool {
+    web_prefers_compact_layout(size) && size.x > size.y
 }
 
 pub struct Hp67App {
@@ -570,7 +577,7 @@ impl Hp67App {
             return;
         }
 
-        if web_program_library_prefers_compact(ctx.screen_rect().size()) {
+        if web_prefers_compact_layout(ctx.screen_rect().size()) {
             self.show_program_library_compact(ctx);
         } else {
             self.show_program_library_wide(ctx);
@@ -769,14 +776,14 @@ impl Hp67App {
                     .inner_margin(egui::Margin::symmetric(12.0, 10.0)),
             )
             .show(ctx, |ui| {
-                ui.spacing_mut().interact_size.y = WEB_PROGRAM_LIBRARY_TOUCH_TARGET;
+                ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
                 ui.spacing_mut().item_spacing.y = 6.0;
 
                 ui.horizontal(|ui| {
                     if show_detail {
                         if ui
                             .add_sized(
-                                [104.0, WEB_PROGRAM_LIBRARY_TOUCH_TARGET],
+                                [104.0, WEB_TOUCH_TARGET],
                                 egui::Button::new("← Programs"),
                             )
                             .clicked()
@@ -790,7 +797,7 @@ impl Hp67App {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_sized(
-                                [72.0, WEB_PROGRAM_LIBRARY_TOUCH_TARGET],
+                                [72.0, WEB_TOUCH_TARGET],
                                 egui::Button::new("Close"),
                             )
                             .clicked()
@@ -804,7 +811,7 @@ impl Hp67App {
                 if show_detail {
                     if let Some(index) = selected {
                         let entry = &PROGRAM_LIBRARY[index];
-                        let action_space = WEB_PROGRAM_LIBRARY_TOUCH_TARGET + 12.0;
+                        let action_space = WEB_TOUCH_TARGET + 12.0;
                         let body_height = (ui.available_height() - action_space).max(120.0);
 
                         egui::ScrollArea::both()
@@ -866,7 +873,7 @@ impl Hp67App {
                                 reader_free,
                                 egui::Button::new("Load card").min_size(egui::vec2(
                                     load_width,
-                                    WEB_PROGRAM_LIBRARY_TOUCH_TARGET,
+                                    WEB_TOUCH_TARGET,
                                 )),
                             )
                             .clicked()
@@ -1133,6 +1140,136 @@ impl Hp67App {
         self.card_media = None;
         false
     }
+
+    fn show_calculator_surface(
+        &mut self,
+        ui: &mut egui::Ui,
+        now: Instant,
+        card_phase_progress: f32,
+        minimum_touch_target: f32,
+    ) {
+        let host = ui.available_rect_before_wrap();
+        let display = self
+            .live_machine
+            .as_ref()
+            .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
+        let opposite_track_requested = self.opposite_track_requested();
+        let card_artwork = if let Some(entry) = self
+            .card_library_entry
+            .and_then(|index| PROGRAM_LIBRARY.get(index))
+        {
+            &entry.artwork
+        } else if imported_artwork_is_moon_rocket_lander(self.card_import_name.as_deref()) {
+            &MOON_ROCKET_LANDER_CARD
+        } else {
+            &GENERIC_MAGNETIC_CARD
+        };
+        let panel = Hp67Panel::show(
+            ui,
+            &self.state,
+            &display,
+            &self.photo,
+            ProgramCardView {
+                artwork: card_artwork,
+                logo: &self.card_logo,
+                face_texture: self.card_artwork_texture.as_ref(),
+                phase: self.card_phase,
+                phase_progress: card_phase_progress,
+                opposite_track_requested,
+                rotated_180: self.card_insertion_end == CardInsertionEnd::End2,
+                reader_enabled: self.state.power_on,
+                reader_free_for_new_blank: reader_free_for_new_blank(self.card_phase),
+                minimum_touch_target,
+            },
+            minimum_touch_target,
+        );
+        if panel.card_reader_clicked {
+            if reader_click_requires_new_blank(self.card_media.is_some()) {
+                self.insert_new_blank_card();
+            } else {
+                self.insert_current_card(self.card_insertion_end);
+            }
+        }
+        if panel.blank_card_requested {
+            self.insert_new_blank_card();
+        }
+        if panel.card_waiting_reader_clicked {
+            self.withdraw_waiting_card();
+        }
+        if opposite_track_requested
+            && (panel.card_parked_left_clicked || panel.card_parked_left_double_clicked)
+        {
+            self.insert_current_card(self.card_insertion_end.opposite());
+        } else if panel.card_parked_left_double_clicked {
+            if self.card_media.is_some() {
+                self.card_insertion_end = self.card_insertion_end.opposite();
+                self.card_phase = ProgramCardPhase::Idle;
+                self.card_phase_started = None;
+                self.card_read_progress = 0.0;
+            }
+        } else if panel.card_parked_left_clicked {
+            self.card_phase = ProgramCardPhase::InsertingWindowFromRight;
+            self.card_phase_started = Some(now);
+        }
+        if panel.card_window_clicked {
+            self.card_phase = ProgramCardPhase::Idle;
+            self.card_phase_started = None;
+        }
+
+        for event in panel.events {
+            let was_power_on = self.state.power_on;
+            self.state.handle(event);
+            if matches!(event, UiEvent::TogglePower) {
+                self.last_live_tick = None;
+                if was_power_on && !self.state.power_on {
+                    if let Some(machine) = self.live_machine.as_mut() {
+                        match machine.take_magnetic_card_for_power_off() {
+                            Ok(Some(card)) => self.card_media = Some(card),
+                            Ok(None) => {}
+                            Err(error) => {
+                                eprintln!("HP-67 power-off card recovery failed: {error}");
+                            }
+                        }
+                    }
+                    self.reset_card_presentation_after_power_off();
+                } else if !was_power_on && self.state.power_on {
+                    let reset_result = if let Some(machine) = self.live_machine.as_mut() {
+                        machine.reset_power_on()
+                    } else {
+                        Hp67LiveMachine::power_on_default().map(|machine| {
+                            self.live_machine = Some(machine);
+                        })
+                    };
+                    if let Err(error) = reset_result {
+                        eprintln!("HP-67 live power-on reset failed: {error}");
+                        self.live_machine = None;
+                    }
+                }
+            }
+        }
+
+        let mode_error = self.live_machine.as_mut().and_then(|machine| {
+            machine
+                .set_program_mode(matches!(self.state.mode, RunMode::Program))
+                .err()
+        });
+        if let Some(error) = mode_error {
+            eprintln!("HP-67 live program-mode update failed: {error}");
+            self.live_machine = None;
+        }
+
+        if let Some(machine) = self.live_machine.as_mut() {
+            let contact = if self.state.power_on {
+                panel.key_contact.and_then(KeyAction::physical_key)
+            } else {
+                None
+            };
+            machine.set_key_contact(contact);
+        }
+
+        top_keys::paint(ui, host, &self.photo, panel.key_contact);
+        sliders::paint(ui, host, &self.photo, &self.state);
+    }
 }
 
 fn card_insertion_allowed(power_on: bool) -> bool {
@@ -1210,9 +1347,19 @@ impl eframe::App for Hp67App {
         let mut open_program_library = false;
         let mut new_blank_from_menu = false;
         let mut save_from_menu = false;
+        #[cfg(target_arch = "wasm32")]
+        let web_compact = web_prefers_compact_layout(ctx.screen_rect().size());
+        #[cfg(not(target_arch = "wasm32"))]
+        let web_compact = false;
         egui::TopBottomPanel::top("hp67-menu").show(ctx, |ui| {
+            if web_compact {
+                ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
+            }
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Cards", |ui| {
+                    if web_compact {
+                        ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
+                    }
                     if ui.button("Program Library...").clicked() {
                         open_program_library = true;
                         ui.close_menu();
@@ -1274,125 +1421,40 @@ impl eframe::App for Hp67App {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Color32::from_rgb(17, 18, 16)))
             .show(ctx, |ui| {
-                let host = ui.available_rect_before_wrap();
-                let display = self
-                    .live_machine
-                    .as_ref()
-                    .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::display_frame);
-                let opposite_track_requested = self.opposite_track_requested();
-                let card_artwork = if let Some(entry) = self
-                    .card_library_entry
-                    .and_then(|index| PROGRAM_LIBRARY.get(index))
-                {
-                    &entry.artwork
-                } else if imported_artwork_is_moon_rocket_lander(self.card_import_name.as_deref()) {
-                    &MOON_ROCKET_LANDER_CARD
-                } else {
-                    &GENERIC_MAGNETIC_CARD
-                };
-                let panel = Hp67Panel::show(
+                #[cfg(target_arch = "wasm32")]
+                if web_prefers_scrollable_landscape(ctx.screen_rect().size()) {
+                    egui::ScrollArea::vertical()
+                        .id_source("hp67-mobile-landscape-calculator")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            let panel_width =
+                                ui.available_width().min(WEB_LANDSCAPE_PANEL_MAX_WIDTH);
+                            let panel_height = Hp67Panel::height_for_width(panel_width);
+                            let left_space = ((ui.available_width() - panel_width) * 0.5).max(0.0);
+                            ui.horizontal(|ui| {
+                                ui.add_space(left_space);
+                                ui.vertical(|ui| {
+                                    ui.set_width(panel_width);
+                                    ui.set_height(panel_height);
+                                    self.show_calculator_surface(
+                                        ui,
+                                        now,
+                                        card_phase_progress,
+                                        WEB_TOUCH_TARGET,
+                                    );
+                                });
+                            });
+                        });
+                    return;
+                }
+
+                let minimum_touch_target = if web_compact { WEB_TOUCH_TARGET } else { 0.0 };
+                self.show_calculator_surface(
                     ui,
-                    &self.state,
-                    &display,
-                    &self.photo,
-                    ProgramCardView {
-                        artwork: card_artwork,
-                        logo: &self.card_logo,
-                        face_texture: self.card_artwork_texture.as_ref(),
-                        phase: self.card_phase,
-                        phase_progress: card_phase_progress,
-                        opposite_track_requested,
-                        rotated_180: self.card_insertion_end == CardInsertionEnd::End2,
-                        reader_enabled: self.state.power_on,
-                        reader_free_for_new_blank: reader_free_for_new_blank(self.card_phase),
-                    },
+                    now,
+                    card_phase_progress,
+                    minimum_touch_target,
                 );
-                if panel.card_reader_clicked {
-                    if reader_click_requires_new_blank(self.card_media.is_some()) {
-                        self.insert_new_blank_card();
-                    } else {
-                        self.insert_current_card(self.card_insertion_end);
-                    }
-                }
-                if panel.blank_card_requested {
-                    self.insert_new_blank_card();
-                }
-                if panel.card_waiting_reader_clicked {
-                    self.withdraw_waiting_card();
-                }
-                if opposite_track_requested
-                    && (panel.card_parked_left_clicked || panel.card_parked_left_double_clicked)
-                {
-                    self.insert_current_card(self.card_insertion_end.opposite());
-                } else if panel.card_parked_left_double_clicked {
-                    if self.card_media.is_some() {
-                        self.card_insertion_end = self.card_insertion_end.opposite();
-                        self.card_phase = ProgramCardPhase::Idle;
-                        self.card_phase_started = None;
-                        self.card_read_progress = 0.0;
-                    }
-                } else if panel.card_parked_left_clicked {
-                    self.card_phase = ProgramCardPhase::InsertingWindowFromRight;
-                    self.card_phase_started = Some(now);
-                }
-                if panel.card_window_clicked {
-                    self.card_phase = ProgramCardPhase::Idle;
-                    self.card_phase_started = None;
-                }
-
-                for event in panel.events {
-                    let was_power_on = self.state.power_on;
-                    self.state.handle(event);
-                    if matches!(event, UiEvent::TogglePower) {
-                        self.last_live_tick = None;
-                        if was_power_on && !self.state.power_on {
-                            if let Some(machine) = self.live_machine.as_mut() {
-                                match machine.take_magnetic_card_for_power_off() {
-                                    Ok(Some(card)) => self.card_media = Some(card),
-                                    Ok(None) => {}
-                                    Err(error) => {
-                                        eprintln!("HP-67 power-off card recovery failed: {error}");
-                                    }
-                                }
-                            }
-                            self.reset_card_presentation_after_power_off();
-                        } else if !was_power_on && self.state.power_on {
-                            let reset_result = if let Some(machine) = self.live_machine.as_mut() {
-                                machine.reset_power_on()
-                            } else {
-                                Hp67LiveMachine::power_on_default().map(|machine| {
-                                    self.live_machine = Some(machine);
-                                })
-                            };
-                            if let Err(error) = reset_result {
-                                eprintln!("HP-67 live power-on reset failed: {error}");
-                                self.live_machine = None;
-                            }
-                        }
-                    }
-                }
-
-                let mode_error = self.live_machine.as_mut().and_then(|machine| {
-                    machine
-                        .set_program_mode(matches!(self.state.mode, RunMode::Program))
-                        .err()
-                });
-                if let Some(error) = mode_error {
-                    eprintln!("HP-67 live program-mode update failed: {error}");
-                    self.live_machine = None;
-                }
-
-                if let Some(machine) = self.live_machine.as_mut() {
-                    let contact = if self.state.power_on {
-                        panel.key_contact.and_then(KeyAction::physical_key)
-                    } else {
-                        None
-                    };
-                    machine.set_key_contact(contact);
-                }
-
-                top_keys::paint(ui, host, &self.photo, panel.key_contact);
-                sliders::paint(ui, host, &self.photo, &self.state);
             });
 
         let elapsed = self
@@ -1459,18 +1521,28 @@ mod tests {
 
     #[test]
     fn web_program_library_uses_compact_flow_for_phone_sized_viewports() {
-        assert!(web_program_library_prefers_compact(egui::vec2(
+        assert!(web_prefers_compact_layout(egui::vec2(
             390.0, 844.0
         )));
-        assert!(web_program_library_prefers_compact(egui::vec2(
+        assert!(web_prefers_compact_layout(egui::vec2(
             844.0, 390.0
         )));
-        assert!(web_program_library_prefers_compact(egui::vec2(
+        assert!(web_prefers_compact_layout(egui::vec2(
             600.0, 900.0
         )));
-        assert!(!web_program_library_prefers_compact(egui::vec2(
+        assert!(!web_prefers_compact_layout(egui::vec2(
             1024.0, 768.0
         )));
+    }
+
+    #[test]
+    fn web_phone_landscape_uses_scrollable_full_size_calculator() {
+        assert!(web_prefers_scrollable_landscape(egui::vec2(844.0, 390.0)));
+        assert!(web_prefers_scrollable_landscape(egui::vec2(667.0, 375.0)));
+        assert!(!web_prefers_scrollable_landscape(egui::vec2(390.0, 844.0)));
+        assert!(!web_prefers_scrollable_landscape(egui::vec2(1024.0, 768.0)));
+        assert_eq!(WEB_TOUCH_TARGET, 44.0);
+        assert_eq!(WEB_LANDSCAPE_PANEL_MAX_WIDTH, 528.0);
     }
 
     #[test]
