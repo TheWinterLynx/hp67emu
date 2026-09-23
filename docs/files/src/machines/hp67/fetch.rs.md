@@ -38,7 +38,7 @@ M12 ROM0 modifier recoding: the HP-29C Service Manual states that Woodstock send
 
 ## M14B fused DATA experiment
 
-The internal structural word transport is now generic over a monomorphized per-bit visitor. Existing production/fetch/display callers pass a no-op closure, which is intended to optimize away completely; the new `run_structural_display_fetch_data_phase_cycle()` passes `Hp67DataSerialWordPath::visit_word_bit()` so DATA logical phase advances inside the same b0..b55 loop as IS/display/fetch. This function remains an experiment and does not drive `Hp67Net::Data` or choose DATA polarity/PHI edges. A normal regression proves that one DATA frame can span two structural words without disturbing ROM fetch or the word counter.
+The internal structural word transport is now generic over a monomorphized per-bit visitor. Existing production/fetch/display callers pass a no-op closure, which is intended to optimize away completely; the new `run_structural_display_fetch_data_phase_cycle()` passes `Hp67DataSerialWordPath::visit_transport_word_bit()` so DATA logical phase advances inside the same b0..b55 loop as IS/display/fetch. This function remains an experiment and does not drive `Hp67Net::Data` or choose DATA polarity/PHI edges. A normal regression proves that one DATA frame can span two structural words without disturbing ROM fetch or the word counter.
 
 
 ## M14B monomorphic fast-path correction
@@ -49,3 +49,8 @@ This deliberate duplication is a performance/fidelity boundary: the historical n
 
 
 A differential regression now runs the DATA-aware transport with no active DATA frame beside the monomorphic fast path and requires identical structural result, ROM address reception, display phase, backplane tick, word index and word bit. This protects the intentional duplicated loop from semantic drift while preserving separate code generation.
+
+
+## M14C pre-word DATA tail
+
+The DATA-aware twin now calls `visit_transport_word_bit()`. If the preceding DATA frame's b0/b1 tail was already consumed by the live-machine authority bridge before the following instruction boundary, the DATA participant skips only those two duplicate logical samples while the structural transport still executes the real b0/b1 IS/display/backplane cells and all four PHI transitions per bit. From b2 onward the DATA participant resumes in the same loop, including a back-to-back new frame. The monomorphic no-DATA transport is unchanged.
