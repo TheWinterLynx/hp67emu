@@ -72,3 +72,12 @@ The browser Program Library keeps `Load card` visible regardless of listing scro
 ## Compact mobile UX rationale
 
 The compact Program Library follows platform-neutral responsive principles and Apple iPhone guidance rather than imitating a desktop window at a smaller size. Apple recommends using full-screen modal presentation for focused or multistep tasks when appropriate, keeping dismissal obvious, and targeting roughly 44 by 44 points for touch controls on iPhone/iPad. The library is a browse-select-review-load task with dozens of entries, so it uses a full-screen drill-in flow on constrained viewports instead of an action sheet or a permanently expanded menu. The breakpoint is a presentation heuristic based only on available egui points; it does not alter calculator semantics or infer device identity.
+
+## Mobile shell and orientation
+
+The web shell now consumes CSS safe-area insets because `viewport-fit=cover` is enabled. The canvas and loading surface are inset by `safe-area-inset-top/right/bottom/left`, and dynamic viewport height (`100dvh`, with `100vh` fallback) follows mobile browser chrome without placing calculator controls under a notch or home indicator.
+
+Compact browser mode also applies a 44-point minimum interaction height to the Cards bar/menu and a 44-point minimum invisible hit target to calculator keys, slide switches and magnetic-card interactions. Visual geometry remains the original photographed geometry; only hit regions grow.
+
+Portrait continues to contain the complete HP-67 in the available safe canvas. Compact landscape uses a different presentation strategy because fitting the entire tall calculator into a short landscape viewport would make the physical controls too small: the calculator is rendered at up to 528 points wide, its source aspect ratio is preserved, and the central area scrolls vertically. No keys are rearranged and no calculator semantics change when orientation changes.
+
