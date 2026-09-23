@@ -243,9 +243,7 @@ impl Hp67DataSerialWordPath {
     /// instruction before that instruction can depend on C or RAM. It is a
     /// logical scheduler split only: no PHI-relative sample/commit edge is
     /// asserted here.
-    pub fn preconsume_previous_tail(
-        &mut self,
-    ) -> Result<Option<ActRegister>, Hp67DataSerialError> {
+    pub fn preconsume_previous_tail(&mut self) -> Result<Option<ActRegister>, Hp67DataSerialError> {
         if !self.sink.frame_in_progress() {
             return Ok(None);
         }
@@ -270,10 +268,7 @@ impl Hp67DataSerialWordPath {
     pub fn begin_word(&mut self, payload: Option<ActRegister>) {
         debug_assert!(self.completed_payload.is_none());
         debug_assert!(self.current_payload.is_none());
-        debug_assert!(matches!(
-            self.sink.expected_word_bit(),
-            0 | DATA_TAIL_BITS
-        ));
+        debug_assert!(matches!(self.sink.expected_word_bit(), 0 | DATA_TAIL_BITS));
         self.current_payload = payload;
         self.source.begin_word(payload);
         self.sink.begin_word(payload.is_some());
@@ -290,10 +285,7 @@ impl Hp67DataSerialWordPath {
         Ok(())
     }
 
-    pub fn visit_transport_word_bit(
-        &mut self,
-        word_bit: u8,
-    ) -> Result<(), Hp67DataSerialError> {
+    pub fn visit_transport_word_bit(&mut self, word_bit: u8) -> Result<(), Hp67DataSerialError> {
         if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS {
             return Ok(());
         }
