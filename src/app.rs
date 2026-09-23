@@ -27,6 +27,17 @@ const CARD_SAVE_VIEWPORT_KEY: &str = "hp67-card-save-viewport";
 const CARD_ARTWORK_ATLAS_WIDTH: u32 = 499;
 const CARD_ARTWORK_ATLAS_ROW_HEIGHT: u32 = 80;
 const CARD_ARTWORK_ATLAS_ROWS: u32 = 35;
+#[cfg(any(target_arch = "wasm32", test))]
+const WEB_PROGRAM_LIBRARY_COMPACT_WIDTH: f32 = 700.0;
+#[cfg(any(target_arch = "wasm32", test))]
+const WEB_PROGRAM_LIBRARY_COMPACT_HEIGHT: f32 = 560.0;
+#[cfg(target_arch = "wasm32")]
+const WEB_PROGRAM_LIBRARY_TOUCH_TARGET: f32 = 44.0;
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn web_program_library_prefers_compact(size: egui::Vec2) -> bool {
+    size.x < WEB_PROGRAM_LIBRARY_COMPACT_WIDTH || size.y < WEB_PROGRAM_LIBRARY_COMPACT_HEIGHT
+}
 
 pub struct Hp67App {
     state: Hp67State,
@@ -47,6 +58,8 @@ pub struct Hp67App {
     program_library_open: bool,
     program_library_selected: Option<usize>,
     program_library_status: Option<String>,
+    #[cfg(target_arch = "wasm32")]
+    program_library_mobile_detail: bool,
     card_library_entry: Option<usize>,
     card_artwork_texture: Option<TextureHandle>,
 }
@@ -145,6 +158,8 @@ impl Hp67App {
             program_library_open: false,
             program_library_selected: None,
             program_library_status: None,
+            #[cfg(target_arch = "wasm32")]
+            program_library_mobile_detail: false,
             card_library_entry: None,
             card_artwork_texture: None,
         }
@@ -555,6 +570,15 @@ impl Hp67App {
             return;
         }
 
+        if web_program_library_prefers_compact(ctx.screen_rect().size()) {
+            self.show_program_library_compact(ctx);
+        } else {
+            self.show_program_library_wide(ctx);
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn show_program_library_wide(&mut self, ctx: &egui::Context) {
         let mut keep_open = true;
         let mut close_requested = false;
         let mut selected = self.program_library_selected;
@@ -712,6 +736,212 @@ impl Hp67App {
             self.program_library_status = match self.load_program_library_entry(ctx, index) {
                 Ok(()) => {
                     self.program_library_open = false;
+                    let entry = &PROGRAM_LIBRARY[index];
+                    Some(format!("Loaded {} - {}", entry.reference, entry.title))
+                }
+                Err(error) => Some(error),
+            };
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn show_program_library_compact(&mut self, ctx: &egui::Context) {
+        let mut selected = self.program_library_selected;
+        let mut show_detail = self.program_library_mobile_detail && selected.is_some();
+        let mut close_requested = false;
+        let mut load_requested = None;
+        let status = self.program_library_status.clone();
+        let reader_free = !self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted);
+        let screen = ctx.screen_rect();
+
+        egui::Window::new("hp67-program-library-mobile")
+            .id(egui::Id::new("hp67-program-library-mobile"))
+            .title_bar(false)
+            .collapsible(false)
+            .resizable(false)
+            .fixed_rect(screen)
+            .frame(
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(17, 18, 16))
+                    .inner_margin(egui::Margin::symmetric(12.0, 10.0)),
+            )
+            .show(ctx, |ui| {
+                ui.spacing_mut().interact_size.y = WEB_PROGRAM_LIBRARY_TOUCH_TARGET;
+                ui.spacing_mut().item_spacing.y = 6.0;
+
+                ui.horizontal(|ui| {
+                    if show_detail {
+                        if ui
+                            .add_sized(
+                                [104.0, WEB_PROGRAM_LIBRARY_TOUCH_TARGET],
+                                egui::Button::new("← Programs"),
+                            )
+                            .clicked()
+                        {
+                            show_detail = false;
+                        }
+                        ui.strong("Program Library");
+                    } else {
+                        ui.heading("Program Library");
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_sized(
+                                [72.0, WEB_PROGRAM_LIBRARY_TOUCH_TARGET],
+                                egui::Button::new("Close"),
+                            )
+                            .clicked()
+                        {
+                            close_requested = true;
+                        }
+                    });
+                });
+                ui.separator();
+
+                if show_detail {
+                    if let Some(index) = selected {
+                        let entry = &PROGRAM_LIBRARY[index];
+                        let action_space = WEB_PROGRAM_LIBRARY_TOUCH_TARGET + 12.0;
+                        let body_height = (ui.available_height() - action_space).max(120.0);
+
+                        egui::ScrollArea::both()
+                            .id_source("hp67-program-library-mobile-detail")
+                            .auto_shrink([false, false])
+                            .max_height(body_height)
+                            .show(ui, |ui| {
+                                ui.heading(entry.title);
+                                if !entry.reference.is_empty() {
+                                    ui.label(format!("Reference: {}", entry.reference));
+                                }
+                                ui.label(format!("Pack: {}", entry.pack));
+                                ui.label(format!(
+                                    "Magnetic tracks supplied: {}",
+                                    entry.track_count()
+                                ));
+                                if let Some(pdf) = entry.source_pdf {
+                                    let source = if entry.artwork_atlas_row().is_some() {
+                                        "embedded card crop"
+                                    } else {
+                                        "manual only"
+                                    };
+                                    ui.label(format!("Artwork/manual source: {pdf} ({source})"));
+                                } else {
+                                    ui.label("Artwork/manual source: no pack PDF checked in");
+                                }
+
+                                if !reader_free {
+                                    ui.separator();
+                                    ui.label(
+                                        "Remove the card from the reader before loading another one.",
+                                    );
+                                }
+                                if let Some(status) = status.as_deref() {
+                                    ui.separator();
+                                    ui.label(status);
+                                }
+
+                                ui.separator();
+                                match entry.program_listing() {
+                                    Ok(listing) => {
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(listing).monospace(),
+                                            )
+                                            .wrap(false),
+                                        );
+                                    }
+                                    Err(error) => {
+                                        ui.label(format!("Cannot decode listing: {error}"));
+                                    }
+                                }
+                            });
+
+                        ui.separator();
+                        let load_width = ui.available_width();
+                        if ui
+                            .add_enabled(
+                                reader_free,
+                                egui::Button::new("Load card").min_size(egui::vec2(
+                                    load_width,
+                                    WEB_PROGRAM_LIBRARY_TOUCH_TARGET,
+                                )),
+                            )
+                            .clicked()
+                        {
+                            load_requested = Some(index);
+                        }
+                    } else {
+                        show_detail = false;
+                    }
+                } else {
+                    ui.label("Choose a program card");
+                    if let Some(status) = status.as_deref() {
+                        ui.label(status);
+                    }
+                    ui.add_space(2.0);
+
+                    egui::ScrollArea::vertical()
+                        .id_source("hp67-program-library-mobile-packs")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            let mut pack_start = 0usize;
+                            while pack_start < PROGRAM_LIBRARY.len() {
+                                let pack = PROGRAM_LIBRARY[pack_start].pack;
+                                let mut pack_end = pack_start + 1;
+                                while pack_end < PROGRAM_LIBRARY.len()
+                                    && PROGRAM_LIBRARY[pack_end].pack == pack
+                                {
+                                    pack_end += 1;
+                                }
+
+                                egui::CollapsingHeader::new(format!(
+                                    "{} ({})",
+                                    pack,
+                                    pack_end - pack_start
+                                ))
+                                .id_source(("hp67-program-pack-mobile", pack))
+                                .default_open(pack_start == 0)
+                                .show(ui, |ui| {
+                                    for (offset, entry) in
+                                        PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
+                                    {
+                                        let index = pack_start + offset;
+                                        let label = if entry.reference.is_empty() {
+                                            entry.title.to_owned()
+                                        } else {
+                                            format!("{} - {}", entry.reference, entry.title)
+                                        };
+                                        if ui.selectable_label(false, label).clicked() {
+                                            selected = Some(index);
+                                            show_detail = true;
+                                        }
+                                    }
+                                });
+
+                                pack_start = pack_end;
+                            }
+                        });
+                }
+            });
+
+        if close_requested {
+            self.program_library_open = false;
+            self.program_library_mobile_detail = false;
+            return;
+        }
+
+        self.program_library_selected = selected;
+        self.program_library_mobile_detail = show_detail;
+
+        if let Some(index) = load_requested {
+            self.program_library_status = match self.load_program_library_entry(ctx, index) {
+                Ok(()) => {
+                    self.program_library_open = false;
+                    self.program_library_mobile_detail = false;
                     let entry = &PROGRAM_LIBRARY[index];
                     Some(format!("Loaded {} - {}", entry.reference, entry.title))
                 }
@@ -1002,6 +1232,10 @@ impl eframe::App for Hp67App {
         if open_program_library {
             self.program_library_open = true;
             self.program_library_status = None;
+            #[cfg(target_arch = "wasm32")]
+            {
+                self.program_library_mobile_detail = false;
+            }
         }
         if new_blank_from_menu {
             if !self.insert_new_blank_card() {
@@ -1223,6 +1457,14 @@ impl eframe::App for Hp67App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn web_program_library_uses_compact_flow_for_phone_sized_viewports() {
+        assert!(web_program_library_prefers_compact(egui::vec2(390.0, 844.0)));
+        assert!(web_program_library_prefers_compact(egui::vec2(844.0, 390.0)));
+        assert!(web_program_library_prefers_compact(egui::vec2(600.0, 900.0)));
+        assert!(!web_program_library_prefers_compact(egui::vec2(1024.0, 768.0)));
+    }
 
     #[test]
     fn embedded_card_artwork_atlas_decodes_and_has_expected_dimensions() {
