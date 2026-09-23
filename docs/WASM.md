@@ -56,9 +56,9 @@ The front end uses `web_time::Instant` at the host pacing boundary so elapsed br
 
 Browser filesystem import/export is not yet promoted as working functionality. The native code still owns path-based `.hpp`, `.hp67raw` and `.hp67card` import/save. Embedded program-library media and artwork do not need browser filesystem access and are expected to remain available.
 
-Secondary eframe viewports are a desktop feature. The first browser run confirmed that the desktop Program Library viewport occupied the web root and could not be closed. Browser builds now use an ordinary movable/resizable `egui::Window` for Program Library, with title-bar and explicit Close controls; loading a card closes the window automatically. Save Card also uses a closable embedded window on web and currently reports that browser export is not implemented. Native child viewports remain unchanged.
+Secondary eframe viewports are a desktop feature. Browser builds therefore use in-canvas Program Library UI. The presentation is responsive: wide browser viewports retain a movable two-column window, while compact viewports (less than 700 points wide or 560 points high) switch to a full-screen single-column selection flow. The compact flow uses 44-point minimum interaction height, explicit Close and Back controls, a scrollable program/detail body, and a full-width persistent Load card action. This avoids squeezing a desktop two-pane dialog into iPhone portrait/landscape sizes. Loading a card closes the library automatically. Save Card also uses a closable embedded window on web and currently reports that browser export is not implemented. Native child viewports remain unchanged.
 
-No GitHub Actions or automatic deployment are introduced by this slice.
+GitHub Pages deployment is handled by the checked-in Pages workflow on `main`; feature branches do not deploy unless the workflow trigger is explicitly changed.
 
 ## Trunk release / wasm-opt compatibility
 
@@ -66,4 +66,9 @@ Current rustc can emit standard WebAssembly bulk-memory instructions such as `me
 
 The wasm target is built with `-Dwarnings` during validation. Native-only save helpers are compiled out on wasm rather than suppressed with dead-code allowances, and the web Program Library consumes the same source-PDF metadata as the native library.
 
-The browser Program Library places `Load card` in the top toolbar so the action remains visible regardless of listing scroll position. This is a wasm-only presentation adaptation; the native library layout is unchanged.
+The browser Program Library keeps `Load card` visible regardless of listing scroll position: in wide mode it is in the top toolbar, while compact mode pins a full-width action below the detail scroller. This is a wasm-only presentation adaptation; the native library layout is unchanged.
+
+
+## Compact mobile UX rationale
+
+The compact Program Library follows platform-neutral responsive principles and Apple iPhone guidance rather than imitating a desktop window at a smaller size. Apple recommends using full-screen modal presentation for focused or multistep tasks when appropriate, keeping dismissal obvious, and targeting roughly 44 by 44 points for touch controls on iPhone/iPad. The library is a browse-select-review-load task with dozens of entries, so it uses a full-screen drill-in flow on constrained viewports instead of an action sheet or a permanently expanded menu. The breakpoint is a presentation heuristic based only on available egui points; it does not alter calculator semantics or infer device identity.
