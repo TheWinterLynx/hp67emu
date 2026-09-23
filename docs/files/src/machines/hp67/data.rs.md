@@ -30,3 +30,10 @@ Decode ACT RAM read/write-class instructions into transfer direction/address whi
 
 
 The fused word-path API exposes `frame_in_progress()` so the caller can select the DATA-aware transport only for a transfer word or the one following tail-completion word. This is specifically intended to preserve the no-DATA fast path.
+
+
+## M14C authority split
+
+`Hp67DataSerialWordPath::preconsume_previous_tail()` now reconstructs the preceding frame's serial bits 54/55 from the documented following-word b0/b1 positions before the new instruction-boundary bridge runs. `visit_transport_word_bit()` prevents those two logical DATA samples from being consumed twice when the shared structural IS/display/fetch loop subsequently traverses the same machine-word coordinates. A back-to-back frame may then start normally at b2.
+
+This is intentionally a logical scheduling split, not an electrical timing claim. No PHI edge, DATA polarity, passive level or propagation delay is assigned. Its purpose is causal: an installed-RAM read/write result can be committed from the reconstructed serial frame before the following architectural fallback instruction is allowed to observe C or RAM.
