@@ -91,3 +91,7 @@ Compact browser mode also applies a 44-point minimum interaction height to the C
 
 Portrait continues to contain the complete HP-67 in the available safe canvas. Compact landscape uses a different presentation strategy because fitting the entire tall calculator into a short landscape viewport would make the physical controls too small: the calculator is rendered at up to 528 points wide, its source aspect ratio is preserved, and the central area scrolls vertically. No keys are rearranged and no calculator semantics change when orientation changes.
 
+## Optional program listings
+
+Program listings are reference material, not a required step in loading a magnetic card. Selecting a card now stays in the program browser and immediately enables `Load card` when the reader is free. `View listing` opens the decoded listing only when requested. On compact mobile layouts, the selected card remains highlighted and the `View listing` / `Load card` actions stay outside the scrolling PAC list; the listing screen retains a direct Load action and a Back control. Wide browser layouts follow the same rule: selection and loading do not require rendering the listing.
+
