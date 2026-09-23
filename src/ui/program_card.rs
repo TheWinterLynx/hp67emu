@@ -178,6 +178,11 @@ pub fn paint(
                 scale,
                 view.rotated_180,
             );
+            let waiting_hint = if view.minimum_touch_target > 0.0 {
+                "Card is waiting for the reader motor. Tap to withdraw it"
+            } else {
+                "Card is waiting for the reader motor. Right-click to withdraw it"
+            };
             let response = ui
                 .interact(
                     minimum_hit_rect(
@@ -188,11 +193,15 @@ pub fn paint(
                     ui.make_persistent_id("hp67-magnetic-card-waiting"),
                     Sense::click(),
                 )
-                .on_hover_text("Card is waiting for the reader motor. Right-click to withdraw it");
+                .on_hover_text(waiting_hint);
             if response.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
-            output.waiting_reader_clicked = response.secondary_clicked();
+            output.waiting_reader_clicked = if view.minimum_touch_target > 0.0 {
+                response.clicked() || response.secondary_clicked()
+            } else {
+                response.secondary_clicked()
+            };
         }
         ProgramCardPhase::ReadingFromRight => {
             paint_reader_motion(
@@ -866,12 +875,18 @@ mod tests {
 
     #[test]
     fn touch_hit_rect_preserves_large_targets_and_expands_small_ones() {
-        let small = Rect::from_min_size(pos2(10.0, 20.0), eframe::egui::vec2(28.0, 40.0));
+        let small = Rect::from_min_size(
+            pos2(10.0, 20.0),
+            eframe::egui::vec2(28.0, 40.0),
+        );
         let expanded = minimum_hit_rect(small, 44.0);
         assert_eq!(expanded.center(), small.center());
         assert_eq!(expanded.size(), eframe::egui::vec2(44.0, 44.0));
 
-        let large = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(80.0, 50.0));
+        let large = Rect::from_min_size(
+            pos2(0.0, 0.0),
+            eframe::egui::vec2(80.0, 50.0),
+        );
         assert_eq!(minimum_hit_rect(large, 44.0), large);
     }
 
