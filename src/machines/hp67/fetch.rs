@@ -657,7 +657,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        data.visit_word_bit(expected_bit)?;
+        data.visit_transport_word_bit(expected_bit)?;
 
         for _ in 0..4 {
             backplane.advance_clock();
