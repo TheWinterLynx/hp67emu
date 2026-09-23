@@ -5,6 +5,9 @@
 //! at b0/b1 of the following machine word. This module models that cross-word
 //! phase exactly at the logical-bit level while deliberately leaving electrical
 //! polarity, passive bias and PHI-relative launch/sample edges unresolved.
+//! M14C may consume the following-word b0/b1 logical tail before the next
+//! instruction-boundary bridge, while the structural loop still traverses those
+//! physical word coordinates later. That split is not a PHI-edge claim.
 
 use super::{
     act::{ActArchitecturalState, ActInstructionState, ActRegister, ACT_WORD_DIGITS},
@@ -212,8 +215,9 @@ impl Hp67DataSerialSink {
     }
 }
 
-/// One DATA phase participant that is advanced from the same b0..b55 loop as
-/// the structural word transport.
+/// One DATA phase participant normally advanced from the structural b0..b55
+/// loop. M14C can preconsume only the preceding frame's b0/b1 tail so the next
+/// instruction sees the reconstructed transfer before its b2 DATA body begins.
 ///
 /// It deliberately carries logical bits only. No electrical DATA polarity or
 /// PHI-relative launch/sample edge is implied by visiting one word coordinate.
