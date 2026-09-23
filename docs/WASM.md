@@ -38,6 +38,16 @@ trunk serve --release --open
 
 `index.html` contains the Trunk Rust asset declaration and the full-window canvas expected by the eframe 0.27 `WebRunner`.
 
+### Test from another device on the local network
+
+Trunk listens on loopback by default. To test the WASM UI from an iPhone or another device on the same LAN, bind the development server to all local interfaces:
+
+```powershell
+trunk serve --release --address 0.0.0.0 --port 8080
+```
+
+Open `http://<PC-LAN-IP>:8080/` from the other device. This is a development-server setting only; it does not alter the GitHub Pages build or emulator semantics. On Windows, allow the process through Windows Defender Firewall for Private networks if prompted.
+
 ## Distribution build
 
 ```powershell
