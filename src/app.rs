@@ -46,11 +46,7 @@ fn web_prefers_scrollable_landscape(size: egui::Vec2) -> bool {
 }
 
 #[cfg(any(target_arch = "wasm32", test))]
-fn web_select_program(
-    selected: &mut Option<usize>,
-    listing_visible: &mut bool,
-    index: usize,
-) {
+fn web_select_program(selected: &mut Option<usize>, listing_visible: &mut bool, index: usize) {
     *selected = Some(index);
     *listing_visible = false;
 }
