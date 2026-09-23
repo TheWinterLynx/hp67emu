@@ -408,8 +408,8 @@ fn key_at_position(photo: Rect, position: Pos2, minimum_touch_target: f32) -> Op
         if !hit.contains(position) {
             continue;
         }
-        let distance = hit.center().distance_sq(position);
-        if best.is_none_or(|(best_distance, _)| distance < best_distance) {
+        let distance = (hit.center() - position).length_sq();
+        if best.map_or(true, |(best_distance, _)| distance < best_distance) {
             best = Some((distance, key.action));
         }
     }
