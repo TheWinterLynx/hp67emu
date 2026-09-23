@@ -577,8 +577,11 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
 ///
 /// This intentionally keeps the established no-DATA transport as a separate
 /// monomorphic function so adding DATA fidelity cannot perturb its codegen or
-/// historical performance baseline. The DATA variant differs only by visiting
-/// the logical DATA participant at each existing b0..b55 coordinate.
+/// historical performance baseline. The DATA variant visits the logical DATA
+/// participant on the same b0..b55 coordinates. M14C may have already consumed
+/// b0/b1 of the preceding DATA frame before the instruction-boundary bridge; in
+/// that case the DATA participant skips only those duplicate logical samples
+/// while the structural backplane still traverses the physical b0/b1 cells.
 fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     act: &mut ActSerialEndpoint,
@@ -742,8 +745,8 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     })
 }
 
-/// Experimental M14B structural word that advances logical DATA from the same
-/// b0..b55 loop used by IS/fetch/display.
+/// M14B/M14C structural word that advances logical DATA alongside the same
+/// b0..b55 IS/fetch/display transport.
 ///
 /// DATA remains logical-only here. This function deliberately does not drive or
 /// sample `Hp67Net::Data`, choose DATA polarity, or assign a PHI edge.
