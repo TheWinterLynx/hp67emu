@@ -58,3 +58,5 @@ PDF-derived face textures: `ProgramCardView::face_texture` optionally carries a 
 
 Compact browser touch targets: `ProgramCardView::minimum_touch_target` lets the host enlarge only the invisible interaction geometry for the right reader, waiting card, parked-left card and holder card. A value of zero preserves desktop behavior. The 44-point mobile value never resizes card artwork, changes transport progress, selects a track or creates magnetic media; it only makes the existing physical interactions easier to acquire on touch screens.
 
+Touch-only recovery also removes a mouse-specific dead end: while a card is in `WaitingAtReader`, compact browser mode accepts a normal tap to withdraw it, while desktop retains the existing right-click withdrawal gesture. Both paths call the same app/live-machine withdrawal API; this changes only how the physical action is requested.
+
