@@ -566,12 +566,13 @@ impl Hp67LiveMachine {
         if let Some((pending, ram_before)) = transfer {
             match pending.direction {
                 Hp67DataTransferDirection::ActToPeripheral => {
-                    let architectural = self.machine.ram.read(pending.address).ok_or_else(|| {
-                        format!(
-                            "live cycle {cycle} RAM DATA write target 0x{:02x} disappeared",
-                            pending.address
-                        )
-                    })?;
+                    let architectural =
+                        self.machine.ram.read(pending.address).ok_or_else(|| {
+                            format!(
+                                "live cycle {cycle} RAM DATA write target 0x{:02x} disappeared",
+                                pending.address
+                            )
+                        })?;
                     if architectural != pending.expected {
                         return Err(format!(
                             "live cycle {cycle} architectural RAM DATA write oracle mismatch at 0x{:02x}: expected={:?} actual={architectural:?}",
@@ -793,13 +794,20 @@ mod tests {
         let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
         live.machine.act.state.ram_address = 0x12;
         live.machine.act.state.c = patterned_act_register(3);
-        let before = live.machine.ram.read(0x12).expect("HP-67 RAM slot must exist");
+        let before = live
+            .machine
+            .ram
+            .read(0x12)
+            .expect("HP-67 RAM slot must exist");
 
         let (_, transfer) = live
             .execute_word_with_deferred_ram_data(0, 0o1360)
             .expect("RAM write-class word must execute");
         let transfer = transfer.expect("installed RAM write must become a DATA transfer");
-        assert_eq!(transfer.direction, Hp67DataTransferDirection::ActToPeripheral);
+        assert_eq!(
+            transfer.direction,
+            Hp67DataTransferDirection::ActToPeripheral
+        );
         assert_eq!(transfer.address, 0x12);
         assert_eq!(live.machine.ram.read(0x12), Some(before));
 
@@ -822,7 +830,10 @@ mod tests {
             .execute_word_with_deferred_ram_data(0, 0o0070)
             .expect("RAM read-class word must execute");
         let transfer = transfer.expect("installed RAM read must become a DATA transfer");
-        assert_eq!(transfer.direction, Hp67DataTransferDirection::PeripheralToAct);
+        assert_eq!(
+            transfer.direction,
+            Hp67DataTransferDirection::PeripheralToAct
+        );
         assert_eq!(transfer.address, 0x21);
         assert_eq!(live.machine.act.state.c, original_c);
 
