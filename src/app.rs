@@ -45,6 +45,16 @@ fn web_prefers_scrollable_landscape(size: egui::Vec2) -> bool {
     web_prefers_compact_layout(size) && size.x > size.y
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
+fn web_select_program(
+    selected: &mut Option<usize>,
+    listing_visible: &mut bool,
+    index: usize,
+) {
+    *selected = Some(index);
+    *listing_visible = false;
+}
+
 pub struct Hp67App {
     state: Hp67State,
     photo: TextureHandle,
@@ -65,7 +75,7 @@ pub struct Hp67App {
     program_library_selected: Option<usize>,
     program_library_status: Option<String>,
     #[cfg(target_arch = "wasm32")]
-    program_library_mobile_detail: bool,
+    program_library_listing_visible: bool,
     card_library_entry: Option<usize>,
     card_artwork_texture: Option<TextureHandle>,
 }
@@ -165,7 +175,7 @@ impl Hp67App {
             program_library_selected: None,
             program_library_status: None,
             #[cfg(target_arch = "wasm32")]
-            program_library_mobile_detail: false,
+            program_library_listing_visible: false,
             card_library_entry: None,
             card_artwork_texture: None,
         }
@@ -588,6 +598,7 @@ impl Hp67App {
         let mut keep_open = true;
         let mut close_requested = false;
         let mut selected = self.program_library_selected;
+        let mut listing_visible = self.program_library_listing_visible && selected.is_some();
         let mut load_requested = None;
         let status = self.program_library_status.clone();
         let reader_free = !self
@@ -650,10 +661,10 @@ impl Hp67App {
                                 .id_source(("hp67-program-pack-web", pack))
                                 .default_open(false)
                                 .show(ui, |ui| {
-                                    for (index, entry) in
+                                    for (offset, entry) in
                                         PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
                                     {
-                                        let index = pack_start + index;
+                                        let index = pack_start + offset;
                                         let label = if entry.reference.is_empty() {
                                             entry.title.to_owned()
                                         } else {
@@ -663,7 +674,11 @@ impl Hp67App {
                                             .selectable_label(selected == Some(index), label)
                                             .clicked()
                                         {
-                                            selected = Some(index);
+                                            web_select_program(
+                                                &mut selected,
+                                                &mut listing_visible,
+                                                index,
+                                            );
                                         }
                                     }
                                 });
@@ -672,10 +687,14 @@ impl Hp67App {
                             }
                         });
 
-                    columns[1].strong("Program listing");
+                    columns[1].strong(if listing_visible {
+                        "Program listing"
+                    } else {
+                        "Selected card"
+                    });
                     columns[1].separator();
                     egui::ScrollArea::both()
-                        .id_source("hp67-program-library-web-listing")
+                        .id_source("hp67-program-library-web-selection")
                         .auto_shrink([false, false])
                         .show(&mut columns[1], |ui| {
                             if let Some(index) = selected {
@@ -701,32 +720,42 @@ impl Hp67App {
                                 }
 
                                 if !reader_free {
+                                    ui.separator();
                                     ui.label(
                                         "Remove the card from the reader before loading another one.",
                                     );
                                 }
-
                                 if let Some(status) = status.as_deref() {
                                     ui.separator();
                                     ui.label(status);
                                 }
 
                                 ui.separator();
-                                match entry.program_listing() {
-                                    Ok(listing) => {
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(listing).monospace(),
-                                            )
-                                            .wrap(false),
-                                        );
+                                if listing_visible {
+                                    if ui.button("Hide listing").clicked() {
+                                        listing_visible = false;
                                     }
-                                    Err(error) => {
-                                        ui.label(format!("Cannot decode listing: {error}"));
+                                    ui.separator();
+                                    match entry.program_listing() {
+                                        Ok(listing) => {
+                                            ui.add(
+                                                egui::Label::new(
+                                                    egui::RichText::new(listing).monospace(),
+                                                )
+                                                .wrap(false),
+                                            );
+                                        }
+                                        Err(error) => {
+                                            ui.label(format!("Cannot decode listing: {error}"));
+                                        }
                                     }
+                                } else if ui.button("View listing").clicked() {
+                                    listing_visible = true;
                                 }
                             } else {
-                                ui.label("Select a program from a pack to view its listing.");
+                                ui.label(
+                                    "Select a program. You can load it directly or view its listing first.",
+                                );
                             }
                         });
                 });
@@ -737,11 +766,13 @@ impl Hp67App {
         }
         self.program_library_open = keep_open;
         self.program_library_selected = selected;
+        self.program_library_listing_visible = listing_visible;
 
         if let Some(index) = load_requested {
             self.program_library_status = match self.load_program_library_entry(ctx, index) {
                 Ok(()) => {
                     self.program_library_open = false;
+                    self.program_library_listing_visible = false;
                     let entry = &PROGRAM_LIBRARY[index];
                     Some(format!("Loaded {} - {}", entry.reference, entry.title))
                 }
@@ -753,7 +784,7 @@ impl Hp67App {
     #[cfg(target_arch = "wasm32")]
     fn show_program_library_compact(&mut self, ctx: &egui::Context) {
         let mut selected = self.program_library_selected;
-        let mut show_detail = self.program_library_mobile_detail && selected.is_some();
+        let mut listing_visible = self.program_library_listing_visible && selected.is_some();
         let mut close_requested = false;
         let mut load_requested = None;
         let status = self.program_library_status.clone();
@@ -779,7 +810,7 @@ impl Hp67App {
                 ui.spacing_mut().item_spacing.y = 6.0;
 
                 ui.horizontal(|ui| {
-                    if show_detail {
+                    if listing_visible {
                         if ui
                             .add_sized(
                                 [104.0, WEB_TOUCH_TARGET],
@@ -787,7 +818,7 @@ impl Hp67App {
                             )
                             .clicked()
                         {
-                            show_detail = false;
+                            listing_visible = false;
                         }
                     } else {
                         ui.heading("Program Library");
@@ -807,14 +838,14 @@ impl Hp67App {
                 });
                 ui.separator();
 
-                if show_detail {
+                if listing_visible {
                     if let Some(index) = selected {
                         let entry = &PROGRAM_LIBRARY[index];
                         let action_space = WEB_TOUCH_TARGET + 12.0;
                         let body_height = (ui.available_height() - action_space).max(120.0);
 
                         egui::ScrollArea::both()
-                            .id_source("hp67-program-library-mobile-detail")
+                            .id_source("hp67-program-library-mobile-listing")
                             .auto_shrink([false, false])
                             .max_height(body_height)
                             .show(ui, |ui| {
@@ -880,7 +911,7 @@ impl Hp67App {
                             load_requested = Some(index);
                         }
                     } else {
-                        show_detail = false;
+                        listing_visible = false;
                     }
                 } else {
                     ui.label("Choose a program card");
@@ -889,9 +920,17 @@ impl Hp67App {
                     }
                     ui.add_space(2.0);
 
+                    let action_space = if selected.is_some() {
+                        WEB_TOUCH_TARGET + 52.0
+                    } else {
+                        0.0
+                    };
+                    let list_height = (ui.available_height() - action_space).max(120.0);
+
                     egui::ScrollArea::vertical()
                         .id_source("hp67-program-library-mobile-packs")
                         .auto_shrink([false, false])
+                        .max_height(list_height)
                         .show(ui, |ui| {
                             let mut pack_start = 0usize;
                             while pack_start < PROGRAM_LIBRARY.len() {
@@ -920,9 +959,15 @@ impl Hp67App {
                                         } else {
                                             format!("{} - {}", entry.reference, entry.title)
                                         };
-                                        if ui.selectable_label(false, label).clicked() {
-                                            selected = Some(index);
-                                            show_detail = true;
+                                        if ui
+                                            .selectable_label(selected == Some(index), label)
+                                            .clicked()
+                                        {
+                                            web_select_program(
+                                                &mut selected,
+                                                &mut listing_visible,
+                                                index,
+                                            );
                                         }
                                     }
                                 });
@@ -930,23 +975,58 @@ impl Hp67App {
                                 pack_start = pack_end;
                             }
                         });
+
+                    if let Some(index) = selected {
+                        let entry = &PROGRAM_LIBRARY[index];
+                        ui.separator();
+                        let selected_label = if entry.reference.is_empty() {
+                            entry.title.to_owned()
+                        } else {
+                            format!("Selected: {} - {}", entry.reference, entry.title)
+                        };
+                        ui.label(selected_label);
+                        ui.horizontal(|ui| {
+                            let button_width = ((ui.available_width() - 6.0) * 0.5).max(100.0);
+                            if ui
+                                .add_sized(
+                                    [button_width, WEB_TOUCH_TARGET],
+                                    egui::Button::new("View listing"),
+                                )
+                                .clicked()
+                            {
+                                listing_visible = true;
+                            }
+                            if ui
+                                .add_enabled(
+                                    reader_free,
+                                    egui::Button::new("Load card").min_size(egui::vec2(
+                                        button_width,
+                                        WEB_TOUCH_TARGET,
+                                    )),
+                                )
+                                .clicked()
+                            {
+                                load_requested = Some(index);
+                            }
+                        });
+                    }
                 }
             });
 
         if close_requested {
             self.program_library_open = false;
-            self.program_library_mobile_detail = false;
+            self.program_library_listing_visible = false;
             return;
         }
 
         self.program_library_selected = selected;
-        self.program_library_mobile_detail = show_detail;
+        self.program_library_listing_visible = listing_visible;
 
         if let Some(index) = load_requested {
             self.program_library_status = match self.load_program_library_entry(ctx, index) {
                 Ok(()) => {
                     self.program_library_open = false;
-                    self.program_library_mobile_detail = false;
+                    self.program_library_listing_visible = false;
                     let entry = &PROGRAM_LIBRARY[index];
                     Some(format!("Loaded {} - {}", entry.reference, entry.title))
                 }
@@ -1379,7 +1459,7 @@ impl eframe::App for Hp67App {
             self.program_library_status = None;
             #[cfg(target_arch = "wasm32")]
             {
-                self.program_library_mobile_detail = false;
+                self.program_library_listing_visible = false;
             }
         }
         if new_blank_from_menu {
@@ -1519,6 +1599,15 @@ mod tests {
         assert!(web_prefers_compact_layout(egui::vec2(844.0, 390.0)));
         assert!(web_prefers_compact_layout(egui::vec2(600.0, 900.0)));
         assert!(!web_prefers_compact_layout(egui::vec2(1024.0, 768.0)));
+    }
+
+    #[test]
+    fn selecting_a_web_program_does_not_force_the_listing_open() {
+        let mut selected = Some(2usize);
+        let mut listing_visible = true;
+        web_select_program(&mut selected, &mut listing_visible, 7);
+        assert_eq!(selected, Some(7));
+        assert!(!listing_visible);
     }
 
     #[test]
