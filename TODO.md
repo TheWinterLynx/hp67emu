@@ -136,6 +136,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 ## ROM/RAM devices
 
+- [x] Implement M14C logical DATA authority for installed-RAM ACT read/write destinations while keeping CRC `0x99`/`0x9B` outside the slice.
+- [ ] Run the full formatting/warnings/all-targets/release gate and the ignored 12-program release diagnostic on M14C before merge.
 - [ ] Model 1818-0231.
 - [ ] Model 1818-0232.
 - [ ] Model 1818-0550.
