@@ -1459,10 +1459,18 @@ mod tests {
 
     #[test]
     fn web_program_library_uses_compact_flow_for_phone_sized_viewports() {
-        assert!(web_program_library_prefers_compact(egui::vec2(390.0, 844.0)));
-        assert!(web_program_library_prefers_compact(egui::vec2(844.0, 390.0)));
-        assert!(web_program_library_prefers_compact(egui::vec2(600.0, 900.0)));
-        assert!(!web_program_library_prefers_compact(egui::vec2(1024.0, 768.0)));
+        assert!(web_program_library_prefers_compact(egui::vec2(
+            390.0, 844.0
+        )));
+        assert!(web_program_library_prefers_compact(egui::vec2(
+            844.0, 390.0
+        )));
+        assert!(web_program_library_prefers_compact(egui::vec2(
+            600.0, 900.0
+        )));
+        assert!(!web_program_library_prefers_compact(egui::vec2(
+            1024.0, 768.0
+        )));
     }
 
     #[test]
