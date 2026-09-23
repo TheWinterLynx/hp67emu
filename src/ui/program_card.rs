@@ -98,6 +98,7 @@ pub struct ProgramCardView<'a> {
     pub rotated_180: bool,
     pub reader_enabled: bool,
     pub reader_free_for_new_blank: bool,
+    pub minimum_touch_target: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -136,7 +137,10 @@ pub fn paint(
 
     match view.phase {
         ProgramCardPhase::Idle => {
-            let reader_hit = source_to_screen(photo, CARD_READER_HIT);
+            let reader_hit = minimum_hit_rect(
+                source_to_screen(photo, CARD_READER_HIT),
+                view.minimum_touch_target,
+            );
             let reader_sense = if view.reader_enabled {
                 Sense::click()
             } else {
@@ -176,7 +180,11 @@ pub fn paint(
             );
             let response = ui
                 .interact(
-                    waiting_reader_hit_rect(photo, scale, ui.clip_rect()),
+                    minimum_hit_rect(
+                        waiting_reader_hit_rect(photo, scale, ui.clip_rect()),
+                        view.minimum_touch_target,
+                    )
+                    .intersect(ui.clip_rect()),
                     ui.make_persistent_id("hp67-magnetic-card-waiting"),
                     Sense::click(),
                 )
@@ -199,7 +207,11 @@ pub fn paint(
             );
         }
         ProgramCardPhase::ParkedLeft => {
-            let visible = parked_left_visible_rect(photo, scale);
+            let visible = minimum_hit_rect(
+                parked_left_visible_rect(photo, scale),
+                view.minimum_touch_target,
+            )
+            .intersect(ui.clip_rect());
             let hover_text = if view.opposite_track_requested {
                 "Crd: click to rotate the same card 180° and reinsert the opposite end"
             } else {
@@ -244,7 +256,7 @@ pub fn paint(
         ProgramCardPhase::InWindow => {
             let response = ui
                 .interact(
-                    window,
+                    minimum_hit_rect(window, view.minimum_touch_target),
                     ui.make_persistent_id("hp67-program-card-window"),
                     Sense::click(),
                 )
@@ -274,7 +286,10 @@ pub fn paint(
 
     if view.reader_enabled && view.reader_free_for_new_blank && view.phase != ProgramCardPhase::Idle
     {
-        let reader_hit = source_to_screen(photo, CARD_READER_HIT);
+        let reader_hit = minimum_hit_rect(
+            source_to_screen(photo, CARD_READER_HIT),
+            view.minimum_touch_target,
+        );
         let response = ui
             .interact(
                 reader_hit,
@@ -290,6 +305,19 @@ pub fn paint(
     }
 
     output
+}
+
+fn minimum_hit_rect(rect: Rect, minimum_size: f32) -> Rect {
+    if minimum_size <= 0.0 {
+        return rect;
+    }
+    Rect::from_center_size(
+        rect.center(),
+        eframe::egui::vec2(
+            rect.width().max(minimum_size),
+            rect.height().max(minimum_size),
+        ),
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -835,6 +863,17 @@ fn ease_in_out(value: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn touch_hit_rect_preserves_large_targets_and_expands_small_ones() {
+        let small = Rect::from_min_size(pos2(10.0, 20.0), eframe::egui::vec2(28.0, 40.0));
+        let expanded = minimum_hit_rect(small, 44.0);
+        assert_eq!(expanded.center(), small.center());
+        assert_eq!(expanded.size(), eframe::egui::vec2(44.0, 44.0));
+
+        let large = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(80.0, 50.0));
+        assert_eq!(minimum_hit_rect(large, 44.0), large);
+    }
 
     const A_E_KEY_CENTERS_X: [f32; 5] = [211.0, 338.0, 465.0, 592.0, 719.0];
 
