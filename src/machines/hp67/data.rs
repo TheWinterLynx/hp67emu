@@ -150,8 +150,12 @@ impl Hp67DataSerialSink {
         self.assembling.is_some()
     }
 
+    pub const fn expected_word_bit(&self) -> u8 {
+        self.expected_word_bit
+    }
+
     pub fn begin_word(&mut self, start_frame_at_b2: bool) {
-        debug_assert_eq!(self.expected_word_bit, 0);
+        debug_assert!(matches!(self.expected_word_bit, 0 | DATA_TAIL_BITS));
         self.start_frame_at_b2 = start_frame_at_b2;
     }
 
@@ -219,6 +223,7 @@ pub struct Hp67DataSerialWordPath {
     sink: Hp67DataSerialSink,
     current_payload: Option<ActRegister>,
     completed_payload: Option<ActRegister>,
+    prefix_preconsumed: bool,
 }
 
 impl Hp67DataSerialWordPath {
@@ -226,8 +231,49 @@ impl Hp67DataSerialWordPath {
         self.sink.frame_in_progress()
     }
 
+    pub const fn prefix_preconsumed(&self) -> bool {
+        self.prefix_preconsumed
+    }
+
+    /// Consume b0/b1 of a frame started in the preceding word before the
+    /// instruction-boundary bridge for the new word runs.
+    ///
+    /// This preserves the directly observed DATA phase while allowing the live
+    /// machine to make the reconstructed transfer visible to the next
+    /// instruction before that instruction can depend on C or RAM. It is a
+    /// logical scheduler split only: no PHI-relative sample/commit edge is
+    /// asserted here.
+    pub fn preconsume_previous_tail(
+        &mut self,
+    ) -> Result<Option<ActRegister>, Hp67DataSerialError> {
+        if !self.sink.frame_in_progress() {
+            return Ok(None);
+        }
+        debug_assert!(self.current_payload.is_none());
+        debug_assert!(self.completed_payload.is_none());
+        debug_assert!(!self.prefix_preconsumed);
+
+        let mut completed = None;
+        for word_bit in 0..DATA_TAIL_BITS {
+            let next = self
+                .sink
+                .sample_word_bit(word_bit, self.source.logical_bit_for_word_bit(word_bit))?;
+            if next.is_some() {
+                debug_assert!(completed.is_none());
+                completed = next;
+            }
+        }
+        self.prefix_preconsumed = true;
+        Ok(completed)
+    }
+
     pub fn begin_word(&mut self, payload: Option<ActRegister>) {
         debug_assert!(self.completed_payload.is_none());
+        debug_assert!(self.current_payload.is_none());
+        debug_assert!(matches!(
+            self.sink.expected_word_bit(),
+            0 | DATA_TAIL_BITS
+        ));
         self.current_payload = payload;
         self.source.begin_word(payload);
         self.sink.begin_word(payload.is_some());
@@ -244,9 +290,20 @@ impl Hp67DataSerialWordPath {
         Ok(())
     }
 
+    pub fn visit_transport_word_bit(
+        &mut self,
+        word_bit: u8,
+    ) -> Result<(), Hp67DataSerialError> {
+        if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS {
+            return Ok(());
+        }
+        self.visit_word_bit(word_bit)
+    }
+
     pub fn complete_word(&mut self) -> Option<ActRegister> {
         self.source.complete_word();
         self.current_payload = None;
+        self.prefix_preconsumed = false;
         self.completed_payload.take()
     }
 }
@@ -375,6 +432,40 @@ mod tests {
         }
         assert_eq!(path.complete_word(), Some(second));
         assert!(!path.frame_in_progress());
+    }
+
+    #[test]
+    fn preconsumed_tail_can_commit_before_a_back_to_back_frame_starts_at_b2() {
+        let first = patterned_register(4);
+        let second = patterned_register(11);
+        let mut path = Hp67DataSerialWordPath::default();
+
+        path.begin_word(Some(first));
+        for word_bit in 0..BITS_PER_WORD {
+            path.visit_word_bit(word_bit).unwrap();
+        }
+        assert_eq!(path.complete_word(), None);
+        assert!(path.frame_in_progress());
+
+        assert_eq!(path.preconsume_previous_tail().unwrap(), Some(first));
+        assert!(path.prefix_preconsumed());
+        assert!(!path.frame_in_progress());
+
+        path.begin_word(Some(second));
+        for word_bit in 0..BITS_PER_WORD {
+            path.visit_transport_word_bit(word_bit).unwrap();
+        }
+        assert_eq!(path.complete_word(), None);
+        assert!(path.frame_in_progress());
+
+        assert_eq!(path.preconsume_previous_tail().unwrap(), Some(second));
+        path.begin_word(None);
+        for word_bit in 0..BITS_PER_WORD {
+            path.visit_transport_word_bit(word_bit).unwrap();
+        }
+        assert_eq!(path.complete_word(), None);
+        assert!(!path.frame_in_progress());
+        assert!(!path.prefix_preconsumed());
     }
 
     #[test]
