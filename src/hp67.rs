@@ -198,6 +198,13 @@ impl Default for HardwareDisplayFrame {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingRamDataTransfer {
+    direction: Hp67DataTransferDirection,
+    address: u8,
+    expected: ActRegister,
+}
+
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
 ///
 /// `hp67firmware` is versioned with the emulator and embedded in the executable.
@@ -214,7 +221,7 @@ pub struct Hp67LiveMachine {
     cathode: CathodeDriver1820_1749,
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
-    pending_ram_data_expected: Option<ActRegister>,
+    pending_ram_data_transfer: Option<PendingRamDataTransfer>,
     machine: Hp67ArchitecturalMachine,
     keyboard: Hp67Keyboard,
     card_transport: Hp67CardTransport,
@@ -240,7 +247,7 @@ impl Hp67LiveMachine {
             cathode: CathodeDriver1820_1749::default(),
             pipeline: FetchPipelineLatch::default(),
             data_serial: Hp67DataSerialWordPath::default(),
-            pending_ram_data_expected: None,
+            pending_ram_data_transfer: None,
             machine: Hp67ArchitecturalMachine::default(),
             keyboard: Hp67Keyboard::default(),
             card_transport: Hp67CardTransport::default(),
@@ -269,7 +276,7 @@ impl Hp67LiveMachine {
         self.cathode = CathodeDriver1820_1749::default();
         self.pipeline = FetchPipelineLatch::default();
         self.data_serial = Hp67DataSerialWordPath::default();
-        self.pending_ram_data_expected = None;
+        self.pending_ram_data_transfer = None;
         self.machine = Hp67ArchitecturalMachine::default();
         self.keyboard = Hp67Keyboard::default();
         self.card_transport = Hp67CardTransport::default();
@@ -418,19 +425,12 @@ impl Hp67LiveMachine {
 
         let mut idle_after_word = false;
         let mut executed = None;
-        let mut ram_data_payload = None;
+        let mut ram_data_transfer = None;
         self.pipeline.begin_cycle();
+        self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
-            if let Some(plan) = act_data_transfer_plan(word, &self.machine.act.state) {
-                if let Some(ram_word) = self.machine.ram.read(plan.address) {
-                    ram_data_payload = Some(match plan.direction {
-                        Hp67DataTransferDirection::ActToPeripheral => self.machine.act.state.c,
-                        Hp67DataTransferDirection::PeripheralToAct => ram_word,
-                    });
-                }
-            }
             let startup_serial_state = if self.display_control_seen {
                 None
             } else {
@@ -449,10 +449,9 @@ impl Hp67LiveMachine {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
 
-            let execution = self
-                .machine
-                .execute_word(word)
-                .map_err(|error| format!("live cycle {cycle} execution failed: {error:?}"))?;
+            let (execution, deferred_ram_data) =
+                self.execute_word_with_deferred_ram_data(cycle, word)?;
+            ram_data_transfer = deferred_ram_data;
             if self.card_transport.card().is_some()
                 && !self.card_transport.head_active()
                 && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
@@ -499,7 +498,7 @@ impl Hp67LiveMachine {
                 && self.machine.act.state.key_buffer.is_none();
         }
 
-        self.transport_fetch_word(cycle, ram_data_payload)?;
+        self.transport_fetch_word(cycle, ram_data_transfer)?;
 
         if let Some(word) = self.pipeline.executing_word() {
             let serial_execution = self.act_serial.serial_execution().ok_or_else(|| {
@@ -536,11 +535,119 @@ impl Hp67LiveMachine {
         Ok(executed)
     }
 
+    fn execute_word_with_deferred_ram_data(
+        &mut self,
+        cycle: u64,
+        word: u16,
+    ) -> Result<(Hp67ArchitecturalExecution, Option<PendingRamDataTransfer>), String> {
+        let c_before = self.machine.act.state.c;
+        let transfer = act_data_transfer_plan(word, &self.machine.act.state).and_then(|plan| {
+            self.machine.ram.read(plan.address).map(|ram_before| {
+                let expected = match plan.direction {
+                    Hp67DataTransferDirection::ActToPeripheral => self.machine.act.state.c,
+                    Hp67DataTransferDirection::PeripheralToAct => ram_before,
+                };
+                (
+                    PendingRamDataTransfer {
+                        direction: plan.direction,
+                        address: plan.address,
+                        expected,
+                    },
+                    ram_before,
+                )
+            })
+        });
+
+        let execution = self
+            .machine
+            .execute_word(word)
+            .map_err(|error| format!("live cycle {cycle} execution failed: {error:?}"))?;
+
+        if let Some((pending, ram_before)) = transfer {
+            match pending.direction {
+                Hp67DataTransferDirection::ActToPeripheral => {
+                    let architectural = self.machine.ram.read(pending.address).ok_or_else(|| {
+                        format!(
+                            "live cycle {cycle} RAM DATA write target 0x{:02x} disappeared",
+                            pending.address
+                        )
+                    })?;
+                    if architectural != pending.expected {
+                        return Err(format!(
+                            "live cycle {cycle} architectural RAM DATA write oracle mismatch at 0x{:02x}: expected={:?} actual={architectural:?}",
+                            pending.address, pending.expected
+                        ));
+                    }
+                    if !self.machine.ram.write(pending.address, ram_before) {
+                        return Err(format!(
+                            "live cycle {cycle} RAM DATA write target 0x{:02x} could not be restored for deferred serial commit",
+                            pending.address
+                        ));
+                    }
+                }
+                Hp67DataTransferDirection::PeripheralToAct => {
+                    let architectural = self.machine.act.state.c;
+                    if architectural != pending.expected {
+                        return Err(format!(
+                            "live cycle {cycle} architectural RAM DATA read oracle mismatch at 0x{:02x}: expected={:?} actual={architectural:?}",
+                            pending.address, pending.expected
+                        ));
+                    }
+                    self.machine.act.state.c = c_before;
+                }
+            }
+        }
+
+        Ok((execution, transfer.map(|(pending, _)| pending)))
+    }
+
+    fn complete_pending_ram_data_before_word(&mut self, cycle: u64) -> Result<(), String> {
+        let completed = if self.data_serial.frame_in_progress() {
+            self.data_serial
+                .preconsume_previous_tail()
+                .map_err(|error| format!("live cycle {cycle} RAM DATA tail failed: {error:?}"))?
+        } else {
+            None
+        };
+
+        match (self.pending_ram_data_transfer.take(), completed) {
+            (Some(pending), Some(actual)) if actual == pending.expected => {
+                match pending.direction {
+                    Hp67DataTransferDirection::ActToPeripheral => {
+                        if !self.machine.ram.write(pending.address, actual) {
+                            return Err(format!(
+                                "live cycle {cycle} reconstructed RAM DATA write targeted uninstalled address 0x{:02x}",
+                                pending.address
+                            ));
+                        }
+                    }
+                    Hp67DataTransferDirection::PeripheralToAct => {
+                        self.machine.act.state.c = actual;
+                    }
+                }
+                Ok(())
+            }
+            (Some(pending), Some(actual)) => Err(format!(
+                "live cycle {cycle} RAM DATA authority mismatch at 0x{:02x}: expected={:?} actual={actual:?}",
+                pending.address, pending.expected
+            )),
+            (Some(pending), None) => Err(format!(
+                "live cycle {cycle} RAM DATA frame did not complete for 0x{:02x}: expected={:?}",
+                pending.address, pending.expected
+            )),
+            (None, Some(actual)) => Err(format!(
+                "live cycle {cycle} RAM DATA frame completed without a pending installed-RAM transfer: actual={actual:?}"
+            )),
+            (None, None) => Ok(()),
+        }
+    }
+
     fn transport_fetch_word(
         &mut self,
         cycle: u64,
-        ram_data_payload: Option<ActRegister>,
+        ram_data_transfer: Option<PendingRamDataTransfer>,
     ) -> Result<(), String> {
+        let ram_data_payload = ram_data_transfer.map(|transfer| transfer.expected);
         let requested_bank = self.machine.prepare_hp67_fetch();
         self.source.select_bank(requested_bank);
         let address = self.machine.pc();
@@ -554,7 +661,7 @@ impl Hp67LiveMachine {
         let display_state = startup_display_state
             .as_ref()
             .unwrap_or(&self.machine.act.state);
-        let result = if self.data_serial.frame_in_progress() || ram_data_payload.is_some() {
+        let result = if self.data_serial.prefix_preconsumed() || ram_data_payload.is_some() {
             let fused = run_structural_display_fetch_data_phase_cycle(
                 &mut self.backplane,
                 address,
@@ -568,27 +675,14 @@ impl Hp67LiveMachine {
             )
             .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?;
 
-            match (self.pending_ram_data_expected.take(), fused.completed_data) {
-                (Some(expected), Some(actual)) if actual == expected => {}
-                (Some(expected), Some(actual)) => {
-                    return Err(format!(
-                        "live cycle {cycle} RAM DATA mismatch: expected={expected:?} actual={actual:?}"
-                    ));
-                }
-                (Some(expected), None) => {
-                    return Err(format!(
-                        "live cycle {cycle} RAM DATA frame did not complete: expected={expected:?}"
-                    ));
-                }
-                (None, Some(actual)) => {
-                    return Err(format!(
-                        "live cycle {cycle} RAM DATA frame completed unexpectedly: actual={actual:?}"
-                    ));
-                }
-                (None, None) => {}
+            if let Some(actual) = fused.completed_data {
+                return Err(format!(
+                    "live cycle {cycle} RAM DATA frame completed inside the structural body instead of the pre-word b0/b1 tail: actual={actual:?}"
+                ));
             }
 
-            self.pending_ram_data_expected = ram_data_payload;
+            debug_assert!(self.pending_ram_data_transfer.is_none());
+            self.pending_ram_data_transfer = ram_data_transfer;
             fused.word
         } else {
             run_structural_display_fetch_cycle(
@@ -674,6 +768,68 @@ mod tests {
 
     fn insert_track1(live: &mut Hp67LiveMachine, track: Hp67MagneticTrack) -> Result<(), String> {
         live.insert_magnetic_card(track1_card(track), CardInsertionEnd::End1)
+    }
+
+    fn patterned_act_register(seed: u8) -> ActRegister {
+        std::array::from_fn(|digit| (seed.wrapping_add(digit as u8 * 3)) & 0x0f)
+    }
+
+    fn carry_one_data_frame_to_next_word_tail(
+        live: &mut Hp67LiveMachine,
+        transfer: PendingRamDataTransfer,
+    ) {
+        live.pending_ram_data_transfer = Some(transfer);
+        live.data_serial.begin_word(Some(transfer.expected));
+        for word_bit in 0u8..56 {
+            live.data_serial
+                .visit_word_bit(word_bit)
+                .expect("DATA body must accept the first word");
+        }
+        assert_eq!(live.data_serial.complete_word(), None);
+    }
+
+    #[test]
+    fn installed_ram_write_commits_only_from_reconstructed_data_frame() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.ram_address = 0x12;
+        live.machine.act.state.c = patterned_act_register(3);
+        let before = live.machine.ram.read(0x12).expect("HP-67 RAM slot must exist");
+
+        let (_, transfer) = live
+            .execute_word_with_deferred_ram_data(0, 0o1360)
+            .expect("RAM write-class word must execute");
+        let transfer = transfer.expect("installed RAM write must become a DATA transfer");
+        assert_eq!(transfer.direction, Hp67DataTransferDirection::ActToPeripheral);
+        assert_eq!(transfer.address, 0x12);
+        assert_eq!(live.machine.ram.read(0x12), Some(before));
+
+        carry_one_data_frame_to_next_word_tail(&mut live, transfer);
+        live.complete_pending_ram_data_before_word(1)
+            .expect("reconstructed DATA tail must commit RAM");
+        assert_eq!(live.machine.ram.read(0x12), Some(transfer.expected));
+    }
+
+    #[test]
+    fn installed_ram_read_commits_c_only_from_reconstructed_data_frame() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let payload = patterned_act_register(9);
+        let original_c = patterned_act_register(1);
+        live.machine.act.state.ram_address = 0x21;
+        live.machine.act.state.c = original_c;
+        assert!(live.machine.ram.write(0x21, payload));
+
+        let (_, transfer) = live
+            .execute_word_with_deferred_ram_data(0, 0o0070)
+            .expect("RAM read-class word must execute");
+        let transfer = transfer.expect("installed RAM read must become a DATA transfer");
+        assert_eq!(transfer.direction, Hp67DataTransferDirection::PeripheralToAct);
+        assert_eq!(transfer.address, 0x21);
+        assert_eq!(live.machine.act.state.c, original_c);
+
+        carry_one_data_frame_to_next_word_tail(&mut live, transfer);
+        live.complete_pending_ram_data_before_word(1)
+            .expect("reconstructed DATA tail must commit ACT C");
+        assert_eq!(live.machine.act.state.c, payload);
     }
 
     #[test]
