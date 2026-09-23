@@ -229,6 +229,7 @@ impl Hp67Panel {
         display: &HardwareDisplayFrame,
         photo: &TextureHandle,
         card_view: ProgramCardView<'_>,
+        minimum_touch_target: f32,
     ) -> Hp67PanelOutput {
         let available = ui.available_size();
         let (host, _) = ui.allocate_exact_size(available, Sense::hover());
@@ -276,9 +277,7 @@ impl Hp67Panel {
         });
         let pressed_key = pointer_pressed.then(|| {
             pointer_pos.and_then(|position| {
-                KEYS.iter()
-                    .find(|key| source_to_screen(photo_rect, key.src).contains(position))
-                    .map(|key| key.action)
+                key_at_position(photo_rect, position, minimum_touch_target)
             })
         });
         let key_contact = held_pointer_key(
@@ -293,7 +292,10 @@ impl Hp67Panel {
         // retain their emulator hit areas.  The display state makes power changes
         // immediately visible even before a later dedicated slider sprite pass.
         let power = ui.interact(
-            source_to_screen(photo_rect, PxRect::new(150.0, 270.0, 386.0, 334.0)),
+            minimum_hit_rect(
+                source_to_screen(photo_rect, PxRect::new(150.0, 270.0, 386.0, 334.0)),
+                minimum_touch_target,
+            ),
             ui.make_persistent_id("photo-power-switch"),
             Sense::click(),
         );
@@ -305,7 +307,10 @@ impl Hp67Panel {
         }
 
         let mode = ui.interact(
-            source_to_screen(photo_rect, PxRect::new(455.0, 270.0, 775.0, 334.0)),
+            minimum_hit_rect(
+                source_to_screen(photo_rect, PxRect::new(455.0, 270.0, 775.0, 334.0)),
+                minimum_touch_target,
+            ),
             ui.make_persistent_id("photo-mode-switch"),
             Sense::click(),
         );
@@ -319,7 +324,7 @@ impl Hp67Panel {
         for key in KEYS {
             let rect = source_to_screen(photo_rect, key.src);
             let response = ui.interact(
-                rect,
+                minimum_hit_rect(rect, minimum_touch_target),
                 ui.make_persistent_id(("photo-key", key.id)),
                 Sense::click(),
             );
@@ -377,6 +382,38 @@ fn held_pointer_key(
     } else {
         previous
     }
+}
+
+pub fn height_for_width(width: f32) -> f32 {
+    width * PHOTO_H / PHOTO_W
+}
+
+fn minimum_hit_rect(rect: Rect, minimum_size: f32) -> Rect {
+    if minimum_size <= 0.0 {
+        return rect;
+    }
+    Rect::from_center_size(
+        rect.center(),
+        vec2(
+            rect.width().max(minimum_size),
+            rect.height().max(minimum_size),
+        ),
+    )
+}
+
+fn key_at_position(photo: Rect, position: Pos2, minimum_touch_target: f32) -> Option<KeyAction> {
+    let mut best: Option<(f32, KeyAction)> = None;
+    for key in KEYS {
+        let hit = minimum_hit_rect(source_to_screen(photo, key.src), minimum_touch_target);
+        if !hit.contains(position) {
+            continue;
+        }
+        let distance = hit.center().distance_sq(position);
+        if best.is_none_or(|(best_distance, _)| distance < best_distance) {
+            best = Some((distance, key.action));
+        }
+    }
+    best.map(|(_, action)| action)
 }
 
 fn fit_photo(host: Rect) -> Rect {
@@ -476,6 +513,21 @@ fn paint_pressed_key(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn touch_hit_rect_expands_without_moving_control_center() {
+        let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(30.0, 35.0));
+        let expanded = minimum_hit_rect(rect, 44.0);
+        assert_eq!(expanded.center(), rect.center());
+        assert_eq!(expanded.size(), vec2(44.0, 44.0));
+        assert_eq!(minimum_hit_rect(rect, 0.0), rect);
+    }
+
+    #[test]
+    fn natural_photo_height_preserves_source_aspect_ratio() {
+        assert_eq!(height_for_width(PHOTO_W), PHOTO_H);
+        assert!((height_for_width(528.0) - 964.655_15).abs() < 0.001);
+    }
 
     #[test]
     fn held_pointer_key_stays_pressed_until_mouse_up() {
