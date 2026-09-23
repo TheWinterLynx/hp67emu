@@ -292,7 +292,7 @@ impl Hp67Panel {
         // retain their emulator hit areas.  The display state makes power changes
         // immediately visible even before a later dedicated slider sprite pass.
         let power = ui.interact(
-            minimum_hit_rect(
+            minimum_hit_rect_upward(
                 source_to_screen(photo_rect, PxRect::new(150.0, 270.0, 386.0, 334.0)),
                 minimum_touch_target,
             ),
@@ -307,7 +307,7 @@ impl Hp67Panel {
         }
 
         let mode = ui.interact(
-            minimum_hit_rect(
+            minimum_hit_rect_upward(
                 source_to_screen(photo_rect, PxRect::new(455.0, 270.0, 775.0, 334.0)),
                 minimum_touch_target,
             ),
@@ -398,6 +398,16 @@ fn minimum_hit_rect(rect: Rect, minimum_size: f32) -> Rect {
             rect.width().max(minimum_size),
             rect.height().max(minimum_size),
         ),
+    )
+}
+
+fn minimum_hit_rect_upward(rect: Rect, minimum_size: f32) -> Rect {
+    if minimum_size <= 0.0 || rect.height() >= minimum_size {
+        return rect;
+    }
+    Rect::from_min_max(
+        pos2(rect.left(), rect.bottom() - minimum_size),
+        rect.right_bottom(),
     )
 }
 
@@ -521,6 +531,15 @@ mod tests {
         assert_eq!(expanded.center(), rect.center());
         assert_eq!(expanded.size(), vec2(44.0, 44.0));
         assert_eq!(minimum_hit_rect(rect, 0.0), rect);
+    }
+
+    #[test]
+    fn slider_touch_hit_expands_away_from_card_holder() {
+        let rect = Rect::from_min_max(pos2(10.0, 20.0), pos2(80.0, 48.0));
+        let expanded = minimum_hit_rect_upward(rect, 44.0);
+        assert_eq!(expanded.bottom(), rect.bottom());
+        assert_eq!(expanded.height(), 44.0);
+        assert!(expanded.top() < rect.top());
     }
 
     #[test]
