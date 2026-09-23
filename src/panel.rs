@@ -383,6 +383,7 @@ fn held_pointer_key(
     }
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 pub fn height_for_width(width: f32) -> f32 {
     width * PHOTO_H / PHOTO_W
 }
