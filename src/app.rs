@@ -783,7 +783,6 @@ impl Hp67App {
                         {
                             show_detail = false;
                         }
-                        ui.strong("Program Library");
                     } else {
                         ui.heading("Program Library");
                     }
