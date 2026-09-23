@@ -67,3 +67,6 @@ WASM warning-clean boundary: native-only path-based card export helpers are now 
 
 
 WASM Program Library actions: on wide browser layouts the primary `Load card` action remains in the top toolbar. On compact layouts it becomes a full-width persistent action below the scrollable detail area, which keeps it reachable on touch devices without competing with navigation controls. The button is enabled only when a program is selected and the physical reader is free. Native desktop layout is unchanged.
+
+WASM mobile shell: compact browser viewports use a 44-point minimum interaction height for the Cards app bar and its menu. Portrait keeps the whole photographed calculator fitted into the safe browser canvas. Compact landscape does not shrink the physical HP-67 until its controls become unusably small; instead it renders the panel at up to the established 528-point desktop width, preserves the photograph's aspect ratio, centers it horizontally, and places it inside a vertical `ScrollArea`. This keeps the physical key arrangement unchanged while allowing the user to scroll through the tall calculator in landscape. The same `show_calculator_surface()` path owns machine interaction in portrait, landscape and desktop so responsive presentation cannot fork calculator semantics.
+
