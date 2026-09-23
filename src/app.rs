@@ -31,7 +31,6 @@ const CARD_ARTWORK_ATLAS_ROWS: u32 = 35;
 const WEB_PROGRAM_LIBRARY_COMPACT_WIDTH: f32 = 700.0;
 #[cfg(any(target_arch = "wasm32", test))]
 const WEB_PROGRAM_LIBRARY_COMPACT_HEIGHT: f32 = 560.0;
-#[cfg(any(target_arch = "wasm32", test))]
 const WEB_TOUCH_TARGET: f32 = 44.0;
 #[cfg(any(target_arch = "wasm32", test))]
 const WEB_LANDSCAPE_PANEL_MAX_WIDTH: f32 = 528.0;
