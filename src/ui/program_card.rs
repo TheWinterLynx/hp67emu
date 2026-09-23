@@ -875,18 +875,12 @@ mod tests {
 
     #[test]
     fn touch_hit_rect_preserves_large_targets_and_expands_small_ones() {
-        let small = Rect::from_min_size(
-            pos2(10.0, 20.0),
-            eframe::egui::vec2(28.0, 40.0),
-        );
+        let small = Rect::from_min_size(pos2(10.0, 20.0), eframe::egui::vec2(28.0, 40.0));
         let expanded = minimum_hit_rect(small, 44.0);
         assert_eq!(expanded.center(), small.center());
         assert_eq!(expanded.size(), eframe::egui::vec2(44.0, 44.0));
 
-        let large = Rect::from_min_size(
-            pos2(0.0, 0.0),
-            eframe::egui::vec2(80.0, 50.0),
-        );
+        let large = Rect::from_min_size(pos2(0.0, 0.0), eframe::egui::vec2(80.0, 50.0));
         assert_eq!(minimum_hit_rect(large, 44.0), large);
     }
 
