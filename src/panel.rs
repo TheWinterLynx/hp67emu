@@ -223,6 +223,11 @@ pub struct Hp67PanelOutput {
 pub struct Hp67Panel;
 
 impl Hp67Panel {
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub fn height_for_width(width: f32) -> f32 {
+        width * PHOTO_H / PHOTO_W
+    }
+
     pub fn show(
         ui: &mut Ui,
         state: &Hp67State,
@@ -383,11 +388,6 @@ fn held_pointer_key(
     }
 }
 
-#[cfg(any(target_arch = "wasm32", test))]
-pub fn height_for_width(width: f32) -> f32 {
-    width * PHOTO_H / PHOTO_W
-}
-
 fn minimum_hit_rect(rect: Rect, minimum_size: f32) -> Rect {
     if minimum_size <= 0.0 {
         return rect;
@@ -544,8 +544,8 @@ mod tests {
 
     #[test]
     fn natural_photo_height_preserves_source_aspect_ratio() {
-        assert_eq!(height_for_width(PHOTO_W), PHOTO_H);
-        assert!((height_for_width(528.0) - 964.396_55).abs() < 0.001);
+        assert_eq!(Hp67Panel::height_for_width(PHOTO_W), PHOTO_H);
+        assert!((Hp67Panel::height_for_width(528.0) - 964.396_55).abs() < 0.001);
     }
 
     #[test]
