@@ -276,9 +276,8 @@ impl Hp67Panel {
                 .flatten()
         });
         let pressed_key = pointer_pressed.then(|| {
-            pointer_pos.and_then(|position| {
-                key_at_position(photo_rect, position, minimum_touch_target)
-            })
+            pointer_pos
+                .and_then(|position| key_at_position(photo_rect, position, minimum_touch_target))
         });
         let key_contact = held_pointer_key(
             previous_key_contact,
