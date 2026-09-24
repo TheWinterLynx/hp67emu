@@ -560,17 +560,14 @@ impl Hp67LiveMachine {
         ),
         String,
     > {
-        let serial_before = self
-            .act_serial
-            .serial_arithmetic_result_image()
-            .map(|_| {
-                (
-                    self.machine.act.state.a,
-                    self.machine.act.state.b,
-                    self.machine.act.state.c,
-                    self.machine.act.state.carry,
-                )
-            });
+        let serial_before = self.act_serial.serial_arithmetic_result_image().map(|_| {
+            (
+                self.machine.act.state.a,
+                self.machine.act.state.b,
+                self.machine.act.state.c,
+                self.machine.act.state.carry,
+            )
+        });
 
         let (execution, ram_data_transfer) =
             self.execute_word_with_deferred_ram_data(cycle, word)?;
@@ -924,12 +921,11 @@ mod tests {
 
         live.transport_fetch_word(0, None)
             .expect("structural ADD word must complete");
-        assert!(
-            live.act_serial
-                .serial_execution()
-                .expect("serial execution must remain available")
-                .is_complete()
-        );
+        assert!(live
+            .act_serial
+            .serial_execution()
+            .expect("serial execution must remain available")
+            .is_complete());
         live.complete_serial_arithmetic_authority(0, Some(pending))
             .expect("serial ADD image must match and commit");
 
