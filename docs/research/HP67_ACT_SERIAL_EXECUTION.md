@@ -106,6 +106,16 @@ An arithmetic opcode can move from the architectural fallback to serial executio
 
 The completed serial result must be differential-tested against the existing architectural core at the instruction boundary. The architectural core remains the oracle for semantics, not for electrical timing.
 
+## M14D boundary-authority bridge
+
+M14D deliberately separates **final-state causal authority** from **physical intra-word mutation timing**. The source set still does not justify writing A/B/C or carry on a particular HP-67 bit or PHI edge, so the production model does not do that.
+
+For ADD/SUB-family arithmetic, the structural endpoint now initializes a private result image from the pre-instruction snapshot and accumulates selected-digit results from the same b0..b55 traversal that already owns instruction lifetime and carry/borrow chaining. The instruction-boundary architectural executor is still run once, but its A/B/C/carry mutation is immediately restored and retained only as the expected final-state oracle. After the structural word completes, the accumulated image must match that oracle exactly before the live A/B/C/carry state is updated.
+
+This is classified as a **WORKING APPROXIMATION** at the physical-timing level. It removes the architectural executor from the causal final ADD/SUB result path and makes the real structural traversal the producer of that result, but the final handoff at word completion is not evidence that the 1820-2530 physically waits until b55 to update storage. The existing source-blocked questions about bit-level write timing, carry visibility, decimal-correction holding behavior and PHI-relative capture remain unchanged.
+
+True migration of internal register mutation onto individual bit/PHI events still requires the evidence listed in the migration rule below. M14D must therefore not be cited as proof of exact internal ACT timing.
+
 ## Validation target for the first serial opcode
 
 For the first migrated operation, tests must record every `b0..b55` step and prove both:
