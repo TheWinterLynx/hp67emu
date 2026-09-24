@@ -177,8 +177,7 @@ impl ActSerialEndpoint {
 
         let execution = ActSerialExecution::new(word, state.instruction_state)?;
         let snapshot = ActSerialStateSnapshot::capture(state);
-        self.arithmetic_result_image =
-            ActSerialArithmeticResultImage::begin(&snapshot, &execution);
+        self.arithmetic_result_image = ActSerialArithmeticResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.arithmetic_chain = None;
@@ -208,9 +207,7 @@ impl ActSerialEndpoint {
         self.last_alu_digit_result
     }
 
-    pub const fn serial_arithmetic_result_image(
-        &self,
-    ) -> Option<ActSerialArithmeticResultImage> {
+    pub const fn serial_arithmetic_result_image(&self) -> Option<ActSerialArithmeticResultImage> {
         self.arithmetic_result_image
     }
 
