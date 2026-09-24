@@ -78,23 +78,15 @@ impl ActSerialArithmeticResultImage {
 
         match result.coordinate.action {
             ActSerialArithmeticAction::Add { destination, .. } => {
-                self.write_digit(
-                    destination,
-                    result.coordinate.digit,
-                    result.result_digit,
-                )
-                .expect("serial ADD destination digit must be within the 14-digit ACT word");
+                self.write_digit(destination, result.coordinate.digit, result.result_digit)
+                    .expect("serial ADD destination digit must be within the 14-digit ACT word");
             }
             ActSerialArithmeticAction::Subtract {
                 destination: Some(destination),
                 ..
             } => {
-                self.write_digit(
-                    destination,
-                    result.coordinate.digit,
-                    result.result_digit,
-                )
-                .expect("serial SUB destination digit must be within the 14-digit ACT word");
+                self.write_digit(destination, result.coordinate.digit, result.result_digit)
+                    .expect("serial SUB destination digit must be within the 14-digit ACT word");
             }
             ActSerialArithmeticAction::Subtract {
                 destination: None, ..
