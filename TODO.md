@@ -140,7 +140,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 - [x] Implement M14C logical DATA authority for installed-RAM ACT read/write destinations while keeping CRC `0x99`/`0x9B` outside the slice.
 - [x] Validate M14C locally with the formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic before merge.
-- [ ] Run the full formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic on M14D before merge.
+- [x] Validate M14D locally with the full formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic (`DIAGNOSTIC SUITE OK: 12/12 passed`, owner-reported 2026-09-24).
 - [ ] Model 1818-0231.
 - [ ] Model 1818-0232.
 - [ ] Model 1818-0550.
