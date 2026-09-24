@@ -2,8 +2,9 @@
 //!
 //! This module materializes the register result implied by the already modeled
 //! b0..b55 arithmetic traversal without assigning a physical PHI write edge.
-//! It is an independent serial-path oracle used to compare the evolving M3
-//! implementation against the instruction-boundary architectural core.
+//! M14D lets the production structural endpoint accumulate that image from the
+//! actual traversal; the replay helper remains an independent differential path
+//! against the instruction-boundary architectural core.
 
 use super::{
     act::{ActInstructionState, ActRegister, ACT_WORD_DIGITS},
