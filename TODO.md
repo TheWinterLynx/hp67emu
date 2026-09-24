@@ -128,6 +128,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Integrate those fetch endpoints into the production ACT and physical 1818-* device scheduler once launch/sample edges are fixed.
 - [ ] Implement instruction decode one verified opcode family at a time.
 - [ ] Implement bit-serial register transfers.
+- [x] Make the structural ADD/SUB result image authoritative for final A/B/C/carry at the completed word boundary while retaining the architectural executor only as an oracle for those outputs (M14D).
+- [ ] Resolve source-backed intra-word ACT register/carry write timing before moving those effects onto specific bit/PHI edges.
 - [ ] Implement serial arithmetic/ALU timing.
 - [ ] Implement SYNC and RCD outputs.
 - [ ] Implement DATA and ISA bus drive/release timing beyond the now-defined instruction-fetch windows.
@@ -137,7 +139,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## ROM/RAM devices
 
 - [x] Implement M14C logical DATA authority for installed-RAM ACT read/write destinations while keeping CRC `0x99`/`0x9B` outside the slice.
-- [ ] Run the full formatting/warnings/all-targets/release gate and the ignored 12-program release diagnostic on M14C before merge.
+- [x] Validate M14C locally with the formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic before merge.
+- [ ] Run the full formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic on M14D before merge.
 - [ ] Model 1818-0231.
 - [ ] Model 1818-0232.
 - [ ] Model 1818-0550.
