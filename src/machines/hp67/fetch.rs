@@ -157,10 +157,11 @@ impl ActSerialEndpoint {
     /// Bind one already-fetched word and its pre-instruction ACT state to the
     /// following 56-bit execution cycle.
     ///
-    /// The architectural fallback may still compute unsupported internal effects
-    /// at the instruction boundary, but the serial endpoint owns an immutable
-    /// source snapshot from before those effects. A new instruction cannot replace
-    /// an execution that has not reached b55.
+    /// The architectural oracle may still compute effects that have not migrated
+    /// to the structural path, but the serial endpoint owns an immutable source
+    /// snapshot from before those effects. For ADD/SUB, it also owns the result
+    /// image accumulated by the real b0..b55 traversal. A new instruction cannot
+    /// replace an execution that has not reached b55.
     pub fn begin_execution(
         &mut self,
         word: u16,
@@ -357,9 +358,10 @@ impl ActSerialEndpoint {
     /// Advance the current instruction by one structural serial bit coordinate.
     ///
     /// ADD/SUB execution keeps a source-backed carry/borrow chain between
-    /// successive selected four-bit digits. The chain is updated only after the
-    /// fourth bit coordinate of a digit has been traversed; this is a structural
-    /// digit boundary, not a claimed PHI-relative register-write edge.
+    /// successive selected four-bit digits and records each completed digit in a
+    /// private result image. The image is not written into ACT architectural state
+    /// here: exact internal write timing remains source-blocked. The fourth-bit
+    /// checkpoint is structural bookkeeping, not a claimed PHI-relative edge.
     fn advance_execution_for_bit(&mut self, word_bit: u8) -> Result<(), ActSerialExecutionError> {
         let digit_result = match (self.execution.as_ref(), self.execution_state.as_ref()) {
             (Some(execution), Some(state))
