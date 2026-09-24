@@ -8,7 +8,7 @@
 use super::{
     act::{ActInstructionState, ActRegister, ACT_WORD_DIGITS},
     act_serial_execution::{ActSerialArithmeticAction, ActSerialExecution, ActSerialRegister},
-    act_serial_state::ActSerialStateSnapshot,
+    act_serial_state::{ActSerialDigitAluResult, ActSerialStateSnapshot},
     timing::{BITS_PER_DIGIT, BITS_PER_WORD},
 };
 
@@ -22,15 +22,29 @@ pub struct ActSerialArithmeticResultImage {
 }
 
 impl ActSerialArithmeticResultImage {
-    pub fn evaluate(snapshot: &ActSerialStateSnapshot, word: u16) -> Option<Self> {
-        let mut execution = ActSerialExecution::new(word, ActInstructionState::Normal).ok()?;
-        let mut image = Self {
+    pub fn begin(
+        snapshot: &ActSerialStateSnapshot,
+        execution: &ActSerialExecution,
+    ) -> Option<Self> {
+        let coordinate = snapshot.arithmetic_coordinate(execution)?;
+        let initial_chain = match coordinate.action {
+            ActSerialArithmeticAction::Add { initial_carry, .. }
+            | ActSerialArithmeticAction::Subtract { initial_carry, .. } => initial_carry,
+            _ => return None,
+        };
+
+        Some(Self {
             a: *snapshot.register(ActSerialRegister::A),
             b: *snapshot.register(ActSerialRegister::B),
             c: *snapshot.register(ActSerialRegister::C),
-            final_chain: false,
+            final_chain: initial_chain,
             processed_digits: 0,
-        };
+        })
+    }
+
+    pub fn evaluate(snapshot: &ActSerialStateSnapshot, word: u16) -> Option<Self> {
+        let mut execution = ActSerialExecution::new(word, ActInstructionState::Normal).ok()?;
+        let mut image = Self::begin(snapshot, &execution)?;
         let mut chain = None;
 
         for word_bit in 0..BITS_PER_WORD {
@@ -44,32 +58,52 @@ impl ActSerialArithmeticResultImage {
             if coordinate.selected && coordinate.bit_in_digit == BITS_PER_DIGIT - 1 {
                 let result =
                     snapshot.alu_digit_result(&execution, chain.unwrap_or(initial_chain))?;
-
-                match coordinate.action {
-                    ActSerialArithmeticAction::Add { destination, .. } => {
-                        image.write_digit(destination, coordinate.digit, result.result_digit)?;
-                    }
-                    ActSerialArithmeticAction::Subtract {
-                        destination: Some(destination),
-                        ..
-                    } => {
-                        image.write_digit(destination, coordinate.digit, result.result_digit)?;
-                    }
-                    ActSerialArithmeticAction::Subtract {
-                        destination: None, ..
-                    } => {}
-                    _ => unreachable!("ADD/SUB action checked above"),
-                }
-
+                image.record_digit_result(result);
                 chain = Some(result.chain_out);
-                image.final_chain = result.chain_out;
-                image.processed_digits = image.processed_digits.saturating_add(1);
             }
 
             execution.advance_word_bit(word_bit).ok()?;
         }
 
-        (image.processed_digits != 0).then_some(image)
+        Some(image)
+    }
+
+    pub fn record_digit_result(&mut self, result: ActSerialDigitAluResult) {
+        debug_assert!(result.coordinate.selected);
+        debug_assert_eq!(
+            result.coordinate.bit_in_digit,
+            BITS_PER_DIGIT - 1,
+            "serial result images are updated only after a complete selected digit"
+        );
+
+        match result.coordinate.action {
+            ActSerialArithmeticAction::Add { destination, .. } => {
+                self.write_digit(
+                    destination,
+                    result.coordinate.digit,
+                    result.result_digit,
+                )
+                .expect("serial ADD destination digit must be within the 14-digit ACT word");
+            }
+            ActSerialArithmeticAction::Subtract {
+                destination: Some(destination),
+                ..
+            } => {
+                self.write_digit(
+                    destination,
+                    result.coordinate.digit,
+                    result.result_digit,
+                )
+                .expect("serial SUB destination digit must be within the 14-digit ACT word");
+            }
+            ActSerialArithmeticAction::Subtract {
+                destination: None, ..
+            } => {}
+            _ => unreachable!("digit ALU result can only come from ADD/SUB routing"),
+        }
+
+        self.final_chain = result.chain_out;
+        self.processed_digits = self.processed_digits.saturating_add(1);
     }
 
     pub const fn register(&self, register: ActSerialRegister) -> &ActRegister {
@@ -192,6 +226,31 @@ mod tests {
             snapshot.register(ActSerialRegister::C)
         );
         assert_eq!(image.final_chain(), machine.act.state.carry);
+    }
+
+    #[test]
+    fn empty_selected_field_preserves_registers_and_initial_chain_seed() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.a[0] = 9;
+        machine.act.state.p = 0x0f;
+        machine.act.state.decimal = true;
+
+        let snapshot = ActSerialStateSnapshot::capture(&machine.act.state);
+        let word = (0x0du16 << 5) | 0x02;
+        let image = ActSerialArithmeticResultImage::evaluate(&snapshot, word)
+            .expect("increment remains a serial ADD even when the selected field is empty");
+
+        machine
+            .execute_word(word)
+            .expect("architectural empty-field increment must execute");
+
+        assert_eq!(image.processed_digits(), 0);
+        assert_eq!(
+            image.register(ActSerialRegister::A),
+            snapshot.register(ActSerialRegister::A)
+        );
+        assert_eq!(image.final_chain(), machine.act.state.carry);
+        assert!(image.final_chain());
     }
 
     #[test]
