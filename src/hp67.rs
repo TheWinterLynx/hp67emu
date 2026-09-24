@@ -205,6 +205,15 @@ struct PendingRamDataTransfer {
     expected: ActRegister,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingSerialArithmeticAuthority {
+    word: u16,
+    expected_a: ActRegister,
+    expected_b: ActRegister,
+    expected_c: ActRegister,
+    expected_carry: bool,
+}
+
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
 ///
 /// `hp67firmware` is versioned with the emulator and embedded in the executable.
@@ -426,6 +435,7 @@ impl Hp67LiveMachine {
         let mut idle_after_word = false;
         let mut executed = None;
         let mut ram_data_transfer = None;
+        let mut serial_arithmetic_authority = None;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
@@ -449,9 +459,10 @@ impl Hp67LiveMachine {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
 
-            let (execution, deferred_ram_data) =
-                self.execute_word_with_deferred_ram_data(cycle, word)?;
+            let (execution, deferred_ram_data, deferred_serial_arithmetic) =
+                self.execute_word_with_deferred_authority(cycle, word)?;
             ram_data_transfer = deferred_ram_data;
+            serial_arithmetic_authority = deferred_serial_arithmetic;
             if self.card_transport.card().is_some()
                 && !self.card_transport.head_active()
                 && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
@@ -513,6 +524,8 @@ impl Hp67LiveMachine {
             }
         }
 
+        self.complete_serial_arithmetic_authority(cycle, serial_arithmetic_authority)?;
+
         self.card_transport
             .advance_us(
                 HP67_OBSERVED_WORD_TIME_US,
@@ -533,6 +546,52 @@ impl Hp67LiveMachine {
             self.phase = LiveBootPhase::Idle;
         }
         Ok(executed)
+    }
+
+    fn execute_word_with_deferred_authority(
+        &mut self,
+        cycle: u64,
+        word: u16,
+    ) -> Result<
+        (
+            Hp67ArchitecturalExecution,
+            Option<PendingRamDataTransfer>,
+            Option<PendingSerialArithmeticAuthority>,
+        ),
+        String,
+    > {
+        let serial_before = self
+            .act_serial
+            .serial_arithmetic_result_image()
+            .map(|_| {
+                (
+                    self.machine.act.state.a,
+                    self.machine.act.state.b,
+                    self.machine.act.state.c,
+                    self.machine.act.state.carry,
+                )
+            });
+
+        let (execution, ram_data_transfer) =
+            self.execute_word_with_deferred_ram_data(cycle, word)?;
+
+        let serial_arithmetic = serial_before.map(|(a, b, c, carry)| {
+            let pending = PendingSerialArithmeticAuthority {
+                word,
+                expected_a: self.machine.act.state.a,
+                expected_b: self.machine.act.state.b,
+                expected_c: self.machine.act.state.c,
+                expected_carry: self.machine.act.state.carry,
+            };
+
+            self.machine.act.state.a = a;
+            self.machine.act.state.b = b;
+            self.machine.act.state.c = c;
+            self.machine.act.state.carry = carry;
+            pending
+        });
+
+        Ok((execution, ram_data_transfer, serial_arithmetic))
     }
 
     fn execute_word_with_deferred_ram_data(
@@ -600,6 +659,54 @@ impl Hp67LiveMachine {
         }
 
         Ok((execution, transfer.map(|(pending, _)| pending)))
+    }
+
+    fn complete_serial_arithmetic_authority(
+        &mut self,
+        cycle: u64,
+        pending: Option<PendingSerialArithmeticAuthority>,
+    ) -> Result<(), String> {
+        let Some(pending) = pending else {
+            return Ok(());
+        };
+
+        let actual = self
+            .act_serial
+            .serial_arithmetic_result_image()
+            .ok_or_else(|| {
+                format!(
+                    "live cycle {cycle} lost serial arithmetic result image for word 0x{:03x}",
+                    pending.word
+                )
+            })?;
+        let actual_a = *actual.register(ActSerialRegister::A);
+        let actual_b = *actual.register(ActSerialRegister::B);
+        let actual_c = *actual.register(ActSerialRegister::C);
+        let actual_carry = actual.final_chain();
+
+        if actual_a != pending.expected_a
+            || actual_b != pending.expected_b
+            || actual_c != pending.expected_c
+            || actual_carry != pending.expected_carry
+        {
+            return Err(format!(
+                "live cycle {cycle} serial arithmetic authority mismatch for word 0x{:03x}: \
+                 expected A={:?} B={:?} C={:?} carry={} actual A={actual_a:?} B={actual_b:?} \
+                 C={actual_c:?} carry={actual_carry} processed_digits={}",
+                pending.word,
+                pending.expected_a,
+                pending.expected_b,
+                pending.expected_c,
+                pending.expected_carry,
+                actual.processed_digits(),
+            ));
+        }
+
+        self.machine.act.state.a = actual_a;
+        self.machine.act.state.b = actual_b;
+        self.machine.act.state.c = actual_c;
+        self.machine.act.state.carry = actual_carry;
+        Ok(())
     }
 
     fn complete_pending_ram_data_before_word(&mut self, cycle: u64) -> Result<(), String> {
@@ -787,6 +894,91 @@ mod tests {
                 .expect("DATA body must accept the first word");
         }
         assert_eq!(live.data_serial.complete_word(), None);
+    }
+
+    #[test]
+    fn serial_add_result_is_deferred_until_structural_word_completion() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.a[0] = 9;
+        live.machine.act.state.b[0] = 1;
+        live.machine.act.state.p = 0;
+        live.machine.act.state.decimal = true;
+        let before = live.machine.act.state.clone();
+        let word = (0x09u16 << 5) | 0x02;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial ADD execution must start");
+        let (_, ram_transfer, pending) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural ADD oracle must execute");
+        let pending = pending.expect("ADD must use serial arithmetic authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(live.machine.act.state.a, before.a);
+        assert_eq!(live.machine.act.state.b, before.b);
+        assert_eq!(live.machine.act.state.c, before.c);
+        assert_eq!(live.machine.act.state.carry, before.carry);
+        assert_eq!(pending.expected_a[0], 0);
+        assert!(pending.expected_carry);
+
+        live.transport_fetch_word(0, None)
+            .expect("structural ADD word must complete");
+        assert!(
+            live.act_serial
+                .serial_execution()
+                .expect("serial execution must remain available")
+                .is_complete()
+        );
+        live.complete_serial_arithmetic_authority(0, Some(pending))
+            .expect("serial ADD image must match and commit");
+
+        assert_eq!(live.machine.act.state.a[0], 0);
+        assert!(live.machine.act.state.carry);
+    }
+
+    #[test]
+    fn serial_compare_commits_carry_but_preserves_registers_and_then_goto_state() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.a[0] = 2;
+        live.machine.act.state.c[0] = 3;
+        live.machine.act.state.p = 0;
+        live.machine.act.state.decimal = true;
+        let before = live.machine.act.state.clone();
+        let word = (0x18u16 << 5) | 0x02;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial compare execution must start");
+        let (_, ram_transfer, pending) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural compare oracle must execute");
+        let pending = pending.expect("compare must use serial arithmetic authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(live.machine.act.state.a, before.a);
+        assert_eq!(live.machine.act.state.b, before.b);
+        assert_eq!(live.machine.act.state.c, before.c);
+        assert_eq!(live.machine.act.state.carry, before.carry);
+        assert!(matches!(
+            live.machine.act.state.instruction_state,
+            hp67emu::machines::hp67::ActInstructionState::ThenGoto
+        ));
+        assert!(pending.expected_carry);
+
+        live.transport_fetch_word(0, None)
+            .expect("structural compare word must complete");
+        live.complete_serial_arithmetic_authority(0, Some(pending))
+            .expect("serial compare image must match and commit");
+
+        assert_eq!(live.machine.act.state.a, before.a);
+        assert_eq!(live.machine.act.state.b, before.b);
+        assert_eq!(live.machine.act.state.c, before.c);
+        assert!(live.machine.act.state.carry);
+        assert!(matches!(
+            live.machine.act.state.instruction_state,
+            hp67emu::machines::hp67::ActInstructionState::ThenGoto
+        ));
     }
 
     #[test]
