@@ -13,6 +13,7 @@ use crate::emulation::{Drive, LogicLevel};
 use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
+    act_serial_result::ActSerialArithmeticResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
     data::{Hp67DataSerialError, Hp67DataSerialWordPath},
     display::{
@@ -132,6 +133,7 @@ pub struct ActSerialEndpoint {
     execution_state: Option<ActSerialStateSnapshot>,
     arithmetic_chain: Option<bool>,
     last_alu_digit_result: Option<ActSerialDigitAluResult>,
+    arithmetic_result_image: Option<ActSerialArithmeticResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -146,6 +148,7 @@ impl ActSerialEndpoint {
             execution_state: None,
             arithmetic_chain: None,
             last_alu_digit_result: None,
+            arithmetic_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -173,8 +176,11 @@ impl ActSerialEndpoint {
         }
 
         let execution = ActSerialExecution::new(word, state.instruction_state)?;
+        let snapshot = ActSerialStateSnapshot::capture(state);
+        self.arithmetic_result_image =
+            ActSerialArithmeticResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
-        self.execution_state = Some(ActSerialStateSnapshot::capture(state));
+        self.execution_state = Some(snapshot);
         self.arithmetic_chain = None;
         self.last_alu_digit_result = None;
         Ok(())
@@ -200,6 +206,12 @@ impl ActSerialEndpoint {
 
     pub const fn last_serial_alu_digit_result(&self) -> Option<ActSerialDigitAluResult> {
         self.last_alu_digit_result
+    }
+
+    pub const fn serial_arithmetic_result_image(
+        &self,
+    ) -> Option<ActSerialArithmeticResultImage> {
+        self.arithmetic_result_image
     }
 
     /// Start a fetch-only word, explicitly releasing the display window.
@@ -367,6 +379,10 @@ impl ActSerialEndpoint {
         if let Some(result) = digit_result {
             self.arithmetic_chain = Some(result.chain_out);
             self.last_alu_digit_result = Some(result);
+            self.arithmetic_result_image
+                .as_mut()
+                .expect("ADD/SUB digit result requires an active serial result image")
+                .record_digit_result(result);
         }
 
         if let Some(execution) = &mut self.execution {
