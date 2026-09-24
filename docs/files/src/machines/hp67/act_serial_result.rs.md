@@ -2,22 +2,22 @@
 
 ## Purpose
 
-Builds an independent A/B/C result image for source-backed ACT ADD/SUB execution by replaying the complete b0..b55 serial coordinate from a pre-instruction snapshot.
+Maintains the A/B/C/carry result image for source-backed ACT ADD/SUB execution and also provides an independent replay helper for differential validation.
 
 ## Why it exists
 
-The structural ACT path now owns a pre-instruction A/B/C/P/radix snapshot and a carry/borrow chain, but the architectural core still commits the complete instruction at an instruction boundary. Before removing that fallback, the serial path needs an independently testable final-state oracle that proves its digit traversal produces the same register and carry result without assigning an unsupported PHI-relative write edge.
+The structural ACT path already owns the pre-instruction A/B/C/P/radix snapshot, the complete `b0..b55` execution lifetime and the ADD/SUB carry-or-borrow chain. M14D needs that same structural traversal to produce the final arithmetic register image instead of allowing the instruction-boundary architectural executor to remain the causal source of A/B/C/carry. At the same time, exact internal ACT register-write and PHI-edge timing is still source-blocked, so the result image must not pretend that its structural digit checkpoints are physical write edges.
 
 ## Relationships
 
-Uses `ActSerialExecution` and `ActSerialArithmeticAction` for operation/field routing, `ActSerialStateSnapshot` for immutable pre-instruction operands and ADD/SUB digit evaluation, and the canonical `BITS_PER_DIGIT`/`BITS_PER_WORD` timing coordinates. Tests compare the completed image directly with `Hp67ArchitecturalMachine` for representative decimal and hexadecimal arithmetic.
+Uses `ActSerialExecution` and `ActSerialArithmeticAction` for operation/field routing, `ActSerialStateSnapshot` for immutable pre-instruction operands and digit evaluation, and `ActSerialDigitAluResult` for completed selected-digit results. `ActSerialEndpoint` owns one incremental image during the actual shared structural word traversal. `evaluate()` remains a second replay path used to compare the same final arithmetic semantics with `Hp67ArchitecturalMachine`.
 
 ## Responsibilities
 
-Start from the captured A/B/C registers; replay all 56 serial bit coordinates; update an image only at the structural end of selected four-bit digit cells; propagate carry/borrow between selected digits; preserve registers for compare-only subtract operations; expose the final carry/borrow and number of processed digits; and return no image for arithmetic operations that are not yet implemented by this ADD/SUB slice.
+Initialize A/B/C from the pre-instruction snapshot; preserve the opcode's initial carry/borrow seed even when the selected field contains no digits; accept completed selected-digit ADD/SUB results from the structural traversal; update only the routed destination register; preserve all registers for destination-less compare operations; expose final carry/borrow and processed-digit count; reject non-ADD/SUB arithmetic as outside this slice; and provide an independent full-word replay helper for regression tests.
 
 ## Implementation
 
-`ActSerialArithmeticResultImage::evaluate()` creates a fresh serial execution for the arithmetic word, walks b0 through b55, and asks the snapshot for each selected ADD/SUB digit result. Destination digits are written only to the private result image. This write is a structural bookkeeping boundary and is not presented as a physical ACT register-write edge. Decimal and hexadecimal arithmetic reuse the same source-backed digit rules already exercised by `ActSerialStateSnapshot`.
+`ActSerialArithmeticResultImage::begin()` identifies ADD/SUB routing from the current serial execution, copies A/B/C and initializes `final_chain` from the instruction's source-backed carry/borrow seed. During the real structural word, `ActSerialEndpoint::advance_execution_for_bit()` calls `record_digit_result()` after the fourth coordinate of each selected digit. That updates the private image and the chain but does not mutate live ACT architectural registers at that point.
 
-The tests compare the serial image against the architectural core for decimal multi-digit addition, hexadecimal wrap, decimal borrow propagation and destination-less subtract/compare. This establishes a second implementation path for arithmetic final-state validation before the architectural fallback is removed.
+`evaluate()` independently creates a fresh serial execution and replays `b0..b55` into another image. Tests compare that replay with the architectural oracle for decimal/hexadecimal ADD/SUB, compare-only subtraction and an empty selected field. M14D uses the image accumulated by the actual structural traversal as the live final A/B/C/carry source after the word has completed. That final word-boundary handoff is a **WORKING APPROXIMATION**: it removes the architectural executor from the causal arithmetic result path without claiming which internal bit or PHI edge physically writes the ACT registers.
