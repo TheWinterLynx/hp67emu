@@ -51,4 +51,10 @@ Behavior-impacting release diagnostic:
 
 `cargo test --release --locked --bin hp67emu live_custom_diagnostic_pac_suite_reports_ok_ko -- --ignored --nocapture`
 
-Expected closure remains `DIAGNOSTIC SUITE OK: 12/12 passed`. This note does not claim that either validation has passed on M14D until the owner reports it.
+Expected closure remains `DIAGNOSTIC SUITE OK: 12/12 passed`.
+
+## Validation result
+
+On 2026-09-24 the repository owner reported the full local Windows formatting/warnings/all-targets/release gate **green** for this branch, followed by the ignored release diagnostic completing with `DIAGNOSTIC SUITE OK: 12/12 passed`.
+
+This closes M14D's implementation validation. It does **not** upgrade the source-blocked intra-word/PHI timing claims described above.
