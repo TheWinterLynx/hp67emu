@@ -219,8 +219,10 @@ struct PendingSerialArithmeticAuthority {
 /// `hp67firmware` is versioned with the emulator and embedded in the executable.
 /// Startup executes through the same combined display/fetch word transport used
 /// by the structural smoke tests. ACT owns the display phase and the b0..b55
-/// lifetime of the executing instruction, ROM0 emits STR events, and the cathode
-/// driver only consumes downstream STR/RCD control events.
+/// lifetime of the executing instruction; M14D also makes that structural path
+/// authoritative for ADD/SUB A/B/C/carry final state at the word boundary. ROM0
+/// emits STR events and the cathode driver only consumes downstream STR/RCD
+/// control events. Exact intra-word ACT write edges remain source-blocked.
 pub struct Hp67LiveMachine {
     source: Hp67Firmware,
     backplane: Hp67ElectricalBackplane,
