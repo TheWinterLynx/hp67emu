@@ -326,6 +326,19 @@ impl ActSerialExecution {
         })
     }
 
+    /// Query whether an arbitrary digit belongs to this arithmetic word's field.
+    ///
+    /// M14E uses this only to source adjacent digits for shifts from the immutable
+    /// pre-instruction snapshot. It does not imply an intra-word register-write edge.
+    pub const fn arithmetic_field_selects_digit(&self, p: u8, digit: u8) -> Option<bool> {
+        match self.class {
+            ActSerialWordClass::Arithmetic { field, .. } => {
+                Some(field_selects_digit(field, p, digit))
+            }
+            _ => None,
+        }
+    }
+
     pub fn advance_word_bit(&mut self, actual: u8) -> Result<(), ActSerialExecutionError> {
         if self.is_complete() {
             return Err(ActSerialExecutionError::ExecutionAlreadyComplete);
@@ -496,6 +509,22 @@ mod tests {
             assert_eq!(coordinate.selected, coordinate.digit <= 7);
             wp_field.advance_word_bit(expected_bit).unwrap();
         }
+    }
+
+    #[test]
+    fn arbitrary_field_membership_matches_current_coordinate_selection() {
+        let mut execution = ActSerialExecution::new(0x116, ActInstructionState::Normal).unwrap();
+        for word_bit in 0..BITS_PER_WORD {
+            let coordinate = execution.arithmetic_coordinate(0).unwrap();
+            assert_eq!(
+                execution.arithmetic_field_selects_digit(0, coordinate.digit),
+                Some(coordinate.selected)
+            );
+            execution.advance_word_bit(word_bit).unwrap();
+        }
+
+        let non_arithmetic = ActSerialExecution::new(0x3e3, ActInstructionState::Normal).unwrap();
+        assert_eq!(non_arithmetic.arithmetic_field_selects_digit(0, 0), None);
     }
 
     #[test]
