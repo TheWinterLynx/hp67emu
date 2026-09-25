@@ -221,28 +221,25 @@ impl ActSerialControlResultImage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machines::hp67::{ActArchitecturalState, Hp67ArchitecturalMachine};
+    use crate::machines::hp67::{ActArchitecturalCore, ActArchitecturalState, ActRamImage};
 
     fn compare_with_architectural(state: ActArchitecturalState, word: u16) {
         let snapshot = ActSerialStateSnapshot::capture(&state);
         let image = ActSerialControlResultImage::evaluate(&snapshot, word)
             .expect("test word must be in the M14F control family");
-        let mut machine = Hp67ArchitecturalMachine::default();
-        machine.act.state = state;
-        machine
-            .execute_word(word)
-            .expect("architectural control execution must succeed");
+        let mut core = ActArchitecturalCore::default();
+        core.state = state;
+        let mut ram = ActRamImage::hp67();
+        core.execute_word(&mut ram, word)
+            .expect("architectural ACT control execution must succeed");
 
         assert!(image.is_complete());
-        assert_eq!(image.p(), machine.act.state.p);
-        assert_eq!(image.p_change(), machine.act.state.p_change);
-        assert_eq!(image.status(), &machine.act.state.status);
-        assert_eq!(image.carry(), machine.act.state.carry);
-        assert_eq!(image.previous_carry(), machine.act.state.previous_carry);
-        assert_eq!(
-            image.instruction_state(),
-            machine.act.state.instruction_state
-        );
+        assert_eq!(image.p(), core.state.p);
+        assert_eq!(image.p_change(), core.state.p_change);
+        assert_eq!(image.status(), &core.state.status);
+        assert_eq!(image.carry(), core.state.carry);
+        assert_eq!(image.previous_carry(), core.state.previous_carry);
+        assert_eq!(image.instruction_state(), core.state.instruction_state);
     }
 
     #[test]
