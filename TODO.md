@@ -130,7 +130,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Implement bit-serial register transfers.
 - [x] Make the structural ADD/SUB result image authoritative for final A/B/C/carry at the completed word boundary while retaining the architectural executor only as an oracle for those outputs (M14D).
 - [x] Extend completed-word structural A/B/C/carry authority to clear/copy/exchange, shifts and zero/nonzero tests so all 32 arithmetic opcodes use the structural result image (M14E implementation).
-- [ ] Validate M14E locally with formatting/warnings/all-targets/release gate plus ignored 12-program release diagnostic before merge.
+- [x] Validate M14E locally with formatting/warnings/all-targets/release gate plus ignored 12-program release diagnostic (`DIAGNOSTIC SUITE OK: 12/12 passed`, owner-reported 2026-09-25).
 - [ ] Resolve source-backed intra-word ACT register/carry write timing before moving those effects onto specific bit/PHI edges.
 - [ ] Implement serial arithmetic/ALU timing.
 - [ ] Implement SYNC and RCD outputs.
@@ -141,7 +141,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 ## ROM/RAM devices
 
 - [x] Implement M14C logical DATA authority for installed-RAM ACT read/write destinations while keeping CRC `0x99`/`0x9B` outside the slice.
-- [x] Validate M14C locally with the formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic before merge.
+- [x] Validate M14C locally with the formatting/warnings/all-targets/release gate before merge.
 - [x] Validate M14D locally with the full formatting/warnings/all-targets/release gate and ignored 12-program release diagnostic (`DIAGNOSTIC SUITE OK: 12/12 passed`, owner-reported 2026-09-24).
 - [ ] Model 1818-0231.
 - [ ] Model 1818-0232.
