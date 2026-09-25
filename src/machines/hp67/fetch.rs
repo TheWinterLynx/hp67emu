@@ -159,9 +159,9 @@ impl ActSerialEndpoint {
     ///
     /// The architectural oracle may still compute effects that have not migrated
     /// to the structural path, but the serial endpoint owns an immutable source
-    /// snapshot from before those effects. For ADD/SUB, it also owns the result
-    /// image accumulated by the real b0..b55 traversal. A new instruction cannot
-    /// replace an execution that has not reached b55.
+    /// snapshot from before those effects. For every arithmetic opcode, it also
+    /// owns the result image accumulated by the real b0..b55 traversal. A new
+    /// instruction cannot replace an execution that has not reached b55.
     pub fn begin_execution(
         &mut self,
         word: u16,
@@ -357,16 +357,21 @@ impl ActSerialEndpoint {
 
     /// Advance the current instruction by one structural serial bit coordinate.
     ///
-    /// ADD/SUB execution keeps a source-backed carry/borrow chain between
-    /// successive selected four-bit digits and records each completed digit in a
-    /// private result image. The image is not written into ACT architectural state
-    /// here: exact internal write timing remains source-blocked. The fourth-bit
-    /// checkpoint is structural bookkeeping, not a claimed PHI-relative edge.
+    /// The fourth coordinate of every arithmetic digit is the structural
+    /// checkpoint used to accumulate the private result image. ADD/SUB also keep
+    /// the source-backed carry/borrow chain between successive selected digits.
+    /// No live ACT register is written here: the checkpoint is bookkeeping, not
+    /// a claimed PHI-relative register-write edge.
     fn advance_execution_for_bit(&mut self, word_bit: u8) -> Result<(), ActSerialExecutionError> {
-        let digit_result = match (self.execution.as_ref(), self.execution_state.as_ref()) {
-            (Some(execution), Some(state))
-                if execution.bit_in_digit() == Some(BITS_PER_DIGIT - 1) =>
-            {
+        let execution = self.execution;
+        let state = self.execution_state;
+        let digit_checkpoint = matches!(
+            execution.and_then(|execution| execution.bit_in_digit()),
+            Some(bit) if bit == BITS_PER_DIGIT - 1
+        );
+
+        let digit_result = match (execution.as_ref(), state.as_ref()) {
+            (Some(execution), Some(state)) if digit_checkpoint => {
                 state.alu_inputs(execution).and_then(|inputs| {
                     let chain_in = self.arithmetic_chain.unwrap_or(inputs.initial_carry);
                     state.alu_digit_result(execution, chain_in)
@@ -378,10 +383,18 @@ impl ActSerialEndpoint {
         if let Some(result) = digit_result {
             self.arithmetic_chain = Some(result.chain_out);
             self.last_alu_digit_result = Some(result);
-            self.arithmetic_result_image
-                .as_mut()
-                .expect("ADD/SUB digit result requires an active serial result image")
-                .record_digit_result(result);
+        }
+
+        if digit_checkpoint {
+            if let (Some(execution), Some(state), Some(image)) = (
+                execution.as_ref(),
+                state.as_ref(),
+                self.arithmetic_result_image.as_mut(),
+            ) {
+                image
+                    .record_digit_checkpoint(state, execution, digit_result)
+                    .expect("arithmetic digit checkpoint must be structurally valid");
+            }
         }
 
         if let Some(execution) = &mut self.execution {
