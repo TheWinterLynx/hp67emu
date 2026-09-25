@@ -3,13 +3,14 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
-    ActOperation, ActRegister, ActSerialEndpoint, ActSerialRegister, CardInsertionEnd,
+    ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
+    ActSerialRegister, CardInsertionEnd,
     CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
     Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
     Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
     RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
-    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    ACT_STATUS_BITS, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -212,6 +213,18 @@ struct PendingSerialArithmeticAuthority {
     expected_b: ActRegister,
     expected_c: ActRegister,
     expected_carry: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingSerialControlAuthority {
+    word: u16,
+    action: ActSerialControlAction,
+    expected_p: u8,
+    expected_p_change: [i8; 3],
+    expected_status: [bool; ACT_STATUS_BITS],
+    expected_carry: bool,
+    expected_previous_carry: bool,
+    expected_instruction_state: ActInstructionState,
 }
 
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
