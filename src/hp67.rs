@@ -1037,11 +1037,12 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial ADD execution must start");
-        let (_, ram_transfer, pending) = live
+        let (_, ram_transfer, pending, control_pending) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural ADD oracle must execute");
         let pending = pending.expect("ADD must use serial arithmetic authority");
 
+        assert_eq!(control_pending, None);
         assert_eq!(ram_transfer, None);
         assert_eq!(live.machine.act.state.a, before.a);
         assert_eq!(live.machine.act.state.b, before.b);
@@ -1077,11 +1078,12 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial compare execution must start");
-        let (_, ram_transfer, pending) = live
+        let (_, ram_transfer, pending, control_pending) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural compare oracle must execute");
         let pending = pending.expect("compare must use serial arithmetic authority");
 
+        assert_eq!(control_pending, None);
         assert_eq!(ram_transfer, None);
         assert_eq!(live.machine.act.state.a, before.a);
         assert_eq!(live.machine.act.state.b, before.b);
@@ -1151,6 +1153,7 @@ mod tests {
                 .expect("architectural arithmetic oracle must execute");
             let pending = pending.expect("arithmetic word must use serial authority");
 
+            assert_eq!(control_pending, None);
             assert_eq!(ram_transfer, None);
             assert_eq!(live.machine.act.state.a, before.a);
             assert_eq!(live.machine.act.state.b, before.b);
@@ -1167,6 +1170,86 @@ mod tests {
             assert_eq!(live.machine.act.state.c, pending.expected_c);
             assert_eq!(live.machine.act.state.carry, pending.expected_carry);
         }
+    }
+
+    #[test]
+    fn serial_p_increment_is_deferred_until_structural_word_completion() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.p = 13;
+        live.machine.act.state.p_change = [0, -1, 1];
+        live.machine.act.state.carry = true;
+        let before = live.machine.act.state.clone();
+        let word = 0o0720;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial P increment execution must start");
+        let (_, ram_transfer, arithmetic_pending, control_pending) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural P increment oracle must execute");
+        let pending = control_pending.expect("P increment must use serial control authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(arithmetic_pending, None);
+        assert_eq!(live.machine.act.state.p, before.p);
+        assert_eq!(live.machine.act.state.p_change, before.p_change);
+        assert_eq!(live.machine.act.state.carry, before.carry);
+        assert_eq!(pending.expected_p, 0);
+        assert_eq!(pending.expected_p_change, [1, 0, -1]);
+        assert!(!pending.expected_carry);
+        assert!(pending.expected_previous_carry);
+
+        live.transport_fetch_word(0, None)
+            .expect("structural P increment word must complete");
+        live.complete_serial_control_authority(0, Some(pending))
+            .expect("serial P increment image must match and commit");
+
+        assert_eq!(live.machine.act.state.p, 0);
+        assert_eq!(live.machine.act.state.p_change, [1, 0, -1]);
+        assert!(!live.machine.act.state.carry);
+        assert!(live.machine.act.state.previous_carry);
+    }
+
+    #[test]
+    fn serial_status_test_commits_then_goto_and_condition_from_structural_image() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.status[7] = true;
+        live.machine.act.state.carry = false;
+        let before = live.machine.act.state.clone();
+        let word = (7u16 << 6) | 0o34;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial status test execution must start");
+        let (_, ram_transfer, arithmetic_pending, control_pending) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural status-test oracle must execute");
+        let pending = control_pending.expect("status test must use serial control authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(arithmetic_pending, None);
+        assert_eq!(live.machine.act.state.status, before.status);
+        assert_eq!(live.machine.act.state.carry, before.carry);
+        assert_eq!(
+            live.machine.act.state.instruction_state,
+            before.instruction_state
+        );
+        assert!(pending.expected_carry);
+        assert_eq!(
+            pending.expected_instruction_state,
+            ActInstructionState::ThenGoto
+        );
+
+        live.transport_fetch_word(0, None)
+            .expect("structural status-test word must complete");
+        live.complete_serial_control_authority(0, Some(pending))
+            .expect("serial status-test image must match and commit");
+
+        assert!(live.machine.act.state.carry);
+        assert_eq!(
+            live.machine.act.state.instruction_state,
+            ActInstructionState::ThenGoto
+        );
     }
 
     #[test]
