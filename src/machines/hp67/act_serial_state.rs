@@ -6,7 +6,9 @@
 //! so later bit-level work cannot accidentally observe post-instruction state.
 
 use super::{
-    act::{ActArchitecturalState, ActRegister, ACT_WORD_DIGITS},
+    act::{
+        ActArchitecturalState, ActInstructionState, ActRegister, ACT_STATUS_BITS, ACT_WORD_DIGITS,
+    },
     act_serial_execution::{
         ActSerialArithmeticAction, ActSerialArithmeticCoordinate, ActSerialExecution,
         ActSerialOperand, ActSerialRegister,
@@ -39,6 +41,10 @@ pub struct ActSerialStateSnapshot {
     b: ActRegister,
     c: ActRegister,
     p: u8,
+    p_change: [i8; 3],
+    status: [bool; ACT_STATUS_BITS],
+    carry: bool,
+    instruction_state: ActInstructionState,
     decimal: bool,
     display_enable: bool,
 }
@@ -50,6 +56,10 @@ impl ActSerialStateSnapshot {
             b: state.b,
             c: state.c,
             p: state.p,
+            p_change: state.p_change,
+            status: state.status,
+            carry: state.carry,
+            instruction_state: state.instruction_state,
             decimal: state.decimal,
             display_enable: state.display_enable,
         }
@@ -57,6 +67,22 @@ impl ActSerialStateSnapshot {
 
     pub const fn p(&self) -> u8 {
         self.p
+    }
+
+    pub const fn p_change(&self) -> [i8; 3] {
+        self.p_change
+    }
+
+    pub const fn status(&self) -> &[bool; ACT_STATUS_BITS] {
+        &self.status
+    }
+
+    pub const fn carry(&self) -> bool {
+        self.carry
+    }
+
+    pub const fn instruction_state(&self) -> ActInstructionState {
+        self.instruction_state
     }
 
     pub const fn decimal(&self) -> bool {
