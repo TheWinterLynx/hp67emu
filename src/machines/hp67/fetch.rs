@@ -1244,6 +1244,45 @@ mod tests {
     }
 
     #[test]
+    fn control_result_image_completes_only_after_b55() {
+        let mut state = ActArchitecturalState::default();
+        state.p = 13;
+        state.p_change = [0, -1, 1];
+        state.carry = true;
+
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0720, &state)
+            .expect("P increment must start serial execution");
+
+        let initial = act
+            .serial_control_result_image()
+            .expect("P increment must create a control result image");
+        assert!(!initial.is_complete());
+        assert_eq!(initial.p(), 13);
+
+        for bit in 0..(BITS_PER_WORD - 1) {
+            act.advance_execution_for_bit(bit)
+                .expect("control execution must advance before b55");
+        }
+        let before_last = act
+            .serial_control_result_image()
+            .expect("control result image must remain present");
+        assert!(!before_last.is_complete());
+        assert_eq!(before_last.p(), 13);
+
+        act.advance_execution_for_bit(BITS_PER_WORD - 1)
+            .expect("b55 must complete control execution");
+        let complete = act
+            .serial_control_result_image()
+            .expect("completed control result image must remain inspectable");
+        assert!(complete.is_complete());
+        assert_eq!(complete.p(), 0);
+        assert_eq!(complete.p_change(), [1, 0, -1]);
+        assert!(!complete.carry());
+        assert!(complete.previous_carry());
+    }
+
+    #[test]
     fn incomplete_execution_cannot_be_replaced_by_another_word() {
         let state = ActArchitecturalState::default();
         let mut act = ActSerialEndpoint::new(0);
