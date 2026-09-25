@@ -1,10 +1,10 @@
 //! Source-backed arithmetic result image for one serially executing ACT word.
 //!
-//! This module materializes the register result implied by the already modeled
-//! b0..b55 arithmetic traversal without assigning a physical PHI write edge.
-//! M14D lets the production structural endpoint accumulate that image from the
-//! actual traversal; the replay helper remains an independent differential path
-//! against the instruction-boundary architectural core.
+//! This module materializes the register/carry result implied by the already
+//! modeled b0..b55 arithmetic traversal without assigning a physical PHI write
+//! edge. M14E extends the structural authority image from ADD/SUB to every
+//! Woodstock arithmetic opcode while keeping exact internal ACT mutation timing
+//! explicitly source-blocked.
 
 use super::{
     act::{ActInstructionState, ActRegister, ACT_WORD_DIGITS},
@@ -28,17 +28,23 @@ impl ActSerialArithmeticResultImage {
         execution: &ActSerialExecution,
     ) -> Option<Self> {
         let coordinate = snapshot.arithmetic_coordinate(execution)?;
-        let initial_chain = match coordinate.action {
+        let final_chain = match coordinate.action {
             ActSerialArithmeticAction::Add { initial_carry, .. }
             | ActSerialArithmeticAction::Subtract { initial_carry, .. } => initial_carry,
-            _ => return None,
+            ActSerialArithmeticAction::TestZero { .. } => true,
+            ActSerialArithmeticAction::Clear { .. }
+            | ActSerialArithmeticAction::Copy { .. }
+            | ActSerialArithmeticAction::Exchange { .. }
+            | ActSerialArithmeticAction::ShiftLeft { .. }
+            | ActSerialArithmeticAction::ShiftRight { .. }
+            | ActSerialArithmeticAction::TestNonzero { .. } => false,
         };
 
         Some(Self {
             a: *snapshot.register(ActSerialRegister::A),
             b: *snapshot.register(ActSerialRegister::B),
             c: *snapshot.register(ActSerialRegister::C),
-            final_chain: initial_chain,
+            final_chain,
             processed_digits: 0,
         })
     }
@@ -50,17 +56,25 @@ impl ActSerialArithmeticResultImage {
 
         for word_bit in 0..BITS_PER_WORD {
             let coordinate = snapshot.arithmetic_coordinate(&execution)?;
-            let initial_chain = match coordinate.action {
-                ActSerialArithmeticAction::Add { initial_carry, .. }
-                | ActSerialArithmeticAction::Subtract { initial_carry, .. } => initial_carry,
-                _ => return None,
+            let digit_result = if coordinate.selected
+                && coordinate.bit_in_digit == BITS_PER_DIGIT - 1
+            {
+                match coordinate.action {
+                    ActSerialArithmeticAction::Add { initial_carry, .. }
+                    | ActSerialArithmeticAction::Subtract { initial_carry, .. } => {
+                        let result =
+                            snapshot.alu_digit_result(&execution, chain.unwrap_or(initial_carry))?;
+                        chain = Some(result.chain_out);
+                        Some(result)
+                    }
+                    _ => None,
+                }
+            } else {
+                None
             };
 
-            if coordinate.selected && coordinate.bit_in_digit == BITS_PER_DIGIT - 1 {
-                let result =
-                    snapshot.alu_digit_result(&execution, chain.unwrap_or(initial_chain))?;
-                image.record_digit_result(result);
-                chain = Some(result.chain_out);
+            if coordinate.bit_in_digit == BITS_PER_DIGIT - 1 {
+                image.record_digit_checkpoint(snapshot, &execution, digit_result)?;
             }
 
             execution.advance_word_bit(word_bit).ok()?;
@@ -69,34 +83,81 @@ impl ActSerialArithmeticResultImage {
         Some(image)
     }
 
-    pub fn record_digit_result(&mut self, result: ActSerialDigitAluResult) {
-        debug_assert!(result.coordinate.selected);
-        debug_assert_eq!(
-            result.coordinate.bit_in_digit,
-            BITS_PER_DIGIT - 1,
-            "serial result images are updated only after a complete selected digit"
-        );
-
-        match result.coordinate.action {
-            ActSerialArithmeticAction::Add { destination, .. } => {
-                self.write_digit(destination, result.coordinate.digit, result.result_digit)
-                    .expect("serial ADD destination digit must be within the 14-digit ACT word");
-            }
-            ActSerialArithmeticAction::Subtract {
-                destination: Some(destination),
-                ..
-            } => {
-                self.write_digit(destination, result.coordinate.digit, result.result_digit)
-                    .expect("serial SUB destination digit must be within the 14-digit ACT word");
-            }
-            ActSerialArithmeticAction::Subtract {
-                destination: None, ..
-            } => {}
-            _ => unreachable!("digit ALU result can only come from ADD/SUB routing"),
+    pub fn record_digit_checkpoint(
+        &mut self,
+        snapshot: &ActSerialStateSnapshot,
+        execution: &ActSerialExecution,
+        alu_result: Option<ActSerialDigitAluResult>,
+    ) -> Option<()> {
+        let coordinate = snapshot.arithmetic_coordinate(execution)?;
+        if coordinate.bit_in_digit != BITS_PER_DIGIT - 1 {
+            return None;
+        }
+        if !coordinate.selected {
+            return Some(());
         }
 
-        self.final_chain = result.chain_out;
+        match coordinate.action {
+            ActSerialArithmeticAction::Clear { destination } => {
+                self.write_digit(destination, coordinate.digit, 0)?;
+            }
+            ActSerialArithmeticAction::Copy {
+                source,
+                destination,
+            } => {
+                let value = snapshot.register_digit(source, coordinate.digit)?;
+                self.write_digit(destination, coordinate.digit, value)?;
+            }
+            ActSerialArithmeticAction::Exchange { left, right } => {
+                let left_value = snapshot.register_digit(left, coordinate.digit)?;
+                let right_value = snapshot.register_digit(right, coordinate.digit)?;
+                self.write_digit(left, coordinate.digit, right_value)?;
+                self.write_digit(right, coordinate.digit, left_value)?;
+            }
+            ActSerialArithmeticAction::Add { destination, .. } => {
+                let result = alu_result?;
+                debug_assert_eq!(result.coordinate, coordinate);
+                self.write_digit(destination, coordinate.digit, result.result_digit)?;
+                self.final_chain = result.chain_out;
+            }
+            ActSerialArithmeticAction::Subtract { destination, .. } => {
+                let result = alu_result?;
+                debug_assert_eq!(result.coordinate, coordinate);
+                if let Some(destination) = destination {
+                    self.write_digit(destination, coordinate.digit, result.result_digit)?;
+                }
+                self.final_chain = result.chain_out;
+            }
+            ActSerialArithmeticAction::ShiftLeft { register } => {
+                let source_digit = coordinate.digit.checked_sub(1).filter(|source_digit| {
+                    execution.arithmetic_field_selects_digit(snapshot.p(), *source_digit)
+                        == Some(true)
+                });
+                let value = source_digit
+                    .and_then(|source_digit| snapshot.register_digit(register, source_digit))
+                    .unwrap_or(0);
+                self.write_digit(register, coordinate.digit, value)?;
+            }
+            ActSerialArithmeticAction::ShiftRight { register } => {
+                let source_digit = coordinate.digit.checked_add(1).filter(|source_digit| {
+                    execution.arithmetic_field_selects_digit(snapshot.p(), *source_digit)
+                        == Some(true)
+                });
+                let value = source_digit
+                    .and_then(|source_digit| snapshot.register_digit(register, source_digit))
+                    .unwrap_or(0);
+                self.write_digit(register, coordinate.digit, value)?;
+            }
+            ActSerialArithmeticAction::TestNonzero { register } => {
+                self.final_chain |= snapshot.register_digit(register, coordinate.digit)? != 0;
+            }
+            ActSerialArithmeticAction::TestZero { register } => {
+                self.final_chain &= snapshot.register_digit(register, coordinate.digit)? == 0;
+            }
+        }
+
         self.processed_digits = self.processed_digits.saturating_add(1);
+        Some(())
     }
 
     pub const fn register(&self, register: ActSerialRegister) -> &ActRegister {
@@ -139,7 +200,7 @@ mod tests {
     fn compare_with_architectural(mut machine: Hp67ArchitecturalMachine, word: u16) {
         let snapshot = ActSerialStateSnapshot::capture(&machine.act.state);
         let image = ActSerialArithmeticResultImage::evaluate(&snapshot, word)
-            .expect("test word must be an ADD/SUB arithmetic operation");
+            .expect("test word must be an arithmetic operation");
 
         machine
             .execute_word(word)
@@ -222,36 +283,81 @@ mod tests {
     }
 
     #[test]
-    fn empty_selected_field_preserves_registers_and_initial_chain_seed() {
+    fn empty_selected_field_preserves_opcode_specific_carry_result() {
         let mut machine = Hp67ArchitecturalMachine::default();
         machine.act.state.a[0] = 9;
         machine.act.state.p = 0x0f;
         machine.act.state.decimal = true;
 
-        let snapshot = ActSerialStateSnapshot::capture(&machine.act.state);
-        let word = (0x0du16 << 5) | 0x02;
-        let image = ActSerialArithmeticResultImage::evaluate(&snapshot, word)
-            .expect("increment remains a serial ADD even when the selected field is empty");
+        for operation in [0x0d, 0x16, 0x1a] {
+            let mut candidate = machine.clone();
+            let snapshot = ActSerialStateSnapshot::capture(&candidate.act.state);
+            let word = (operation << 5) | 0x02;
+            let image = ActSerialArithmeticResultImage::evaluate(&snapshot, word)
+                .expect("arithmetic word must produce a serial result image");
 
-        machine
-            .execute_word(word)
-            .expect("architectural empty-field increment must execute");
+            candidate
+                .execute_word(word)
+                .expect("architectural empty-field arithmetic must execute");
 
-        assert_eq!(image.processed_digits(), 0);
-        assert_eq!(
-            image.register(ActSerialRegister::A),
-            snapshot.register(ActSerialRegister::A)
-        );
-        assert_eq!(image.final_chain(), machine.act.state.carry);
-        assert!(image.final_chain());
+            assert_eq!(image.processed_digits(), 0);
+            assert_eq!(
+                image.register(ActSerialRegister::A),
+                snapshot.register(ActSerialRegister::A)
+            );
+            assert_eq!(image.final_chain(), candidate.act.state.carry);
+        }
     }
 
     #[test]
-    fn non_additive_arithmetic_has_no_add_sub_result_image() {
+    fn clear_copy_exchange_shift_and_tests_match_architectural_results() {
+        for operation in [
+            0x00u16, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0e, 0x16, 0x17, 0x1a,
+            0x1b, 0x1d, 0x1e, 0x1f,
+        ] {
+            let mut machine = Hp67ArchitecturalMachine::default();
+            machine.act.state.a = std::array::from_fn(|digit| ((digit * 3 + 1) & 0x0f) as u8);
+            machine.act.state.b = std::array::from_fn(|digit| ((digit * 5 + 2) & 0x0f) as u8);
+            machine.act.state.c = std::array::from_fn(|digit| ((digit * 7 + 3) & 0x0f) as u8);
+            machine.act.state.p = 7;
+            machine.act.state.carry = true;
+            let word = (operation << 5) | (6u16 << 2) | 0x02;
+            compare_with_architectural(machine, word);
+        }
+    }
+
+    #[test]
+    fn every_arithmetic_operation_field_and_p_case_matches_architectural_oracle() {
+        for decimal in [false, true] {
+            for p in [0u8, 2, 7, 13, 15] {
+                for operation in 0u16..=0x1f {
+                    for field in 0u16..=7 {
+                        let mut machine = Hp67ArchitecturalMachine::default();
+                        let modulus = if decimal { 10 } else { 16 };
+                        machine.act.state.a =
+                            std::array::from_fn(|digit| ((digit * 3 + 1) % modulus) as u8);
+                        machine.act.state.b =
+                            std::array::from_fn(|digit| ((digit * 5 + 2) % modulus) as u8);
+                        machine.act.state.c =
+                            std::array::from_fn(|digit| ((digit * 7 + 3) % modulus) as u8);
+                        machine.act.state.p = p;
+                        machine.act.state.decimal = decimal;
+                        machine.act.state.carry = true;
+
+                        let word = (operation << 5) | (field << 2) | 0x02;
+                        compare_with_architectural(machine, word);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn non_arithmetic_word_has_no_arithmetic_result_image() {
         let state = ActArchitecturalState::default();
         let snapshot = ActSerialStateSnapshot::capture(&state);
         assert_eq!(
-            ActSerialArithmeticResultImage::evaluate(&snapshot, 0x11a),
+            ActSerialArithmeticResultImage::evaluate(&snapshot, 0x3e3),
             None
         );
     }
