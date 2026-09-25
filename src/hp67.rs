@@ -233,8 +233,9 @@ struct PendingSerialControlAuthority {
 /// Startup executes through the same combined display/fetch word transport used
 /// by the structural smoke tests. ACT owns the display phase and the b0..b55
 /// lifetime of the executing instruction; M14E makes that structural path
-/// authoritative for final A/B/C/carry across every arithmetic opcode at the
-/// completed-word boundary. ROM0 emits STR events and the cathode driver only
+/// authoritative for final A/B/C/carry across every arithmetic opcode and M14F
+/// adds completed-word P/status condition authority for its focused control
+/// family. ROM0 emits STR events and the cathode driver only
 /// consumes downstream STR/RCD control events. Exact intra-word ACT write edges
 /// remain source-blocked.
 pub struct Hp67LiveMachine {
