@@ -56,22 +56,21 @@ impl ActSerialArithmeticResultImage {
 
         for word_bit in 0..BITS_PER_WORD {
             let coordinate = snapshot.arithmetic_coordinate(&execution)?;
-            let digit_result = if coordinate.selected
-                && coordinate.bit_in_digit == BITS_PER_DIGIT - 1
-            {
-                match coordinate.action {
-                    ActSerialArithmeticAction::Add { initial_carry, .. }
-                    | ActSerialArithmeticAction::Subtract { initial_carry, .. } => {
-                        let result =
-                            snapshot.alu_digit_result(&execution, chain.unwrap_or(initial_carry))?;
-                        chain = Some(result.chain_out);
-                        Some(result)
+            let digit_result =
+                if coordinate.selected && coordinate.bit_in_digit == BITS_PER_DIGIT - 1 {
+                    match coordinate.action {
+                        ActSerialArithmeticAction::Add { initial_carry, .. }
+                        | ActSerialArithmeticAction::Subtract { initial_carry, .. } => {
+                            let result = snapshot
+                                .alu_digit_result(&execution, chain.unwrap_or(initial_carry))?;
+                            chain = Some(result.chain_out);
+                            Some(result)
+                        }
+                        _ => None,
                     }
-                    _ => None,
-                }
-            } else {
-                None
-            };
+                } else {
+                    None
+                };
 
             if coordinate.bit_in_digit == BITS_PER_DIGIT - 1 {
                 image.record_digit_checkpoint(snapshot, &execution, digit_result)?;
@@ -312,8 +311,8 @@ mod tests {
     #[test]
     fn clear_copy_exchange_shift_and_tests_match_architectural_results() {
         for operation in [
-            0x00u16, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0e, 0x16, 0x17, 0x1a,
-            0x1b, 0x1d, 0x1e, 0x1f,
+            0x00u16, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0e, 0x16, 0x17, 0x1a, 0x1b,
+            0x1d, 0x1e, 0x1f,
         ] {
             let mut machine = Hp67ArchitecturalMachine::default();
             machine.act.state.a = std::array::from_fn(|digit| ((digit * 3 + 1) & 0x0f) as u8);
