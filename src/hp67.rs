@@ -1148,7 +1148,7 @@ mod tests {
             live.act_serial
                 .begin_execution(word, &before)
                 .expect("serial arithmetic execution must start");
-            let (_, ram_transfer, pending) = live
+            let (_, ram_transfer, pending, control_pending) = live
                 .execute_word_with_deferred_authority(0, word)
                 .expect("architectural arithmetic oracle must execute");
             let pending = pending.expect("arithmetic word must use serial authority");
