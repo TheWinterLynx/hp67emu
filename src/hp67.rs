@@ -452,6 +452,7 @@ impl Hp67LiveMachine {
         let mut executed = None;
         let mut ram_data_transfer = None;
         let mut serial_arithmetic_authority = None;
+        let mut serial_control_authority = None;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
@@ -475,10 +476,15 @@ impl Hp67LiveMachine {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
 
-            let (execution, deferred_ram_data, deferred_serial_arithmetic) =
-                self.execute_word_with_deferred_authority(cycle, word)?;
+            let (
+                execution,
+                deferred_ram_data,
+                deferred_serial_arithmetic,
+                deferred_serial_control,
+            ) = self.execute_word_with_deferred_authority(cycle, word)?;
             ram_data_transfer = deferred_ram_data;
             serial_arithmetic_authority = deferred_serial_arithmetic;
+            serial_control_authority = deferred_serial_control;
             if self.card_transport.card().is_some()
                 && !self.card_transport.head_active()
                 && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
@@ -541,6 +547,7 @@ impl Hp67LiveMachine {
         }
 
         self.complete_serial_arithmetic_authority(cycle, serial_arithmetic_authority)?;
+        self.complete_serial_control_authority(cycle, serial_control_authority)?;
 
         self.card_transport
             .advance_us(
@@ -573,6 +580,7 @@ impl Hp67LiveMachine {
             Hp67ArchitecturalExecution,
             Option<PendingRamDataTransfer>,
             Option<PendingSerialArithmeticAuthority>,
+            Option<PendingSerialControlAuthority>,
         ),
         String,
     > {
@@ -582,6 +590,17 @@ impl Hp67LiveMachine {
                 self.machine.act.state.b,
                 self.machine.act.state.c,
                 self.machine.act.state.carry,
+            )
+        });
+        let control_before = self.act_serial.serial_control_result_image().map(|image| {
+            (
+                image.action(),
+                self.machine.act.state.p,
+                self.machine.act.state.p_change,
+                self.machine.act.state.status,
+                self.machine.act.state.carry,
+                self.machine.act.state.previous_carry,
+                self.machine.act.state.instruction_state,
             )
         });
 
@@ -604,7 +623,47 @@ impl Hp67LiveMachine {
             pending
         });
 
-        Ok((execution, ram_data_transfer, serial_arithmetic))
+        let serial_control = match (control_before, execution.operation) {
+            (
+                Some((
+                    action,
+                    p,
+                    p_change,
+                    status,
+                    carry,
+                    previous_carry,
+                    instruction_state,
+                )),
+                Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }),
+            ) if opcode == word => {
+                let pending = PendingSerialControlAuthority {
+                    word,
+                    action,
+                    expected_p: self.machine.act.state.p,
+                    expected_p_change: self.machine.act.state.p_change,
+                    expected_status: self.machine.act.state.status,
+                    expected_carry: self.machine.act.state.carry,
+                    expected_previous_carry: self.machine.act.state.previous_carry,
+                    expected_instruction_state: self.machine.act.state.instruction_state,
+                };
+
+                self.machine.act.state.p = p;
+                self.machine.act.state.p_change = p_change;
+                self.machine.act.state.status = status;
+                self.machine.act.state.carry = carry;
+                self.machine.act.state.previous_carry = previous_carry;
+                self.machine.act.state.instruction_state = instruction_state;
+                Some(pending)
+            }
+            _ => None,
+        };
+
+        Ok((
+            execution,
+            ram_data_transfer,
+            serial_arithmetic,
+            serial_control,
+        ))
     }
 
     fn execute_word_with_deferred_ram_data(
@@ -719,6 +778,62 @@ impl Hp67LiveMachine {
         self.machine.act.state.b = actual_b;
         self.machine.act.state.c = actual_c;
         self.machine.act.state.carry = actual_carry;
+        Ok(())
+    }
+
+    fn complete_serial_control_authority(
+        &mut self,
+        cycle: u64,
+        pending: Option<PendingSerialControlAuthority>,
+    ) -> Result<(), String> {
+        let Some(pending) = pending else {
+            return Ok(());
+        };
+
+        let actual = self.act_serial.serial_control_result_image().ok_or_else(|| {
+            format!(
+                "live cycle {cycle} lost serial control result image for word 0x{:03x}",
+                pending.word
+            )
+        })?;
+
+        if !actual.is_complete()
+            || actual.action() != pending.action
+            || actual.p() != pending.expected_p
+            || actual.p_change() != pending.expected_p_change
+            || actual.status() != &pending.expected_status
+            || actual.carry() != pending.expected_carry
+            || actual.previous_carry() != pending.expected_previous_carry
+            || actual.instruction_state() != pending.expected_instruction_state
+        {
+            return Err(format!(
+                "live cycle {cycle} serial control authority mismatch for word 0x{:03x} action={:?}: \
+                 expected P={} p_change={:?} carry={} previous_carry={} state={:?} status={:?}; \
+                 actual P={} p_change={:?} carry={} previous_carry={} state={:?} status={:?} complete={}",
+                pending.word,
+                pending.action,
+                pending.expected_p,
+                pending.expected_p_change,
+                pending.expected_carry,
+                pending.expected_previous_carry,
+                pending.expected_instruction_state,
+                pending.expected_status,
+                actual.p(),
+                actual.p_change(),
+                actual.carry(),
+                actual.previous_carry(),
+                actual.instruction_state(),
+                actual.status(),
+                actual.is_complete(),
+            ));
+        }
+
+        self.machine.act.state.p = actual.p();
+        self.machine.act.state.p_change = actual.p_change();
+        self.machine.act.state.status = *actual.status();
+        self.machine.act.state.carry = actual.carry();
+        self.machine.act.state.previous_carry = actual.previous_carry();
+        self.machine.act.state.instruction_state = actual.instruction_state();
         Ok(())
     }
 
