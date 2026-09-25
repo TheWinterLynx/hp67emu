@@ -980,6 +980,67 @@ mod tests {
     }
 
     #[test]
+    fn serial_register_arithmetic_families_commit_from_structural_result_image() {
+        let cases = [
+            (
+                0x02u16,
+                patterned_act_register(1),
+                patterned_act_register(8),
+                patterned_act_register(4),
+            ),
+            (
+                0x0eu16,
+                patterned_act_register(2),
+                patterned_act_register(5),
+                patterned_act_register(9),
+            ),
+            (
+                0x16u16,
+                patterned_act_register(3),
+                patterned_act_register(7),
+                patterned_act_register(11),
+            ),
+        ];
+
+        for (operation, a, b, c) in cases {
+            let mut live =
+                Hp67LiveMachine::power_on_default().expect("live machine must construct");
+            live.machine.act.state.a = a;
+            live.machine.act.state.b = b;
+            live.machine.act.state.c = c;
+            live.machine.act.state.p = 7;
+            live.machine.act.state.carry = true;
+            let before = live.machine.act.state.clone();
+            let field = if operation == 0x16 { 1u16 } else { 6u16 };
+            let word = (operation << 5) | (field << 2) | 0x02;
+
+            live.act_serial
+                .begin_execution(word, &before)
+                .expect("serial arithmetic execution must start");
+            let (_, ram_transfer, pending) = live
+                .execute_word_with_deferred_authority(0, word)
+                .expect("architectural arithmetic oracle must execute");
+            let pending = pending.expect("arithmetic word must use serial authority");
+
+            assert_eq!(ram_transfer, None);
+            assert_eq!(live.machine.act.state.a, before.a);
+            assert_eq!(live.machine.act.state.b, before.b);
+            assert_eq!(live.machine.act.state.c, before.c);
+            assert_eq!(live.machine.act.state.carry, before.carry);
+
+            live.transport_fetch_word(0, None)
+                .expect("structural arithmetic word must complete");
+            live.complete_serial_arithmetic_authority(0, Some(pending))
+                .expect("structural arithmetic image must match and commit");
+
+            assert_eq!(live.machine.act.state.a, pending.expected_a);
+            assert_eq!(live.machine.act.state.b, pending.expected_b);
+            assert_eq!(live.machine.act.state.c, pending.expected_c);
+            assert_eq!(live.machine.act.state.carry, pending.expected_carry);
+        }
+    }
+
+    #[test]
     fn installed_ram_write_commits_only_from_reconstructed_data_frame() {
         let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
         live.machine.act.state.ram_address = 0x12;
