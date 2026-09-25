@@ -12,6 +12,7 @@ use crate::emulation::{Drive, LogicLevel};
 
 use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
+    act_serial_control::ActSerialControlResultImage,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
@@ -134,6 +135,7 @@ pub struct ActSerialEndpoint {
     arithmetic_chain: Option<bool>,
     last_alu_digit_result: Option<ActSerialDigitAluResult>,
     arithmetic_result_image: Option<ActSerialArithmeticResultImage>,
+    control_result_image: Option<ActSerialControlResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -149,6 +151,7 @@ impl ActSerialEndpoint {
             arithmetic_chain: None,
             last_alu_digit_result: None,
             arithmetic_result_image: None,
+            control_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -179,6 +182,7 @@ impl ActSerialEndpoint {
         let execution = ActSerialExecution::new(word, state.instruction_state)?;
         let snapshot = ActSerialStateSnapshot::capture(state);
         self.arithmetic_result_image = ActSerialArithmeticResultImage::begin(&snapshot, &execution);
+        self.control_result_image = ActSerialControlResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.arithmetic_chain = None;
@@ -210,6 +214,10 @@ impl ActSerialEndpoint {
 
     pub const fn serial_arithmetic_result_image(&self) -> Option<ActSerialArithmeticResultImage> {
         self.arithmetic_result_image
+    }
+
+    pub const fn serial_control_result_image(&self) -> Option<ActSerialControlResultImage> {
+        self.control_result_image
     }
 
     /// Start a fetch-only word, explicitly releasing the display window.
@@ -399,6 +407,11 @@ impl ActSerialEndpoint {
 
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
+            if execution.is_complete() {
+                if let Some(image) = &mut self.control_result_image {
+                    image.complete_word();
+                }
+            }
         }
         Ok(())
     }
