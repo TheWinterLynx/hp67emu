@@ -124,6 +124,14 @@ The architectural executor still runs once per word so non-migrated effects such
 
 This does **not** change the physical-timing classification. The selected digit-end coordinate is only the structural point at which the private image has enough information to record one digit result. It is not evidence that the 1820-2530 writes a nibble at b3, shifts storage at a digit boundary, or exposes carry on that coordinate. Exact internal write visibility remains SOURCE-BLOCKED.
 
+## M14F P/status completed-word authority
+
+M14F applies the same separation between final-state authority and physical timing to a focused non-arithmetic control family. The structural endpoint captures pre-instruction P, P-change history, status, carry and instruction state, and creates a private control result image only for the selected ACT special opcodes. The image reproduces per-word P-change aging, previous-carry transfer, carry clear, status/P mutations and condition/ThenGoto semantics independently from the architectural implementation.
+
+The composed architectural executor still runs once to provide the expected final values and to retain PC and other unmigrated effects. For ACT-owned words in this slice, the migrated control fields are restored immediately after the oracle runs. The private control image becomes complete only when the executing structural word reaches b55, then must match the oracle exactly before it is committed.
+
+This b55 completion point is a **WORKING APPROXIMATION** for authority handoff only. It is not evidence that the physical 1820-2530 writes P/status/condition latches at b55 or on any particular PHI edge. Internal control-latch timing remains SOURCE-BLOCKED.
+
 ## Validation target for the first serial opcode
 
 For the first migrated operation, tests must record every `b0..b55` step and prove both:
