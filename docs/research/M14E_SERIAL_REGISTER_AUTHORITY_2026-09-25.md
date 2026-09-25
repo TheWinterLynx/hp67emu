@@ -81,4 +81,10 @@ Behavior-impacting release diagnostic:
 
 `cargo test --release --locked --bin hp67emu live_custom_diagnostic_pac_suite_reports_ok_ko -- --ignored --nocapture`
 
-Expected closure remains `DIAGNOSTIC SUITE OK: 12/12 passed`. This document does not claim validation success until the owner reports it.
+Expected closure remains `DIAGNOSTIC SUITE OK: 12/12 passed`.
+
+## Validation result
+
+On 2026-09-25 the repository owner reported the full local Windows formatting/warnings/all-targets/release gate green for commit `99bf6a709e35999bb1c37d796fb0551a650ec2e1`. The ignored release diagnostic then completed with `DIAGNOSTIC SUITE OK: 12/12 passed`.
+
+This validates the M14E implementation and final-state authority bridge. It does **not** change the source-blocked classification of exact intra-word/PHI-relative ACT register and carry timing.
