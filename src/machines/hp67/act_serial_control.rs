@@ -244,19 +244,28 @@ mod tests {
 
     #[test]
     fn p_and_status_families_match_architectural_boundary_state() {
-        let words = [
-            0o0110u16, 0o0620, 0o0720, 0o0004, 0o0014, 0o0024, 0o0030, 0o0034, 0o0044,
-            0o0054, 0o0074, 0o1704, 0o1714, 0o1724, 0o1730, 0o1734, 0o1744, 0o1754,
-            0o1774,
-        ];
+        for word in [0o0110u16, 0o0620, 0o0720] {
+            for p in [0u8, 1, 7, 13, 15] {
+                let mut state = ActArchitecturalState::default();
+                state.p = p;
+                state.p_change = [1, -1, 1];
+                state.status = std::array::from_fn(|index| index % 3 == 0);
+                state.carry = true;
+                compare_with_architectural(state, word);
+            }
+        }
 
-        for word in words {
-            let mut state = ActArchitecturalState::default();
-            state.p = 7;
-            state.p_change = [1, 1, 0];
-            state.status = std::array::from_fn(|index| index % 3 == 0);
-            state.carry = true;
-            compare_with_architectural(state, word);
+        for family in [0o04u16, 0o14, 0o24, 0o30, 0o34, 0o44, 0o54, 0o74] {
+            for operand in 0u16..=15 {
+                for p in [0u8, 1, 7, 13, 15] {
+                    let mut state = ActArchitecturalState::default();
+                    state.p = p;
+                    state.p_change = [1, 1, -1];
+                    state.status = std::array::from_fn(|index| (index + usize::from(p)) % 3 == 0);
+                    state.carry = operand % 2 == 0;
+                    compare_with_architectural(state, (operand << 6) | family);
+                }
+            }
         }
     }
 
