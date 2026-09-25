@@ -116,6 +116,14 @@ This is classified as a **WORKING APPROXIMATION** at the physical-timing level. 
 
 True migration of internal register mutation onto individual bit/PHI events still requires the evidence listed in the migration rule below. M14D must therefore not be cited as proof of exact internal ACT timing.
 
+## M14E complete arithmetic-family boundary authority
+
+M14E extends the M14D final-state bridge to every Woodstock arithmetic opcode decoded by the structural ACT path. Clear, copy, exchange, shift-left, shift-right, zero/nonzero tests and ADD/SUB all now build their final A/B/C/carry image from the real `b0..b55` structural traversal. Shift sources come only from the immutable pre-instruction register image and use the existing field-selection rules to decide whether the adjacent digit belongs to the same field. Test operations reduce selected digits into the final carry value without changing A/B/C.
+
+The architectural executor still runs once per word so non-migrated effects such as PC advancement, `previous_carry`, and `ThenGoto` state remain available and so its final A/B/C/carry can act as an independent semantic oracle. Those four oracle outputs are immediately restored before the structural word proceeds and are never the causal live result. After b55, the structural result image must match the oracle exactly or the live machine fails.
+
+This does **not** change the physical-timing classification. The selected digit-end coordinate is only the structural point at which the private image has enough information to record one digit result. It is not evidence that the 1820-2530 writes a nibble at b3, shifts storage at a digit boundary, or exposes carry on that coordinate. Exact internal write visibility remains SOURCE-BLOCKED.
+
 ## Validation target for the first serial opcode
 
 For the first migrated operation, tests must record every `b0..b55` step and prove both:
