@@ -733,9 +733,10 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// the instruction-boundary fallback cannot leak post-instruction A/B into the
 /// same physical word. Fetch-only display cycles fall back to the supplied live
 /// ACT state. If an executing word is bound to the endpoint, that same instruction advances
-/// through b0..b55 in lockstep with this transport. ADD/SUB operations also carry
-/// an immutable pre-instruction A/B/C/P/radix snapshot and a source-backed
-/// carry/borrow chain across selected digit boundaries. ROM0 reconstructs the
+/// through b0..b55 in lockstep with this transport. Arithmetic operations also carry
+/// an immutable pre-instruction A/B/C/P/radix snapshot and a private structural
+/// result image; ADD/SUB additionally maintain the source-backed carry/borrow
+/// chain across selected digit boundaries. ROM0 reconstructs the
 /// same resolved bits and emits the returned `Rom0StrEvent`; ACT independently
 /// reports the coarse RCD falling boundary after slot 15. No cathode state enters
 /// this API.
