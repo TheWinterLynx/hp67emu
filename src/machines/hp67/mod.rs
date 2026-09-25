@@ -6,6 +6,7 @@
 //! pin/timing-accurate devices are completed.
 
 pub mod act;
+pub mod act_serial_control;
 pub mod act_serial_execution;
 pub mod act_serial_result;
 pub mod act_serial_state;
@@ -31,6 +32,9 @@ pub use act::{
     ActDisplaySerialError, ActDisplayWordSerializer, ActError, ActExecution, ActInstructionState,
     ActOperation, ActRamImage, ActRegister, PowerOnActCore, PowerOnActError, PowerOnExecution,
     PowerOnOperation, ACT_RAM_WORDS, ACT_RETURN_STACK_DEPTH, ACT_STATUS_BITS, ACT_WORD_DIGITS,
+};
+pub use act_serial_control::{
+    decode_serial_control_action, ActSerialControlAction, ActSerialControlResultImage,
 };
 pub use act_serial_execution::{
     decode_serial_arithmetic_action, ActSerialArithmeticAction, ActSerialArithmeticCoordinate,
