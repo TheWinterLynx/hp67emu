@@ -79,4 +79,8 @@ Behavior-impacting release diagnostic:
 
 Expected closure: `DIAGNOSTIC SUITE OK: 12/12 passed`.
 
-No validation success is claimed until the repository owner reports it.
+## Validation result
+
+On 2026-09-26 the repository owner reported the complete local Windows M14F gate green: formatting, focused M14F tests, warnings-denied all-target tests, release build, and the ignored release diagnostic. The diagnostic finished with `DIAGNOSTIC SUITE OK: 12/12 passed`, including CD-01 through CD-12 all `OK`.
+
+This validates the M14F completed-word authority bridge. It does **not** change the SOURCE-BLOCKED classification of exact intra-word/PHI-relative P, status, carry, `previous_carry`, or condition-latch timing.
