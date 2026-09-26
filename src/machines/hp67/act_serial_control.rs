@@ -49,9 +49,7 @@ pub const fn decode_serial_control_action(
         0o04 => Some(ActSerialControlAction::SetStatus { index: operand }),
         0o14 => Some(ActSerialControlAction::ClearStatusBit { index: operand }),
         0o24 => Some(ActSerialControlAction::TestStatusClear { index: operand }),
-        0o30 => Some(ActSerialControlAction::LoadConstantAndDecrementP {
-            constant: operand,
-        }),
+        0o30 => Some(ActSerialControlAction::LoadConstantAndDecrementP { constant: operand }),
         0o34 => Some(ActSerialControlAction::TestStatusSet { index: operand }),
         0o44 => Some(ActSerialControlAction::TestPEqual { operand }),
         0o54 => Some(ActSerialControlAction::TestPNotEqual { operand }),
@@ -93,8 +91,7 @@ impl ActSerialControlResultImage {
     }
 
     pub fn evaluate(snapshot: &ActSerialStateSnapshot, word: u16) -> Option<Self> {
-        let mut execution =
-            ActSerialExecution::new(word, ActInstructionState::Normal).ok()?;
+        let mut execution = ActSerialExecution::new(word, ActInstructionState::Normal).ok()?;
         let mut image = Self::begin(snapshot, &execution)?;
 
         for word_bit in 0..BITS_PER_WORD {
@@ -302,7 +299,13 @@ mod tests {
     fn non_control_words_have_no_m14f_result_image() {
         let state = ActArchitecturalState::default();
         let snapshot = ActSerialStateSnapshot::capture(&state);
-        assert_eq!(ActSerialControlResultImage::evaluate(&snapshot, 0o0000), None);
-        assert_eq!(ActSerialControlResultImage::evaluate(&snapshot, 0x122), None);
+        assert_eq!(
+            ActSerialControlResultImage::evaluate(&snapshot, 0o0000),
+            None
+        );
+        assert_eq!(
+            ActSerialControlResultImage::evaluate(&snapshot, 0x122),
+            None
+        );
     }
 }
