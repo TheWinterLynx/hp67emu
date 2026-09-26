@@ -4,13 +4,13 @@ use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
     ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
-    ActSerialRegister, CardInsertionEnd,
-    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
-    Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
-    RomFetchEndpoint, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
-    ACT_STATUS_BITS, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    ActSerialRegister, CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction,
+    FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
+    Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, ACT_STATUS_BITS,
+    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -477,12 +477,8 @@ impl Hp67LiveMachine {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
 
-            let (
-                execution,
-                deferred_ram_data,
-                deferred_serial_arithmetic,
-                deferred_serial_control,
-            ) = self.execute_word_with_deferred_authority(cycle, word)?;
+            let (execution, deferred_ram_data, deferred_serial_arithmetic, deferred_serial_control) =
+                self.execute_word_with_deferred_authority(cycle, word)?;
             ram_data_transfer = deferred_ram_data;
             serial_arithmetic_authority = deferred_serial_arithmetic;
             serial_control_authority = deferred_serial_control;
@@ -626,15 +622,7 @@ impl Hp67LiveMachine {
 
         let serial_control = match (control_before, execution.operation) {
             (
-                Some((
-                    action,
-                    p,
-                    p_change,
-                    status,
-                    carry,
-                    previous_carry,
-                    instruction_state,
-                )),
+                Some((action, p, p_change, status, carry, previous_carry, instruction_state)),
                 Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }),
             ) if opcode == word => {
                 let pending = PendingSerialControlAuthority {
@@ -791,12 +779,15 @@ impl Hp67LiveMachine {
             return Ok(());
         };
 
-        let actual = self.act_serial.serial_control_result_image().ok_or_else(|| {
-            format!(
-                "live cycle {cycle} lost serial control result image for word 0x{:03x}",
-                pending.word
-            )
-        })?;
+        let actual = self
+            .act_serial
+            .serial_control_result_image()
+            .ok_or_else(|| {
+                format!(
+                    "live cycle {cycle} lost serial control result image for word 0x{:03x}",
+                    pending.word
+                )
+            })?;
 
         if !actual.is_complete()
             || actual.action() != pending.action
