@@ -41,6 +41,13 @@ pub struct ActSerialStateSnapshot {
     a: ActRegister,
     b: ActRegister,
     c: ActRegister,
+    y: ActRegister,
+    z: ActRegister,
+    t: ActRegister,
+    m1: ActRegister,
+    m2: ActRegister,
+    f: u8,
+    key_buffer: Option<u8>,
     p: u8,
     p_change: [i8; 3],
     status: [bool; ACT_STATUS_BITS],
@@ -56,6 +63,13 @@ impl ActSerialStateSnapshot {
             a: state.a,
             b: state.b,
             c: state.c,
+            y: state.y,
+            z: state.z,
+            t: state.t,
+            m1: state.m1,
+            m2: state.m2,
+            f: state.f,
+            key_buffer: state.key_buffer,
             p: state.p,
             p_change: state.p_change,
             status: state.status,
@@ -64,6 +78,34 @@ impl ActSerialStateSnapshot {
             decimal: state.decimal,
             display_enable: state.display_enable,
         }
+    }
+
+    pub const fn y(&self) -> &ActRegister {
+        &self.y
+    }
+
+    pub const fn z(&self) -> &ActRegister {
+        &self.z
+    }
+
+    pub const fn t(&self) -> &ActRegister {
+        &self.t
+    }
+
+    pub const fn m1(&self) -> &ActRegister {
+        &self.m1
+    }
+
+    pub const fn m2(&self) -> &ActRegister {
+        &self.m2
+    }
+
+    pub const fn f(&self) -> u8 {
+        self.f
+    }
+
+    pub const fn key_buffer(&self) -> Option<u8> {
+        self.key_buffer
     }
 
     pub const fn p(&self) -> u8 {
