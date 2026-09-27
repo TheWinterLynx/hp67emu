@@ -275,8 +275,8 @@ mod tests {
     #[test]
     fn fixed_special_register_families_match_architectural_boundary_state() {
         for word in [
-            0o0010u16, 0o0410, 0o0510, 0o0610, 0o0710, 0o1010, 0o1110, 0o1210, 0o1310,
-            0o1610, 0o1710, 0o0120, 0o0520,
+            0o0010u16, 0o0410, 0o0510, 0o0610, 0o0710, 0o1010, 0o1110, 0o1210, 0o1310, 0o1610,
+            0o1710, 0o0120, 0o0520,
         ] {
             compare_with_architectural(nontrivial_state(), word);
         }
