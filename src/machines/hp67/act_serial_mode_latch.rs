@@ -197,8 +197,17 @@ mod tests {
     #[test]
     fn non_mode_latch_words_have_no_m14h_result_image() {
         let snapshot = ActSerialStateSnapshot::capture(&ActArchitecturalState::default());
-        assert_eq!(ActSerialModeLatchResultImage::evaluate(&snapshot, 0o0000), None);
-        assert_eq!(ActSerialModeLatchResultImage::evaluate(&snapshot, 0o1060), None);
-        assert_eq!(ActSerialModeLatchResultImage::evaluate(&snapshot, 0o0064), None);
+        assert_eq!(
+            ActSerialModeLatchResultImage::evaluate(&snapshot, 0o0000),
+            None
+        );
+        assert_eq!(
+            ActSerialModeLatchResultImage::evaluate(&snapshot, 0o1060),
+            None
+        );
+        assert_eq!(
+            ActSerialModeLatchResultImage::evaluate(&snapshot, 0o0064),
+            None
+        );
     }
 }
