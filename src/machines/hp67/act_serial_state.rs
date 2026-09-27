@@ -55,6 +55,8 @@ pub struct ActSerialStateSnapshot {
     instruction_state: ActInstructionState,
     decimal: bool,
     display_enable: bool,
+    display_14_digit: bool,
+    ram_address: u8,
 }
 
 impl ActSerialStateSnapshot {
@@ -77,6 +79,8 @@ impl ActSerialStateSnapshot {
             instruction_state: state.instruction_state,
             decimal: state.decimal,
             display_enable: state.display_enable,
+            display_14_digit: state.display_14_digit,
+            ram_address: state.ram_address,
         }
     }
 
@@ -134,6 +138,14 @@ impl ActSerialStateSnapshot {
 
     pub const fn display_enable(&self) -> bool {
         self.display_enable
+    }
+
+    pub const fn display_14_digit(&self) -> bool {
+        self.display_14_digit
+    }
+
+    pub const fn ram_address(&self) -> u8 {
+        self.ram_address
     }
 
     pub const fn radix(&self) -> u8 {
