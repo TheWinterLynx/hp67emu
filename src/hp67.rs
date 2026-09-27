@@ -1259,13 +1259,14 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial ADD execution must start");
-        let (_, ram_transfer, pending, control_pending, special_pending) = live
+        let (_, ram_transfer, pending, control_pending, special_pending, mode_pending) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural ADD oracle must execute");
         let pending = pending.expect("ADD must use serial arithmetic authority");
 
         assert_eq!(control_pending, None);
         assert_eq!(special_pending, None);
+        assert_eq!(mode_pending, None);
         assert_eq!(ram_transfer, None);
         assert_eq!(live.machine.act.state.a, before.a);
         assert_eq!(live.machine.act.state.b, before.b);
@@ -1301,13 +1302,14 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial compare execution must start");
-        let (_, ram_transfer, pending, control_pending, special_pending) = live
+        let (_, ram_transfer, pending, control_pending, special_pending, mode_pending) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural compare oracle must execute");
         let pending = pending.expect("compare must use serial arithmetic authority");
 
         assert_eq!(control_pending, None);
         assert_eq!(special_pending, None);
+        assert_eq!(mode_pending, None);
         assert_eq!(ram_transfer, None);
         assert_eq!(live.machine.act.state.a, before.a);
         assert_eq!(live.machine.act.state.b, before.b);
@@ -1372,13 +1374,14 @@ mod tests {
             live.act_serial
                 .begin_execution(word, &before)
                 .expect("serial arithmetic execution must start");
-            let (_, ram_transfer, pending, control_pending, special_pending) = live
+            let (_, ram_transfer, pending, control_pending, special_pending, mode_pending) = live
                 .execute_word_with_deferred_authority(0, word)
                 .expect("architectural arithmetic oracle must execute");
             let pending = pending.expect("arithmetic word must use serial authority");
 
             assert_eq!(control_pending, None);
             assert_eq!(special_pending, None);
+            assert_eq!(mode_pending, None);
             assert_eq!(ram_transfer, None);
             assert_eq!(live.machine.act.state.a, before.a);
             assert_eq!(live.machine.act.state.b, before.b);
@@ -1409,7 +1412,14 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial P increment execution must start");
-        let (_, ram_transfer, arithmetic_pending, control_pending, special_pending) = live
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural P increment oracle must execute");
         let pending = control_pending.expect("P increment must use serial control authority");
@@ -1417,6 +1427,7 @@ mod tests {
         assert_eq!(ram_transfer, None);
         assert_eq!(arithmetic_pending, None);
         assert_eq!(special_pending, None);
+        assert_eq!(mode_pending, None);
         assert_eq!(live.machine.act.state.p, before.p);
         assert_eq!(live.machine.act.state.p_change, before.p_change);
         assert_eq!(live.machine.act.state.carry, before.carry);
@@ -1447,7 +1458,14 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial status test execution must start");
-        let (_, ram_transfer, arithmetic_pending, control_pending, special_pending) = live
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural status-test oracle must execute");
         let pending = control_pending.expect("status test must use serial control authority");
@@ -1455,6 +1473,7 @@ mod tests {
         assert_eq!(ram_transfer, None);
         assert_eq!(arithmetic_pending, None);
         assert_eq!(special_pending, None);
+        assert_eq!(mode_pending, None);
         assert_eq!(live.machine.act.state.status, before.status);
         assert_eq!(live.machine.act.state.carry, before.carry);
         assert_eq!(
@@ -1490,7 +1509,14 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial C/M1 exchange must start");
-        let (_, ram_transfer, arithmetic_pending, control_pending, special_pending) = live
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural C/M1 exchange oracle must execute");
         let pending = special_pending.expect("C/M1 exchange must use special-register authority");
@@ -1498,6 +1524,7 @@ mod tests {
         assert_eq!(ram_transfer, None);
         assert_eq!(arithmetic_pending, None);
         assert_eq!(control_pending, None);
+        assert_eq!(mode_pending, None);
         assert_eq!(live.machine.act.state.c, before.c);
         assert_eq!(live.machine.act.state.m1, before.m1);
         assert_eq!(pending.expected_c, before.m1);
@@ -1523,7 +1550,14 @@ mod tests {
         live.act_serial
             .begin_execution(word, &before)
             .expect("serial load constant must start");
-        let (_, ram_transfer, arithmetic_pending, control_pending, special_pending) = live
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
             .execute_word_with_deferred_authority(0, word)
             .expect("architectural load-constant oracle must execute");
         let control = control_pending.expect("load constant must use P/control authority");
@@ -1531,6 +1565,7 @@ mod tests {
 
         assert_eq!(ram_transfer, None);
         assert_eq!(arithmetic_pending, None);
+        assert_eq!(mode_pending, None);
         assert_eq!(live.machine.act.state.p, before.p);
         assert_eq!(live.machine.act.state.c, before.c);
 
@@ -1543,6 +1578,126 @@ mod tests {
 
         assert_eq!(live.machine.act.state.p, 3);
         assert_eq!(live.machine.act.state.c[4], 0o12);
+    }
+
+    #[test]
+    fn serial_hex_mode_is_deferred_until_structural_word_completion() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.decimal = true;
+        let before = live.machine.act.state.clone();
+        let word = 0o0420;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial HEX-mode execution must start");
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural HEX-mode oracle must execute");
+        let pending = mode_pending.expect("HEX mode must use structural mode/latch authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(arithmetic_pending, None);
+        assert_eq!(control_pending, None);
+        assert_eq!(special_pending, None);
+        assert!(live.machine.act.state.decimal);
+        assert!(!pending.expected_decimal);
+
+        live.transport_fetch_word(0, None)
+            .expect("structural HEX-mode word must complete");
+        live.complete_serial_mode_latch_authority(0, Some(pending))
+            .expect("serial HEX-mode image must match and commit");
+
+        assert!(!live.machine.act.state.decimal);
+    }
+
+    #[test]
+    fn serial_ram_address_select_uses_pre_instruction_c_and_commits_at_b55() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.ram_address = 0x11;
+        live.machine.act.state.c[0] = 0x0d;
+        live.machine.act.state.c[1] = 0x06;
+        let before = live.machine.act.state.clone();
+        let word = 0o1160;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial RAM-address select must start");
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural RAM-address oracle must execute");
+        let pending =
+            mode_pending.expect("RAM-address select must use structural mode/latch authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(arithmetic_pending, None);
+        assert_eq!(control_pending, None);
+        assert_eq!(special_pending, None);
+        assert_eq!(live.machine.act.state.ram_address, 0x11);
+        assert_eq!(pending.expected_ram_address, 0x6d);
+
+        live.transport_fetch_word(0, None)
+            .expect("structural RAM-address word must complete");
+        live.complete_serial_mode_latch_authority(0, Some(pending))
+            .expect("serial RAM-address image must match and commit");
+
+        assert_eq!(live.machine.act.state.ram_address, 0x6d);
+    }
+
+    #[test]
+    fn serial_display_toggle_keeps_same_word_display_source_pre_instruction() {
+        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        live.machine.act.state.display_enable = false;
+        let before = live.machine.act.state.clone();
+        let word = 0o0210;
+
+        live.act_serial
+            .begin_execution(word, &before)
+            .expect("serial display toggle must start");
+        let (
+            _,
+            ram_transfer,
+            arithmetic_pending,
+            control_pending,
+            special_pending,
+            mode_pending,
+        ) = live
+            .execute_word_with_deferred_authority(0, word)
+            .expect("architectural display-toggle oracle must execute");
+        let pending =
+            mode_pending.expect("display toggle must use structural mode/latch authority");
+
+        assert_eq!(ram_transfer, None);
+        assert_eq!(arithmetic_pending, None);
+        assert_eq!(control_pending, None);
+        assert_eq!(special_pending, None);
+        assert!(!live.machine.act.state.display_enable);
+        assert!(pending.expected_display_enable);
+        assert!(!live
+            .act_serial
+            .serial_execution_state()
+            .expect("serial snapshot must remain bound")
+            .display_enable());
+
+        live.transport_fetch_word(0, None)
+            .expect("structural display-toggle word must complete");
+        live.complete_serial_mode_latch_authority(0, Some(pending))
+            .expect("serial display-toggle image must match and commit");
+
+        assert!(live.machine.act.state.display_enable);
     }
 
     #[test]
