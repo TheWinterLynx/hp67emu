@@ -1412,7 +1412,7 @@ mod tests {
             .expect("serial P increment execution must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural P increment oracle must execute");
+                .expect("architectural P increment oracle must execute");
         let pending = control_pending.expect("P increment must use serial control authority");
 
         assert_eq!(ram_transfer, None);
@@ -1451,7 +1451,7 @@ mod tests {
             .expect("serial status test execution must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural status-test oracle must execute");
+                .expect("architectural status-test oracle must execute");
         let pending = control_pending.expect("status test must use serial control authority");
 
         assert_eq!(ram_transfer, None);
@@ -1495,7 +1495,7 @@ mod tests {
             .expect("serial C/M1 exchange must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural C/M1 exchange oracle must execute");
+                .expect("architectural C/M1 exchange oracle must execute");
         let pending = special_pending.expect("C/M1 exchange must use special-register authority");
 
         assert_eq!(ram_transfer, None);
@@ -1529,7 +1529,7 @@ mod tests {
             .expect("serial load constant must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural load-constant oracle must execute");
+                .expect("architectural load-constant oracle must execute");
         let control = control_pending.expect("load constant must use P/control authority");
         let special = special_pending.expect("load constant must use C register authority");
 
@@ -1562,7 +1562,7 @@ mod tests {
             .expect("serial HEX-mode execution must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural HEX-mode oracle must execute");
+                .expect("architectural HEX-mode oracle must execute");
         let pending = mode_pending.expect("HEX mode must use structural mode/latch authority");
 
         assert_eq!(ram_transfer, None);
@@ -1594,7 +1594,7 @@ mod tests {
             .expect("serial RAM-address select must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural RAM-address oracle must execute");
+                .expect("architectural RAM-address oracle must execute");
         let pending =
             mode_pending.expect("RAM-address select must use structural mode/latch authority");
 
@@ -1625,7 +1625,7 @@ mod tests {
             .expect("serial display toggle must start");
         let (_, ram_transfer, arithmetic_pending, control_pending, special_pending, mode_pending) =
             live.execute_word_with_deferred_authority(0, word)
-            .expect("architectural display-toggle oracle must execute");
+                .expect("architectural display-toggle oracle must execute");
         let pending =
             mode_pending.expect("display toggle must use structural mode/latch authority");
 
