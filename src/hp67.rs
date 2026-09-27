@@ -4,7 +4,8 @@ use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
     ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
-    ActSerialRegister, ActSerialSpecialRegisterAction, CardInsertionEnd, CathodeDriver1820_1749,
+    ActSerialModeLatchAction, ActSerialRegister, ActSerialSpecialRegisterAction, CardInsertionEnd,
+    CathodeDriver1820_1749,
     CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
     Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
@@ -242,6 +243,16 @@ struct PendingSerialSpecialRegisterAuthority {
     expected_f: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingSerialModeLatchAuthority {
+    word: u16,
+    action: ActSerialModeLatchAction,
+    expected_decimal: bool,
+    expected_display_enable: bool,
+    expected_display_14_digit: bool,
+    expected_ram_address: u8,
+}
+
 /// UI-owned live HP-67 machine used only as the source of physical LED state.
 ///
 /// `hp67firmware` is versioned with the emulator and embedded in the executable.
@@ -470,6 +481,7 @@ impl Hp67LiveMachine {
         let mut serial_arithmetic_authority = None;
         let mut serial_control_authority = None;
         let mut serial_special_register_authority = None;
+        let mut serial_mode_latch_authority = None;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
@@ -499,11 +511,13 @@ impl Hp67LiveMachine {
                 deferred_serial_arithmetic,
                 deferred_serial_control,
                 deferred_serial_special_register,
+                deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
             ram_data_transfer = deferred_ram_data;
             serial_arithmetic_authority = deferred_serial_arithmetic;
             serial_control_authority = deferred_serial_control;
             serial_special_register_authority = deferred_serial_special_register;
+            serial_mode_latch_authority = deferred_serial_mode_latch;
             if self.card_transport.card().is_some()
                 && !self.card_transport.head_active()
                 && self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
@@ -537,16 +551,22 @@ impl Hp67LiveMachine {
             {
                 if matches!(opcode, 0o0210 | 0o0310) {
                     self.display_control_seen = true;
-                    if !self.machine.act.state.display_enable {
+                    let display_enable_after = serial_mode_latch_authority
+                        .map(|pending| pending.expected_display_enable)
+                        .unwrap_or(self.machine.act.state.display_enable);
+                    if !display_enable_after {
                         self.display.clear();
                     }
                 }
             }
 
+            let display_enable_after = serial_mode_latch_authority
+                .map(|pending| pending.expected_display_enable)
+                .unwrap_or(self.machine.act.state.display_enable);
             idle_after_word = self.saw_display_init
                 && self.main_wait_visits >= 2
                 && self.card_poll_visits >= 1
-                && self.machine.act.state.display_enable
+                && display_enable_after
                 && self.machine.act.state.key_buffer.is_none();
         }
 
@@ -568,6 +588,7 @@ impl Hp67LiveMachine {
         self.complete_serial_arithmetic_authority(cycle, serial_arithmetic_authority)?;
         self.complete_serial_control_authority(cycle, serial_control_authority)?;
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
+        self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
 
         self.card_transport
             .advance_us(
@@ -602,6 +623,7 @@ impl Hp67LiveMachine {
             Option<PendingSerialArithmeticAuthority>,
             Option<PendingSerialControlAuthority>,
             Option<PendingSerialSpecialRegisterAuthority>,
+            Option<PendingSerialModeLatchAuthority>,
         ),
         String,
     > {
@@ -642,6 +664,16 @@ impl Hp67LiveMachine {
                         self.machine.act.state.f,
                     )
                 });
+
+        let mode_latch_before = self.act_serial.serial_mode_latch_result_image().map(|image| {
+            (
+                image.action(),
+                self.machine.act.state.decimal,
+                self.machine.act.state.display_enable,
+                self.machine.act.state.display_14_digit,
+                self.machine.act.state.ram_address,
+            )
+        });
 
         let (execution, ram_data_transfer) =
             self.execute_word_with_deferred_ram_data(cycle, word)?;
@@ -722,12 +754,36 @@ impl Hp67LiveMachine {
             _ => None,
         };
 
+        let serial_mode_latch = match (mode_latch_before, execution.operation) {
+            (
+                Some((action, decimal, display_enable, display_14_digit, ram_address)),
+                Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }),
+            ) if opcode == word => {
+                let pending = PendingSerialModeLatchAuthority {
+                    word,
+                    action,
+                    expected_decimal: self.machine.act.state.decimal,
+                    expected_display_enable: self.machine.act.state.display_enable,
+                    expected_display_14_digit: self.machine.act.state.display_14_digit,
+                    expected_ram_address: self.machine.act.state.ram_address,
+                };
+
+                self.machine.act.state.decimal = decimal;
+                self.machine.act.state.display_enable = display_enable;
+                self.machine.act.state.display_14_digit = display_14_digit;
+                self.machine.act.state.ram_address = ram_address;
+                Some(pending)
+            }
+            _ => None,
+        };
+
         Ok((
             execution,
             ram_data_transfer,
             serial_arithmetic,
             serial_control,
             serial_special_register,
+            serial_mode_latch,
         ))
     }
 
@@ -951,6 +1007,55 @@ impl Hp67LiveMachine {
         self.machine.act.state.m1 = *actual.m1();
         self.machine.act.state.m2 = *actual.m2();
         self.machine.act.state.f = actual.f();
+        Ok(())
+    }
+
+    fn complete_serial_mode_latch_authority(
+        &mut self,
+        cycle: u64,
+        pending: Option<PendingSerialModeLatchAuthority>,
+    ) -> Result<(), String> {
+        let Some(pending) = pending else {
+            return Ok(());
+        };
+
+        let actual = self
+            .act_serial
+            .serial_mode_latch_result_image()
+            .ok_or_else(|| {
+                format!(
+                    "live cycle {cycle} lost serial mode/latch result image for word 0x{:03x}",
+                    pending.word
+                )
+            })?;
+
+        if !actual.is_complete()
+            || actual.action() != pending.action
+            || actual.decimal() != pending.expected_decimal
+            || actual.display_enable() != pending.expected_display_enable
+            || actual.display_14_digit() != pending.expected_display_14_digit
+            || actual.ram_address() != pending.expected_ram_address
+        {
+            return Err(format!(
+                "live cycle {cycle} serial mode/latch authority mismatch for word 0x{:03x} action={:?}: expected decimal={} display_enable={} display_14_digit={} ram_address=0x{:02x}; actual decimal={} display_enable={} display_14_digit={} ram_address=0x{:02x} complete={}",
+                pending.word,
+                pending.action,
+                pending.expected_decimal,
+                pending.expected_display_enable,
+                pending.expected_display_14_digit,
+                pending.expected_ram_address,
+                actual.decimal(),
+                actual.display_enable(),
+                actual.display_14_digit(),
+                actual.ram_address(),
+                actual.is_complete(),
+            ));
+        }
+
+        self.machine.act.state.decimal = actual.decimal();
+        self.machine.act.state.display_enable = actual.display_enable();
+        self.machine.act.state.display_14_digit = actual.display_14_digit();
+        self.machine.act.state.ram_address = actual.ram_address();
         Ok(())
     }
 
