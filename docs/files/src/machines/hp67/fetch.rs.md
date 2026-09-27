@@ -63,3 +63,6 @@ M14G adds a third private completed-word result image for selected non-arithmeti
 
 
 M14H adds a fourth private completed-word result image for selected mode/latch specials: DISPLAY toggle/off, decimal/hex selection, 14-digit display enable and RAM-address selection from C[1:0]. It remains incomplete through b0..b54 and is completed only after the structural execution reaches b55. Same-word display serialization continues to use the immutable pre-instruction snapshot, so deferring the live DISPLAY latch does not let the oracle's post-instruction value leak into b0..b7. The b55 handoff remains a WORKING APPROXIMATION and makes no PHI-relative latch-timing claim.
+
+
+The pre-existing startup DISPLAY bridge is now execution-local: `set_execution_display_enable_override(true)` changes only the b0..b7 DISPLAY-enable source for the currently bound word. It does not modify `ActSerialStateSnapshot`, so M14H sees the real architectural pre-instruction DISPLAY latch even during the early power-on window.
