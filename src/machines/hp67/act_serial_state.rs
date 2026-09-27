@@ -3,8 +3,9 @@
 //! The instruction-boundary architectural core currently applies a complete
 //! Woodstock operation before the structural b0..b55 word has finished. Serial
 //! execution therefore needs its own pre-instruction view of A/B/C plus the
-//! M14G special-register sources, M14F P/status/condition inputs and radix so
-//! later structural work cannot accidentally observe post-instruction state.
+//! M14G special-register sources, M14F P/status/condition inputs, M14H
+//! mode/latch inputs and radix so later structural work cannot accidentally
+//! observe post-instruction state.
 
 use super::{
     act::{
