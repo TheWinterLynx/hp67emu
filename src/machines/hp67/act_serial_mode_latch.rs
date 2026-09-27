@@ -141,7 +141,7 @@ mod tests {
     use super::*;
     use crate::machines::hp67::{ActArchitecturalCore, ActArchitecturalState, ActRamImage};
 
-    fn compare_with_architectural(mut state: ActArchitecturalState, word: u16) {
+    fn compare_with_architectural(state: ActArchitecturalState, word: u16) {
         let snapshot = ActSerialStateSnapshot::capture(&state);
         let image = ActSerialModeLatchResultImage::evaluate(&snapshot, word)
             .expect("test word must be in the M14H mode/latch family");
@@ -157,10 +157,6 @@ mod tests {
         assert_eq!(image.display_enable(), core.state.display_enable);
         assert_eq!(image.display_14_digit(), core.state.display_14_digit);
         assert_eq!(image.ram_address(), core.state.ram_address);
-
-        // Keep the mutable local alive as a guard against accidentally making
-        // the oracle comparison depend on Default-only state.
-        state.normalize_widths();
     }
 
     #[test]
