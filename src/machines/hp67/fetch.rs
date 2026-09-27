@@ -166,9 +166,9 @@ impl ActSerialEndpoint {
     /// The architectural oracle may still compute effects that have not migrated
     /// to the structural path, but the serial endpoint owns an immutable source
     /// snapshot from before those effects. For every arithmetic opcode it owns
-    /// the structural arithmetic result image; for the M14F P/status family it
-    /// also owns a control image that becomes complete only at b55. A new
-    /// instruction cannot replace an execution that has not reached b55.
+    /// the structural arithmetic result image; M14F adds P/status control state
+    /// and M14G adds selected special-register state, both completing only at
+    /// b55. A new instruction cannot replace an execution that has not reached b55.
     pub fn begin_execution(
         &mut self,
         word: u16,
