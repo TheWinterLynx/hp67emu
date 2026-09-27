@@ -1301,6 +1301,42 @@ mod tests {
     }
 
     #[test]
+    fn special_register_result_image_completes_only_after_b55() {
+        let mut state = ActArchitecturalState::default();
+        state.c = std::array::from_fn(|digit| digit as u8);
+        state.m1 = std::array::from_fn(|digit| (13 - digit) as u8);
+
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0410, &state)
+            .expect("C/M1 exchange must start serial execution");
+
+        let initial = act
+            .serial_special_register_result_image()
+            .expect("C/M1 exchange must create a special-register result image");
+        assert!(!initial.is_complete());
+        assert_eq!(initial.c(), &state.c);
+        assert_eq!(initial.m1(), &state.m1);
+
+        for bit in 0..(BITS_PER_WORD - 1) {
+            act.advance_execution_for_bit(bit)
+                .expect("special-register execution must advance before b55");
+        }
+        assert!(!act
+            .serial_special_register_result_image()
+            .expect("special-register image must remain present")
+            .is_complete());
+
+        act.advance_execution_for_bit(BITS_PER_WORD - 1)
+            .expect("b55 must complete special-register execution");
+        let complete = act
+            .serial_special_register_result_image()
+            .expect("completed special-register image must remain inspectable");
+        assert!(complete.is_complete());
+        assert_eq!(complete.c(), &state.m1);
+        assert_eq!(complete.m1(), &state.c);
+    }
+
+    #[test]
     fn incomplete_execution_cannot_be_replaced_by_another_word() {
         let state = ActArchitecturalState::default();
         let mut act = ActSerialEndpoint::new(0);
