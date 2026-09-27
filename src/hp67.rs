@@ -5,8 +5,7 @@ use hp67emu::machines::hp67::{
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
     ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
     ActSerialRegister, ActSerialSpecialRegisterAction, CardInsertionEnd, CathodeDriver1820_1749,
-    CrcInstruction,
-    FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
+    CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
     Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
     Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, ACT_STATUS_BITS,
@@ -568,10 +567,7 @@ impl Hp67LiveMachine {
 
         self.complete_serial_arithmetic_authority(cycle, serial_arithmetic_authority)?;
         self.complete_serial_control_authority(cycle, serial_control_authority)?;
-        self.complete_serial_special_register_authority(
-            cycle,
-            serial_special_register_authority,
-        )?;
+        self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
 
         self.card_transport
             .advance_us(
@@ -629,23 +625,23 @@ impl Hp67LiveMachine {
             )
         });
 
-        let special_register_before = self
-            .act_serial
-            .serial_special_register_result_image()
-            .map(|image| {
-                (
-                    image.action(),
-                    self.machine.act.state.a,
-                    self.machine.act.state.b,
-                    self.machine.act.state.c,
-                    self.machine.act.state.y,
-                    self.machine.act.state.z,
-                    self.machine.act.state.t,
-                    self.machine.act.state.m1,
-                    self.machine.act.state.m2,
-                    self.machine.act.state.f,
-                )
-            });
+        let special_register_before =
+            self.act_serial
+                .serial_special_register_result_image()
+                .map(|image| {
+                    (
+                        image.action(),
+                        self.machine.act.state.a,
+                        self.machine.act.state.b,
+                        self.machine.act.state.c,
+                        self.machine.act.state.y,
+                        self.machine.act.state.z,
+                        self.machine.act.state.t,
+                        self.machine.act.state.m1,
+                        self.machine.act.state.m2,
+                        self.machine.act.state.f,
+                    )
+                });
 
         let (execution, ram_data_transfer) =
             self.execute_word_with_deferred_ram_data(cycle, word)?;
