@@ -9,6 +9,7 @@ pub mod act;
 pub mod act_serial_control;
 pub mod act_serial_execution;
 pub mod act_serial_result;
+pub mod act_serial_special_register;
 pub mod act_serial_state;
 pub mod architectural;
 pub mod card_flux;
@@ -42,6 +43,10 @@ pub use act_serial_execution::{
     ActSerialWordClass,
 };
 pub use act_serial_result::ActSerialArithmeticResultImage;
+pub use act_serial_special_register::{
+    decode_serial_special_register_action, ActSerialSpecialRegisterAction,
+    ActSerialSpecialRegisterResultImage,
+};
 pub use act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot};
 pub use architectural::{
     Hp67ArchitecturalError, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
