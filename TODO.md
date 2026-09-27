@@ -133,6 +133,8 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Validate M14E locally with formatting/warnings/all-targets/release gate plus ignored 12-program release diagnostic (`DIAGNOSTIC SUITE OK: 12/12 passed`, owner-reported 2026-09-25).
 - [x] Move final P/status condition state for the focused special-opcode family onto a completed-word structural result image while keeping exact internal control timing source-blocked (M14F implementation).
 - [x] Validate M14F locally with formatting/warnings/all-targets/release gate plus ignored 12-program release diagnostic (`DIAGNOSTIC SUITE OK: 12/12 passed`, owner-reported 2026-09-26).
+- [x] Move final special-register state for clear/stack/M1/M2/F/key/A-rotate plus load-constant C[P] onto a completed-word structural result image (M14G implementation).
+- [ ] Validate M14G locally with formatting/warnings/all-targets/release gate plus ignored 12-program release diagnostic before merge.
 - [ ] Resolve source-backed intra-word ACT register/carry write timing before moving those effects onto specific bit/PHI edges.
 - [ ] Implement serial arithmetic/ALU timing.
 - [ ] Implement SYNC and RCD outputs.
