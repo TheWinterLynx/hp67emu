@@ -142,6 +142,16 @@ Load-constant deliberately uses two independent structural images built from the
 
 As in M14F, b55 is only the completed-word authority handoff. Exact Y/Z/T/M1/M2/F/key and load-constant internal write timing remains SOURCE-BLOCKED.
 
+## M14H mode/latch completed-word authority
+
+M14H extends structural final-state authority to decimal/hex mode, DISPLAY toggle/off, 14-digit-display enable and RAM-address selection from C[1:0]. The architectural executor still runs once as oracle; its M14H outputs are restored immediately, and the structural image becomes authoritative only after the executing word reaches b55 and matches the oracle exactly.
+
+The power-on display bridge is now separated from the immutable ACT snapshot. Direct HP-67 startup evidence still requires display traffic before the first explicit DISPLAY-control instruction, but that temporary override affects only b0..b7 serialization. It cannot alter the real pre-instruction DISPLAY latch used by M14H.
+
+Bank switching, delayed-ROM state, PC and return-stack effects remain outside M14H because they directly influence the successor-fetch/control-flow path and cannot safely be treated as ordinary post-fetch latches.
+
+As in M14F/M14G, b55 is only a **WORKING APPROXIMATION** for authority transfer. Exact internal latch and PHI timing remains SOURCE-BLOCKED.
+
 ## Validation target for the first serial opcode
 
 For the first migrated operation, tests must record every `b0..b55` step and prove both:
