@@ -83,4 +83,8 @@ Behavior-impacting release diagnostic:
 
 Expected closure: `DIAGNOSTIC SUITE OK: 12/12 passed`.
 
-No validation success is claimed until the repository owner reports it.
+## Validation result
+
+On 2026-09-27 the repository owner reported `M14G FULL GATE GREEN` after running the full local Windows sequence: formatting, focused M14G tests, warnings-denied all-target tests, release build, and the ignored release diagnostic.
+
+This validates the M14G completed-word special-register authority bridge. It does **not** change the SOURCE-BLOCKED classification of exact intra-word/PHI-relative register-transfer timing.
