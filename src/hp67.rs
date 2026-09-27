@@ -488,23 +488,18 @@ impl Hp67LiveMachine {
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
-            let startup_serial_state = if self.display_control_seen {
-                None
-            } else {
-                // Direct power-on capture shows display traffic before firmware
-                // executes its first explicit DISPLAY control instruction.
-                let mut state = self.machine.act.state.clone();
-                state.display_enable = true;
-                Some(state)
-            };
-            let serial_state = startup_serial_state
-                .as_ref()
-                .unwrap_or(&self.machine.act.state);
             self.act_serial
-                .begin_execution(word, serial_state)
+                .begin_execution(word, &self.machine.act.state)
                 .map_err(|error| {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
+            if !self.display_control_seen {
+                // Direct power-on capture shows display traffic before firmware
+                // executes its first explicit DISPLAY control instruction. Keep
+                // that display-only bridge separate from the immutable ACT
+                // pre-instruction snapshot used by structural authority images.
+                self.act_serial.set_execution_display_enable_override(true);
+            }
 
             let (
                 execution,
