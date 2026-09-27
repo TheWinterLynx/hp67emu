@@ -14,6 +14,7 @@ use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     act_serial_control::ActSerialControlResultImage,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
+    act_serial_mode_latch::ActSerialModeLatchResultImage,
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_special_register::ActSerialSpecialRegisterResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
@@ -138,6 +139,7 @@ pub struct ActSerialEndpoint {
     arithmetic_result_image: Option<ActSerialArithmeticResultImage>,
     control_result_image: Option<ActSerialControlResultImage>,
     special_register_result_image: Option<ActSerialSpecialRegisterResultImage>,
+    mode_latch_result_image: Option<ActSerialModeLatchResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -155,6 +157,7 @@ impl ActSerialEndpoint {
             arithmetic_result_image: None,
             control_result_image: None,
             special_register_result_image: None,
+            mode_latch_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -189,6 +192,7 @@ impl ActSerialEndpoint {
         self.control_result_image = ActSerialControlResultImage::begin(&snapshot, &execution);
         self.special_register_result_image =
             ActSerialSpecialRegisterResultImage::begin(&snapshot, &execution);
+        self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.arithmetic_chain = None;
@@ -230,6 +234,10 @@ impl ActSerialEndpoint {
         &self,
     ) -> Option<ActSerialSpecialRegisterResultImage> {
         self.special_register_result_image
+    }
+
+    pub const fn serial_mode_latch_result_image(&self) -> Option<ActSerialModeLatchResultImage> {
+        self.mode_latch_result_image
     }
 
     /// Start a fetch-only word, explicitly releasing the display window.
@@ -425,6 +433,12 @@ impl ActSerialEndpoint {
                 }
                 if let (Some(image), Some(snapshot)) = (
                     self.special_register_result_image.as_mut(),
+                    self.execution_state.as_ref(),
+                ) {
+                    image.complete_word(snapshot);
+                }
+                if let (Some(image), Some(snapshot)) = (
+                    self.mode_latch_result_image.as_mut(),
                     self.execution_state.as_ref(),
                 ) {
                     image.complete_word(snapshot);
@@ -1334,6 +1348,39 @@ mod tests {
         assert!(complete.is_complete());
         assert_eq!(complete.c(), &state.m1);
         assert_eq!(complete.m1(), &state.c);
+    }
+
+    #[test]
+    fn mode_latch_result_image_completes_only_after_b55() {
+        let mut state = ActArchitecturalState::default();
+        state.decimal = true;
+
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0420, &state)
+            .expect("HEX mode must start serial execution");
+
+        let initial = act
+            .serial_mode_latch_result_image()
+            .expect("HEX mode must create a mode/latch image");
+        assert!(!initial.is_complete());
+        assert!(initial.decimal());
+
+        for bit in 0..(BITS_PER_WORD - 1) {
+            act.advance_execution_for_bit(bit)
+                .expect("mode/latch execution must advance before b55");
+        }
+        assert!(!act
+            .serial_mode_latch_result_image()
+            .expect("mode/latch image must remain present")
+            .is_complete());
+
+        act.advance_execution_for_bit(BITS_PER_WORD - 1)
+            .expect("b55 must complete mode/latch execution");
+        let complete = act
+            .serial_mode_latch_result_image()
+            .expect("completed mode/latch image must remain inspectable");
+        assert!(complete.is_complete());
+        assert!(!complete.decimal());
     }
 
     #[test]
