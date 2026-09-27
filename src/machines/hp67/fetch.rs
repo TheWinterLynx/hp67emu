@@ -15,6 +15,7 @@ use super::{
     act_serial_control::ActSerialControlResultImage,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_result::ActSerialArithmeticResultImage,
+    act_serial_special_register::ActSerialSpecialRegisterResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
     data::{Hp67DataSerialError, Hp67DataSerialWordPath},
     display::{
@@ -136,6 +137,7 @@ pub struct ActSerialEndpoint {
     last_alu_digit_result: Option<ActSerialDigitAluResult>,
     arithmetic_result_image: Option<ActSerialArithmeticResultImage>,
     control_result_image: Option<ActSerialControlResultImage>,
+    special_register_result_image: Option<ActSerialSpecialRegisterResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -152,6 +154,7 @@ impl ActSerialEndpoint {
             last_alu_digit_result: None,
             arithmetic_result_image: None,
             control_result_image: None,
+            special_register_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -184,6 +187,8 @@ impl ActSerialEndpoint {
         let snapshot = ActSerialStateSnapshot::capture(state);
         self.arithmetic_result_image = ActSerialArithmeticResultImage::begin(&snapshot, &execution);
         self.control_result_image = ActSerialControlResultImage::begin(&snapshot, &execution);
+        self.special_register_result_image =
+            ActSerialSpecialRegisterResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.arithmetic_chain = None;
@@ -219,6 +224,12 @@ impl ActSerialEndpoint {
 
     pub const fn serial_control_result_image(&self) -> Option<ActSerialControlResultImage> {
         self.control_result_image
+    }
+
+    pub const fn serial_special_register_result_image(
+        &self,
+    ) -> Option<ActSerialSpecialRegisterResultImage> {
+        self.special_register_result_image
     }
 
     /// Start a fetch-only word, explicitly releasing the display window.
@@ -411,6 +422,12 @@ impl ActSerialEndpoint {
             if execution.is_complete() {
                 if let Some(image) = &mut self.control_result_image {
                     image.complete_word();
+                }
+                if let (Some(image), Some(snapshot)) = (
+                    self.special_register_result_image.as_mut(),
+                    self.execution_state.as_ref(),
+                ) {
+                    image.complete_word(snapshot);
                 }
             }
         }
