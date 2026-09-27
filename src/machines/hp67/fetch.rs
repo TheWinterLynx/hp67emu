@@ -134,6 +134,7 @@ pub struct ActSerialEndpoint {
     display_register_index: Option<usize>,
     execution: Option<ActSerialExecution>,
     execution_state: Option<ActSerialStateSnapshot>,
+    execution_display_enable_override: Option<bool>,
     arithmetic_chain: Option<bool>,
     last_alu_digit_result: Option<ActSerialDigitAluResult>,
     arithmetic_result_image: Option<ActSerialArithmeticResultImage>,
@@ -152,6 +153,7 @@ impl ActSerialEndpoint {
             display_register_index: None,
             execution: None,
             execution_state: None,
+            execution_display_enable_override: None,
             arithmetic_chain: None,
             last_alu_digit_result: None,
             arithmetic_result_image: None,
@@ -196,6 +198,7 @@ impl ActSerialEndpoint {
         self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
+        self.execution_display_enable_override = None;
         self.arithmetic_chain = None;
         self.last_alu_digit_result = None;
         Ok(())
@@ -207,6 +210,13 @@ impl ActSerialEndpoint {
 
     pub const fn serial_execution_state(&self) -> Option<ActSerialStateSnapshot> {
         self.execution_state
+    }
+
+    /// Override only the DISPLAY-enable source used by b0..b7 for the current
+    /// execution. This preserves the direct HP-67 power-on display observation
+    /// without contaminating the immutable architectural snapshot used by M14H.
+    pub fn set_execution_display_enable_override(&mut self, display_enable: bool) {
+        self.execution_display_enable_override = Some(display_enable);
     }
 
     pub fn serial_alu_inputs(&self) -> Option<ActSerialAluInputs> {
@@ -303,7 +313,8 @@ impl ActSerialEndpoint {
             if let Some(snapshot) = self.execution_state.as_ref() {
                 let digit = register_index as u8;
                 (
-                    snapshot.display_enable(),
+                    self.execution_display_enable_override
+                        .unwrap_or(snapshot.display_enable()),
                     snapshot
                         .register_digit(ActSerialRegister::A, digit)
                         .expect("latched display register index must be valid"),
@@ -1349,6 +1360,29 @@ mod tests {
         assert!(complete.is_complete());
         assert_eq!(complete.c(), &state.m1);
         assert_eq!(complete.m1(), &state.c);
+    }
+
+    #[test]
+    fn display_override_does_not_change_mode_latch_pre_state() {
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = false;
+
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0210, &state)
+            .expect("display toggle must start serial execution");
+        act.set_execution_display_enable_override(true);
+
+        let image = act
+            .serial_mode_latch_result_image()
+            .expect("display toggle must create a mode/latch image");
+        assert!(!image.is_complete());
+        assert!(!image.display_enable());
+        assert_eq!(
+            act.serial_execution_state()
+                .expect("execution snapshot must remain present")
+                .display_enable(),
+            false
+        );
     }
 
     #[test]
