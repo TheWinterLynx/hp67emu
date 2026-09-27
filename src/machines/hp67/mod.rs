@@ -8,6 +8,7 @@
 pub mod act;
 pub mod act_serial_control;
 pub mod act_serial_execution;
+pub mod act_serial_mode_latch;
 pub mod act_serial_result;
 pub mod act_serial_special_register;
 pub mod act_serial_state;
@@ -41,6 +42,9 @@ pub use act_serial_execution::{
     decode_serial_arithmetic_action, ActSerialArithmeticAction, ActSerialArithmeticCoordinate,
     ActSerialExecution, ActSerialExecutionError, ActSerialOperand, ActSerialRegister,
     ActSerialWordClass,
+};
+pub use act_serial_mode_latch::{
+    decode_serial_mode_latch_action, ActSerialModeLatchAction, ActSerialModeLatchResultImage,
 };
 pub use act_serial_result::ActSerialArithmeticResultImage;
 pub use act_serial_special_register::{
