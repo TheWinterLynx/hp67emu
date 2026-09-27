@@ -132,6 +132,16 @@ The composed architectural executor still runs once to provide the expected fina
 
 This b55 completion point is a **WORKING APPROXIMATION** for authority handoff only. It is not evidence that the physical 1820-2530 writes P/status/condition latches at b55 or on any particular PHI edge. Internal control-latch timing remains SOURCE-BLOCKED.
 
+## M14G special-register completed-word authority
+
+M14G extends final-state structural authority to the focused non-arithmetic register-transfer family. The serial snapshot now retains Y/Z/T/M1/M2/F and key-buffer inputs in addition to the state required by M14E/M14F. A private special-register image covers working-stack clear, M1/M2 transfers, stack movement, F/A0, key-to-A, A rotate-right and the C-digit side of load-constant.
+
+The architectural executor still runs once to provide the expected final register image and to retain unrelated effects. For ACT-owned words in this slice, the migrated registers are restored immediately after the oracle runs. The private image remains incomplete until the structural execution reaches b55, then must match the oracle exactly before it can become live state.
+
+Load-constant deliberately uses two independent structural images built from the same pre-state: M14F owns its P/control effects and M14G owns the C[P] mutation. This avoids reading a post-oracle P value while computing the register result.
+
+As in M14F, b55 is only the completed-word authority handoff. Exact Y/Z/T/M1/M2/F/key and load-constant internal write timing remains SOURCE-BLOCKED.
+
 ## Validation target for the first serial opcode
 
 For the first migrated operation, tests must record every `b0..b55` step and prove both:
