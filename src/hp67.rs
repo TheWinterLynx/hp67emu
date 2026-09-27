@@ -260,8 +260,9 @@ struct PendingSerialModeLatchAuthority {
 /// by the structural smoke tests. ACT owns the display phase and the b0..b55
 /// lifetime of the executing instruction; M14E makes that structural path
 /// authoritative for final A/B/C/carry across every arithmetic opcode; M14F
-/// adds completed-word P/status condition authority and M14G adds selected
-/// non-arithmetic special-register authority. ROM0 emits STR events and the cathode driver only
+/// adds completed-word P/status condition authority, M14G adds selected
+/// non-arithmetic special-register authority and M14H adds selected format/display
+/// and RAM-address latch authority. ROM0 emits STR events and the cathode driver only
 /// consumes downstream STR/RCD control events. Exact intra-word ACT write edges
 /// remain source-blocked.
 pub struct Hp67LiveMachine {
