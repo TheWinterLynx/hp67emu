@@ -82,4 +82,8 @@ Behavior-impacting release diagnostic:
 
 Expected closure: `DIAGNOSTIC SUITE OK: 12/12 passed`.
 
-No validation success is claimed until the repository owner reports it.
+## Validation result
+
+On 2026-09-28 the repository owner reported `M14H FULL GATE GREEN` after running the complete local Windows validation sequence: formatting, focused M14H tests, warnings-denied all-target tests, release build, and the ignored release diagnostic.
+
+This validates the M14H completed-word mode/latch authority bridge. It does **not** change the SOURCE-BLOCKED classification of exact intra-word/PHI-relative decimal, DISPLAY, 14-digit-display or RAM-address latch timing.
