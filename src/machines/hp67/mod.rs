@@ -44,10 +44,10 @@ pub use act_serial_execution::{
     ActSerialExecution, ActSerialExecutionError, ActSerialOperand, ActSerialRegister,
     ActSerialWordClass,
 };
+pub use act_serial_flow::{ActSerialFlowResultImage, ActSerialFlowState};
 pub use act_serial_mode_latch::{
     decode_serial_mode_latch_action, ActSerialModeLatchAction, ActSerialModeLatchResultImage,
 };
-pub use act_serial_flow::{ActSerialFlowResultImage, ActSerialFlowState};
 pub use act_serial_result::ActSerialArithmeticResultImage;
 pub use act_serial_special_register::{
     decode_serial_special_register_action, ActSerialSpecialRegisterAction,

@@ -4,13 +4,14 @@ use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
     ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
-    ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister, ActSerialSpecialRegisterAction, CardInsertionEnd,
-    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
-    Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
-    RomFetchEndpoint, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
-    CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister,
+    ActSerialSpecialRegisterAction, CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction,
+    FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
+    Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, ACT_STATUS_BITS,
+    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
+    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -589,9 +590,10 @@ impl Hp67LiveMachine {
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
         if let Some(expected) = flow_expected {
-            let image = self.act_serial.serial_flow_result_image().ok_or_else(|| {
-                format!("live cycle {cycle} lost M14I flow image")
-            })?;
+            let image = self
+                .act_serial
+                .serial_flow_result_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost M14I flow image"))?;
             if !image.is_complete() || image.result() != expected {
                 return Err(format!("live cycle {cycle} M14I flow mismatch: expected={expected:?} structural={image:?}"));
             }
@@ -1269,7 +1271,9 @@ mod tests {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.machine.act.state.pc = 0x0068;
         live.machine.act.state.delayed_rom = Some(15);
-        live.act_serial.begin_execution((0xc6 << 2) | 1, &live.machine.act.state).unwrap();
+        live.act_serial
+            .begin_execution((0xc6 << 2) | 1, &live.machine.act.state)
+            .unwrap();
         // An intentionally wrong oracle/live destination must not feed IS.
         live.machine.act.state.pc = 0x0450;
         live.machine.act.state.bank = 1;

@@ -1398,7 +1398,11 @@ mod tests {
 
     #[test]
     fn m14i_flow_image_completes_only_after_b55() {
-        let state = ActArchitecturalState { pc: 0x0068, delayed_rom: Some(15), ..Default::default() };
+        let state = ActArchitecturalState {
+            pc: 0x0068,
+            delayed_rom: Some(15),
+            ..Default::default()
+        };
         let mut act = ActSerialEndpoint::new(state.pc);
         act.begin_execution((0xc6 << 2) | 1, &state).unwrap();
         for bit in 0..BITS_PER_WORD - 1 {
@@ -1411,7 +1415,9 @@ mod tests {
         assert!(act.serial_flow_result_image().unwrap().is_complete());
         // The next word captures the committed state, not a stale preview.
         let mut committed = state;
-        act.serial_flow_result_image().unwrap().commit(&mut committed);
+        act.serial_flow_result_image()
+            .unwrap()
+            .commit(&mut committed);
         act.begin_execution(0o0000, &committed).unwrap();
         assert_eq!(act.serial_flow_result_image().unwrap().result().pc, 0x0fc7);
         assert!(!act.serial_flow_result_image().unwrap().is_complete());
