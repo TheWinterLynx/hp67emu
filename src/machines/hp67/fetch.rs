@@ -15,6 +15,7 @@ use super::{
     act_serial_boundary::ActSerialBoundaryResultImage,
     act_serial_control::ActSerialControlResultImage,
     act_serial_crc_control::ActSerialCrcControlResultImage,
+    act_serial_crc_data::ActSerialCrcDataResultImage,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
@@ -151,6 +152,7 @@ pub struct ActSerialEndpoint {
     ram_result_image: Option<ActSerialRamResultImage>,
     crc_control_result_image: Option<ActSerialCrcControlResultImage>,
     crc_control_bound: bool,
+    crc_data_result_image: Option<ActSerialCrcDataResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -175,6 +177,7 @@ impl ActSerialEndpoint {
             ram_result_image: None,
             crc_control_result_image: None,
             crc_control_bound: false,
+            crc_data_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -216,6 +219,7 @@ impl ActSerialEndpoint {
         self.ram_result_image = ActSerialRamResultImage::begin(&snapshot, &execution);
         self.crc_control_result_image = None;
         self.crc_control_bound = false;
+        self.crc_data_result_image = None;
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.execution_display_enable_override = None;
@@ -239,10 +243,16 @@ impl ActSerialEndpoint {
             .execution_state
             .as_ref()
             .ok_or("CRC binding requires pre-instruction ACT state")?;
-        self.crc_control_result_image =
-            ActSerialCrcControlResultImage::begin(snapshot, execution, crc)?;
+        let control = ActSerialCrcControlResultImage::begin(snapshot, execution, crc)?;
+        let data = ActSerialCrcDataResultImage::begin(snapshot, execution, crc)?;
+        self.crc_control_result_image = control;
+        self.crc_data_result_image = data;
         self.crc_control_bound = true;
         Ok(())
+    }
+
+    pub const fn serial_crc_data_result_image(&self) -> Option<ActSerialCrcDataResultImage> {
+        self.crc_data_result_image
     }
 
     pub const fn serial_crc_control_result_image(&self) -> Option<ActSerialCrcControlResultImage> {
@@ -497,6 +507,7 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
+                if let Some(image) = &mut self.crc_data_result_image { image.complete_word(); }
                 if let Some(image) = &mut self.crc_control_result_image {
                     image.complete_word();
                 }
@@ -1452,6 +1463,34 @@ mod tests {
                 .display_enable(),
             false
         );
+    }
+
+    #[test]
+    fn m14m_crc_data_binding_is_frozen_and_requires_b55() {
+        let state = ActArchitecturalState { ram_address: super::super::CRC_RAM_READ_ADDRESS, ..Default::default() };
+        let mut crc = CrcArchitecturalCore::default();
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0070, &state).unwrap();
+        // Failed staging must permit a corrected bind before execution starts.
+        assert!(act.bind_crc_control(&crc).is_err());
+        crc.present_read_word(0x1234567).unwrap();
+        act.bind_crc_control(&crc).unwrap();
+        assert!(act.bind_crc_control(&crc).is_err());
+        for bit in 0..BITS_PER_WORD - 1 {
+            act.advance_execution_for_bit(bit).unwrap();
+            assert!(!act.serial_crc_data_result_image().unwrap().is_complete());
+            assert_eq!(crc.buffered_read_word(), Some(0x1234567));
+        }
+        act.advance_execution_for_bit(BITS_PER_WORD - 1).unwrap();
+        assert!(act.serial_crc_data_result_image().unwrap().is_complete());
+        act.begin_execution(0, &state).unwrap();
+        assert!(act.serial_crc_data_result_image().is_none());
+        act.bind_crc_control(&crc).unwrap();
+        assert!(act.serial_crc_data_result_image().is_none());
+        let mut late = ActSerialEndpoint::new(0);
+        late.begin_execution(0o0070, &state).unwrap();
+        late.advance_execution_for_bit(0).unwrap();
+        assert!(late.bind_crc_control(&crc).is_err());
     }
 
     #[test]

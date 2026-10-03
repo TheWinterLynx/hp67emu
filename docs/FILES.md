@@ -26,6 +26,7 @@ The documentation regression uses these companion files as the source-level owne
 - [src/emulation/trace.rs](files/src/emulation/trace.rs.md)
 - [src/machines/mod.rs](files/src/machines/mod.rs.md)
 - [src/machines/hp67/act_serial_boundary.rs](files/src/machines/hp67/act_serial_boundary.rs.md)
+- [src/machines/hp67/act_serial_crc_data.rs](files/src/machines/hp67/act_serial_crc_data.rs.md)
 - [src/machines/hp67/act_serial_crc_control.rs](files/src/machines/hp67/act_serial_crc_control.rs.md)
 - [src/machines/hp67/act_serial_ram.rs](files/src/machines/hp67/act_serial_ram.rs.md)
 - [src/machines/hp67/act_serial_flow.rs](files/src/machines/hp67/act_serial_flow.rs.md)

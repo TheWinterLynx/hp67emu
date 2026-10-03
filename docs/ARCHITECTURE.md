@@ -192,3 +192,7 @@ Remaining low-nibble RAM address selectors and logical installed-block clear now
 ### M14L CRC control authority
 
 CRC set/test-and-clear and ACT S3 results are independently derived from frozen pre-instruction inputs. Oracle flag/S3 mutations are restored before transport; the complete image commits after b55. Internal and external flag state stay separate, with external levels preserved during clear. This does not claim physical F2 pulse or CRC latch timing. CRC DATA payloads, buffers and card electronics retain their existing ownership.
+
+## M14M CRC logical data authority
+
+CRC data-port reads/writes bind an independent `ActSerialCrcDataResultImage` before b0. The live bridge restores oracle C/FIFO/READY/F7 effects before transport and compares the frozen payload/storage result before commit after b55. FIFO wrap, capacity, read duplication into both C halves and upper-C write packing preserve the existing semantic contract. Only FIFO storage and READY/F7 are applied; other control flags and external inputs retain their owners. A changed pre-state rejects commit. This is a WORKING APPROXIMATION for logical completed-word authority; it does not transport CRC bits on DATA, infer a 28-bit flux order, or extend installed-RAM phase evidence to CRC ports. CRC electrical DATA ownership/edges and sense timing remain SOURCE-BLOCKED.

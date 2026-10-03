@@ -2,7 +2,7 @@
 
 Date: 2026-10-04
 Branch: `agent/m14l-crc-status-authority`
-Status: implemented; owner local validation pending.
+Status: owner reported M14L FULL GATE GREEN; validated head `4be06a712e88940fb3cec41e3eec81d60c957d6b` integrated into main.
 
 ## Scope
 

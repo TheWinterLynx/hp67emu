@@ -64,7 +64,65 @@ impl Default for CrcArchitecturalCore {
     }
 }
 
+/// Logical FIFO/handshake storage owned by one staged CRC data transaction.
+/// Control flags other than READY/F7 and external inputs are deliberately absent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CrcDataState {
+    read_buffers: [Option<u32>; CRC_READ_BUFFER_COUNT],
+    read_head: usize,
+    read_len: usize,
+    write_buffers: [Option<u32>; CRC_WRITE_BUFFER_COUNT],
+    write_head: usize,
+    write_len: usize,
+    ready: bool,
+    status_error: bool,
+}
+
 impl CrcArchitecturalCore {
+    pub(crate) fn data_state(&self) -> CrcDataState {
+        CrcDataState {
+            read_buffers: self.read_buffers, read_head: self.read_head, read_len: self.read_len,
+            write_buffers: self.write_buffers, write_head: self.write_head, write_len: self.write_len,
+            ready: self.flags[CRC_FLAG_BUFFER_READY], status_error: self.flags[CRC_FLAG_F7_STATUS],
+        }
+    }
+
+    pub(crate) fn apply_data_state(&mut self, state: CrcDataState) {
+        self.read_buffers = state.read_buffers;
+        self.read_head = state.read_head;
+        self.read_len = state.read_len;
+        self.write_buffers = state.write_buffers;
+        self.write_head = state.write_head;
+        self.write_len = state.write_len;
+        self.flags[CRC_FLAG_BUFFER_READY] = state.ready;
+        self.flags[CRC_FLAG_F7_STATUS] = state.status_error;
+    }
+
+    /// Independently stage logical storage changes without invoking architectural
+    /// take/queue operations. Failure leaves every live latch and FIFO untouched.
+    pub(crate) fn stage_data_word(&self, write: Option<u32>) -> Result<(u32, CrcDataState), CrcArchitecturalError> {
+        let mut result = self.data_state();
+        let word = if let Some(word) = write {
+            if word > CRC_CARD_WORD_MASK { return Err(CrcArchitecturalError::CardWordOutOfRange(word)); }
+            if !self.flags[CRC_FLAG_WRITE_MODE] { return Err(CrcArchitecturalError::WriteModeInactive); }
+            if result.write_len == CRC_WRITE_BUFFER_COUNT { return Err(CrcArchitecturalError::WriteBufferFull); }
+            let tail = (result.write_head + result.write_len) % CRC_WRITE_BUFFER_COUNT;
+            result.write_buffers[tail] = Some(word);
+            result.write_len += 1;
+            result.ready = false;
+            result.status_error = false;
+            word
+        } else {
+            if result.read_len == 0 { return Err(CrcArchitecturalError::ReadBufferEmpty); }
+            let word = result.read_buffers[result.read_head].take().expect("CRC staged FIFO head exists");
+            result.read_head = (result.read_head + 1) % CRC_READ_BUFFER_COUNT;
+            result.read_len -= 1;
+            result.ready = result.read_len != 0;
+            word
+        };
+        Ok((word, result))
+    }
+
     pub fn reset_control_flags(&mut self) {
         self.flags = [false; CRC_FLAG_COUNT];
         self.read_buffers = [None; CRC_READ_BUFFER_COUNT];

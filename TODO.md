@@ -141,12 +141,14 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Owner reported M14K FULL GATE GREEN; integrated into main under standing authorization.
 - [ ] Physical clear protocol, chip partitioning and DATA edges remain SOURCE-BLOCKED.
 
-## M14L current branch
+## M14L validated integration
 
 - [x] Structural CRC control-latch and ACT S3 final authority.
 - [x] Immutable binding, internal/external flag separation and exclusive commit boundary.
-- [ ] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
+- [x] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
 - [ ] Exact F2 and internal CRC latch edges remain SOURCE-BLOCKED.
+
+- [x] Owner reported M14L FULL GATE GREEN; validated head integrated into main.
 
 ## ACT 1820-2530 / HP-67 ACT revision
 
@@ -233,3 +235,11 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Keep the semantic reference layer separate from the production electrical scheduler so either can be reused independently.
 - [ ] When a second Woodstock calculator is added, extract only behavior proven identical by sources/tests.
 - [ ] Keep calculator wiring/configuration separate from reusable chip implementations.
+
+## M14M current branch
+
+- [x] Stage CRC logical 28-bit read/write payloads and FIFO/READY/F7 results independently before structural execution.
+- [x] Restore oracle effects and require completed b55 plus exact comparison before commit.
+- [x] Add address/opcode differential, FIFO wrap/capacity/failure, immutable binding and live read/write regressions.
+- [ ] Owner local formatting/warnings/all-targets/release and Custom Diagnostic Pac 12/12 gate.
+- [ ] Source-blocked: CRC electrical DATA ownership/phase/PHI edges, magnetic serialization and sense timing.
