@@ -108,6 +108,13 @@ impl ActSerialFlowResultImage {
         }
     }
 
+    /// Restore oracle flow effects, including the implied-GOTO completion latch.
+    /// Other instruction-state owners must not be overwritten.
+    pub fn restore(self, before: ActSerialFlowState, state: &mut ActArchitecturalState) {
+        before.apply(state);
+        if self.then_goto { state.instruction_state = ActInstructionState::ThenGoto; }
+    }
+
     pub const fn result(&self) -> ActSerialFlowState {
         self.result
     }
@@ -191,6 +198,29 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn m14n_implied_goto_latch_is_restored_until_completed_word() {
+        let mut machine = Hp67ArchitecturalMachine::default();
+        machine.act.state.instruction_state = ActInstructionState::ThenGoto;
+        let before = machine.act.state.clone();
+        let mut image = ActSerialFlowResultImage::begin(&before, 0o1060);
+        machine.execute_word(0o1060).unwrap();
+        assert_eq!(machine.act.state.instruction_state, ActInstructionState::Normal);
+        image.restore(ActSerialFlowState::capture(&before), &mut machine.act.state);
+        assert_eq!(machine.act.state.instruction_state, ActInstructionState::ThenGoto);
+        assert_eq!(ActSerialFlowState::capture(&machine.act.state), ActSerialFlowState::capture(&before));
+        assert!(!image.is_complete());
+        image.complete_word();
+        image.commit(&mut machine.act.state);
+        assert_eq!(machine.act.state.instruction_state, ActInstructionState::Normal);
+        // Ordinary flow restore cannot erase an arithmetic/control condition.
+        let mut normal = ActArchitecturalState::default();
+        let image = ActSerialFlowResultImage::begin(&normal, 0);
+        normal.instruction_state = ActInstructionState::ThenGoto;
+        image.restore(ActSerialFlowState::capture(&normal), &mut normal);
+        assert_eq!(normal.instruction_state, ActInstructionState::ThenGoto);
     }
 
     #[test]

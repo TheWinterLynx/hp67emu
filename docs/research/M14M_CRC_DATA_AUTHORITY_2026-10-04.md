@@ -2,7 +2,7 @@
 
 Date: 2026-10-04
 Branch: `agent/m14m-crc-data-authority`
-Status: implemented; owner local validation pending.
+Status: owner reported M14M FULL GATE GREEN; validated head `78ae2989d5e6bc73f2e2b3939b211270f54bdf71` integrated into main.
 
 ## Scope and evidence
 

@@ -11,7 +11,7 @@
 use crate::emulation::{Drive, LogicLevel};
 
 use super::{
-    act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
+    act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError, ActRamImage},
     act_serial_boundary::ActSerialBoundaryResultImage,
     act_serial_control::ActSerialControlResultImage,
     act_serial_crc_control::ActSerialCrcControlResultImage,
@@ -19,7 +19,7 @@ use super::{
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
-    act_serial_ram::ActSerialRamResultImage,
+    act_serial_ram::{ActSerialRamResultImage, ActSerialAbsentRamReadImage},
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_special_register::ActSerialSpecialRegisterResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
@@ -153,6 +153,8 @@ pub struct ActSerialEndpoint {
     crc_control_result_image: Option<ActSerialCrcControlResultImage>,
     crc_control_bound: bool,
     crc_data_result_image: Option<ActSerialCrcDataResultImage>,
+    absent_ram_read_image: Option<ActSerialAbsentRamReadImage>,
+    ram_topology_bound: bool,
     received_word: u16,
     received_mask: u16,
 }
@@ -178,6 +180,8 @@ impl ActSerialEndpoint {
             crc_control_result_image: None,
             crc_control_bound: false,
             crc_data_result_image: None,
+            absent_ram_read_image: None,
+            ram_topology_bound: false,
             received_word: 0,
             received_mask: 0,
         }
@@ -220,6 +224,8 @@ impl ActSerialEndpoint {
         self.crc_control_result_image = None;
         self.crc_control_bound = false;
         self.crc_data_result_image = None;
+        self.absent_ram_read_image = None;
+        self.ram_topology_bound = false;
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.execution_display_enable_override = None;
@@ -227,6 +233,18 @@ impl ActSerialEndpoint {
         self.last_alu_digit_result = None;
         Ok(())
     }
+
+    pub fn bind_ram_topology(&mut self, ram: &ActRamImage) -> Result<(), String> {
+        if self.ram_topology_bound { return Err("RAM topology is already bound".into()); }
+        let execution = self.execution.as_ref().ok_or("RAM topology binding requires an executing word")?;
+        if execution.next_word_bit() != Some(0) { return Err("RAM topology must bind before b0".into()); }
+        let snapshot = self.execution_state.as_ref().ok_or("RAM topology binding requires ACT pre-state")?;
+        self.absent_ram_read_image = ActSerialAbsentRamReadImage::begin(snapshot, execution, ram);
+        self.ram_topology_bound = true;
+        Ok(())
+    }
+
+    pub const fn serial_absent_ram_read_image(&self) -> Option<ActSerialAbsentRamReadImage> { self.absent_ram_read_image }
 
     pub fn bind_crc_control(&mut self, crc: &CrcArchitecturalCore) -> Result<(), String> {
         if self.crc_control_bound {
@@ -507,6 +525,7 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
+                if let Some(image) = &mut self.absent_ram_read_image { image.complete_word(); }
                 if let Some(image) = &mut self.crc_data_result_image {
                     image.complete_word();
                 }
@@ -1465,6 +1484,26 @@ mod tests {
                 .display_enable(),
             false
         );
+    }
+
+    #[test]
+    fn m14n_absent_ram_image_follows_structural_lifetime() {
+        let state = ActArchitecturalState { ram_address: 0xff, c: [9;14], ..Default::default() };
+        let ram = ActRamImage::hp67();
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0070, &state).unwrap();
+        act.bind_ram_topology(&ram).unwrap();
+        assert!(act.bind_ram_topology(&ram).is_err());
+        for bit in 0..BITS_PER_WORD - 1 {
+            act.advance_execution_for_bit(bit).unwrap();
+            assert!(!act.serial_absent_ram_read_image().unwrap().is_complete());
+        }
+        act.advance_execution_for_bit(BITS_PER_WORD - 1).unwrap();
+        assert!(act.serial_absent_ram_read_image().unwrap().is_complete());
+        act.begin_execution(0, &state).unwrap();
+        assert!(act.serial_absent_ram_read_image().is_none());
+        act.advance_execution_for_bit(0).unwrap();
+        assert!(act.bind_ram_topology(&ram).is_err());
     }
 
     #[test]

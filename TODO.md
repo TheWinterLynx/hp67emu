@@ -236,10 +236,21 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] When a second Woodstock calculator is added, extract only behavior proven identical by sources/tests.
 - [ ] Keep calculator wiring/configuration separate from reusable chip implementations.
 
-## M14M current branch
+## M14M validated integration
 
 - [x] Stage CRC logical 28-bit read/write payloads and FIFO/READY/F7 results independently before structural execution.
 - [x] Restore oracle effects and require completed b55 plus exact comparison before commit.
 - [x] Add address/opcode differential, FIFO wrap/capacity/failure, immutable binding and live read/write regressions.
-- [ ] Owner local formatting/warnings/all-targets/release and Custom Diagnostic Pac 12/12 gate.
+- [x] Owner local formatting/warnings/all-targets/release and Custom Diagnostic Pac 12/12 gate.
 - [ ] Source-blocked: CRC electrical DATA ownership/phase/PHI edges, magnetic serialization and sense timing.
+
+- [x] Owner reported M14M FULL GATE GREEN; validated head integrated into main.
+
+## M14N current branch
+
+- [x] Restore implied-GOTO instruction-state latch before structural transport.
+- [x] Isolate absent-RAM zero-read compatibility in an explicitly approximate completed-word image.
+- [x] Require every ACT semantic field to equal pre-instruction state before structural transport.
+- [x] Whole ACT/RAM/CRC differential across all ten-bit words and six address contexts.
+- [ ] Owner local formatting/warnings/all-targets/release and Custom Diagnostic Pac 12/12 gate.
+- [ ] Source-blocked: actual absent-address electrical behavior and physical ACT/DATA latch timing.
