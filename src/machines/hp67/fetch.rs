@@ -1420,7 +1420,10 @@ mod tests {
 
     #[test]
     fn m14k_ram_image_completes_only_after_b55() {
-        let state = ActArchitecturalState { ram_address: 0x23, ..Default::default() };
+        let state = ActArchitecturalState {
+            ram_address: 0x23,
+            ..Default::default()
+        };
         let mut act = ActSerialEndpoint::new(0);
         act.begin_execution((5 << 6) | 0o70, &state).unwrap();
         for bit in 0..BITS_PER_WORD - 1 {

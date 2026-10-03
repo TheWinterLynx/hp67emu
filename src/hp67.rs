@@ -1,10 +1,11 @@
 use std::time::Duration;
 
 use hp67emu::machines::hp67::{
-    capture_ram_block, restore_ram_block, ActSerialRamResultImage, act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
-    run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
-    ActInstructionState, ActOperation, ActRegister, ActSerialBoundaryState, ActSerialControlAction,
-    ActSerialEndpoint, ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister,
+    act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
+    display_register_index_for_scan_slot, restore_ram_block, run_structural_display_fetch_cycle,
+    run_structural_display_fetch_data_phase_cycle, ActInstructionState, ActOperation, ActRegister,
+    ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint, ActSerialFlowState,
+    ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
     ActSerialSpecialRegisterAction, CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction,
     FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
@@ -505,7 +506,9 @@ impl Hp67LiveMachine {
             }
 
             let ram_address_before = self.machine.act.state.ram_address;
-            let ram_block_before = self.act_serial.serial_ram_result_image()
+            let ram_block_before = self
+                .act_serial
+                .serial_ram_result_image()
                 .and_then(|image| image.clear_base())
                 .map(|base| capture_ram_block(&self.machine.ram, base));
             let boundary_before = ActSerialBoundaryState::capture(&self.machine.act.state);
@@ -519,12 +522,19 @@ impl Hp67LiveMachine {
                 deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
             if let Some(image) = self.act_serial.serial_ram_result_image() {
-                let expected_block = image.clear_base().map(|base| capture_ram_block(&self.machine.ram, base));
-                ram_control_expected = Some((self.machine.act.state.ram_address, expected_block, ram_block_before));
+                let expected_block = image
+                    .clear_base()
+                    .map(|base| capture_ram_block(&self.machine.ram, base));
+                ram_control_expected = Some((
+                    self.machine.act.state.ram_address,
+                    expected_block,
+                    ram_block_before,
+                ));
                 self.machine.act.state.ram_address = ram_address_before;
                 if let (Some(base), Some(before)) = (image.clear_base(), ram_block_before) {
-                    restore_ram_block(&mut self.machine.ram, base, before)
-                        .map_err(|error| format!("live cycle {cycle} M14K restore failed: {error}"))?;
+                    restore_ram_block(&mut self.machine.ram, base, before).map_err(|error| {
+                        format!("live cycle {cycle} M14K restore failed: {error}")
+                    })?;
                 }
             }
             if let Some(image) = self.act_serial.serial_boundary_result_image() {
@@ -610,11 +620,15 @@ impl Hp67LiveMachine {
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
         if let Some((expected_address, expected_block, before_block)) = ram_control_expected {
-            let image = self.act_serial.serial_ram_result_image().ok_or_else(|| {
-                format!("live cycle {cycle} lost M14K RAM image")
-            })?;
+            let image = self
+                .act_serial
+                .serial_ram_result_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost M14K RAM image"))?;
             let structural_block = before_block.map(ActSerialRamResultImage::cleared_block);
-            if !image.is_complete() || image.ram_address() != expected_address || structural_block != expected_block {
+            if !image.is_complete()
+                || image.ram_address() != expected_address
+                || structural_block != expected_block
+            {
                 return Err(format!("live cycle {cycle} M14K RAM mismatch: expected_address=0x{expected_address:02x} expected_block={expected_block:?} structural={image:?} structural_block={structural_block:?}"));
             }
             if let (Some(base), Some(before)) = (image.clear_base(), before_block) {
@@ -622,7 +636,8 @@ impl Hp67LiveMachine {
                     return Err(format!("live cycle {cycle} M14K restored RAM block changed before commit at 0x{base:02x}"));
                 }
             }
-            image.commit(&mut self.machine.act.state, &mut self.machine.ram)
+            image
+                .commit(&mut self.machine.act.state, &mut self.machine.ram)
                 .map_err(|error| format!("live cycle {cycle} M14K commit failed: {error}"))?;
         }
         if let Some(expected) = boundary_expected {
@@ -1315,15 +1330,28 @@ mod tests {
     #[test]
     fn m14k_live_clear_block_preserves_neighbouring_ram() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
-        for address in 0u8..64 { live.machine.ram.write(address, [9; 14]); }
+        for address in 0u8..64 {
+            live.machine.ram.write(address, [9; 14]);
+        }
         live.machine.act.state.ram_address = 0x23;
         live.pipeline.complete_cycle(0o1260);
         live.step_firmware_cycle_with_execution().unwrap();
         for address in 0u8..64 {
-            assert_eq!(live.machine.ram.read(address), Some(if (0x20..0x30).contains(&address) { [0; 14] } else { [9; 14] }));
+            assert_eq!(
+                live.machine.ram.read(address),
+                Some(if (0x20..0x30).contains(&address) {
+                    [0; 14]
+                } else {
+                    [9; 14]
+                })
+            );
         }
         assert_eq!(live.machine.act.state.ram_address, 0x23);
-        assert!(live.act_serial.serial_ram_result_image().unwrap().is_complete());
+        assert!(live
+            .act_serial
+            .serial_ram_result_image()
+            .unwrap()
+            .is_complete());
     }
 
     #[test]
