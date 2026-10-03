@@ -8,6 +8,7 @@
 pub mod act;
 pub mod act_serial_boundary;
 pub mod act_serial_control;
+pub mod act_serial_crc_control;
 pub mod act_serial_execution;
 pub mod act_serial_flow;
 pub mod act_serial_mode_latch;
@@ -42,6 +43,7 @@ pub use act_serial_boundary::{ActSerialBoundaryResultImage, ActSerialBoundarySta
 pub use act_serial_control::{
     decode_serial_control_action, ActSerialControlAction, ActSerialControlResultImage,
 };
+pub use act_serial_crc_control::ActSerialCrcControlResultImage;
 pub use act_serial_execution::{
     decode_serial_arithmetic_action, ActSerialArithmeticAction, ActSerialArithmeticCoordinate,
     ActSerialExecution, ActSerialExecutionError, ActSerialOperand, ActSerialRegister,

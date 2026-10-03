@@ -79,6 +79,14 @@ impl CrcArchitecturalCore {
         self.flags.get(flag).copied()
     }
 
+    /// Commit one independently derived structural control-latch value. This
+    /// performs no opcode decode and does not mutate buffers or external inputs.
+    pub fn commit_control_flag(&mut self, flag: u8, value: bool) -> Result<(), CrcArchitecturalError> {
+        let slot = self.flags.get_mut(usize::from(flag)).ok_or(CrcArchitecturalError::FlagOutOfRange(flag))?;
+        *slot = value;
+        Ok(())
+    }
+
     pub fn external_flag(&self, flag: usize) -> Option<bool> {
         self.external_flags.get(flag).copied()
     }

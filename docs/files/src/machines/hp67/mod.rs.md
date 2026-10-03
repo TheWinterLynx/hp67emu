@@ -35,3 +35,7 @@ The ACT endpoint captures `ActSerialFlowResultImage` from real pre-instruction s
 ## M14K RAM control authority
 
 `ActSerialRamResultImage` owns low-nibble family 050/070 selection and logical 1260 installed-block clear. Fixed 0070 and M14H C-derived selection are excluded. The live bridge restores oracle address/block changes before transport, compares the independent completed image and commits after b55. DATA destinations keep the M14C next-word b0/b1 lifetime; CRC payloads remain peripheral-owned. No physical-chip mapping or inferred clear bus protocol is claimed.
+
+## M14L CRC control authority
+
+The endpoint binds `ActSerialCrcControlResultImage` once from pre-instruction ACT/CRC state. The live bridge restores the oracle's selected flag/S3 writes before transport and commits matching structural results only after b55. `commit_control_flag` stores an independently staged flag without opcode decode or buffer/external-input mutation. CRC DATA/card electronics remain outside this slice; exact F2/CRC internal edge timing remains SOURCE-BLOCKED.

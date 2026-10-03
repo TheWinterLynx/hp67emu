@@ -188,3 +188,7 @@ Structural boundary images own P-change history, previous carry, ordinary carry 
 ### M14K RAM control authority
 
 Remaining low-nibble RAM address selectors and logical installed-block clear now use independent completed-word result images. Oracle address/block changes are restored before transport. The selected DATA target remains fixed by its pre-instruction plan, and DATA destination completion remains at the following-word b0/b1 logical tail. Block clear preserves the installed/absent topology and neighbouring memory. This closes logical final-state authority without inventing physical chip mapping or a clear-block electrical sequence.
+
+### M14L CRC control authority
+
+CRC set/test-and-clear and ACT S3 results are independently derived from frozen pre-instruction inputs. Oracle flag/S3 mutations are restored before transport; the complete image commits after b55. Internal and external flag state stay separate, with external levels preserved during clear. This does not claim physical F2 pulse or CRC latch timing. CRC DATA payloads, buffers and card electronics retain their existing ownership.

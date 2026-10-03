@@ -487,6 +487,7 @@ impl Hp67LiveMachine {
         let mut flow_expected = None;
         let mut boundary_expected = None;
         let mut ram_control_expected = None;
+        let mut crc_control_expected = None;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
@@ -497,6 +498,8 @@ impl Hp67LiveMachine {
                 .map_err(|error| {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
+            self.act_serial.bind_crc_control(&self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} M14L binding failed: {error}"))?;
             if !self.display_control_seen {
                 // Direct power-on capture shows display traffic before firmware
                 // executes its first explicit DISPLAY control instruction. Keep
@@ -521,6 +524,15 @@ impl Hp67LiveMachine {
                 deferred_serial_special_register,
                 deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
+            if let Some(image) = self.act_serial.serial_crc_control_result_image() {
+                let Hp67ArchitecturalOperation::CrcControl { instruction, condition } = execution.operation else {
+                    return Err(format!("live cycle {cycle} M14L CRC ownership mismatch"));
+                };
+                let flag = self.machine.crc.flag(usize::from(image.flag())).ok_or_else(|| format!("live cycle {cycle} M14L flag missing"))?;
+                crc_control_expected = Some((instruction, condition, flag, self.machine.act.state.status[3]));
+                image.restore(&mut self.machine.act.state, &mut self.machine.crc)
+                    .map_err(|error| format!("live cycle {cycle} M14L restore failed: {error}"))?;
+            }
             if let Some(image) = self.act_serial.serial_ram_result_image() {
                 let expected_block = image
                     .clear_base()
@@ -619,6 +631,14 @@ impl Hp67LiveMachine {
         self.complete_serial_control_authority(cycle, serial_control_authority)?;
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
+        if let Some((instruction, condition, flag, status3)) = crc_control_expected {
+            let image = self.act_serial.serial_crc_control_result_image().ok_or_else(|| format!("live cycle {cycle} lost M14L CRC image"))?;
+            if !image.is_complete() || image.instruction() != instruction || image.condition() != condition || image.result_flag() != flag || image.result_status3() != status3 {
+                return Err(format!("live cycle {cycle} M14L CRC mismatch: expected=({instruction:?}, {condition:?}, {flag}, {status3}) structural={image:?}"));
+            }
+            image.commit(&mut self.machine.act.state, &mut self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} M14L commit failed: {error}"))?;
+        }
         if let Some((expected_address, expected_block, before_block)) = ram_control_expected {
             let image = self
                 .act_serial
@@ -1325,6 +1345,19 @@ mod tests {
                 .expect("DATA body must accept the first word");
         }
         assert_eq!(live.data_serial.complete_word(), None);
+    }
+
+    #[test]
+    fn m14l_live_crc_test_sets_s3_and_clears_only_internal_flag() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.machine.crc.commit_control_flag(0, true).unwrap();
+        live.machine.crc.set_external_flag(0, true).unwrap();
+        live.pipeline.complete_cycle(0o100);
+        live.step_firmware_cycle_with_execution().unwrap();
+        assert!(live.machine.act.state.status[3]);
+        assert_eq!(live.machine.crc.flag(0), Some(false));
+        assert_eq!(live.machine.crc.external_flag(0), Some(true));
+        assert!(live.act_serial.serial_crc_control_result_image().unwrap().is_complete());
     }
 
     #[test]

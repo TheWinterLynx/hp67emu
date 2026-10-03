@@ -1,0 +1,31 @@
+name: M14L cargo fmt only
+
+on:
+  push:
+    branches: [agent/m14l-crc-status-authority]
+    paths-ignore:
+      - '**/*.md'
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/m14l-crc-status-authority
+      - name: Format Rust only
+        run: cargo fmt --all
+      - name: Verify Rust formatting only
+        run: cargo fmt --all -- --check
+      - name: Save rustfmt output on feature branch
+        run: |
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- '*.rs'
+            git commit -m 'Style: apply cargo fmt to M14L CRC control authority'
+            git push origin HEAD:agent/m14l-crc-status-authority
+          fi
