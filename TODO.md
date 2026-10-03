@@ -117,6 +117,14 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add trace probes with deterministic ordering.
 - [x] Verify with regression tests that device container iteration order cannot change propagation results.
 
+## M14I current branch
+
+- [x] Derive successor fetch independently from pre-instruction ACT flow state.
+- [x] Restore oracle PC/bank/delayed-ROM/return-stack mutations before transport.
+- [x] Commit matching structural flow only after completed b0..b55 execution.
+- [ ] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
+- [ ] Exact intra-word flow latch timing remains SOURCE-BLOCKED.
+
 ## ACT 1820-2530 / HP-67 ACT revision
 
 - [ ] Inventory every architecturally visible register and width, using the Rust reference state as the instruction-boundary contract.

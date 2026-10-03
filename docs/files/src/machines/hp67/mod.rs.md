@@ -23,3 +23,7 @@ M14B additionally exports `Hp67DataSerialSource`, `Hp67DataSerialSink`, transfer
 
 
 The M14B exports now include `Hp67DataSerialWordPath`, `run_structural_display_fetch_data_phase_cycle()` and `StructuralDataWordResult` for the fused logical-phase experiment. These names do not promote DATA to an electrical claim.
+
+## M14I flow authority
+
+The ACT endpoint captures `ActSerialFlowResultImage` from real pre-instruction state. The live bridge restores PC/bank/delayed-ROM/return-stack changes made by the oracle. Concurrent successor fetch consumes the independently derived structural preview; completed b55 flow must agree with the oracle before live commit. Low-page bank normalization remains a fetch-boundary rule. Early preview and final commit do not claim physical internal write edges. Existing M14C-H result ownership is unchanged.

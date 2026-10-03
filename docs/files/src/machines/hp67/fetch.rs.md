@@ -66,3 +66,7 @@ M14H adds a fourth private completed-word result image for selected mode/latch s
 
 
 The pre-existing startup DISPLAY bridge is now execution-local: `set_execution_display_enable_override(true)` changes only the b0..b7 DISPLAY-enable source for the currently bound word. It does not modify `ActSerialStateSnapshot`, so M14H sees the real architectural pre-instruction DISPLAY latch even during the early power-on window.
+
+## M14I flow authority
+
+The ACT endpoint captures `ActSerialFlowResultImage` from real pre-instruction state. The live bridge restores PC/bank/delayed-ROM/return-stack changes made by the oracle. Concurrent successor fetch consumes the independently derived structural preview; completed b55 flow must agree with the oracle before live commit. Low-page bank normalization remains a fetch-boundary rule. Early preview and final commit do not claim physical internal write edges. Existing M14C-H result ownership is unchanged.

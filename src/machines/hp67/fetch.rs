@@ -14,6 +14,7 @@ use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
     act_serial_control::ActSerialControlResultImage,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
+    act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_special_register::ActSerialSpecialRegisterResultImage,
@@ -141,6 +142,7 @@ pub struct ActSerialEndpoint {
     control_result_image: Option<ActSerialControlResultImage>,
     special_register_result_image: Option<ActSerialSpecialRegisterResultImage>,
     mode_latch_result_image: Option<ActSerialModeLatchResultImage>,
+    flow_result_image: Option<ActSerialFlowResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -160,6 +162,7 @@ impl ActSerialEndpoint {
             control_result_image: None,
             special_register_result_image: None,
             mode_latch_result_image: None,
+            flow_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -196,12 +199,17 @@ impl ActSerialEndpoint {
         self.special_register_result_image =
             ActSerialSpecialRegisterResultImage::begin(&snapshot, &execution);
         self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
+        self.flow_result_image = Some(ActSerialFlowResultImage::begin(state, word));
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.execution_display_enable_override = None;
         self.arithmetic_chain = None;
         self.last_alu_digit_result = None;
         Ok(())
+    }
+
+    pub const fn serial_flow_result_image(&self) -> Option<ActSerialFlowResultImage> {
+        self.flow_result_image
     }
 
     pub const fn serial_execution(&self) -> Option<ActSerialExecution> {
@@ -440,6 +448,9 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
+                if let Some(image) = &mut self.flow_result_image {
+                    image.complete_word();
+                }
                 if let Some(image) = &mut self.control_result_image {
                     image.complete_word();
                 }
@@ -1383,6 +1394,27 @@ mod tests {
                 .display_enable(),
             false
         );
+    }
+
+    #[test]
+    fn m14i_flow_image_completes_only_after_b55() {
+        let state = ActArchitecturalState { pc: 0x0068, delayed_rom: Some(15), ..Default::default() };
+        let mut act = ActSerialEndpoint::new(state.pc);
+        act.begin_execution((0xc6 << 2) | 1, &state).unwrap();
+        for bit in 0..BITS_PER_WORD - 1 {
+            act.advance_execution_for_bit(bit).unwrap();
+            let image = act.serial_flow_result_image().unwrap();
+            assert!(!image.is_complete());
+            assert_eq!(image.result().pc, 0x0fc6);
+        }
+        act.advance_execution_for_bit(BITS_PER_WORD - 1).unwrap();
+        assert!(act.serial_flow_result_image().unwrap().is_complete());
+        // The next word captures the committed state, not a stale preview.
+        let mut committed = state;
+        act.serial_flow_result_image().unwrap().commit(&mut committed);
+        act.begin_execution(0o0000, &committed).unwrap();
+        assert_eq!(act.serial_flow_result_image().unwrap().result().pc, 0x0fc7);
+        assert!(!act.serial_flow_result_image().unwrap().is_complete());
     }
 
     #[test]

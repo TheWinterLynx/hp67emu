@@ -4,7 +4,7 @@ use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
     ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
-    ActSerialModeLatchAction, ActSerialRegister, ActSerialSpecialRegisterAction, CardInsertionEnd,
+    ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister, ActSerialSpecialRegisterAction, CardInsertionEnd,
     CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
     Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
@@ -482,6 +482,7 @@ impl Hp67LiveMachine {
         let mut serial_control_authority = None;
         let mut serial_special_register_authority = None;
         let mut serial_mode_latch_authority = None;
+        let mut flow_expected = None;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
@@ -500,6 +501,7 @@ impl Hp67LiveMachine {
                 self.act_serial.set_execution_display_enable_override(true);
             }
 
+            let flow_before = ActSerialFlowState::capture(&self.machine.act.state);
             let (
                 execution,
                 deferred_ram_data,
@@ -508,6 +510,8 @@ impl Hp67LiveMachine {
                 deferred_serial_special_register,
                 deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
+            flow_expected = Some(ActSerialFlowState::capture(&self.machine.act.state));
+            flow_before.apply(&mut self.machine.act.state);
             ram_data_transfer = deferred_ram_data;
             serial_arithmetic_authority = deferred_serial_arithmetic;
             serial_control_authority = deferred_serial_control;
@@ -584,6 +588,15 @@ impl Hp67LiveMachine {
         self.complete_serial_control_authority(cycle, serial_control_authority)?;
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
+        if let Some(expected) = flow_expected {
+            let image = self.act_serial.serial_flow_result_image().ok_or_else(|| {
+                format!("live cycle {cycle} lost M14I flow image")
+            })?;
+            if !image.is_complete() || image.result() != expected {
+                return Err(format!("live cycle {cycle} M14I flow mismatch: expected={expected:?} structural={image:?}"));
+            }
+            image.commit(&mut self.machine.act.state);
+        }
 
         self.card_transport
             .advance_us(
@@ -1104,9 +1117,16 @@ impl Hp67LiveMachine {
         ram_data_transfer: Option<PendingRamDataTransfer>,
     ) -> Result<(), String> {
         let ram_data_payload = ram_data_transfer.map(|transfer| transfer.expected);
-        let requested_bank = self.machine.prepare_hp67_fetch();
+        // M14I supplies successor fetch from immutable structural inputs,
+        // never the oracle-mutated PC. Fetch-only startup retains its old path.
+        let flow = self.act_serial.serial_flow_result_image();
+        let (address, requested_bank) = if let Some(image) = flow {
+            (image.result().pc, image.fetch_bank())
+        } else {
+            let bank = self.machine.prepare_hp67_fetch();
+            (self.machine.pc(), bank)
+        };
         self.source.select_bank(requested_bank);
-        let address = self.machine.pc();
         let startup_display_state = if self.display_control_seen {
             None
         } else {
@@ -1242,6 +1262,43 @@ mod tests {
                 .expect("DATA body must accept the first word");
         }
         assert_eq!(live.data_serial.complete_word(), None);
+    }
+
+    #[test]
+    fn m14i_successor_fetch_ignores_mutated_live_pc_and_bank() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.machine.act.state.pc = 0x0068;
+        live.machine.act.state.delayed_rom = Some(15);
+        live.act_serial.begin_execution((0xc6 << 2) | 1, &live.machine.act.state).unwrap();
+        // An intentionally wrong oracle/live destination must not feed IS.
+        live.machine.act.state.pc = 0x0450;
+        live.machine.act.state.bank = 1;
+        live.transport_fetch_word(0, None).unwrap();
+        assert_eq!(live.fetch_rom.received_address(), Ok(0x0fc6));
+        assert_eq!(live.act_serial.address(), 0x0fc6);
+        assert_eq!(live.machine.pc(), 0x0450);
+        let image = live.act_serial.serial_flow_result_image().unwrap();
+        assert!(image.is_complete());
+        assert_eq!(image.fetch_bank(), 0);
+        image.commit(&mut live.machine.act.state);
+        assert_eq!(live.machine.pc(), 0x0fc6);
+        assert_eq!(live.machine.bank(), 0);
+    }
+
+    #[test]
+    fn m14i_live_boot_commits_structural_successor_at_word_completion() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        for _ in 0..512 {
+            if let Some(execution) = live.step_firmware_cycle_with_execution().unwrap() {
+                let image = live.act_serial.serial_flow_result_image().unwrap();
+                assert!(image.is_complete());
+                assert_eq!(live.machine.pc(), execution.next_pc);
+                assert_eq!(live.machine.pc(), image.result().pc);
+                assert_eq!(live.machine.bank(), image.fetch_bank());
+            }
+        }
+        assert!(live.saw_display_init);
+        assert!(live.main_wait_visits >= 2);
     }
 
     #[test]
