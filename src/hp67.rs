@@ -3,8 +3,8 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
-    ActSerialBoundaryState, ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
-    ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister,
+    ActInstructionState, ActOperation, ActRegister, ActSerialBoundaryState, ActSerialControlAction,
+    ActSerialEndpoint, ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister,
     ActSerialSpecialRegisterAction, CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction,
     FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
     Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
@@ -596,9 +596,10 @@ impl Hp67LiveMachine {
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
         if let Some(expected) = boundary_expected {
-            let image = self.act_serial.serial_boundary_result_image().ok_or_else(|| {
-                format!("live cycle {cycle} lost M14J boundary image")
-            })?;
+            let image = self
+                .act_serial
+                .serial_boundary_result_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost M14J boundary image"))?;
             if !image.is_complete() || !image.matches(expected) {
                 return Err(format!("live cycle {cycle} M14J boundary mismatch: expected={expected:?} structural={image:?}"));
             }
@@ -1294,7 +1295,9 @@ mod tests {
                 assert!(image.matches(ActSerialBoundaryState::capture(&live.machine.act.state)));
                 assert!(live.act_serial.serial_control_result_image().is_none());
             }
-            if live.act_serial.serial_control_result_image().is_some() { saw_control = true; }
+            if live.act_serial.serial_control_result_image().is_some() {
+                saw_control = true;
+            }
         }
         assert!(saw_boundary && saw_control && live.saw_display_init);
     }

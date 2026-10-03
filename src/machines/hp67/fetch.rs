@@ -1409,7 +1409,12 @@ mod tests {
 
     #[test]
     fn m14j_boundary_image_completes_only_after_b55() {
-        let state = ActArchitecturalState { carry: true, previous_carry: false, p_change: [1, -1, 0], ..Default::default() };
+        let state = ActArchitecturalState {
+            carry: true,
+            previous_carry: false,
+            p_change: [1, -1, 0],
+            ..Default::default()
+        };
         let mut act = ActSerialEndpoint::new(0);
         act.begin_execution(0o0000, &state).unwrap();
         for bit in 0..BITS_PER_WORD - 1 {
