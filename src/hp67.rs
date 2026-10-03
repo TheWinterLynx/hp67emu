@@ -498,7 +498,8 @@ impl Hp67LiveMachine {
                 .map_err(|error| {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
-            self.act_serial.bind_crc_control(&self.machine.crc)
+            self.act_serial
+                .bind_crc_control(&self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} M14L binding failed: {error}"))?;
             if !self.display_control_seen {
                 // Direct power-on capture shows display traffic before firmware
@@ -525,12 +526,26 @@ impl Hp67LiveMachine {
                 deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
             if let Some(image) = self.act_serial.serial_crc_control_result_image() {
-                let Hp67ArchitecturalOperation::CrcControl { instruction, condition } = execution.operation else {
+                let Hp67ArchitecturalOperation::CrcControl {
+                    instruction,
+                    condition,
+                } = execution.operation
+                else {
                     return Err(format!("live cycle {cycle} M14L CRC ownership mismatch"));
                 };
-                let flag = self.machine.crc.flag(usize::from(image.flag())).ok_or_else(|| format!("live cycle {cycle} M14L flag missing"))?;
-                crc_control_expected = Some((instruction, condition, flag, self.machine.act.state.status[3]));
-                image.restore(&mut self.machine.act.state, &mut self.machine.crc)
+                let flag = self
+                    .machine
+                    .crc
+                    .flag(usize::from(image.flag()))
+                    .ok_or_else(|| format!("live cycle {cycle} M14L flag missing"))?;
+                crc_control_expected = Some((
+                    instruction,
+                    condition,
+                    flag,
+                    self.machine.act.state.status[3],
+                ));
+                image
+                    .restore(&mut self.machine.act.state, &mut self.machine.crc)
                     .map_err(|error| format!("live cycle {cycle} M14L restore failed: {error}"))?;
             }
             if let Some(image) = self.act_serial.serial_ram_result_image() {
@@ -632,11 +647,20 @@ impl Hp67LiveMachine {
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
         if let Some((instruction, condition, flag, status3)) = crc_control_expected {
-            let image = self.act_serial.serial_crc_control_result_image().ok_or_else(|| format!("live cycle {cycle} lost M14L CRC image"))?;
-            if !image.is_complete() || image.instruction() != instruction || image.condition() != condition || image.result_flag() != flag || image.result_status3() != status3 {
+            let image = self
+                .act_serial
+                .serial_crc_control_result_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost M14L CRC image"))?;
+            if !image.is_complete()
+                || image.instruction() != instruction
+                || image.condition() != condition
+                || image.result_flag() != flag
+                || image.result_status3() != status3
+            {
                 return Err(format!("live cycle {cycle} M14L CRC mismatch: expected=({instruction:?}, {condition:?}, {flag}, {status3}) structural={image:?}"));
             }
-            image.commit(&mut self.machine.act.state, &mut self.machine.crc)
+            image
+                .commit(&mut self.machine.act.state, &mut self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} M14L commit failed: {error}"))?;
         }
         if let Some((expected_address, expected_block, before_block)) = ram_control_expected {
@@ -1357,7 +1381,11 @@ mod tests {
         assert!(live.machine.act.state.status[3]);
         assert_eq!(live.machine.crc.flag(0), Some(false));
         assert_eq!(live.machine.crc.external_flag(0), Some(true));
-        assert!(live.act_serial.serial_crc_control_result_image().unwrap().is_complete());
+        assert!(live
+            .act_serial
+            .serial_crc_control_result_image()
+            .unwrap()
+            .is_complete());
     }
 
     #[test]

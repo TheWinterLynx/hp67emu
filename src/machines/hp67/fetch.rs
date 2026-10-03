@@ -15,7 +15,6 @@ use super::{
     act_serial_boundary::ActSerialBoundaryResultImage,
     act_serial_control::ActSerialControlResultImage,
     act_serial_crc_control::ActSerialCrcControlResultImage,
-    crc::CrcArchitecturalCore,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
@@ -23,6 +22,7 @@ use super::{
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_special_register::ActSerialSpecialRegisterResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
+    crc::CrcArchitecturalCore,
     data::{Hp67DataSerialError, Hp67DataSerialWordPath},
     display::{
         Rom0DisplayEndpoint, Rom0DisplayError, Rom0StrEvent, HP67_DISPLAY_SCAN_SLOTS,
@@ -225,11 +225,22 @@ impl ActSerialEndpoint {
     }
 
     pub fn bind_crc_control(&mut self, crc: &CrcArchitecturalCore) -> Result<(), String> {
-        if self.crc_control_bound { return Err("CRC pre-instruction inputs are already bound".into()); }
-        let execution = self.execution.as_ref().ok_or("CRC binding requires an executing word")?;
-        if execution.next_word_bit() != Some(0) { return Err("CRC inputs must bind before b0".into()); }
-        let snapshot = self.execution_state.as_ref().ok_or("CRC binding requires pre-instruction ACT state")?;
-        self.crc_control_result_image = ActSerialCrcControlResultImage::begin(snapshot, execution, crc)?;
+        if self.crc_control_bound {
+            return Err("CRC pre-instruction inputs are already bound".into());
+        }
+        let execution = self
+            .execution
+            .as_ref()
+            .ok_or("CRC binding requires an executing word")?;
+        if execution.next_word_bit() != Some(0) {
+            return Err("CRC inputs must bind before b0".into());
+        }
+        let snapshot = self
+            .execution_state
+            .as_ref()
+            .ok_or("CRC binding requires pre-instruction ACT state")?;
+        self.crc_control_result_image =
+            ActSerialCrcControlResultImage::begin(snapshot, execution, crc)?;
         self.crc_control_bound = true;
         Ok(())
     }
