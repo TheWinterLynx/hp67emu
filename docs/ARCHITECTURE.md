@@ -180,3 +180,7 @@ This integration is intentionally narrower than an electrical RAM model. It is a
 ### M14I structural successor and flow authority
 
 The live bridge restores oracle PC/bank/delayed-ROM/return-stack mutations before transport. `ActSerialFlowResultImage` independently derives the successor from immutable pre-instruction inputs; its preview feeds the concurrent address/bank selection and its completed b55 result becomes final authority after exact oracle comparison. Early preview and completed-word commit are scheduling/ownership approximations, not internal physical write-edge claims. Exact flow timing remains SOURCE-BLOCKED; unrelated prelude/peripheral effects still use the architectural bridge.
+
+### M14J remaining boundary authority
+
+Structural boundary images own P-change history, previous carry, ordinary carry reset and arithmetic condition instruction-state selection outside M14F. Explicit masks preserve M14E arithmetic carry and M14I implied-GOTO completion. Oracle-owned fields are restored before structural transport; final commit requires b55 and exact agreement. Internal physical latch edges remain SOURCE-BLOCKED.

@@ -12,6 +12,7 @@ use crate::emulation::{Drive, LogicLevel};
 
 use super::{
     act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError},
+    act_serial_boundary::ActSerialBoundaryResultImage,
     act_serial_control::ActSerialControlResultImage,
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_flow::ActSerialFlowResultImage,
@@ -143,6 +144,7 @@ pub struct ActSerialEndpoint {
     special_register_result_image: Option<ActSerialSpecialRegisterResultImage>,
     mode_latch_result_image: Option<ActSerialModeLatchResultImage>,
     flow_result_image: Option<ActSerialFlowResultImage>,
+    boundary_result_image: Option<ActSerialBoundaryResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -163,6 +165,7 @@ impl ActSerialEndpoint {
             special_register_result_image: None,
             mode_latch_result_image: None,
             flow_result_image: None,
+            boundary_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -200,12 +203,17 @@ impl ActSerialEndpoint {
             ActSerialSpecialRegisterResultImage::begin(&snapshot, &execution);
         self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
         self.flow_result_image = Some(ActSerialFlowResultImage::begin(state, word));
+        self.boundary_result_image = ActSerialBoundaryResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.execution_display_enable_override = None;
         self.arithmetic_chain = None;
         self.last_alu_digit_result = None;
         Ok(())
+    }
+
+    pub const fn serial_boundary_result_image(&self) -> Option<ActSerialBoundaryResultImage> {
+        self.boundary_result_image
     }
 
     pub const fn serial_flow_result_image(&self) -> Option<ActSerialFlowResultImage> {
@@ -448,6 +456,9 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
+                if let Some(image) = &mut self.boundary_result_image {
+                    image.complete_word();
+                }
                 if let Some(image) = &mut self.flow_result_image {
                     image.complete_word();
                 }
@@ -1394,6 +1405,27 @@ mod tests {
                 .display_enable(),
             false
         );
+    }
+
+    #[test]
+    fn m14j_boundary_image_completes_only_after_b55() {
+        let state = ActArchitecturalState { carry: true, previous_carry: false, p_change: [1, -1, 0], ..Default::default() };
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution(0o0000, &state).unwrap();
+        for bit in 0..BITS_PER_WORD - 1 {
+            act.advance_execution_for_bit(bit).unwrap();
+            assert!(!act.serial_boundary_result_image().unwrap().is_complete());
+        }
+        act.advance_execution_for_bit(BITS_PER_WORD - 1).unwrap();
+        let image = act.serial_boundary_result_image().unwrap();
+        assert!(image.is_complete());
+        let mut actual = state;
+        image.commit(&mut actual);
+        assert_eq!(actual.p_change, [0, 1, -1]);
+        assert!(actual.previous_carry);
+        assert!(!actual.carry);
+        act.begin_execution(0o0720, &actual).unwrap();
+        assert!(act.serial_boundary_result_image().is_none());
     }
 
     #[test]

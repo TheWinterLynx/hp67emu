@@ -2,7 +2,7 @@
 
 Date: 2026-10-03
 Branch: `agent/m14i-control-flow-authority`
-Status: implemented; owner local validation pending.
+Status: owner reported `M14I FULL GATE GREEN` on 2026-10-03; integrated into main after instruction to continue.
 
 ## Scope
 

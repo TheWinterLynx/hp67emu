@@ -117,13 +117,21 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add trace probes with deterministic ordering.
 - [x] Verify with regression tests that device container iteration order cannot change propagation results.
 
-## M14I current branch
+## M14I validated integration
 
 - [x] Derive successor fetch independently from pre-instruction ACT flow state.
 - [x] Restore oracle PC/bank/delayed-ROM/return-stack mutations before transport.
 - [x] Commit matching structural flow only after completed b0..b55 execution.
-- [ ] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
+- [x] Owner reported M14I FULL GATE GREEN; integrated into main on 2026-10-03.
 - [ ] Exact intra-word flow latch timing remains SOURCE-BLOCKED.
+
+## M14J current branch
+
+- [x] Structural P-change history and previous-carry authority outside M14F.
+- [x] Structural carry reset outside M14E/F and arithmetic condition-latch authority.
+- [x] Explicit restore/compare/commit ownership masks and b55 lifetime regressions.
+- [ ] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
+- [ ] Exact internal boundary-latch timing remains SOURCE-BLOCKED.
 
 ## ACT 1820-2530 / HP-67 ACT revision
 

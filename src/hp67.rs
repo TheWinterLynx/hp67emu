@@ -3,7 +3,7 @@ use std::time::Duration;
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, decode_rom0_display_byte, display_register_index_for_scan_slot,
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
-    ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
+    ActSerialBoundaryState, ActInstructionState, ActOperation, ActRegister, ActSerialControlAction, ActSerialEndpoint,
     ActSerialFlowState, ActSerialModeLatchAction, ActSerialRegister,
     ActSerialSpecialRegisterAction, CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction,
     FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
@@ -484,6 +484,7 @@ impl Hp67LiveMachine {
         let mut serial_special_register_authority = None;
         let mut serial_mode_latch_authority = None;
         let mut flow_expected = None;
+        let mut boundary_expected = None;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_before_word(cycle)?;
         if let Some(word) = self.pipeline.executing_word() {
@@ -502,6 +503,7 @@ impl Hp67LiveMachine {
                 self.act_serial.set_execution_display_enable_override(true);
             }
 
+            let boundary_before = ActSerialBoundaryState::capture(&self.machine.act.state);
             let flow_before = ActSerialFlowState::capture(&self.machine.act.state);
             let (
                 execution,
@@ -511,6 +513,10 @@ impl Hp67LiveMachine {
                 deferred_serial_special_register,
                 deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
+            if let Some(image) = self.act_serial.serial_boundary_result_image() {
+                boundary_expected = Some(ActSerialBoundaryState::capture(&self.machine.act.state));
+                image.restore(boundary_before, &mut self.machine.act.state);
+            }
             flow_expected = Some(ActSerialFlowState::capture(&self.machine.act.state));
             flow_before.apply(&mut self.machine.act.state);
             ram_data_transfer = deferred_ram_data;
@@ -589,6 +595,15 @@ impl Hp67LiveMachine {
         self.complete_serial_control_authority(cycle, serial_control_authority)?;
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
+        if let Some(expected) = boundary_expected {
+            let image = self.act_serial.serial_boundary_result_image().ok_or_else(|| {
+                format!("live cycle {cycle} lost M14J boundary image")
+            })?;
+            if !image.is_complete() || !image.matches(expected) {
+                return Err(format!("live cycle {cycle} M14J boundary mismatch: expected={expected:?} structural={image:?}"));
+            }
+            image.commit(&mut self.machine.act.state);
+        }
         if let Some(expected) = flow_expected {
             let image = self
                 .act_serial
@@ -1264,6 +1279,24 @@ mod tests {
                 .expect("DATA body must accept the first word");
         }
         assert_eq!(live.data_serial.complete_word(), None);
+    }
+
+    #[test]
+    fn m14j_live_boot_closes_boundary_images_and_preserves_control_ownership() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut saw_boundary = false;
+        let mut saw_control = false;
+        for _ in 0..512 {
+            live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(image) = live.act_serial.serial_boundary_result_image() {
+                saw_boundary = true;
+                assert!(image.is_complete());
+                assert!(image.matches(ActSerialBoundaryState::capture(&live.machine.act.state)));
+                assert!(live.act_serial.serial_control_result_image().is_none());
+            }
+            if live.act_serial.serial_control_result_image().is_some() { saw_control = true; }
+        }
+        assert!(saw_boundary && saw_control && live.saw_display_init);
     }
 
     #[test]

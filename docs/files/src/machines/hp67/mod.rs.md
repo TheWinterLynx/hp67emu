@@ -27,3 +27,7 @@ The M14B exports now include `Hp67DataSerialWordPath`, `run_structural_display_f
 ## M14I flow authority
 
 The ACT endpoint captures `ActSerialFlowResultImage` from real pre-instruction state. The live bridge restores PC/bank/delayed-ROM/return-stack changes made by the oracle. Concurrent successor fetch consumes the independently derived structural preview; completed b55 flow must agree with the oracle before live commit. Low-page bank normalization remains a fetch-boundary rule. Early preview and final commit do not claim physical internal write edges. Existing M14C-H result ownership is unchanged.
+
+## M14J boundary-state authority
+
+`ActSerialBoundaryResultImage` supplies remaining P-change history, previous carry, non-arithmetic carry reset and arithmetic condition-latch final authority. The image excludes M14F and masks out M14E carry and M14I implied-GOTO state. The live bridge restores only owned oracle mutations before transport and compares/commits after b55. Exact physical latch timing remains SOURCE-BLOCKED.
