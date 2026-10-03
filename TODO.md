@@ -125,13 +125,21 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Owner reported M14I FULL GATE GREEN; integrated into main on 2026-10-03.
 - [ ] Exact intra-word flow latch timing remains SOURCE-BLOCKED.
 
-## M14J current branch
+## M14J validated integration
 
 - [x] Structural P-change history and previous-carry authority outside M14F.
 - [x] Structural carry reset outside M14E/F and arithmetic condition-latch authority.
 - [x] Explicit restore/compare/commit ownership masks and b55 lifetime regressions.
-- [ ] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
+- [x] Owner reported M14J FULL GATE GREEN; integrated into main under standing authorization.
 - [ ] Exact internal boundary-latch timing remains SOURCE-BLOCKED.
+
+## M14K current branch
+
+- [x] Structural low-nibble RAM selector authority for family 050/070.
+- [x] Logical installed-block clear authority, preserving sparse topology and neighbours.
+- [x] Preserve M14C cross-word DATA and M14H/CRC ownership boundaries.
+- [ ] Owner local formatting/warnings/all-targets/release and diagnostic 12/12 validation.
+- [ ] Physical clear protocol, chip partitioning and DATA edges remain SOURCE-BLOCKED.
 
 ## ACT 1820-2530 / HP-67 ACT revision
 

@@ -17,6 +17,7 @@ use super::{
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
+    act_serial_ram::ActSerialRamResultImage,
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_special_register::ActSerialSpecialRegisterResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
@@ -145,6 +146,7 @@ pub struct ActSerialEndpoint {
     mode_latch_result_image: Option<ActSerialModeLatchResultImage>,
     flow_result_image: Option<ActSerialFlowResultImage>,
     boundary_result_image: Option<ActSerialBoundaryResultImage>,
+    ram_result_image: Option<ActSerialRamResultImage>,
     received_word: u16,
     received_mask: u16,
 }
@@ -166,6 +168,7 @@ impl ActSerialEndpoint {
             mode_latch_result_image: None,
             flow_result_image: None,
             boundary_result_image: None,
+            ram_result_image: None,
             received_word: 0,
             received_mask: 0,
         }
@@ -204,12 +207,17 @@ impl ActSerialEndpoint {
         self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
         self.flow_result_image = Some(ActSerialFlowResultImage::begin(state, word));
         self.boundary_result_image = ActSerialBoundaryResultImage::begin(&snapshot, &execution);
+        self.ram_result_image = ActSerialRamResultImage::begin(&snapshot, &execution);
         self.execution = Some(execution);
         self.execution_state = Some(snapshot);
         self.execution_display_enable_override = None;
         self.arithmetic_chain = None;
         self.last_alu_digit_result = None;
         Ok(())
+    }
+
+    pub const fn serial_ram_result_image(&self) -> Option<ActSerialRamResultImage> {
+        self.ram_result_image
     }
 
     pub const fn serial_boundary_result_image(&self) -> Option<ActSerialBoundaryResultImage> {
@@ -456,6 +464,9 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
+                if let Some(image) = &mut self.ram_result_image {
+                    image.complete_word();
+                }
                 if let Some(image) = &mut self.boundary_result_image {
                     image.complete_word();
                 }
@@ -1405,6 +1416,23 @@ mod tests {
                 .display_enable(),
             false
         );
+    }
+
+    #[test]
+    fn m14k_ram_image_completes_only_after_b55() {
+        let state = ActArchitecturalState { ram_address: 0x23, ..Default::default() };
+        let mut act = ActSerialEndpoint::new(0);
+        act.begin_execution((5 << 6) | 0o70, &state).unwrap();
+        for bit in 0..BITS_PER_WORD - 1 {
+            act.advance_execution_for_bit(bit).unwrap();
+            let image = act.serial_ram_result_image().unwrap();
+            assert!(!image.is_complete());
+            assert_eq!(image.ram_address(), 0x25);
+        }
+        act.advance_execution_for_bit(BITS_PER_WORD - 1).unwrap();
+        assert!(act.serial_ram_result_image().unwrap().is_complete());
+        act.begin_execution(0o0070, &state).unwrap();
+        assert!(act.serial_ram_result_image().is_none());
     }
 
     #[test]

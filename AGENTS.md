@@ -346,6 +346,9 @@ For every task:
 
 GitHub rules:
 
+- Standing owner authorization: reporting `<milestone> FULL GATE GREEN` authorizes integrating that exact validated branch head into `main` and continuing with the next focused milestone from updated `main`, without asking again.
+- In this workflow, GitHub Actions is authorized exclusively for `cargo fmt` and its formatting check/save; compilation, tests, release builds and deployment remain local owner gates. This is the explicit exception to the default no-Actions rule below.
+
 - Do not create or run GitHub Actions unless explicitly authorized.
 - Do not add .github/workflows automation as a convenience.
 - Do not open a PR unless explicitly requested.

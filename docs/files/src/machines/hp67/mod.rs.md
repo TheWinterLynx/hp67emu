@@ -31,3 +31,7 @@ The ACT endpoint captures `ActSerialFlowResultImage` from real pre-instruction s
 ## M14J boundary-state authority
 
 `ActSerialBoundaryResultImage` supplies remaining P-change history, previous carry, non-arithmetic carry reset and arithmetic condition-latch final authority. The image excludes M14F and masks out M14E carry and M14I implied-GOTO state. The live bridge restores only owned oracle mutations before transport and compares/commits after b55. Exact physical latch timing remains SOURCE-BLOCKED.
+
+## M14K RAM control authority
+
+`ActSerialRamResultImage` owns low-nibble family 050/070 selection and logical 1260 installed-block clear. Fixed 0070 and M14H C-derived selection are excluded. The live bridge restores oracle address/block changes before transport, compares the independent completed image and commits after b55. DATA destinations keep the M14C next-word b0/b1 lifetime; CRC payloads remain peripheral-owned. No physical-chip mapping or inferred clear bus protocol is claimed.

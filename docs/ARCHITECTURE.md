@@ -184,3 +184,7 @@ The live bridge restores oracle PC/bank/delayed-ROM/return-stack mutations befor
 ### M14J remaining boundary authority
 
 Structural boundary images own P-change history, previous carry, ordinary carry reset and arithmetic condition instruction-state selection outside M14F. Explicit masks preserve M14E arithmetic carry and M14I implied-GOTO completion. Oracle-owned fields are restored before structural transport; final commit requires b55 and exact agreement. Internal physical latch edges remain SOURCE-BLOCKED.
+
+### M14K RAM control authority
+
+Remaining low-nibble RAM address selectors and logical installed-block clear now use independent completed-word result images. Oracle address/block changes are restored before transport. The selected DATA target remains fixed by its pre-instruction plan, and DATA destination completion remains at the following-word b0/b1 logical tail. Block clear preserves the installed/absent topology and neighbouring memory. This closes logical final-state authority without inventing physical chip mapping or a clear-block electrical sequence.

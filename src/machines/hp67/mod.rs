@@ -11,6 +11,7 @@ pub mod act_serial_control;
 pub mod act_serial_execution;
 pub mod act_serial_flow;
 pub mod act_serial_mode_latch;
+pub mod act_serial_ram;
 pub mod act_serial_result;
 pub mod act_serial_special_register;
 pub mod act_serial_state;
@@ -50,6 +51,7 @@ pub use act_serial_flow::{ActSerialFlowResultImage, ActSerialFlowState};
 pub use act_serial_mode_latch::{
     decode_serial_mode_latch_action, ActSerialModeLatchAction, ActSerialModeLatchResultImage,
 };
+pub use act_serial_ram::{capture_ram_block, restore_ram_block, ActSerialRamBlock, ActSerialRamResultImage};
 pub use act_serial_result::ActSerialArithmeticResultImage;
 pub use act_serial_special_register::{
     decode_serial_special_register_action, ActSerialSpecialRegisterAction,
