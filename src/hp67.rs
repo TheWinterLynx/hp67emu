@@ -527,8 +527,13 @@ impl Hp67LiveMachine {
                 deferred_serial_mode_latch,
             ) = self.execute_word_with_deferred_authority(cycle, word)?;
             if let Some(image) = self.act_serial.serial_crc_data_result_image() {
-                if image.operation() != execution.operation { return Err(format!("live cycle {cycle} M14M CRC data ownership mismatch")); }
-                crc_data_expected = Some((self.machine.act.state.clone(), self.machine.crc.clone()));
+                if image.operation() != execution.operation {
+                    return Err(format!(
+                        "live cycle {cycle} M14M CRC data ownership mismatch"
+                    ));
+                }
+                crc_data_expected =
+                    Some((self.machine.act.state.clone(), self.machine.crc.clone()));
                 image.restore(&mut self.machine.act.state, &mut self.machine.crc);
             }
             if let Some(image) = self.act_serial.serial_crc_control_result_image() {
@@ -653,9 +658,18 @@ impl Hp67LiveMachine {
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
         if let Some((state, crc)) = crc_data_expected {
-            let image = self.act_serial.serial_crc_data_result_image().ok_or_else(|| format!("live cycle {cycle} lost M14M CRC data image"))?;
-            if !image.is_complete() || !image.matches_result(&state, &crc) { return Err(format!("live cycle {cycle} M14M CRC data mismatch: {image:?}")); }
-            image.commit(&mut self.machine.act.state, &mut self.machine.crc).map_err(|error| format!("live cycle {cycle} M14M commit failed: {error}"))?;
+            let image = self
+                .act_serial
+                .serial_crc_data_result_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost M14M CRC data image"))?;
+            if !image.is_complete() || !image.matches_result(&state, &crc) {
+                return Err(format!(
+                    "live cycle {cycle} M14M CRC data mismatch: {image:?}"
+                ));
+            }
+            image
+                .commit(&mut self.machine.act.state, &mut self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} M14M commit failed: {error}"))?;
         }
         if let Some((instruction, condition, flag, status3)) = crc_control_expected {
             let image = self
@@ -1391,23 +1405,42 @@ mod tests {
         live.machine.act.state.ram_address = 0x90;
         live.pipeline.complete_cycle(0o1370);
         let execution = live.step_firmware_cycle_with_execution().unwrap().unwrap();
-        assert_eq!(execution.operation, Hp67ArchitecturalOperation::CrcDataRead { address: 0x9b, card_word: 0x7654321 });
+        assert_eq!(
+            execution.operation,
+            Hp67ArchitecturalOperation::CrcDataRead {
+                address: 0x9b,
+                card_word: 0x7654321
+            }
+        );
         assert_eq!(live.machine.act.state.ram_address, 0x9b);
-        assert_eq!(live.machine.act.state.c, [1,2,3,4,5,6,7,1,2,3,4,5,6,7]);
+        assert_eq!(
+            live.machine.act.state.c,
+            [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7]
+        );
         assert_eq!(live.machine.crc.buffered_read_word(), Some(0xabcdef0));
         assert_eq!(live.machine.crc.flag(CRC_FLAG_BUFFER_READY), Some(true));
-        assert!(live.act_serial.serial_crc_data_result_image().unwrap().is_complete());
+        assert!(live
+            .act_serial
+            .serial_crc_data_result_image()
+            .unwrap()
+            .is_complete());
         live.pipeline.complete_cycle(0o0070);
         live.step_firmware_cycle_with_execution().unwrap();
-        assert_eq!(live.machine.act.state.c, [0,15,14,13,12,11,10,0,15,14,13,12,11,10]);
+        assert_eq!(
+            live.machine.act.state.c,
+            [0, 15, 14, 13, 12, 11, 10, 0, 15, 14, 13, 12, 11, 10]
+        );
         assert_eq!(live.machine.crc.queued_read_words(), 0);
         assert_eq!(live.machine.crc.flag(CRC_FLAG_BUFFER_READY), Some(false));
-        live.machine.crc.commit_control_flag(CRC_FLAG_WRITE_MODE as u8, true).unwrap();
+        live.machine
+            .crc
+            .commit_control_flag(CRC_FLAG_WRITE_MODE as u8, true)
+            .unwrap();
         live.machine.act.state.ram_address = 0x90;
         live.pipeline.complete_cycle(0o1150);
         live.step_firmware_cycle_with_execution().unwrap();
         assert_eq!(live.machine.act.state.ram_address, 0x99);
-        live.machine.act.state.c = [4;14];
+        live.machine.act.state.c = [4; 14];
         live.pipeline.complete_cycle(0o1360);
         live.step_firmware_cycle_with_execution().unwrap();
         assert_eq!(live.machine.crc.queued_write_words(), 2);

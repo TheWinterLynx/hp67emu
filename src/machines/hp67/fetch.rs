@@ -507,7 +507,9 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
-                if let Some(image) = &mut self.crc_data_result_image { image.complete_word(); }
+                if let Some(image) = &mut self.crc_data_result_image {
+                    image.complete_word();
+                }
                 if let Some(image) = &mut self.crc_control_result_image {
                     image.complete_word();
                 }
@@ -1467,7 +1469,10 @@ mod tests {
 
     #[test]
     fn m14m_crc_data_binding_is_frozen_and_requires_b55() {
-        let state = ActArchitecturalState { ram_address: super::super::CRC_RAM_READ_ADDRESS, ..Default::default() };
+        let state = ActArchitecturalState {
+            ram_address: super::super::CRC_RAM_READ_ADDRESS,
+            ..Default::default()
+        };
         let mut crc = CrcArchitecturalCore::default();
         let mut act = ActSerialEndpoint::new(0);
         act.begin_execution(0o0070, &state).unwrap();

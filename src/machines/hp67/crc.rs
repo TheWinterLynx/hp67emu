@@ -81,9 +81,14 @@ pub(crate) struct CrcDataState {
 impl CrcArchitecturalCore {
     pub(crate) fn data_state(&self) -> CrcDataState {
         CrcDataState {
-            read_buffers: self.read_buffers, read_head: self.read_head, read_len: self.read_len,
-            write_buffers: self.write_buffers, write_head: self.write_head, write_len: self.write_len,
-            ready: self.flags[CRC_FLAG_BUFFER_READY], status_error: self.flags[CRC_FLAG_F7_STATUS],
+            read_buffers: self.read_buffers,
+            read_head: self.read_head,
+            read_len: self.read_len,
+            write_buffers: self.write_buffers,
+            write_head: self.write_head,
+            write_len: self.write_len,
+            ready: self.flags[CRC_FLAG_BUFFER_READY],
+            status_error: self.flags[CRC_FLAG_F7_STATUS],
         }
     }
 
@@ -100,12 +105,21 @@ impl CrcArchitecturalCore {
 
     /// Independently stage logical storage changes without invoking architectural
     /// take/queue operations. Failure leaves every live latch and FIFO untouched.
-    pub(crate) fn stage_data_word(&self, write: Option<u32>) -> Result<(u32, CrcDataState), CrcArchitecturalError> {
+    pub(crate) fn stage_data_word(
+        &self,
+        write: Option<u32>,
+    ) -> Result<(u32, CrcDataState), CrcArchitecturalError> {
         let mut result = self.data_state();
         let word = if let Some(word) = write {
-            if word > CRC_CARD_WORD_MASK { return Err(CrcArchitecturalError::CardWordOutOfRange(word)); }
-            if !self.flags[CRC_FLAG_WRITE_MODE] { return Err(CrcArchitecturalError::WriteModeInactive); }
-            if result.write_len == CRC_WRITE_BUFFER_COUNT { return Err(CrcArchitecturalError::WriteBufferFull); }
+            if word > CRC_CARD_WORD_MASK {
+                return Err(CrcArchitecturalError::CardWordOutOfRange(word));
+            }
+            if !self.flags[CRC_FLAG_WRITE_MODE] {
+                return Err(CrcArchitecturalError::WriteModeInactive);
+            }
+            if result.write_len == CRC_WRITE_BUFFER_COUNT {
+                return Err(CrcArchitecturalError::WriteBufferFull);
+            }
             let tail = (result.write_head + result.write_len) % CRC_WRITE_BUFFER_COUNT;
             result.write_buffers[tail] = Some(word);
             result.write_len += 1;
@@ -113,8 +127,12 @@ impl CrcArchitecturalCore {
             result.status_error = false;
             word
         } else {
-            if result.read_len == 0 { return Err(CrcArchitecturalError::ReadBufferEmpty); }
-            let word = result.read_buffers[result.read_head].take().expect("CRC staged FIFO head exists");
+            if result.read_len == 0 {
+                return Err(CrcArchitecturalError::ReadBufferEmpty);
+            }
+            let word = result.read_buffers[result.read_head]
+                .take()
+                .expect("CRC staged FIFO head exists");
             result.read_head = (result.read_head + 1) % CRC_READ_BUFFER_COUNT;
             result.read_len -= 1;
             result.ready = result.read_len != 0;
