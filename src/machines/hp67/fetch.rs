@@ -11,7 +11,10 @@
 use crate::emulation::{Drive, LogicLevel};
 
 use super::{
-    act::{display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError, ActRamImage},
+    act::{
+        display_register_index_for_scan_slot, ActArchitecturalState, ActDisplaySerialError,
+        ActRamImage,
+    },
     act_serial_boundary::ActSerialBoundaryResultImage,
     act_serial_control::ActSerialControlResultImage,
     act_serial_crc_control::ActSerialCrcControlResultImage,
@@ -19,7 +22,7 @@ use super::{
     act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
-    act_serial_ram::{ActSerialRamResultImage, ActSerialAbsentRamReadImage},
+    act_serial_ram::{ActSerialAbsentRamReadImage, ActSerialRamResultImage},
     act_serial_result::ActSerialArithmeticResultImage,
     act_serial_special_register::ActSerialSpecialRegisterResultImage,
     act_serial_state::{ActSerialAluInputs, ActSerialDigitAluResult, ActSerialStateSnapshot},
@@ -235,16 +238,28 @@ impl ActSerialEndpoint {
     }
 
     pub fn bind_ram_topology(&mut self, ram: &ActRamImage) -> Result<(), String> {
-        if self.ram_topology_bound { return Err("RAM topology is already bound".into()); }
-        let execution = self.execution.as_ref().ok_or("RAM topology binding requires an executing word")?;
-        if execution.next_word_bit() != Some(0) { return Err("RAM topology must bind before b0".into()); }
-        let snapshot = self.execution_state.as_ref().ok_or("RAM topology binding requires ACT pre-state")?;
+        if self.ram_topology_bound {
+            return Err("RAM topology is already bound".into());
+        }
+        let execution = self
+            .execution
+            .as_ref()
+            .ok_or("RAM topology binding requires an executing word")?;
+        if execution.next_word_bit() != Some(0) {
+            return Err("RAM topology must bind before b0".into());
+        }
+        let snapshot = self
+            .execution_state
+            .as_ref()
+            .ok_or("RAM topology binding requires ACT pre-state")?;
         self.absent_ram_read_image = ActSerialAbsentRamReadImage::begin(snapshot, execution, ram);
         self.ram_topology_bound = true;
         Ok(())
     }
 
-    pub const fn serial_absent_ram_read_image(&self) -> Option<ActSerialAbsentRamReadImage> { self.absent_ram_read_image }
+    pub const fn serial_absent_ram_read_image(&self) -> Option<ActSerialAbsentRamReadImage> {
+        self.absent_ram_read_image
+    }
 
     pub fn bind_crc_control(&mut self, crc: &CrcArchitecturalCore) -> Result<(), String> {
         if self.crc_control_bound {
@@ -525,7 +540,9 @@ impl ActSerialEndpoint {
         if let Some(execution) = &mut self.execution {
             execution.advance_word_bit(word_bit)?;
             if execution.is_complete() {
-                if let Some(image) = &mut self.absent_ram_read_image { image.complete_word(); }
+                if let Some(image) = &mut self.absent_ram_read_image {
+                    image.complete_word();
+                }
                 if let Some(image) = &mut self.crc_data_result_image {
                     image.complete_word();
                 }
@@ -1488,7 +1505,11 @@ mod tests {
 
     #[test]
     fn m14n_absent_ram_image_follows_structural_lifetime() {
-        let state = ActArchitecturalState { ram_address: 0xff, c: [9;14], ..Default::default() };
+        let state = ActArchitecturalState {
+            ram_address: 0xff,
+            c: [9; 14],
+            ..Default::default()
+        };
         let ram = ActRamImage::hp67();
         let mut act = ActSerialEndpoint::new(0);
         act.begin_execution(0o0070, &state).unwrap();

@@ -56,7 +56,8 @@ pub use act_serial_mode_latch::{
     decode_serial_mode_latch_action, ActSerialModeLatchAction, ActSerialModeLatchResultImage,
 };
 pub use act_serial_ram::{
-    capture_ram_block, restore_ram_block, ActSerialRamBlock, ActSerialRamResultImage, ActSerialAbsentRamReadImage,
+    capture_ram_block, restore_ram_block, ActSerialAbsentRamReadImage, ActSerialRamBlock,
+    ActSerialRamResultImage,
 };
 pub use act_serial_result::ActSerialArithmeticResultImage;
 pub use act_serial_special_register::{

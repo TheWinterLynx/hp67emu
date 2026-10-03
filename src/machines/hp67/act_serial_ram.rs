@@ -2,8 +2,8 @@
 //! This is logical installed-RAM authority, not a physical DATA transaction.
 
 use super::{
-    ActArchitecturalState, ActRamImage, ActRegister, ActSerialExecution, ActSerialStateSnapshot,
-    ActSerialWordClass, ActSerialRegister, CRC_RAM_READ_ADDRESS, ACT_WORD_DIGITS,
+    ActArchitecturalState, ActRamImage, ActRegister, ActSerialExecution, ActSerialRegister,
+    ActSerialStateSnapshot, ActSerialWordClass, ACT_WORD_DIGITS, CRC_RAM_READ_ADDRESS,
 };
 
 pub type ActSerialRamBlock = [Option<ActRegister>; 16];
@@ -113,22 +113,59 @@ pub struct ActSerialAbsentRamReadImage {
 }
 
 impl ActSerialAbsentRamReadImage {
-    pub fn begin(snapshot: &ActSerialStateSnapshot, execution: &ActSerialExecution, ram: &ActRamImage) -> Option<Self> {
-        let ActSerialWordClass::SpecialOrPeripheral { opcode } = execution.class() else { return None; };
-        let address = if opcode == 0o0070 { snapshot.ram_address() }
-        else if opcode & 0o77 == 0o70 { (snapshot.ram_address() & 0xf0) | ((opcode >> 6) & 0xf) as u8 }
-        else { return None; };
-        if address == CRC_RAM_READ_ADDRESS || ram.read(address).is_some() { return None; }
-        Some(Self { address, previous_c: *snapshot.register(ActSerialRegister::C), complete: false })
+    pub fn begin(
+        snapshot: &ActSerialStateSnapshot,
+        execution: &ActSerialExecution,
+        ram: &ActRamImage,
+    ) -> Option<Self> {
+        let ActSerialWordClass::SpecialOrPeripheral { opcode } = execution.class() else {
+            return None;
+        };
+        let address = if opcode == 0o0070 {
+            snapshot.ram_address()
+        } else if opcode & 0o77 == 0o70 {
+            (snapshot.ram_address() & 0xf0) | ((opcode >> 6) & 0xf) as u8
+        } else {
+            return None;
+        };
+        if address == CRC_RAM_READ_ADDRESS || ram.read(address).is_some() {
+            return None;
+        }
+        Some(Self {
+            address,
+            previous_c: *snapshot.register(ActSerialRegister::C),
+            complete: false,
+        })
     }
-    pub const fn address(&self) -> u8 { self.address }
-    pub const fn is_complete(&self) -> bool { self.complete }
-    pub fn complete_word(&mut self) { self.complete = true; }
-    pub fn restore(self, state: &mut ActArchitecturalState) { state.c = self.previous_c; }
-    pub fn commit(self, state: &mut ActArchitecturalState, ram: &ActRamImage) -> Result<(), String> {
-        if !self.complete { return Err("absent RAM read requires completed b0..b55 execution".into()); }
-        if ram.read(self.address).is_some() { return Err(format!("absent RAM topology changed at 0x{:02x}", self.address)); }
-        if state.c != self.previous_c { return Err("absent RAM read pre-state C changed".into()); }
+    pub const fn address(&self) -> u8 {
+        self.address
+    }
+    pub const fn is_complete(&self) -> bool {
+        self.complete
+    }
+    pub fn complete_word(&mut self) {
+        self.complete = true;
+    }
+    pub fn restore(self, state: &mut ActArchitecturalState) {
+        state.c = self.previous_c;
+    }
+    pub fn commit(
+        self,
+        state: &mut ActArchitecturalState,
+        ram: &ActRamImage,
+    ) -> Result<(), String> {
+        if !self.complete {
+            return Err("absent RAM read requires completed b0..b55 execution".into());
+        }
+        if ram.read(self.address).is_some() {
+            return Err(format!(
+                "absent RAM topology changed at 0x{:02x}",
+                self.address
+            ));
+        }
+        if state.c != self.previous_c {
+            return Err("absent RAM read pre-state C changed".into());
+        }
         state.c = [0; ACT_WORD_DIGITS];
         Ok(())
     }
@@ -142,28 +179,33 @@ mod tests {
     #[test]
     fn m14n_absent_read_excludes_installed_crc_and_implied_goto() {
         let mut machine = Hp67ArchitecturalMachine::default();
-        machine.act.state.c = [9;14];
+        machine.act.state.c = [9; 14];
         for address in [0, 0x40, 0x99, 0x9b, 0xff] {
             machine.act.state.ram_address = address;
             let snapshot = ActSerialStateSnapshot::capture(&machine.act.state);
             let execution = ActSerialExecution::new(0o0070, ActInstructionState::Normal).unwrap();
             let image = ActSerialAbsentRamReadImage::begin(&snapshot, &execution, &machine.ram);
-            if address == 0 || address == 0x9b { assert!(image.is_none()); continue; }
+            if address == 0 || address == 0x9b {
+                assert!(image.is_none());
+                continue;
+            }
             let mut image = image.unwrap();
             assert!(image.commit(&mut machine.act.state, &machine.ram).is_err());
             image.complete_word();
-            machine.act.state.c = [0;14];
+            machine.act.state.c = [0; 14];
             image.restore(&mut machine.act.state);
-            assert_eq!(machine.act.state.c, [9;14]);
+            assert_eq!(machine.act.state.c, [9; 14]);
             let mut changed_ram = machine.ram.clone();
             changed_ram.install_range(address, 1);
             assert!(image.commit(&mut machine.act.state, &changed_ram).is_err());
-            assert_eq!(machine.act.state.c, [9;14]);
+            assert_eq!(machine.act.state.c, [9; 14]);
             image.commit(&mut machine.act.state, &machine.ram).unwrap();
-            assert_eq!(machine.act.state.c, [0;14]);
-            machine.act.state.c = [9;14];
+            assert_eq!(machine.act.state.c, [0; 14]);
+            machine.act.state.c = [9; 14];
             let implied = ActSerialExecution::new(0o0070, ActInstructionState::ThenGoto).unwrap();
-            assert!(ActSerialAbsentRamReadImage::begin(&snapshot, &implied, &machine.ram).is_none());
+            assert!(
+                ActSerialAbsentRamReadImage::begin(&snapshot, &implied, &machine.ram).is_none()
+            );
         }
     }
 

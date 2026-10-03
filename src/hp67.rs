@@ -6,13 +6,13 @@ use hp67emu::machines::hp67::{
     run_structural_display_fetch_data_phase_cycle, ActInstructionState, ActOperation, ActRegister,
     ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint, ActSerialFlowState,
     ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
-    ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd, CathodeDriver1820_1749, CrcInstruction,
-    FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
-    Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
-    Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
-    Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint, RomFetchEndpoint, ACT_STATUS_BITS,
-    CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE,
-    HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd,
+    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
+    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
+    Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
+    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
+    RomFetchEndpoint, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
+    CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
@@ -500,7 +500,9 @@ impl Hp67LiveMachine {
                 .map_err(|error| {
                     format!("live cycle {cycle} serial execution start failed: {error:?}")
                 })?;
-            self.act_serial.bind_ram_topology(&self.machine.ram).map_err(|error| format!("live cycle {cycle} M14N RAM binding failed: {error}"))?;
+            self.act_serial
+                .bind_ram_topology(&self.machine.ram)
+                .map_err(|error| format!("live cycle {cycle} M14N RAM binding failed: {error}"))?;
             self.act_serial
                 .bind_crc_control(&self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} CRC input binding failed: {error}"))?;
@@ -586,7 +588,10 @@ impl Hp67LiveMachine {
                 image.restore(boundary_before, &mut self.machine.act.state);
             }
             flow_expected = Some(ActSerialFlowState::capture(&self.machine.act.state));
-            self.act_serial.serial_flow_result_image().ok_or_else(|| format!("live cycle {cycle} lost flow image before restore"))?.restore(flow_before, &mut self.machine.act.state);
+            self.act_serial
+                .serial_flow_result_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost flow image before restore"))?
+                .restore(flow_before, &mut self.machine.act.state);
             self.check_serial_act_pre_state(cycle, boundary_before.previous_carry, flow_before)?;
             ram_data_transfer = deferred_ram_data;
             serial_arithmetic_authority = deferred_serial_arithmetic;
@@ -665,9 +670,19 @@ impl Hp67LiveMachine {
         self.complete_serial_special_register_authority(cycle, serial_special_register_authority)?;
         self.complete_serial_mode_latch_authority(cycle, serial_mode_latch_authority)?;
         if let Some(expected) = absent_ram_expected {
-            let image = self.act_serial.serial_absent_ram_read_image().ok_or_else(|| format!("live cycle {cycle} lost M14N absent RAM image"))?;
-            if expected != [0;14] || !image.is_complete() { return Err(format!("live cycle {cycle} M14N absent RAM result mismatch at 0x{:02x}: {expected:?}", image.address())); }
-            image.commit(&mut self.machine.act.state, &self.machine.ram).map_err(|error| format!("live cycle {cycle} M14N commit failed: {error}"))?;
+            let image = self
+                .act_serial
+                .serial_absent_ram_read_image()
+                .ok_or_else(|| format!("live cycle {cycle} lost M14N absent RAM image"))?;
+            if expected != [0; 14] || !image.is_complete() {
+                return Err(format!(
+                    "live cycle {cycle} M14N absent RAM result mismatch at 0x{:02x}: {expected:?}",
+                    image.address()
+                ));
+            }
+            image
+                .commit(&mut self.machine.act.state, &self.machine.ram)
+                .map_err(|error| format!("live cycle {cycle} M14N commit failed: {error}"))?;
         }
         if let Some((state, crc)) = crc_data_expected {
             let image = self
@@ -766,10 +781,21 @@ impl Hp67LiveMachine {
 
     /// Every semantic ACT field represented by the immutable snapshot must be
     /// back at pre-instruction state before structural transport starts.
-    fn check_serial_act_pre_state(&self, cycle: u64, previous_carry: bool, flow: ActSerialFlowState) -> Result<(), String> {
-        let expected = self.act_serial.serial_execution_state().ok_or_else(|| format!("live cycle {cycle} M14N missing ACT pre-state"))?;
+    fn check_serial_act_pre_state(
+        &self,
+        cycle: u64,
+        previous_carry: bool,
+        flow: ActSerialFlowState,
+    ) -> Result<(), String> {
+        let expected = self
+            .act_serial
+            .serial_execution_state()
+            .ok_or_else(|| format!("live cycle {cycle} M14N missing ACT pre-state"))?;
         let actual = ActSerialStateSnapshot::capture(&self.machine.act.state);
-        if actual != expected || self.machine.act.state.previous_carry != previous_carry || ActSerialFlowState::capture(&self.machine.act.state) != flow {
+        if actual != expected
+            || self.machine.act.state.previous_carry != previous_carry
+            || ActSerialFlowState::capture(&self.machine.act.state) != flow
+        {
             return Err(format!("live cycle {cycle} M14N unowned oracle ACT mutation: word={:?} pc={:04o} expected={expected:?} actual={actual:?} previous_carry_expected={previous_carry} actual={}", self.pipeline.executing_word(), self.machine.pc(), self.machine.act.state.previous_carry));
         }
         Ok(())
@@ -1449,14 +1475,22 @@ mod tests {
                         live.machine.act.state.carry = carry;
                         live.machine.act.state.previous_carry = !carry;
                         live.machine.act.state.decimal = carry;
-                        live.machine.crc.commit_control_flag(CRC_FLAG_WRITE_MODE as u8, true).unwrap();
+                        live.machine
+                            .crc
+                            .commit_control_flag(CRC_FLAG_WRITE_MODE as u8, true)
+                            .unwrap();
                         live.machine.crc.present_read_word(0x7654321).unwrap();
                         live.machine.crc.present_read_word(0xabcdef0).unwrap();
                         live.machine.crc.queue_write_word(0x1111111).unwrap();
                         live.machine.crc.set_external_flag(1, true).unwrap();
-                        for slot in 0..64 { live.machine.ram.write(slot, patterned_act_register(slot)); }
+                        for slot in 0..64 {
+                            live.machine.ram.write(slot, patterned_act_register(slot));
+                        }
                         let mut oracle = live.machine.clone();
-                        let Ok(expected_execution) = oracle.execute_word(word) else { rejected += 1; continue; };
+                        let Ok(expected_execution) = oracle.execute_word(word) else {
+                            rejected += 1;
+                            continue;
+                        };
                         oracle.prepare_hp67_fetch();
                         live.pipeline.complete_cycle(word);
                         let actual_execution = live.step_firmware_cycle_with_execution().unwrap_or_else(|error| panic!("M14N word={word:04o} address={address:02x} state={instruction_state:?} carry={carry}: {error}")).unwrap();
@@ -1464,8 +1498,14 @@ mod tests {
                         // Installed RAM retains the source-backed next-word tail.
                         live.complete_pending_ram_data_before_word(1).unwrap();
                         assert_eq!(live.machine.act.state, oracle.act.state, "word={word:04o} address={address:02x} state={instruction_state:?} carry={carry}");
-                        assert_eq!(live.machine.ram, oracle.ram, "word={word:04o} address={address:02x}");
-                        assert_eq!(live.machine.crc, oracle.crc, "word={word:04o} address={address:02x}");
+                        assert_eq!(
+                            live.machine.ram, oracle.ram,
+                            "word={word:04o} address={address:02x}"
+                        );
+                        assert_eq!(
+                            live.machine.crc, oracle.crc,
+                            "word={word:04o} address={address:02x}"
+                        );
                         assert!(live.act_serial.serial_execution().unwrap().is_complete());
                         accepted += 1;
                     }
@@ -1479,18 +1519,28 @@ mod tests {
     #[test]
     fn m14n_pre_transport_guard_rejects_unowned_act_mutation() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
-        live.act_serial.begin_execution(0, &live.machine.act.state).unwrap();
+        live.act_serial
+            .begin_execution(0, &live.machine.act.state)
+            .unwrap();
         let previous_carry = live.machine.act.state.previous_carry;
         let flow = ActSerialFlowState::capture(&live.machine.act.state);
-        live.check_serial_act_pre_state(0, previous_carry, flow).unwrap();
+        live.check_serial_act_pre_state(0, previous_carry, flow)
+            .unwrap();
         live.machine.act.state.key_buffer = Some(0o142);
-        assert!(live.check_serial_act_pre_state(0, previous_carry, flow).unwrap_err().contains("unowned oracle ACT mutation"));
+        assert!(live
+            .check_serial_act_pre_state(0, previous_carry, flow)
+            .unwrap_err()
+            .contains("unowned oracle ACT mutation"));
         live.machine.act.state.key_buffer = None;
         live.machine.act.state.previous_carry = !previous_carry;
-        assert!(live.check_serial_act_pre_state(0, previous_carry, flow).is_err());
+        assert!(live
+            .check_serial_act_pre_state(0, previous_carry, flow)
+            .is_err());
         live.machine.act.state.previous_carry = previous_carry;
         live.machine.act.state.pc = 1;
-        assert!(live.check_serial_act_pre_state(0, previous_carry, flow).is_err());
+        assert!(live
+            .check_serial_act_pre_state(0, previous_carry, flow)
+            .is_err());
     }
 
     #[test]
