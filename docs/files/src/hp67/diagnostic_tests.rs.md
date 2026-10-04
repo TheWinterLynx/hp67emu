@@ -57,3 +57,5 @@ cargo test --release --locked --bin hp67emu live_custom_diagnostic_pac_suite_rep
 A clean run ends with `DIAGNOSTIC SUITE OK: 12/12 passed`. Any failure prints `KO` with the
 reference, expected value, current display, PC and relevant running/key state before the test exits
 non-zero.
+
+The boot, physical-card transport and expected-segment helpers are shared test-only with official Pac acceptance. Native diagnostic parsing delegates to the same physical-card loader; production APIs and execution are unchanged.

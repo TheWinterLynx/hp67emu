@@ -139,7 +139,7 @@ const DIAGNOSTICS: &[DiagnosticCase] = &[
     },
 ];
 
-fn boot_live_machine() -> Result<Hp67LiveMachine, String> {
+pub(super) fn boot_live_machine() -> Result<Hp67LiveMachine, String> {
     let mut live = Hp67LiveMachine::power_on_default()?;
     live.phase = LiveBootPhase::Firmware;
     for _ in 0..BOOT_CYCLE_LIMIT {
@@ -200,9 +200,16 @@ fn load_native_program_card(
     live: &mut Hp67LiveMachine,
     media: &'static [u8],
 ) -> Result<(), String> {
-    let mut card = Hp67MagneticCard::from_hp67card_bytes(media)
+    let card = Hp67MagneticCard::from_hp67card_bytes(media)
         .map_err(|error| format!("invalid native .hp67card: {error:?}"))?;
 
+    load_physical_program_card(live, card)
+}
+
+pub(super) fn load_physical_program_card(
+    live: &mut Hp67LiveMachine,
+    mut card: Hp67MagneticCard,
+) -> Result<(), String> {
     let track1 = card.track(Hp67CardTrack::Track1).is_recorded();
     let track2 = card.track(Hp67CardTrack::Track2).is_recorded();
     if !track1 && !track2 {
@@ -286,7 +293,7 @@ fn press_a_through_firmware(live: &mut Hp67LiveMachine) -> Result<u16, String> {
     Err("A-key did not reach firmware dispatch within 512 cycles".to_owned())
 }
 
-fn expected_display(text: &str) -> Result<[u8; DISPLAY_SLOTS], String> {
+pub(super) fn expected_display(text: &str) -> Result<[u8; DISPLAY_SLOTS], String> {
     const DIGITS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
     let mut segments = [0u8; DISPLAY_SLOTS];

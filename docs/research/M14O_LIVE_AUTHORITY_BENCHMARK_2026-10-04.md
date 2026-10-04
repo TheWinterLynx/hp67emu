@@ -2,7 +2,7 @@
 
 Date: 2026-10-04
 Branch: `agent/m14o-live-authority-benchmark`
-Status: implemented; owner local validation and timings pending.
+Status: owner M14O FULL GATE GREEN; validated head f72328a1cb63ee038df2bf37741e0cf873760e81 integrated into main.
 
 ## Finding and change
 
@@ -27,3 +27,7 @@ Owner full warnings-denied test/release gate and diagnostic 12/12 remain require
 ## Fidelity boundaries and next work
 
 Wall-clock timing belongs only to instrumentation. Observed throughput is computational headroom, not electrical correctness. DATA passive level/drive edges, physical RAM partitioning, exact PHI widths, ACT intra-word write edges, STR/RCD propagation, keyboard pin scanning and magnetic sense/serialization remain SOURCE-BLOCKED or pending. After measurements, prioritize source-backed device/input/transport work and broader official Pac firmware acceptance.
+
+## Owner measurements (2026-10-04)
+
+Windows local full gate passed, including Custom Diagnostic Pac 12/12 and all three benchmarks. Actual live medians: firmware idle 0.935 us/word (342.24x hardware), synthetic RAM 1.064 (300.66x), synthetic CRC 1.022 (312.98x). Best/worst: idle 0.932/0.947, RAM 1.056/1.076, CRC 1.015/1.045. Historical full structural row: 0.774 us/word; historical fused DATA: 0.778. These are different workloads, not an overhead subtraction. The current margin supports prioritizing broader firmware acceptance before optimization.

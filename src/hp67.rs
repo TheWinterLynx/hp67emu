@@ -1411,6 +1411,9 @@ mod diagnostic_tests;
 mod m12_tests;
 
 #[cfg(test)]
+mod official_pac_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use hp67emu::{

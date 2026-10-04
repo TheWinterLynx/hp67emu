@@ -101,7 +101,7 @@ fn wait_for_firmware_mode(live: &mut Hp67LiveMachine, program: bool, label: &str
     );
 }
 
-fn press_live_key_to_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key) -> u16 {
+pub(super) fn press_live_key_to_dispatch(live: &mut Hp67LiveMachine, key: Hp67Key) -> u16 {
     let expected_code = key.scan_code();
     live.set_key_contact(Some(key));
     let mut saw_keys_to_a = false;

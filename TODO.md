@@ -257,10 +257,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 - [x] Owner reported M14N FULL GATE GREEN; validated head integrated into main.
 
-## M14O current branch
+## M14O validated and integrated
 
 - [x] Add release-only measurement of actual live authority and synthetic RAM/CRC stress paths.
 - [x] Lock full transition/execution counts and continuous odd/even port fixture state.
 - [x] Correct historical dual benchmark labels without changing those workloads.
-- [ ] Owner local full gate, diagnostic 12/12 and electrical/DATA/live benchmark results.
+- [x] Owner M14O FULL GATE GREEN, diagnostic 12/12 and electrical/DATA/live benchmark results.
 - [ ] Investigate measured material regressions; no optimization without host results.
+
+## M14P current branch
+
+- [x] Load both Moving Average tracks from the existing library through real firmware transport.
+- [x] Add nine bounded physical-key/raw-display acceptance checkpoints.
+- [ ] Owner warnings/all-targets/release, diagnostic 12/12 and official acceptance 9/9 gate.
+- [ ] Extend official acceptance to other Pac applications and saved-data recovery.
+- [ ] Electrical DATA/PHI/STR/RCD and magnetic serialization remain source-blocked.
