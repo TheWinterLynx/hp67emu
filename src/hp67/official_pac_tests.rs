@@ -1,18 +1,23 @@
 //! Behavioral acceptance from Standard Pac Moving Average, manual 01-03.
-use super::*;
 use super::diagnostic_tests::{boot_live_machine, expected_display, load_physical_program_card};
 use super::m12_tests::press_live_key_to_dispatch;
-use hp67emu::machines::hp67::{Hp67CardTrack, Hp67Key};
+use super::*;
 use crate::program_library::{ProgramLibraryEntry, PROGRAM_LIBRARY};
+use hp67emu::machines::hp67::{Hp67CardTrack, Hp67Key};
 
 fn moving_average_entry() -> &'static ProgramLibraryEntry {
-    PROGRAM_LIBRARY.iter().find(|entry| entry.reference == "SD1-01A")
+    PROGRAM_LIBRARY
+        .iter()
+        .find(|entry| entry.reference == "SD1-01A")
         .expect("checked-in Moving Average card")
 }
 
 #[test]
 fn m14p_moving_average_requires_both_recorded_tracks() {
-    let card = moving_average_entry().load_card().expect("valid library card").card;
+    let card = moving_average_entry()
+        .load_card()
+        .expect("valid library card")
+        .card;
     assert!(card.track(Hp67CardTrack::Track1).is_recorded());
     assert!(card.track(Hp67CardTrack::Track2).is_recorded());
 }
@@ -25,14 +30,20 @@ fn wait_for_result(live: &mut Hp67LiveMachine, expected: Option<&str>) -> Result
         if live.main_wait_visits > wait_before
             && !live.machine.act.state.status[15]
             && !live.machine.act.state.status[2]
-            && segments.as_ref().map_or(true, |frame| live.display_frame().segments() == frame)
+            && segments
+                .as_ref()
+                .map_or(true, |frame| live.display_frame().segments() == frame)
         {
             return Ok(cycle);
         }
     }
-    Err(format!("expected {expected:?}; pc={:04o} running={} key_pending={} segments={:02x?}",
-        live.machine.pc(), live.machine.act.state.status[2],
-        live.machine.act.state.status[15], live.display_frame().segments()))
+    Err(format!(
+        "expected {expected:?}; pc={:04o} running={} key_pending={} segments={:02x?}",
+        live.machine.pc(),
+        live.machine.act.state.status[2],
+        live.machine.act.state.status[15],
+        live.display_frame().segments()
+    ))
 }
 
 #[test]
@@ -53,18 +64,36 @@ fn m14p_official_moving_average_acceptance() {
         ("225 / rolling mean", &[Digit2, Digit2, Digit5, A], "212.50"),
     ];
     let mut live = boot_live_machine().expect("firmware boot");
-    let card = moving_average_entry().load_card().expect("valid library card").card;
+    let card = moving_average_entry()
+        .load_card()
+        .expect("valid library card")
+        .card;
     load_physical_program_card(&mut live, card).expect("firmware two-end card load");
     println!("\nM14P OFFICIAL MOVING AVERAGE ACCEPTANCE");
     for (index, &(description, keys, expected)) in checkpoints.iter().enumerate() {
         let mut cycles = 0;
         for (key_index, &key) in keys.iter().enumerate() {
             press_live_key_to_dispatch(&mut live, key);
-            let result = if key_index + 1 == keys.len() { Some(expected) } else { None };
-            cycles += wait_for_result(&mut live, result)
-                .unwrap_or_else(|error| panic!("checkpoint {} {description}, key {key:?}: {error}", index + 1));
+            let result = if key_index + 1 == keys.len() {
+                Some(expected)
+            } else {
+                None
+            };
+            cycles += wait_for_result(&mut live, result).unwrap_or_else(|error| {
+                panic!(
+                    "checkpoint {} {description}, key {key:?}: {error}",
+                    index + 1
+                )
+            });
         }
-        println!("{:02} {description:<24} {expected:>8} {cycles:>10} OK", index + 1);
+        println!(
+            "{:02} {description:<24} {expected:>8} {cycles:>10} OK",
+            index + 1
+        );
     }
-    println!("OFFICIAL PAC ACCEPTANCE OK: {}/{} checkpoints passed", checkpoints.len(), checkpoints.len());
+    println!(
+        "OFFICIAL PAC ACCEPTANCE OK: {}/{} checkpoints passed",
+        checkpoints.len(),
+        checkpoints.len()
+    );
 }
