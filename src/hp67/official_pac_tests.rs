@@ -1,5 +1,8 @@
 //! Behavioral acceptance from Standard Pac Moving Average, manual 01-03.
-use super::diagnostic_tests::{boot_live_machine, expected_display, load_physical_program_card, wait_for_card_pass, wait_for_crd_prompt};
+use super::diagnostic_tests::{
+    boot_live_machine, expected_display, load_physical_program_card, wait_for_card_pass,
+    wait_for_crd_prompt,
+};
 use super::m12_tests::press_live_key_to_dispatch;
 use super::*;
 use crate::program_library::{ProgramLibraryEntry, PROGRAM_LIBRARY};
@@ -67,16 +70,83 @@ fn m14p_official_moving_average_acceptance() {
 }
 
 const MOVING_AVERAGE_CHECKPOINTS: &[(&str, &[Hp67Key], &str)] = &[
-        ("window", &[Hp67Key::Digit6, Hp67Key::FunctionF, Hp67Key::A], "6.00"),
-        ("125", &[Hp67Key::Digit1, Hp67Key::Digit2, Hp67Key::Digit5, Hp67Key::A], "1.00"),
-        ("183", &[Hp67Key::Digit1, Hp67Key::Digit8, Hp67Key::Digit3, Hp67Key::A], "2.00"),
-        ("207", &[Hp67Key::Digit2, Hp67Key::Digit0, Hp67Key::Digit7, Hp67Key::A], "3.00"),
-        ("partial mean", &[Hp67Key::D], "171.67"),
-        ("222", &[Hp67Key::Digit2, Hp67Key::Digit2, Hp67Key::Digit2, Hp67Key::A], "4.00"),
-        ("198", &[Hp67Key::Digit1, Hp67Key::Digit9, Hp67Key::Digit8, Hp67Key::A], "5.00"),
-        ("240 / full mean", &[Hp67Key::Digit2, Hp67Key::Digit4, Hp67Key::Digit0, Hp67Key::A], "195.83"),
-        ("225 / rolling mean", &[Hp67Key::Digit2, Hp67Key::Digit2, Hp67Key::Digit5, Hp67Key::A], "212.50"),
-    ];
+    (
+        "window",
+        &[Hp67Key::Digit6, Hp67Key::FunctionF, Hp67Key::A],
+        "6.00",
+    ),
+    (
+        "125",
+        &[
+            Hp67Key::Digit1,
+            Hp67Key::Digit2,
+            Hp67Key::Digit5,
+            Hp67Key::A,
+        ],
+        "1.00",
+    ),
+    (
+        "183",
+        &[
+            Hp67Key::Digit1,
+            Hp67Key::Digit8,
+            Hp67Key::Digit3,
+            Hp67Key::A,
+        ],
+        "2.00",
+    ),
+    (
+        "207",
+        &[
+            Hp67Key::Digit2,
+            Hp67Key::Digit0,
+            Hp67Key::Digit7,
+            Hp67Key::A,
+        ],
+        "3.00",
+    ),
+    ("partial mean", &[Hp67Key::D], "171.67"),
+    (
+        "222",
+        &[
+            Hp67Key::Digit2,
+            Hp67Key::Digit2,
+            Hp67Key::Digit2,
+            Hp67Key::A,
+        ],
+        "4.00",
+    ),
+    (
+        "198",
+        &[
+            Hp67Key::Digit1,
+            Hp67Key::Digit9,
+            Hp67Key::Digit8,
+            Hp67Key::A,
+        ],
+        "5.00",
+    ),
+    (
+        "240 / full mean",
+        &[
+            Hp67Key::Digit2,
+            Hp67Key::Digit4,
+            Hp67Key::Digit0,
+            Hp67Key::A,
+        ],
+        "195.83",
+    ),
+    (
+        "225 / rolling mean",
+        &[
+            Hp67Key::Digit2,
+            Hp67Key::Digit2,
+            Hp67Key::Digit5,
+            Hp67Key::A,
+        ],
+        "212.50",
+    ),
+];
 
 fn run_checkpoints(live: &mut Hp67LiveMachine, checkpoints: &[(&str, &[Hp67Key], &str)]) {
     for (index, &(description, keys, expected)) in checkpoints.iter().enumerate() {
@@ -106,42 +176,89 @@ fn run_checkpoints(live: &mut Hp67LiveMachine, checkpoints: &[(&str, &[Hp67Key],
 #[ignore = "official saved-data recovery through firmware card write/read; run explicitly in release"]
 fn m14q_official_moving_average_data_recovery() {
     let mut writer = boot_live_machine().expect("writer firmware boot");
-    load_physical_program_card(&mut writer,
-        moving_average_entry().load_card().expect("program card").card)
-        .expect("writer program load");
+    load_physical_program_card(
+        &mut writer,
+        moving_average_entry()
+            .load_card()
+            .expect("program card")
+            .card,
+    )
+    .expect("writer program load");
     println!("\nM14Q OFFICIAL MOVING AVERAGE DATA RECOVERY");
     run_checkpoints(&mut writer, &MOVING_AVERAGE_CHECKPOINTS[..8]);
 
     press_live_key_to_dispatch(&mut writer, Hp67Key::B);
     wait_for_crd_prompt(&mut writer).expect("B must request a blank data card");
-    assert!(writer.card_write_mode(), "B must enter firmware data write mode");
-    writer.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+    assert!(
+        writer.card_write_mode(),
+        "B must enter firmware data write mode"
+    );
+    writer
+        .insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
         .expect("blank data card insertion");
     wait_for_card_pass(&mut writer).expect("firmware data write pass");
-    let saved = writer.take_completed_magnetic_card().expect("written physical card returned");
+    let saved = writer
+        .take_completed_magnetic_card()
+        .expect("written physical card returned");
     wait_for_result(&mut writer, None).expect("single data pass must return to idle");
-    assert_eq!(writer.machine.crc.queued_write_words(), 0, "CRC write queue drained");
-    assert_eq!(saved.track(Hp67CardTrack::Track1).word(0).map(|word| (word >> 24) as u8), Some(1),
-        "six-point window must use primary data header 1");
-    assert!(!saved.track(Hp67CardTrack::Track2).is_recorded(),
-        "six-point window needs one data pass; opposite track must stay blank");
-    assert!(saved.track(Hp67CardTrack::Track1).dirty(), "firmware must materialize blank media");
+    assert_eq!(
+        writer.machine.crc.queued_write_words(),
+        0,
+        "CRC write queue drained"
+    );
+    assert_eq!(
+        saved
+            .track(Hp67CardTrack::Track1)
+            .word(0)
+            .map(|word| (word >> 24) as u8),
+        Some(1),
+        "six-point window must use primary data header 1"
+    );
+    assert!(
+        !saved.track(Hp67CardTrack::Track2).is_recorded(),
+        "six-point window needs one data pass; opposite track must stay blank"
+    );
+    assert!(
+        saved.track(Hp67CardTrack::Track1).dirty(),
+        "firmware must materialize blank media"
+    );
     println!("DATA WRITE OK: header 1; opposite track blank; CRC drained");
 
     // Only the lossless physical media crosses the fresh-machine boundary.
     let bytes = saved.to_hp67card_bytes();
     let restored = Hp67MagneticCard::from_hp67card_bytes(&bytes).expect("native persisted card");
-    assert_eq!(restored.to_hp67card_bytes(), bytes, "lossless physical media persistence");
+    assert_eq!(
+        restored.to_hp67card_bytes(),
+        bytes,
+        "lossless physical media persistence"
+    );
     drop(writer);
     let mut reader = boot_live_machine().expect("fresh reader firmware boot");
-    load_physical_program_card(&mut reader,
-        moving_average_entry().load_card().expect("fresh program card").card)
-        .expect("fresh two-end program load");
+    load_physical_program_card(
+        &mut reader,
+        moving_average_entry()
+            .load_card()
+            .expect("fresh program card")
+            .card,
+    )
+    .expect("fresh two-end program load");
     load_physical_program_card(&mut reader, restored).expect("saved data read through firmware");
-    run_checkpoints(&mut reader, &[
-        ("recovered mean", &[Hp67Key::D], "195.83"),
-        ("225 / recovered rolling", &[Hp67Key::Digit2, Hp67Key::Digit2, Hp67Key::Digit5, Hp67Key::A], "212.50"),
-        ("recovered mean query", &[Hp67Key::D], "212.50"),
-    ]);
+    run_checkpoints(
+        &mut reader,
+        &[
+            ("recovered mean", &[Hp67Key::D], "195.83"),
+            (
+                "225 / recovered rolling",
+                &[
+                    Hp67Key::Digit2,
+                    Hp67Key::Digit2,
+                    Hp67Key::Digit5,
+                    Hp67Key::A,
+                ],
+                "212.50",
+            ),
+            ("recovered mean query", &[Hp67Key::D], "212.50"),
+        ],
+    );
     println!("OFFICIAL PAC DATA RECOVERY OK: write / persist / fresh boot / program reload / data read / 3 checkpoints");
 }
