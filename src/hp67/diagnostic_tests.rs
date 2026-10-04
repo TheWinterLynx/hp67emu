@@ -297,6 +297,13 @@ pub(super) fn expected_display(text: &str) -> Result<[u8; DISPLAY_SLOTS], String
     const DIGITS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
     let mut segments = [0u8; DISPLAY_SLOTS];
+    let text = if let Some(magnitude) = text.strip_prefix('-') {
+        // The shared sign scan maps the mantissa minus to physical position zero.
+        segments[0] = Hp67SegmentMask::G.bits();
+        magnitude
+    } else {
+        text
+    };
     let mut slot = 1usize;
     for character in text.chars() {
         if slot >= DISPLAY_SLOTS {

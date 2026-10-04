@@ -438,3 +438,41 @@ fn m14r_moving_average_data_card_pass_boundary() {
     }
     println!("DATA CARD PASS BOUNDARY OK: 2/2 cases (nine / ten points)");
 }
+
+fn polynomial_entry() -> &'static ProgramLibraryEntry {
+    PROGRAM_LIBRARY.iter().find(|entry| entry.reference == "SD1-09A")
+        .expect("checked-in Polynomial Evaluation card")
+}
+
+#[test]
+fn m14s_polynomial_media_and_signed_display_oracle() {
+    let card = polynomial_entry().load_card().expect("valid polynomial card").card;
+    assert!(card.track(Hp67CardTrack::Track1).is_recorded());
+    assert!(card.track(Hp67CardTrack::Track2).is_recorded());
+    assert_eq!(expected_display("-12.34").unwrap(),
+        [0x40, 0x06, 0x5b, 0x80, 0x4f, 0x66, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert!(expected_display("12-34").is_err(), "embedded signs are unsupported");
+}
+
+#[test]
+#[ignore = "official polynomial example with negative/scientific inputs through firmware; run explicitly in release"]
+fn m14s_official_polynomial_evaluation_acceptance() {
+    use Hp67Key::*;
+    // HP-97 Standard Pac 09-03/09-04, Example 2; printer/root output is excluded.
+    let checkpoints: &[(&str, &[Hp67Key], &str)] = &[
+        ("initialize", &[FunctionF, A], "0.00"),
+        ("constant -9140", &[Digit9, Digit1, Digit4, Digit0, ChangeSign, B], "1.00"),
+        ("linear -7.596", &[Digit7, Decimal, Digit5, Digit9, Digit6, ChangeSign, C], "2.00"),
+        ("quadratic 4.243e-3", &[Digit4, Decimal, Digit2, Digit4, Digit3, Exponent, ChangeSign, Digit3, D], "3.00"),
+        ("cubic -0.742e-6", &[Decimal, Digit7, Digit4, Digit2, ChangeSign, Exponent, ChangeSign, Digit6, E], "4.00"),
+        ("400 K", &[Digit4, Digit0, Digit0, A], "-11547.01"),
+        ("600 K", &[Digit6, Digit0, Digit0, A], "-12330.39"),
+        ("800 K", &[Digit8, Digit0, Digit0, A], "-12881.18"),
+    ];
+    let mut live = boot_live_machine().expect("polynomial firmware boot");
+    load_physical_program_card(&mut live, polynomial_entry().load_card().expect("program card").card)
+        .expect("two-end polynomial load");
+    println!("\nM14S OFFICIAL POLYNOMIAL EVALUATION ACCEPTANCE");
+    run_checkpoints(&mut live, checkpoints);
+    println!("OFFICIAL POLYNOMIAL ACCEPTANCE OK: {}/{} checkpoints passed", checkpoints.len(), checkpoints.len());
+}

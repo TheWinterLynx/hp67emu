@@ -2,7 +2,7 @@
 
 Date: 2026-10-04
 Branch: `agent/m14r-data-card-pass-boundary`
-Status: implemented; owner local validation pending.
+Status: owner M14R FULL GATE GREEN; head 5c30371135fcc414165b7d83b0449398ce66c560 integrated into main.
 
 ## Source and new fixtures
 
@@ -18,6 +18,10 @@ Only native physical-card bytes cross into a separately booted reader. Both prog
 
 ## Validation and limits
 
-Production execution is unchanged. The existing card waits and one-million-word result bound apply. Actions is restricted to cargo fmt/check/save. Source diff and companion documentation contract were reviewed; Rust was not run in the agent environment. Owner gate runs warnings-denied full tests/release, diagnostics 12/12, existing M14P/M14Q and the explicit ignored M14R boundary test (2/2 cases). Successful execution is pending.
+Production execution is unchanged. The existing card waits and one-million-word result bound apply. Actions is restricted to cargo fmt/check/save. Source diff and companion documentation contract were reviewed; Rust was not run in the agent environment. Owner gate runs warnings-denied full tests/release, diagnostics 12/12, existing M14P/M14Q and the explicit ignored M14R boundary test (2/2 cases). Owner execution passed on 2026-10-04 with both boundary cases, diagnostic 12/12 and existing M14P/M14Q.
 
 Fresh construction tests electronic-state isolation, not OFF-switch or analog reset timing. Native container equality tests host persistence, not physical serialization. Logical CRC/card transport, firmware results and preserved media do not close PHI/DATA/STR/RCD edges, physical RAM partitioning or magnetic sense/flux-order gaps. Next priority is other Standard/Games Pac applications after this boundary is validated.
+
+## Owner boundary results
+
+Nine-point case: recovered 5.00, next-input 6.00, query 6.00; ten-point case: recovered 5.50, next-input 6.50, query 6.50. All transport/mode/preservation assertions passed. Ignored boundary suite elapsed 0.21 s; this is host test runtime, not physical card timing.

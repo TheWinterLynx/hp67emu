@@ -281,10 +281,17 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Owner M14Q FULL GATE GREEN, diagnostic 12/12, M14P 9/9 and saved-data recovery; integrated.
 - [ ] Extend official examples to two-pass data windows and further Standard/Games Pac applications.
 
-## M14R current branch
+## M14R validated and integrated
 
 - [x] Nine/ten-point fixtures using the manual data-card pass boundary.
 - [x] Real firmware Crd before End2; preserve primary media on secondary write.
 - [x] Native media persistence, fresh-machine program/data reload and recovered rolling means.
-- [ ] Owner full local gate, diagnostic 12/12, M14P/M14Q and M14R boundary 2/2.
+- [x] Owner M14R FULL GATE GREEN, diagnostic 12/12, M14P/M14Q and boundary 2/2; integrated.
 - [ ] Expand manual acceptance to other Standard/Games Pac applications; source-blocked electrical timing remains open.
+
+## M14S current branch
+
+- [x] Add official Polynomial Evaluation Example 2 via physical card/key/firmware paths.
+- [x] Verify negative/scientific coefficient entry and negative segment sign position.
+- [ ] Owner warnings/all-targets/release, diagnostic 12/12 and all four Pac suites.
+- [ ] Root-output sequences and Games Pac acceptance remain open; electrical source gaps unchanged.
