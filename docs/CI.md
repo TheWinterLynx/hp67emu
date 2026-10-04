@@ -1,23 +1,13 @@
 # Local regression checks
 
-GitHub Actions is intentionally not configured for this project unless the repository owner explicitly authorizes it.
+Owner workflow: GitHub Actions executes exclusively cargo fmt/check and saves formatting on the focused branch. Compilation, tests, release builds, diagnostics and benchmarks run locally. A reported milestone FULL GATE GREEN authorizes integration of the exact validated head and immediate continuation.
 
-Validation is performed locally after pulling a branch. The current regression command is:
+Formatting is the first hard gate: `cargo fmt --all -- --check`. Then run warnings-denied locked all-target tests, locked release binary build and the explicitly ignored Custom Diagnostic Pac 12/12 test. The provided PowerShell milestone command checks clean worktree, fetches the branch, updates by fast-forward, verifies the exact formatted head, prints progress and stops on any failure.
 
-```text
-RUSTFLAGS=-D warnings cargo test --all-targets
-```
+## Performance gates
 
-This treats compiler warnings as regressions and runs the source-documentation and architecture-boundary tests together with the emulator tests.
+M14O additionally runs the ignored release electrical benchmark, DATA benchmark and actual live authority benchmark serially with one test thread. Use identical HP67_BENCH_WORDS/ROUNDS/WARMUP_WORDS values for comparison. Default measurement is 50,000 words per round, seven rounds and 2,500 warm-up words. Keep host load and power mode comparable; record commit, host and median/min/max.
 
-`cargo fmt --check` is intentionally **not** a gate yet because the existing photographic UI files predate the cycle-accurate foundation and are not fully rustfmt-clean. Formatting cleanup is tracked separately; enabling a formatting gate before normalizing that inherited baseline would make an unrelated historical style issue block emulator work.
+Historical dual fixtures and current live authority rows are different workloads. Compare each established row to its own same-host baseline. RAM/CRC live fixture numbers include synthetic host operations and do not claim physical card throughput. No clock transitions, contention checks, resolved nets or authority checks may be removed to improve a number.
 
-Once the inherited UI baseline has been normalized, local validation should also run:
-
-```text
-cargo fmt --all -- --check
-```
-
-Clippy can be promoted to the local regression command after the repository has a clean warning baseline.
-
-No workflow under `.github/workflows/` should be added or enabled without explicit permission from the repository owner.
+Clippy and any additional workflow require the current task's authorization; they are not silently substituted for this owner's gate.

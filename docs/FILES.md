@@ -36,6 +36,8 @@ The documentation regression uses these companion files as the source-level owne
 - [src/machines/hp67/machine.rs](files/src/machines/hp67/machine.rs.md)
 - [src/machines/hp67/display_snapshot.rs](files/src/machines/hp67/display_snapshot.rs.md)
 
+- [src/hp67/authority_benchmark_tests.rs](files/src/hp67/authority_benchmark_tests.rs.md)
+
 ## Regression tests
 
 - [tests/documentation_contract.rs](files/tests/documentation_contract.rs.md)

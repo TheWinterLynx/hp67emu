@@ -1402,6 +1402,9 @@ impl Hp67LiveMachine {
 }
 
 #[cfg(test)]
+mod authority_benchmark_tests;
+
+#[cfg(test)]
 mod diagnostic_tests;
 
 #[cfg(test)]

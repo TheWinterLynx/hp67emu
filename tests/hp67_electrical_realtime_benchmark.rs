@@ -304,7 +304,7 @@ fn production_dual_path_stream(words: usize) -> u64 {
             &mut rom0,
             &source,
         )
-        .expect("production-equivalent dual path must complete");
+        .expect("historical dual fixture must complete");
 
         last_fetched = result.fetched_word;
         checksum = checksum
@@ -540,16 +540,16 @@ fn hp67_electrical_realtime_benchmark() {
     print_row("IS + ROM0 display + serial ACT execution", &full, words);
     print_row("architectural execution only", &architectural, words);
     print_row(
-        "production dual architectural + structural",
+        "historical dual architectural + structural",
         &production,
         words,
     );
-    print_row("real firmware architectural + structural", &firmware, words);
+    print_row("historical firmware dual composition", &firmware, words);
     println!();
     println!(
         "Scope: current implementation only. The full row continuously executes all presently wired structural fidelity: 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
     );
     println!(
-        "The production-dual row includes the current instruction-boundary architectural execution in parallel with serial execution; the real-firmware row runs that same dual path through the versioned HP-67 ROM and its actual control flow. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The historical dual rows retain their original fixture for comparable measurements. They do not execute the current live restore/comparison/authority-commit bridge. Run m14o_live_authority_realtime_benchmark to measure that bridge; its real-firmware idle row and labelled synthetic RAM/CRC loads are separate workloads. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }

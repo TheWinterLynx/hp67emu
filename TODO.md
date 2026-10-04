@@ -246,11 +246,21 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 
 - [x] Owner reported M14M FULL GATE GREEN; validated head integrated into main.
 
-## M14N current branch
+## M14N validated integration
 
 - [x] Restore implied-GOTO instruction-state latch before structural transport.
 - [x] Isolate absent-RAM zero-read compatibility in an explicitly approximate completed-word image.
 - [x] Require every ACT semantic field to equal pre-instruction state before structural transport.
 - [x] Whole ACT/RAM/CRC differential across all ten-bit words and six address contexts.
-- [ ] Owner local formatting/warnings/all-targets/release and Custom Diagnostic Pac 12/12 gate.
+- [x] Owner local formatting/warnings/all-targets/release and Custom Diagnostic Pac 12/12 gate.
 - [ ] Source-blocked: actual absent-address electrical behavior and physical ACT/DATA latch timing.
+
+- [x] Owner reported M14N FULL GATE GREEN; validated head integrated into main.
+
+## M14O current branch
+
+- [x] Add release-only measurement of actual live authority and synthetic RAM/CRC stress paths.
+- [x] Lock full transition/execution counts and continuous odd/even port fixture state.
+- [x] Correct historical dual benchmark labels without changing those workloads.
+- [ ] Owner local full gate, diagnostic 12/12 and electrical/DATA/live benchmark results.
+- [ ] Investigate measured material regressions; no optimization without host results.
