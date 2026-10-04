@@ -262,3 +262,100 @@ fn m14q_official_moving_average_data_recovery() {
     );
     println!("OFFICIAL PAC DATA RECOVERY OK: write / persist / fresh boot / program reload / data read / 3 checkpoints");
 }
+
+// New boundary fixtures based on the manual's general instructions, not printed HP examples.
+#[test]
+#[ignore = "nine/ten-point firmware data-card pass boundary and recovery; run explicitly in release"]
+fn m14r_moving_average_data_card_pass_boundary() {
+    use Hp67Key::*;
+    let first_eight: &[(&str, &[Hp67Key], &str)] = &[
+        ("1", &[Digit1, A], "1.00"),
+        ("2", &[Digit2, A], "2.00"),
+        ("3", &[Digit3, A], "3.00"),
+        ("4", &[Digit4, A], "4.00"),
+        ("5", &[Digit5, A], "5.00"),
+        ("6", &[Digit6, A], "6.00"),
+        ("7", &[Digit7, A], "7.00"),
+        ("8", &[Digit8, A], "8.00"),
+    ];
+    println!("\nM14R MOVING AVERAGE DATA CARD PASS BOUNDARY");
+    for two_passes in [false, true] {
+        let mut writer = boot_live_machine().expect("writer boot");
+        load_physical_program_card(&mut writer,
+            moving_average_entry().load_card().expect("program card").card)
+            .expect("writer program load");
+        let (window_keys, window, mean, next_keys, rolling): (&[Hp67Key], &str, &str, &[Hp67Key], &str) =
+            if two_passes {
+                (&[Digit1, Digit0, FunctionF, A], "10.00", "5.50", &[Digit1, Digit1, A], "6.50")
+            } else {
+                (&[Digit9, FunctionF, A], "9.00", "5.00", &[Digit1, Digit0, A], "6.00")
+            };
+        println!("WINDOW {window}, expected data passes={}", if two_passes { 2 } else { 1 });
+        run_checkpoints(&mut writer, &[("initialize", window_keys, window)]);
+        run_checkpoints(&mut writer, first_eight);
+        run_checkpoints(&mut writer, &[("9", &[Digit9, A], if two_passes { "9.00" } else { mean })]);
+        if two_passes {
+            run_checkpoints(&mut writer, &[("10 / full mean", &[Digit1, Digit0, A], mean)]);
+        }
+        run_checkpoints(&mut writer, &[("mean query", &[D], mean)]);
+
+        press_live_key_to_dispatch(&mut writer, B);
+        wait_for_crd_prompt(&mut writer).expect("B requests blank card");
+        assert!(writer.card_write_mode(), "firmware write mode");
+        writer.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .expect("blank End1 insertion");
+        wait_for_card_pass(&mut writer).expect("primary write pass");
+        let mut saved = writer.take_completed_magnetic_card().expect("same physical card returned");
+        assert_eq!(saved.track(Hp67CardTrack::Track1).word(0).map(|word| (word >> 24) as u8), Some(1));
+        assert!(saved.track(Hp67CardTrack::Track1).dirty());
+        assert!(!saved.track(Hp67CardTrack::Track2).is_recorded());
+        let primary_words = *saved.track(Hp67CardTrack::Track1).words().expect("recorded primary");
+        if two_passes {
+            wait_for_crd_prompt(&mut writer).expect("ten-point firmware must request End2");
+            assert!(writer.card_write_mode(), "second pass remains write mode");
+            writer.insert_magnetic_card(saved, CardInsertionEnd::End2).expect("same card End2 insertion");
+            wait_for_card_pass(&mut writer).expect("secondary write pass");
+            saved = writer.take_completed_magnetic_card().expect("same card returned after End2");
+            assert_eq!(saved.track(Hp67CardTrack::Track1).words(), Some(&primary_words),
+                "End2 writing must preserve primary records");
+            assert_eq!(saved.track(Hp67CardTrack::Track2).word(0).map(|word| (word >> 24) as u8), Some(2));
+            assert!(saved.track(Hp67CardTrack::Track2).dirty());
+        }
+        wait_for_result(&mut writer, None).expect("last write must return to RUN wait");
+        assert!(!writer.card_prompt_visible(), "no extra firmware card request");
+        assert_eq!(writer.machine.crc.queued_write_words(), 0, "CRC drained");
+        let bytes = saved.to_hp67card_bytes();
+        let media = Hp67MagneticCard::from_hp67card_bytes(&bytes).expect("native persisted data card");
+        assert_eq!(media.to_hp67card_bytes(), bytes);
+        drop(writer);
+
+        let mut reader = boot_live_machine().expect("fresh reader boot");
+        load_physical_program_card(&mut reader,
+            moving_average_entry().load_card().expect("fresh program card").card)
+            .expect("fresh program load");
+        let read_only = media.clone();
+        // Explicit passes require real Crd for End2 and prove read mode/non-mutation.
+        reader.insert_magnetic_card(media, CardInsertionEnd::End1).expect("data End1 read");
+        wait_for_card_pass(&mut reader).expect("primary read pass");
+        assert!(!reader.card_write_mode(), "data read mode");
+        let mut returned = reader.take_completed_magnetic_card().expect("primary read returns card");
+        assert_eq!(returned, read_only, "End1 read must preserve all media");
+        if two_passes {
+            wait_for_crd_prompt(&mut reader).expect("data header must request End2 read");
+            reader.insert_magnetic_card(returned, CardInsertionEnd::End2).expect("same card End2 read");
+            wait_for_card_pass(&mut reader).expect("secondary read pass");
+            assert!(!reader.card_write_mode(), "secondary read mode");
+            returned = reader.take_completed_magnetic_card().expect("secondary read returns card");
+            assert_eq!(returned, read_only, "End2 read must preserve all media");
+        }
+        wait_for_result(&mut reader, None).expect("data read must settle");
+        assert!(!reader.card_prompt_visible(), "no extra read pass requested");
+        run_checkpoints(&mut reader, &[
+            ("recovered mean", &[D], mean),
+            ("next / rolling mean", next_keys, rolling),
+            ("rolling query", &[D], rolling),
+        ]);
+        println!("WINDOW {window} PASS BOUNDARY AND RECOVERY OK");
+    }
+    println!("DATA CARD PASS BOUNDARY OK: 2/2 cases (nine / ten points)");
+}

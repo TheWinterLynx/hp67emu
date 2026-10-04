@@ -273,10 +273,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Extend official acceptance to other Pac applications and saved-data recovery.
 - [ ] Electrical DATA/PHI/STR/RCD and magnetic serialization remain source-blocked.
 
-## M14Q current branch
+## M14Q validated and integrated
 
 - [x] Extend Moving Average to firmware B/Crd writing a blank data card.
 - [x] Transfer native physical media only to a freshly booted machine; reload program and data.
 - [x] Require recovered mean, seventh-input rolling mean and repeated query.
-- [ ] Owner local full gate, diagnostic 12/12, M14P 9/9 and M14Q saved-data recovery.
+- [x] Owner M14Q FULL GATE GREEN, diagnostic 12/12, M14P 9/9 and saved-data recovery; integrated.
 - [ ] Extend official examples to two-pass data windows and further Standard/Games Pac applications.
+
+## M14R current branch
+
+- [x] Nine/ten-point fixtures using the manual data-card pass boundary.
+- [x] Real firmware Crd before End2; preserve primary media on secondary write.
+- [x] Native media persistence, fresh-machine program/data reload and recovered rolling means.
+- [ ] Owner full local gate, diagnostic 12/12, M14P/M14Q and M14R boundary 2/2.
+- [ ] Expand manual acceptance to other Standard/Games Pac applications; source-blocked electrical timing remains open.

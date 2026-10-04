@@ -2,7 +2,7 @@
 
 Date: 2026-10-04
 Branch: `agent/m14q-official-pac-data-recovery`
-Status: implemented; owner local gate pending.
+Status: owner M14Q FULL GATE GREEN; head 7fe7817b247a59e8888fb33c5c1271f30c2f5162 integrated into main.
 
 ## Behavioral source
 
@@ -18,8 +18,12 @@ A new boot isolates electronic state; it does not validate the OFF switch, analo
 
 ## Validation
 
-Actions runs cargo fmt/check/save exclusively. Agent reviewed the source/diff and companion documentation contract without running Rust. Owner gate: formatting, focused official Pac tests, warnings-denied all targets, release binaries, Custom Diagnostic Pac 12/12, M14P 9/9 and explicit ignored M14Q saved-data recovery. Successful execution is pending.
+Actions runs cargo fmt/check/save exclusively. Agent reviewed the source/diff and companion documentation contract without running Rust. Owner gate: formatting, focused official Pac tests, warnings-denied all targets, release binaries, Custom Diagnostic Pac 12/12, M14P 9/9 and explicit ignored M14Q saved-data recovery. Owner execution passed on 2026-10-04, including diagnostics 12/12 and M14P 9/9.
 
 ## Remaining priorities
 
 Cover the official two-pass data threshold with a separately sourced example and expand to other Standard/Games Pac programs. Keep exact DATA polarity/ownership, physical RAM mapping, PHI/STR/RCD edges and magnetic sense/serialization source-blocked until hardware evidence is available.
+
+## Owner recovery results
+
+Firmware write produced header 1, left Track 2 blank and drained CRC. Fresh-machine recovered mean 195.83 (2559 post-dispatch wait words), next input mean 212.50 (10891), repeated query 212.50 (2076). Test elapsed 0.09 s. Wait totals are harness observations, not full physical key timing.
