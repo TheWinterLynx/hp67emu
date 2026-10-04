@@ -265,10 +265,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Owner M14O FULL GATE GREEN, diagnostic 12/12 and electrical/DATA/live benchmark results.
 - [ ] Investigate measured material regressions; no optimization without host results.
 
-## M14P current branch
+## M14P validated and integrated
 
 - [x] Load both Moving Average tracks from the existing library through real firmware transport.
 - [x] Add nine bounded physical-key/raw-display acceptance checkpoints.
-- [ ] Owner warnings/all-targets/release, diagnostic 12/12 and official acceptance 9/9 gate.
+- [x] Owner M14P FULL GATE GREEN, including official acceptance 9/9; exact head integrated.
 - [ ] Extend official acceptance to other Pac applications and saved-data recovery.
 - [ ] Electrical DATA/PHI/STR/RCD and magnetic serialization remain source-blocked.
+
+## M14Q current branch
+
+- [x] Extend Moving Average to firmware B/Crd writing a blank data card.
+- [x] Transfer native physical media only to a freshly booted machine; reload program and data.
+- [x] Require recovered mean, seventh-input rolling mean and repeated query.
+- [ ] Owner local full gate, diagnostic 12/12, M14P 9/9 and M14Q saved-data recovery.
+- [ ] Extend official examples to two-pass data windows and further Standard/Games Pac applications.

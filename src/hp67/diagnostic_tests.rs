@@ -153,7 +153,7 @@ pub(super) fn boot_live_machine() -> Result<Hp67LiveMachine, String> {
     ))
 }
 
-fn wait_for_card_pass(live: &mut Hp67LiveMachine) -> Result<(), String> {
+pub(super) fn wait_for_card_pass(live: &mut Hp67LiveMachine) -> Result<(), String> {
     for cycle in 0..CARD_PASS_CYCLE_LIMIT {
         live.step_firmware_cycle()
             .map_err(|error| format!("card pass failed at cycle {cycle}: {error}"))?;
@@ -166,7 +166,7 @@ fn wait_for_card_pass(live: &mut Hp67LiveMachine) -> Result<(), String> {
     ))
 }
 
-fn wait_for_crd_prompt(live: &mut Hp67LiveMachine) -> Result<(), String> {
+pub(super) fn wait_for_crd_prompt(live: &mut Hp67LiveMachine) -> Result<(), String> {
     for cycle in 0..CARD_PROMPT_CYCLE_LIMIT {
         live.step_firmware_cycle()
             .map_err(|error| format!("waiting for Crd failed at cycle {cycle}: {error}"))?;

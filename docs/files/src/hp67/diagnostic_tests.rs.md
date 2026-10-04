@@ -59,3 +59,5 @@ reference, expected value, current display, PC and relevant running/key state be
 non-zero.
 
 The boot, physical-card transport and expected-segment helpers are shared test-only with official Pac acceptance. Native diagnostic parsing delegates to the same physical-card loader; production APIs and execution are unchanged.
+
+The bounded card-pass and Crd waits are also shared test-only with M14Q firmware data writing. They observe existing transport/prompt state and add no production semantics.
