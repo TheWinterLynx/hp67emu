@@ -1745,7 +1745,10 @@ mod tests {
         assert_eq!(frame.segments()[12], 0x40);
         assert_eq!(frame.segments()[2], 0x80);
         assert_eq!(frame.segments()[14], 0x08);
-        assert_eq!(HardwareDisplayFrame::from_scan_dwell(&[[0; 8]; 15]), HardwareDisplayFrame::BLANK);
+        assert_eq!(
+            HardwareDisplayFrame::from_scan_dwell(&[[0; 8]; 15]),
+            HardwareDisplayFrame::BLANK
+        );
     }
 
     #[test]
@@ -1755,7 +1758,11 @@ mod tests {
             live.step_firmware_cycle_with_execution().unwrap();
         }
         let published = live.optical_display_frame();
-        assert!(published.on_time_us().iter().flatten().any(|value| *value != 0));
+        assert!(published
+            .on_time_us()
+            .iter()
+            .flatten()
+            .any(|value| *value != 0));
         assert_eq!(published.segments(), live.display_frame().segments());
         assert_eq!(live.act_serial.display_scan_slot(), 1);
         live.transport_fetch_word(0, None).unwrap();

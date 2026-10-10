@@ -263,7 +263,10 @@ mod tests {
     #[test]
     fn m14u_optics_uses_emitter_dwell_without_inventing_a_current_gain() {
         assert_eq!(segment_mask_from_dwell(&[0; 8]), 0);
-        assert_eq!(segment_mask_from_dwell(&[40, 40, 40, 40, 40, 40, 0, 0]), 0x3f);
+        assert_eq!(
+            segment_mask_from_dwell(&[40, 40, 40, 40, 40, 40, 0, 0]),
+            0x3f
+        );
         assert_eq!(segment_mask_from_dwell(&[0, 0, 0, 0, 0, 0, 0, 30]), SEG_DP);
         assert_eq!(segment_mask_from_dwell(&[0, 0, 0, 0, 0, 0, 40, 0]), SEG_G);
     }

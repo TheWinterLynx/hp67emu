@@ -1224,10 +1224,10 @@ impl Hp67App {
         minimum_touch_target: f32,
     ) {
         let host = ui.available_rect_before_wrap();
-        let display = self
-            .live_machine
-            .as_ref()
-            .map_or(HardwareDisplayFrame::BLANK, Hp67LiveMachine::optical_display_frame);
+        let display = self.live_machine.as_ref().map_or(
+            HardwareDisplayFrame::BLANK,
+            Hp67LiveMachine::optical_display_frame,
+        );
         let opposite_track_requested = self.opposite_track_requested();
         let card_artwork = if let Some(entry) = self
             .card_library_entry
