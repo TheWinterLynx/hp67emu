@@ -134,4 +134,3 @@ pub use timing::{
     ROM_ADDRESS_LAST_BIT, ROM_WORD_BITS, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT,
 };
 pub use wiring::{Hp67Chip, Hp67Driver, Hp67Net, CHIPSET};
-

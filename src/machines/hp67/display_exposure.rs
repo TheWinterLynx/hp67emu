@@ -97,18 +97,32 @@ mod tests {
                 5 => 0x30,
                 _ => 0x20,
             };
-            let complete = exposure.capture_word(slot, decode_rom0_display_byte(slot, code).unwrap()).unwrap();
+            let complete = exposure
+                .capture_word(slot, decode_rom0_display_byte(slot, code).unwrap())
+                .unwrap();
             assert_eq!(complete, slot == 15);
             if slot < 15 {
                 assert_eq!(exposure.completed_scan_dwell_us(), &[[0; 8]; 15]);
             }
         }
         assert_eq!(exposure.completed_scans(), 1);
-        assert_eq!(exposure.completed_scan_dwell_us()[2], [0, 0, 0, 0, 40, 0, 40, 0]);
-        assert_eq!(exposure.completed_scan_dwell_us()[3], [40, 40, 40, 40, 40, 40, 40, 0]);
-        assert_eq!(exposure.completed_scan_dwell_us()[4], [0, 0, 0, 0, 0, 0, 0, 30]);
+        assert_eq!(
+            exposure.completed_scan_dwell_us()[2],
+            [0, 0, 0, 0, 40, 0, 40, 0]
+        );
+        assert_eq!(
+            exposure.completed_scan_dwell_us()[3],
+            [40, 40, 40, 40, 40, 40, 40, 0]
+        );
+        assert_eq!(
+            exposure.completed_scan_dwell_us()[4],
+            [0, 0, 0, 0, 0, 0, 0, 30]
+        );
         let before = exposure;
-        assert_eq!(exposure.capture_word(2, Hp67SegmentMask::BLANK), Err((1, 2)));
+        assert_eq!(
+            exposure.capture_word(2, Hp67SegmentMask::BLANK),
+            Err((1, 2))
+        );
         assert_eq!(exposure, before);
         for slot in 1..=15 {
             exposure.capture_word(slot, Hp67SegmentMask::BLANK).unwrap();

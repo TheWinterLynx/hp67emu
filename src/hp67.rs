@@ -1411,7 +1411,9 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("live cycle {cycle} cathode control failed: {error:?}"))?;
         self.display_exposure
             .capture_word(scan_slot, emitted_anodes)
-            .map_err(|error| format!("live cycle {cycle} display exposure phase failed: {error:?}"))?;
+            .map_err(|error| {
+                format!("live cycle {cycle} display exposure phase failed: {error:?}")
+            })?;
         Ok(())
     }
 }
@@ -1704,14 +1706,20 @@ mod tests {
         assert!(live.display_exposure().completed_scans() > 0);
         live.reset_power_on().unwrap();
         assert_eq!(live.display_exposure().completed_scans(), 0);
-        assert_eq!(live.display_exposure().completed_scan_dwell_us(), &[[0; 8]; 15]);
+        assert_eq!(
+            live.display_exposure().completed_scan_dwell_us(),
+            &[[0; 8]; 15]
+        );
         live.display_control_seen = true;
         live.machine.act.state.display_enable = false;
         for _ in 0..15 {
             live.transport_fetch_word(0, None).unwrap();
         }
         assert_eq!(live.display_exposure().completed_scans(), 1);
-        assert_eq!(live.display_exposure().completed_scan_dwell_us(), &[[0; 8]; 15]);
+        assert_eq!(
+            live.display_exposure().completed_scan_dwell_us(),
+            &[[0; 8]; 15]
+        );
     }
 
     #[test]
@@ -3187,4 +3195,3 @@ mod tests {
         }
     }
 }
-
