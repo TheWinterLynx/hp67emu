@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
+
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
     display_register_index_for_scan_slot, restore_ram_block, run_structural_display_fetch_cycle,
@@ -273,6 +275,7 @@ pub struct Hp67LiveMachine {
     fetch_rom: RomFetchEndpoint,
     display_rom0: Rom0DisplayEndpoint,
     cathode: CathodeDriver1820_1749,
+    display_exposure: Hp67DisplayExposure,
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
@@ -299,6 +302,7 @@ impl Hp67LiveMachine {
             fetch_rom: RomFetchEndpoint::default(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
+            display_exposure: Hp67DisplayExposure::default(),
             pipeline: FetchPipelineLatch::default(),
             data_serial: Hp67DataSerialWordPath::default(),
             pending_ram_data_transfer: None,
@@ -321,6 +325,11 @@ impl Hp67LiveMachine {
         self.display
     }
 
+    #[cfg(test)]
+    pub const fn display_exposure(&self) -> &Hp67DisplayExposure {
+        &self.display_exposure
+    }
+
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
@@ -328,6 +337,7 @@ impl Hp67LiveMachine {
         self.fetch_rom = RomFetchEndpoint::default();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
+        self.display_exposure = Hp67DisplayExposure::default();
         self.pipeline = FetchPipelineLatch::default();
         self.data_serial = Hp67DataSerialWordPath::default();
         self.pending_ram_data_transfer = None;
@@ -1362,6 +1372,7 @@ impl Hp67LiveMachine {
         // A real HP-67 visibly emits during this interval, while the semantic
         // model's reset value is not hardware evidence. The emitted CONTENT is
         // still entirely derived from ACT A/B -> IS -> ROM0 for this word.
+        let mut emitted_anodes = Hp67SegmentMask::BLANK;
         if !self.display_control_seen || self.machine.act.state.display_enable {
             let anodes =
                 decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
@@ -1390,6 +1401,7 @@ impl Hp67LiveMachine {
                     )
                 })?;
             self.display.capture_scan_slot(scan_slot, anodes)?;
+            emitted_anodes = anodes;
         } else {
             self.display.clear();
         }
@@ -1397,6 +1409,9 @@ impl Hp67LiveMachine {
         self.cathode
             .apply_control_edges(result.str_event, result.rcd_falling)
             .map_err(|error| format!("live cycle {cycle} cathode control failed: {error:?}"))?;
+        self.display_exposure
+            .capture_word(scan_slot, emitted_anodes)
+            .map_err(|error| format!("live cycle {cycle} display exposure phase failed: {error:?}"))?;
         Ok(())
     }
 }
@@ -1658,6 +1673,45 @@ mod tests {
         assert!(live.pending_ram_data_transfer.is_some());
         live.complete_pending_ram_data_before_word(1).unwrap();
         assert_eq!(live.machine.act.state.c, [8; 14]);
+    }
+
+    #[test]
+    fn m14t_live_rom0_scan_dwell_matches_transport_and_resets_with_power() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut expected = [[0u64; 8]; 15];
+        for cycle in 0..150 {
+            let slot = live.act_serial.display_scan_slot();
+            live.step_firmware_cycle_with_execution().unwrap();
+            let mask = if !live.display_control_seen || live.machine.act.state.display_enable {
+                live.display_rom0.decoded_anodes(slot).unwrap().bits()
+            } else {
+                0
+            };
+            for segment in 0..8 {
+                expected[usize::from(slot - 1)][segment] = if mask & (1 << segment) == 0 {
+                    0
+                } else if segment == 7 {
+                    30
+                } else {
+                    40
+                };
+            }
+            if slot == 15 {
+                assert_eq!(live.display_exposure().completed_scan_dwell_us(), &expected);
+                assert_eq!(live.display_exposure().completed_scans(), (cycle + 1) / 15);
+            }
+        }
+        assert!(live.display_exposure().completed_scans() > 0);
+        live.reset_power_on().unwrap();
+        assert_eq!(live.display_exposure().completed_scans(), 0);
+        assert_eq!(live.display_exposure().completed_scan_dwell_us(), &[[0; 8]; 15]);
+        live.display_control_seen = true;
+        live.machine.act.state.display_enable = false;
+        for _ in 0..15 {
+            live.transport_fetch_word(0, None).unwrap();
+        }
+        assert_eq!(live.display_exposure().completed_scans(), 1);
+        assert_eq!(live.display_exposure().completed_scan_dwell_us(), &[[0; 8]; 15]);
     }
 
     #[test]
@@ -3133,3 +3187,4 @@ mod tests {
         }
     }
 }
+

@@ -289,9 +289,17 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Owner M14R FULL GATE GREEN, diagnostic 12/12, M14P/M14Q and boundary 2/2; integrated.
 - [ ] Expand manual acceptance to other Standard/Games Pac applications; source-blocked electrical timing remains open.
 
-## M14S current branch
+## M14S validated and integrated
 
 - [x] Add official Polynomial Evaluation Example 2 via physical card/key/firmware paths.
 - [x] Verify negative/scientific coefficient entry and negative segment sign position.
-- [ ] Owner warnings/all-targets/release, diagnostic 12/12 and all four Pac suites.
-- [ ] Root-output sequences and Games Pac acceptance remain open; electrical source gaps unchanged.
+- [x] Owner reported all green; exact validated head integrated into main.
+- Pac expansion stopped by owner instruction; electrical source gaps remain open.
+
+## M14T display dwell branch
+
+- [x] Integrate approximate observed normal/decimal dwell from decoded live ROM0 words.
+- [x] Publish complete fifteen-slot scans only; blank replacement and power-reset history.
+- [x] Add phase/decoder/publication and real-firmware/reset regressions.
+- [ ] Owner full local gate and realtime benchmarks.
+- [ ] Physical LED current/optical routing and exact PHI STR/RCD edges remain SOURCE-BLOCKED.

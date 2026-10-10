@@ -52,3 +52,5 @@ The documentation regression uses these companion files as the source-level owne
 ## Media format reference
 
 - [HP-67 program media formats](HP67_CARD_FORMATS.md)
+
+- [src/machines/hp67/display_exposure.rs](files/src/machines/hp67/display_exposure.rs.md)

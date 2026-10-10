@@ -240,3 +240,7 @@ Candidates include:
 - machine profile/configuration separate from chip implementation.
 
 The rule is “extract after two real users,” not “invent a generic abstraction before one machine works.”
+
+## M14T display dwell branch
+
+No further Pac expansion is planned under the owner's instruction. M14S was owner-validated and integrated at 5f7c999662d1e7dc682913cf5aad5f4d4ed6f6e9. M14T integrates nominal 40/30 us segment dwell over complete live scans; owner execution/performance gates pending. See research/M14T_DISPLAY_DWELL_2026-10-10.md for evidence boundaries and subsequent source-dependent slices.
