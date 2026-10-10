@@ -1,6 +1,6 @@
 //! Physically registered HP-67 Classic-series LED emission.
 //!
-//! The renderer consumes only the raw A..G/DP masks produced by the emulated
+//! The renderer consumes only completed-scan per-emitter dwell produced by the emulated
 //! ROM0/cathode path.  Macro geometry is expressed in millimetres from the
 //! 5082-7400/7405 family data and is mapped to the photographed HP-67 with one
 //! uniform pixels-per-millimetre scale.  The display-glass rectangle is only a
@@ -58,12 +58,12 @@ pub(crate) const fn character_offset_mm(index: usize) -> f32 {
     (index as f32 - 7.0) * CHARACTER_PITCH_MM
 }
 
-pub(crate) fn paint_segments(
+pub(crate) fn paint_dwell(
     painter: &Painter,
     clip_rect: Rect,
     optical_center: Pos2,
     pixels_per_mm: f32,
-    segments: &[u8; CHARACTER_COUNT],
+    on_time_us: &[[u64; 8]; CHARACTER_COUNT],
 ) {
     if clip_rect.width() <= 0.0 || clip_rect.height() <= 0.0 || pixels_per_mm <= 0.0 {
         return;
@@ -72,12 +72,24 @@ pub(crate) fn paint_segments(
     let t = DisplayTransform::new(optical_center, pixels_per_mm);
     let p = painter.with_clip_rect(clip_rect);
 
-    for (index, mask) in segments.iter().copied().enumerate() {
+    for (index, dwell) in on_time_us.iter().enumerate() {
+        let mask = segment_mask_from_dwell(dwell);
         if mask == 0 {
             continue;
         }
         draw_segment_mask(&p, t, character_offset_mm(index), 0.0, mask);
     }
+}
+
+/// Optical gain remains artwork calibration, not a physical current claim.
+fn segment_mask_from_dwell(dwell: &[u64; 8]) -> u8 {
+    let mut mask = 0;
+    for (segment, duration) in dwell.iter().enumerate() {
+        if *duration != 0 {
+            mask |= 1 << segment;
+        }
+    }
+    mask
 }
 
 fn draw_segment_mask(p: &Painter, t: DisplayTransform, cx_mm: f32, cy_mm: f32, mask: u8) {
@@ -247,6 +259,14 @@ fn ellipse(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn m14u_optics_uses_emitter_dwell_without_inventing_a_current_gain() {
+        assert_eq!(segment_mask_from_dwell(&[0; 8]), 0);
+        assert_eq!(segment_mask_from_dwell(&[40, 40, 40, 40, 40, 40, 0, 0]), 0x3f);
+        assert_eq!(segment_mask_from_dwell(&[0, 0, 0, 0, 0, 0, 0, 30]), SEG_DP);
+        assert_eq!(segment_mask_from_dwell(&[0, 0, 0, 0, 0, 0, 40, 0]), SEG_G);
+    }
 
     #[test]
     fn catalogue_dimensions_define_the_fifteen_position_assembly() {

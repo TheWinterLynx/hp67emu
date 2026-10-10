@@ -149,18 +149,55 @@ impl Hp67State {
 
 /// Fifteen physical HP-67 display positions, left-to-right.
 ///
-/// Each byte is the directly rendered A..G/DP segment mask. No character or
-/// numeric representation is stored in this frame.
+/// The optical snapshot carries nominal dwell per physical LED. Immediate masks
+/// remain diagnostic state. No character or numeric representation is stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HardwareDisplayFrame {
     segments: [u8; 15],
+    on_time_us: [[u64; 8]; 15],
 }
 
 impl HardwareDisplayFrame {
-    pub const BLANK: Self = Self { segments: [0; 15] };
+    pub const BLANK: Self = Self {
+        segments: [0; 15],
+        on_time_us: [[0; 8]; 15],
+    };
 
+    #[cfg(test)]
     pub const fn segments(&self) -> &[u8; 15] {
         &self.segments
+    }
+
+    pub const fn on_time_us(&self) -> &[[u64; 8]; 15] {
+        &self.on_time_us
+    }
+
+    /// Project a complete raw scan using the existing structural sign routing.
+    /// Slot 15 replaces slot 1, preserving the existing duplicate-slot policy;
+    /// this is not evidence that two optical pulses should be summed.
+    fn from_scan_dwell(scan: &[[u64; 8]; 15]) -> Self {
+        let mut frame = Self::BLANK;
+        for (index, dwell) in scan.iter().enumerate() {
+            let slot = index + 1;
+            match slot {
+                1 | 15 => frame.on_time_us[14] = *dwell,
+                2 => frame.on_time_us[13] = *dwell,
+                3 => {
+                    frame.on_time_us[0][6] = dwell[4];
+                    frame.on_time_us[12][6] = dwell[6];
+                }
+                4..=14 => frame.on_time_us[slot - 3] = *dwell,
+                _ => unreachable!(),
+            }
+        }
+        for (mask, dwell) in frame.segments.iter_mut().zip(&frame.on_time_us) {
+            for (segment, duration) in dwell.iter().enumerate() {
+                if *duration != 0 {
+                    *mask |= 1 << segment;
+                }
+            }
+        }
+        frame
     }
 
     pub const fn shows_card_prompt(&self) -> bool {
@@ -168,7 +205,7 @@ impl HardwareDisplayFrame {
     }
 
     fn clear(&mut self) {
-        self.segments = [0; 15];
+        *self = Self::BLANK;
     }
 
     fn capture_scan_slot(&mut self, scan_slot: u8, anodes: Hp67SegmentMask) -> Result<(), String> {
@@ -321,8 +358,17 @@ impl Hp67LiveMachine {
         })
     }
 
+    #[cfg(test)]
     pub const fn display_frame(&self) -> HardwareDisplayFrame {
         self.display
+    }
+
+    /// Complete-scan optical snapshot; immediate masks remain diagnostic state.
+    pub fn optical_display_frame(&self) -> HardwareDisplayFrame {
+        if self.display_control_seen && !self.machine.act.state.display_enable {
+            return HardwareDisplayFrame::BLANK;
+        }
+        HardwareDisplayFrame::from_scan_dwell(self.display_exposure.completed_scan_dwell_us())
     }
 
     #[cfg(test)]
@@ -1675,6 +1721,50 @@ mod tests {
         assert!(live.pending_ram_data_transfer.is_some());
         live.complete_pending_ram_data_before_word(1).unwrap();
         assert_eq!(live.machine.act.state.c, [8; 14]);
+    }
+
+    #[test]
+    fn m14u_complete_scan_projects_signs_decimal_and_duplicate_without_summing() {
+        let mut scan = [[0; 8]; 15];
+        scan[0][1] = 40;
+        scan[1][2] = 40;
+        scan[2][4] = 40;
+        scan[2][6] = 40;
+        scan[3][0] = 40;
+        scan[4][7] = 30;
+        scan[14][3] = 40;
+        let frame = HardwareDisplayFrame::from_scan_dwell(&scan);
+        assert_eq!(frame.on_time_us()[0][6], 40);
+        assert_eq!(frame.on_time_us()[12][6], 40);
+        assert_eq!(frame.on_time_us()[1][0], 40);
+        assert_eq!(frame.on_time_us()[2][7], 30);
+        assert_eq!(frame.on_time_us()[13][2], 40);
+        assert_eq!(frame.on_time_us()[14][1], 0);
+        assert_eq!(frame.on_time_us()[14][3], 40);
+        assert_eq!(frame.segments()[0], 0x40);
+        assert_eq!(frame.segments()[12], 0x40);
+        assert_eq!(frame.segments()[2], 0x80);
+        assert_eq!(frame.segments()[14], 0x08);
+        assert_eq!(HardwareDisplayFrame::from_scan_dwell(&[[0; 8]; 15]), HardwareDisplayFrame::BLANK);
+    }
+
+    #[test]
+    fn m14u_live_panel_uses_complete_scans_and_blanks_on_disable_and_reset() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        for _ in 0..600 {
+            live.step_firmware_cycle_with_execution().unwrap();
+        }
+        let published = live.optical_display_frame();
+        assert!(published.on_time_us().iter().flatten().any(|value| *value != 0));
+        assert_eq!(published.segments(), live.display_frame().segments());
+        assert_eq!(live.act_serial.display_scan_slot(), 1);
+        live.transport_fetch_word(0, None).unwrap();
+        assert_eq!(live.optical_display_frame(), published);
+        live.display_control_seen = true;
+        live.machine.act.state.display_enable = false;
+        assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
+        live.reset_power_on().unwrap();
+        assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
     }
 
     #[test]

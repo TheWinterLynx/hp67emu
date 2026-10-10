@@ -29,3 +29,5 @@ WASM touch ergonomics are presentation-only. `Hp67Panel::show()` accepts a minim
 
 The two slide-switch touch rectangles use an asymmetric mobile expansion: when their photographed height is below 44 points, the extra acquisition area grows upward while the photographed lower edge stays fixed. This avoids letting the POWER or RUN/PRGM target intrude into the program-card holder immediately below it. Key targets remain centre-expanded because their row spacing is much larger; nearest-centre selection resolves any overlap on unusually narrow viewports.
 
+
+M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M14T. ROM0 E/G shared signs route to physical G emitters, and slot 15 replaces slot 1 under the existing structural compatibility policy. The renderer selects lit geometry from nonzero dwell; artwork gain remains unchanged because current/radiant-energy conversion is not proven. Partial scans remain private. DISPLAY disable and power reset blank the optical snapshot immediately. Diagnostic immediate masks remain available to tests and firmware prompt detection.

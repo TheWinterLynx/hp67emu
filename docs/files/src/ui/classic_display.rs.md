@@ -14,3 +14,5 @@ Map the fifteen raw A..G/DP masks onto fifteen physical LED positions at 3.81 mm
 
 ## Implementation
 `paint_segments()` takes a clipping rectangle, an optical centre and one pixels-per-millimetre factor. X and Y always use the same scale. Character centres are `(index - 7) * 3.81 mm`, so the complete fifteen-position pitch span is symmetric about the optical axis. The photographed display glass is deliberately not used as a scaling surface. Internal three-bar artwork dimensions are retained from the previous reviewed renderer but are explicitly treated as optical artwork rather than a new die-mask claim.
+
+M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M14T. ROM0 E/G shared signs route to physical G emitters, and slot 15 replaces slot 1 under the existing structural compatibility policy. The renderer selects lit geometry from nonzero dwell; artwork gain remains unchanged because current/radiant-energy conversion is not proven. Partial scans remain private. DISPLAY disable and power reset blank the optical snapshot immediately. Diagnostic immediate masks remain available to tests and firmware prompt detection.

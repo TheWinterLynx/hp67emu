@@ -301,5 +301,14 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Integrate approximate observed normal/decimal dwell from decoded live ROM0 words.
 - [x] Publish complete fifteen-slot scans only; blank replacement and power-reset history.
 - [x] Add phase/decoder/publication and real-firmware/reset regressions.
-- [ ] Owner full local gate and realtime benchmarks.
+- [x] Owner FULL GATE GREEN; exact M14T head integrated.
 - [ ] Physical LED current/optical routing and exact PHI STR/RCD edges remain SOURCE-BLOCKED.
+
+## M14U completed-scan optical boundary
+
+- [x] Route raw scan dwell to physical signs, mantissa and exponent emitters.
+- [x] Actual panel consumes completed scans; immediate masks stay diagnostic.
+- [x] Blank immediately on DISPLAY disable and power reset.
+- [x] Projection, real-firmware publication and optical selection regressions.
+- [ ] Owner full local execution gate.
+- [ ] Exact PHI-relative edges, LED current/energy and duplicate-slot optical behavior remain SOURCE-BLOCKED.

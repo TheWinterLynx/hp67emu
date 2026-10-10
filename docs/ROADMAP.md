@@ -244,3 +244,7 @@ The rule is “extract after two real users,” not “invent a generic abstract
 ## M14T display dwell branch
 
 No further Pac expansion is planned under the owner's instruction. M14S was owner-validated and integrated at 5f7c999662d1e7dc682913cf5aad5f4d4ed6f6e9. M14T integrates nominal 40/30 us segment dwell over complete live scans; owner execution/performance gates pending. See research/M14T_DISPLAY_DWELL_2026-10-10.md for evidence boundaries and subsequent source-dependent slices.
+
+## M14U completed-scan optical boundary
+
+M14T owner FULL GATE GREEN, integrated at a18c38998e3b9751db0ff336edefaa7b0e46f260. M14U projects nominal dwell to physical emitters and connects the completed snapshot to the actual panel renderer. Retains optical artwork gain and duplicate-slot compatibility without claiming physical energy or exact control edges. Owner full gate pending. No additional Pac acceptance suites.

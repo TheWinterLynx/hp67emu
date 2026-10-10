@@ -352,12 +352,12 @@ impl Hp67Panel {
         // one uniform physical scale. DISPLAY_GLASS only clips emitted light.
         if state.power_on {
             let photo_scale = photo_rect.width() / PHOTO_W;
-            classic_display::paint_segments(
+            classic_display::paint_dwell(
                 &painter,
                 source_to_screen(photo_rect, DISPLAY_GLASS),
                 source_point_to_screen(photo_rect, DISPLAY_CASE_CENTER_X, DISPLAY_LED_CENTER_Y),
                 DISPLAY_SOURCE_PX_PER_MM * photo_scale,
-                display.segments(),
+                display.on_time_us(),
             );
         }
         Hp67PanelOutput {
