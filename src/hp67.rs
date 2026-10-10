@@ -1683,8 +1683,9 @@ mod tests {
         let mut expected = [[0u64; 8]; 15];
         for cycle in 0..150 {
             let slot = live.act_serial.display_scan_slot();
+            let enabled_before = live.machine.act.state.display_enable;
             live.step_firmware_cycle_with_execution().unwrap();
-            let mask = if !live.display_control_seen || live.machine.act.state.display_enable {
+            let mask = if !live.display_control_seen || enabled_before {
                 live.display_rom0.decoded_anodes(slot).unwrap().bits()
             } else {
                 0
