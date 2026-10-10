@@ -1765,8 +1765,12 @@ mod tests {
             .any(|value| *value != 0));
         assert_eq!(published.segments(), live.display_frame().segments());
         assert_eq!(live.act_serial.display_scan_slot(), 1);
-        live.transport_fetch_word(0, None).unwrap();
-        assert_eq!(live.optical_display_frame(), published);
+        let completed_scans = live.display_exposure().completed_scans();
+        for _ in 0..14 {
+            live.step_firmware_cycle_with_execution().unwrap();
+            assert_eq!(live.display_exposure().completed_scans(), completed_scans);
+            assert_eq!(live.optical_display_frame(), published);
+        }
         live.display_control_seen = true;
         live.machine.act.state.display_enable = false;
         assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
