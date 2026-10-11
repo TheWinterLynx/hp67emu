@@ -313,6 +313,7 @@ pub struct Hp67LiveMachine {
     display_rom0: Rom0DisplayEndpoint,
     cathode: CathodeDriver1820_1749,
     display_exposure: Hp67DisplayExposure,
+    optical_scan_floor: u64,
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
@@ -340,6 +341,7 @@ impl Hp67LiveMachine {
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
             display_exposure: Hp67DisplayExposure::default(),
+            optical_scan_floor: 0,
             pipeline: FetchPipelineLatch::default(),
             data_serial: Hp67DataSerialWordPath::default(),
             pending_ram_data_transfer: None,
@@ -365,10 +367,18 @@ impl Hp67LiveMachine {
 
     /// Complete-scan optical snapshot; immediate masks remain diagnostic state.
     pub fn optical_display_frame(&self) -> HardwareDisplayFrame {
-        if self.display_control_seen && !self.machine.act.state.display_enable {
+        if (self.display_control_seen && !self.machine.act.state.display_enable)
+            || self.display_exposure.completed_scans() < self.optical_scan_floor
+        {
             return HardwareDisplayFrame::BLANK;
         }
         HardwareDisplayFrame::from_scan_dwell(self.display_exposure.completed_scan_dwell_us())
+    }
+
+    /// Drop the interrupted scan and require a following full scan for optics.
+    /// This is a conservative snapshot-publication policy, not an ACT latch edge.
+    fn invalidate_optical_scan(&mut self) {
+        self.optical_scan_floor = self.display_exposure.completed_scans().saturating_add(2);
     }
 
     #[cfg(test)]
@@ -384,6 +394,7 @@ impl Hp67LiveMachine {
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
         self.display_exposure = Hp67DisplayExposure::default();
+        self.optical_scan_floor = 0;
         self.pipeline = FetchPipelineLatch::default();
         self.data_serial = Hp67DataSerialWordPath::default();
         self.pending_ram_data_transfer = None;
@@ -687,6 +698,7 @@ impl Hp67LiveMachine {
             {
                 if matches!(opcode, 0o0210 | 0o0310) {
                     self.display_control_seen = true;
+                    self.invalidate_optical_scan();
                     let display_enable_after = serial_mode_latch_authority
                         .map(|pending| pending.expected_display_enable)
                         .unwrap_or(self.machine.act.state.display_enable);
@@ -1721,6 +1733,63 @@ mod tests {
         assert!(live.pending_ram_data_transfer.is_some());
         live.complete_pending_ram_data_before_word(1).unwrap();
         assert_eq!(live.machine.act.state.c, [8; 14]);
+    }
+
+    #[test]
+    fn m14v_firmware_display_control_invalidates_the_published_epoch() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut controls = 0;
+        for _ in 0..600 {
+            let before = live.display_exposure().completed_scans();
+            let execution = live.step_firmware_cycle_with_execution().unwrap();
+            if let Some(execution) = execution {
+                if let Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }) = execution.operation {
+                    if matches!(opcode, 0o0210 | 0o0310) {
+                        controls += 1;
+                        assert_eq!(live.optical_scan_floor, before + 2);
+                        assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
+                    }
+                }
+            }
+        }
+        assert!(controls > 0);
+        assert!(live.optical_display_frame().on_time_us().iter().flatten().any(|value| *value != 0));
+    }
+
+    #[test]
+    fn m14v_optical_epoch_never_replays_a_scan_across_display_control() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        for _ in 0..600 {
+            live.step_firmware_cycle_with_execution().unwrap();
+        }
+        // Exercise invalidation at every raw slot, while preserving real cycles.
+        for expected_slot in 1..=15 {
+            assert_eq!(live.act_serial.display_scan_slot(), expected_slot);
+            let before = live.display_exposure().completed_scans();
+            let cathode_slot = live.cathode.scan_slot();
+            let act_slot = live.act_serial.display_scan_slot();
+            live.invalidate_optical_scan();
+            assert_eq!(live.cathode.scan_slot(), cathode_slot);
+            assert_eq!(live.act_serial.display_scan_slot(), act_slot);
+            assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
+            // Repeated panel reads cannot publish or advance the emulation.
+            assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
+            assert_eq!(live.display_exposure().completed_scans(), before);
+            while live.display_exposure().completed_scans() < before + 2 {
+                assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
+                live.step_firmware_cycle_with_execution().unwrap();
+            }
+            assert!(live.optical_display_frame().on_time_us().iter().flatten().any(|value| *value != 0));
+            assert_eq!(live.optical_display_frame().segments(), live.display_frame().segments());
+            // Advance from slot 1 to the next fixture phase using full words.
+            for _ in 0..expected_slot {
+                live.step_firmware_cycle_with_execution().unwrap();
+            }
+        }
+        live.invalidate_optical_scan();
+        live.reset_power_on().unwrap();
+        assert_eq!(live.optical_scan_floor, 0);
+        assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
     }
 
     #[test]

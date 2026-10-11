@@ -310,5 +310,13 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Actual panel consumes completed scans; immediate masks stay diagnostic.
 - [x] Blank immediately on DISPLAY disable and power reset.
 - [x] Projection, real-firmware publication and optical selection regressions.
-- [ ] Owner full local execution gate.
+- [x] Owner M14U FULL GATE GREEN; exact validated head integrated.
 - [ ] Exact PHI-relative edges, LED current/energy and duplicate-slot optical behavior remain SOURCE-BLOCKED.
+
+## M14V optical publication epochs
+
+- [x] Invalidate previous optical snapshot on firmware DISPLAY control.
+- [x] Require a subsequent complete scan; preserve ACT/cathode and raw dwell counters.
+- [x] Exercise all fifteen interruption phases and real-firmware control path.
+- [ ] Owner full local gate and performance observations.
+- [ ] Analog current, exact edges and physical duplicate-slot behavior remain unresolved.

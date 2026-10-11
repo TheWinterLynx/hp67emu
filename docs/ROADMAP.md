@@ -248,3 +248,7 @@ No further Pac expansion is planned under the owner's instruction. M14S was owne
 ## M14U completed-scan optical boundary
 
 M14T owner FULL GATE GREEN, integrated at a18c38998e3b9751db0ff336edefaa7b0e46f260. M14U projects nominal dwell to physical emitters and connects the completed snapshot to the actual panel renderer. Retains optical artwork gain and duplicate-slot compatibility without claiming physical energy or exact control edges. Owner full gate pending. No additional Pac acceptance suites.
+
+## M14V optical publication epochs
+
+M14U owner FULL GATE GREEN and integrated at fd56b529beeb9009768e37a52e012e7bf10ecad7. M14V prevents stale completed optical output from reappearing across firmware DISPLAY control. Discards the interrupted scan and waits for the following full scan, preserving raw transport and dwell. Owner local gate pending; no Pac expansion.
