@@ -103,6 +103,7 @@ pub use electrical::{
     Hp67ElectricalStager,
 };
 pub use fetch::{
+    run_structural_display_fetch_data_phase_cycle_traced,
     run_structural_display_fetch_cycle, run_structural_display_fetch_cycle_traced,
     run_structural_display_fetch_data_phase_cycle, run_structural_fetch_cycle, ActSerialEndpoint,
     FetchPipelineLatch, Hp67RomWordSource, RomFetchEndpoint, SerialFetchError, StructuralBusSample,

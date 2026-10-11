@@ -99,3 +99,12 @@ The live bridge verifies the entire pre-instruction ACT contract before transpor
 `run_structural_display_fetch_cycle_traced` is a diagnostic twin of the dedicated no-DATA word traversal. It drives and samples the same resolved IS net, advances bound serial execution and records all four committed PHI transitions per bit. `StructuralBusTrace` appends actual tick, transport-bit, PHI1/PHI2, IS and ACT/aggregate-ROM drive observations; `to_tsv` exports those values without converting ticks to microseconds. The b55 wrapping transition retains transport-bit 55 rather than mislabelling it b0. A failed word retains only its committed prefix.
 
 The original no-DATA and DATA loops remain untouched: no production trace allocation, option branch or generic observer is introduced. The intentional diagnostic loop duplication is guarded by a full fifteen-slot differential regression with bound serial DISPLAY-toggle execution, result/display phase/ROM address/final-net/tick parity, reconstruction of display/address/word from captured IS, ownership checks and 224 transitions per word. Missing-ROM regression locks the partial prefix. This is a structural comparison aid, not a desktop live-bridge trace or electrical timing proof. Electrical DATA, SYNC, STR/RCD and calibrated PHI/sample edges remain outside the API. See research/M14W_STRUCTURAL_BUS_TRACE_2026-10-11.md.
+
+
+## M14X bounded live IS/PHI capture
+
+The native diagnostic CLI `hp67emu --trace-is <1..4096 words> <output.tsv>` exports actual live power-on firmware words with frozen no-key inputs. Reset-hold time has no modeled bus transport and is explicitly excluded. Ordinal ticks remain uncalibrated.
+
+The live cycle routes an optional recorder only at the word boundary; ordinary calls pass None. Traced and ordinary words share the existing restore/oracle/authority-commit bridge. A dedicated traced DATA twin advances the same logical DATA visitor, preserving next-word b0/b1 tail authority without recording electrical DATA. Original production transport loops remain unchanged. Capture storage is local, bounded and discarded after export; no UI state or persistent trace session is introduced. Invalid counts or capture errors fail before file writing.
+
+Focused tests compare real firmware boot with and without recording, exercise alternating synthetic RAM ports through the same live bridge and validate export bounds/row count/workload labels. See research/M14X_LIVE_BUS_CAPTURE_2026-10-11.md.

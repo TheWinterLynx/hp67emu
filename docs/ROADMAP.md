@@ -257,3 +257,8 @@ M14U owner FULL GATE GREEN and integrated at fd56b529beeb9009768e37a52e012e7bf10
 ## M14W structural bus trace
 
 M14V owner FULL GATE GREEN and integrated at 5dfdbffbd301eba8a923d5883e356258b5382ff0. M14W adds opt-in IS/PHI transition capture and ordinal-tick TSV export on the diagnostic structural display/fetch path, keeping both production loops untouched. Complete-scan differential and missing-ROM prefix regressions guard the diagnostic twin. Local owner gate pending. Subsequent work can connect live authority traffic and measured captures to this observation contract; electrical timing gaps remain explicit. No further Pac suites.
+
+
+## M14X live bus capture
+
+M14W owner FULL GATE GREEN and integrated at c0aeca92b4d7179e7320871c43f08e5c5358e250. M14X exports bounded actual live power-on firmware IS/PHI traffic via native CLI, including logical DATA transport parity, while retaining the ordinary loops. Physical recording alignment is the next comparison task. No calibrated timing or new Pac acceptance is claimed. Owner local gate pending.

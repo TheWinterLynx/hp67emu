@@ -14,3 +14,12 @@ Create `eframe::NativeOptions`, configure resize/MSAA/WGPU behavior, start the n
 
 ## Implementation
 Native builds construct `eframe::NativeOptions` with a resizable viewport and 4× MSAA, then call `eframe::run_native`. wasm32 builds spawn the async eframe 0.27 `WebRunner::start("the_canvas_id", ...)` future; `index.html` owns the full-browser canvas. Release desktop builds use the Windows GUI subsystem, but `cfg(test)` deliberately keeps the test executable attached to the console even in `--release`; otherwise Cargo can execute long ignored diagnostic tests while their `println!` OK/KO report is invisible on Windows. The native-only test checks that no maximum window size is imposed.
+
+
+## M14X bounded live IS/PHI capture
+
+The native diagnostic CLI `hp67emu --trace-is <1..4096 words> <output.tsv>` exports actual live power-on firmware words with frozen no-key inputs. Reset-hold time has no modeled bus transport and is explicitly excluded. Ordinal ticks remain uncalibrated.
+
+The live cycle routes an optional recorder only at the word boundary; ordinary calls pass None. Traced and ordinary words share the existing restore/oracle/authority-commit bridge. A dedicated traced DATA twin advances the same logical DATA visitor, preserving next-word b0/b1 tail authority without recording electrical DATA. Original production transport loops remain unchanged. Capture storage is local, bounded and discarded after export; no UI state or persistent trace session is introduced. Invalid counts or capture errors fail before file writing.
+
+Focused tests compare real firmware boot with and without recording, exercise alternating synthetic RAM ports through the same live bridge and validate export bounds/row count/workload labels. See research/M14X_LIVE_BUS_CAPTURE_2026-10-11.md.

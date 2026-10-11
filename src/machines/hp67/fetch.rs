@@ -1179,6 +1179,143 @@ pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
     })
 }
 
+// Dedicated diagnostic DATA twin; production loops remain unchanged.
+fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    act: &mut ActSerialEndpoint,
+    act_state: Option<&ActArchitecturalState>,
+    rom: &mut RomFetchEndpoint,
+    source: &S,
+    mut rom0: Option<&mut Rom0DisplayEndpoint>,
+    data: &mut Hp67DataSerialWordPath,
+    trace: &mut StructuralBusTrace,
+) -> Result<u16, StructuralWordError> {
+    rom.begin_cycle();
+    if let Some(endpoint) = rom0.as_deref_mut() {
+        endpoint.begin_word();
+    }
+
+    // The selected ACT display source is immutable for the whole b0..b7
+    // window: executing words read the pre-instruction snapshot and fetch-only
+    // words read the supplied live state. Encode it once per machine word
+    // instead of rebuilding the same ROM0 byte for all eight serial bits.
+    let display_byte = match act.encoded_display_byte(act_state) {
+        Ok(byte) => byte,
+        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+        Err(error) => return Err(error.into()),
+    };
+
+    // Each endpoint owns its named IS driver. Reset that ownership once at the
+    // word boundary, then publish only actual drive-state transitions below.
+    // This preserves every resolved bit-cell level while avoiding redundant
+    // High-Z/same-level writes on the shared electrical net.
+    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    let mut previous_act_drive = Drive::HighZ;
+    let mut previous_rom_drive = Drive::HighZ;
+
+    for expected_bit in 0..BITS_PER_WORD {
+        debug_assert_eq!(backplane.word_bit(), expected_bit);
+
+        let display_bit = display_data_serial_bit(expected_bit);
+        let act_drive = if let Some(serial_bit) = display_bit {
+            match display_byte {
+                Some(code) => wired_high_drive(((code >> serial_bit) & 1) != 0),
+                None => Drive::HighZ,
+            }
+        } else {
+            act_address_drive(act.address(), expected_bit)
+        };
+        if act_drive != previous_act_drive {
+            backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
+            previous_act_drive = act_drive;
+        }
+
+        let rom_drive = rom.drive_for_bit(expected_bit);
+        if rom_drive != previous_rom_drive {
+            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom_drive);
+            previous_rom_drive = rom_drive;
+        }
+
+        let is_level = backplane.level(Hp67Net::Isa);
+        if is_level == LogicLevel::Contention {
+            return Err(SerialFetchError::IsaContention {
+                word_bit: expected_bit,
+            }
+            .into());
+        }
+
+        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+            endpoint.sample_for_bit(expected_bit, is_level)?;
+        }
+
+        match isa_window_for_bit(expected_bit) {
+            IsaWindow::RomAddress { .. } => {
+                rom.sample_for_bit(expected_bit, is_level, source)?;
+            }
+            IsaWindow::RomWord { .. } => {
+                act.sample_for_bit(expected_bit, is_level)?;
+            }
+            IsaWindow::Other => {}
+        }
+
+        data.visit_transport_word_bit(expected_bit)?;
+
+        for _ in 0..4 {
+            backplane.advance_clock();
+            trace.samples.push(StructuralBusSample {
+                tick: backplane.tick().get(), transport_bit: expected_bit,
+                phi1: backplane.level(Hp67Net::Phi1), phi2: backplane.level(Hp67Net::Phi2),
+                isa: backplane.level(Hp67Net::Isa), act_drive, rom_drive,
+            });
+        }
+        act.advance_execution_for_bit(expected_bit)?;
+    }
+
+    Ok(act.fetched_word()?)
+}
+
+/// Traced logical-DATA word. Only IS/PHI are observed, never electrical DATA.
+pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act_state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom: &mut RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    source: &S,
+    data: &mut Hp67DataSerialWordPath,
+    data_payload: Option<super::act::ActRegister>,
+    trace: &mut StructuralBusTrace,
+) -> Result<StructuralDataWordResult, StructuralWordError> {
+    let display_scan_slot = act.display_scan_slot();
+    act.begin_display_fetch_cycle(address)?;
+    data.begin_word(data_payload);
+    let fetched_word = run_traced_structural_word_transport_with_data(
+        backplane,
+        act,
+        Some(act_state),
+        rom,
+        source,
+        Some(&mut *rom0),
+        data,
+        trace,
+    )?;
+    let completed_data = data.complete_word();
+    let display_byte = rom0.display_byte()?;
+    let str_event = rom0.str_falling_event(display_scan_slot)?;
+    let rcd_falling = act.complete_display_word();
+    Ok(StructuralDataWordResult {
+        word: StructuralWordResult {
+            fetched_word,
+            display_byte,
+            str_event,
+            rcd_falling,
+        },
+        completed_data,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -328,6 +328,15 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Export ordinal-tick TSV with explicit timing limitations; retain failed-word prefix.
 - [x] Preserve production no-DATA/DATA loop code and live performance path.
 - [x] Add complete-scan differential/bus reconstruction and missing-ROM prefix regressions.
-- [ ] Owner local full gate and benchmark observations.
+- [x] Owner M14W FULL GATE GREEN; exact validated head integrated.
 - [ ] Capture actual desktop live authority traffic and compare against physical recordings in a subsequent slice.
 - [ ] DATA electrical ownership, exact PHI/sample edges and electrically timed SYNC/STR/RCD remain SOURCE-BLOCKED.
+
+
+## M14X bounded live bus capture
+
+- [x] Connect optional IS/PHI recorder to real live authority cycle and logical DATA twin.
+- [x] Bounded native CLI export (1..4096 words), with workload/reset/uncalibrated labels.
+- [x] Actual firmware boot parity, synthetic RAM cross-word authority parity and bounds regressions.
+- [ ] Owner local full gate, export smoke and performance observations.
+- [ ] Physical recording ingestion/alignment remains next; exact electrical edges remain SOURCE-BLOCKED.

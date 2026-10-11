@@ -54,3 +54,12 @@ M14T adds the public display_exposure module for completed-scan nominal ROM0 seg
 
 
 M14W exports `StructuralBusSample`, `StructuralBusTrace` and `run_structural_display_fetch_cycle_traced` for optional diagnostic IS/PHI capture and ordinal-tick TSV export. The production transport and live authority bridge do not allocate trace storage or execute observer hooks. The trace API does not capture electrical DATA/SYNC/STR/RCD or calibrated PHI widths.
+
+
+## M14X bounded live IS/PHI capture
+
+The native diagnostic CLI `hp67emu --trace-is <1..4096 words> <output.tsv>` exports actual live power-on firmware words with frozen no-key inputs. Reset-hold time has no modeled bus transport and is explicitly excluded. Ordinal ticks remain uncalibrated.
+
+The live cycle routes an optional recorder only at the word boundary; ordinary calls pass None. Traced and ordinary words share the existing restore/oracle/authority-commit bridge. A dedicated traced DATA twin advances the same logical DATA visitor, preserving next-word b0/b1 tail authority without recording electrical DATA. Original production transport loops remain unchanged. Capture storage is local, bounded and discarded after export; no UI state or persistent trace session is introduced. Invalid counts or capture errors fail before file writing.
+
+Focused tests compare real firmware boot with and without recording, exercise alternating synthetic RAM ports through the same live bridge and validate export bounds/row count/workload labels. See research/M14X_LIVE_BUS_CAPTURE_2026-10-11.md.

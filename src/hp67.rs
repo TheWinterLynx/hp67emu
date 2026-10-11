@@ -5,6 +5,7 @@ use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
     display_register_index_for_scan_slot, restore_ram_block, run_structural_display_fetch_cycle,
+    run_structural_display_fetch_data_phase_cycle_traced, run_structural_display_fetch_cycle_traced, StructuralBusTrace,
     run_structural_display_fetch_data_phase_cycle, ActInstructionState, ActOperation, ActRegister,
     ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint, ActSerialFlowState,
     ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
@@ -16,6 +17,29 @@ use hp67emu::machines::hp67::{
     RomFetchEndpoint, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
     CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
+
+
+/// Bounded diagnostic capture of actual live power-on firmware words.
+///
+/// Reset hold has no modeled IS transport and is excluded. All ordinal ticks
+/// retain the M14W uncalibrated PHI contract; no physical duration is inferred.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn capture_live_bus_tsv(words: usize) -> Result<String, String> {
+    if !(1..=4096).contains(&words) {
+        return Err("trace word count must be 1..=4096".to_owned());
+    }
+    let mut live = Hp67LiveMachine::power_on_default()?;
+    let mut trace = StructuralBusTrace {
+        samples: Vec::with_capacity(words * 224),
+    };
+    for _ in 0..words {
+        live.step_firmware_cycle_with_trace(Some(&mut trace))?;
+    }
+    Ok(format!(
+        "# workload=live power-on firmware; words={words}; reset hold excluded; frozen no-key inputs\n{}",
+        trace.to_tsv(),
+    ))
+}
 
 const DISPLAY_INIT_PC: u16 = 0o0161;
 const MAIN_WAIT_PC: u16 = 0o0167;
@@ -536,6 +560,12 @@ impl Hp67LiveMachine {
     fn step_firmware_cycle_with_execution(
         &mut self,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
+        self.step_firmware_cycle_with_trace(None)
+    }
+
+    fn step_firmware_cycle_with_trace(
+        &mut self, trace: Option<&mut StructuralBusTrace>,
+    ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
         let card_motor_was_on = self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true);
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
@@ -718,7 +748,7 @@ impl Hp67LiveMachine {
                 && self.machine.act.state.key_buffer.is_none();
         }
 
-        self.transport_fetch_word(cycle, ram_data_transfer)?;
+        self.transport_fetch_word(cycle, ram_data_transfer, trace)?;
 
         if let Some(word) = self.pipeline.executing_word() {
             let serial_execution = self.act_serial.serial_execution().ok_or_else(|| {
@@ -1364,6 +1394,7 @@ impl Hp67LiveMachine {
         &mut self,
         cycle: u64,
         ram_data_transfer: Option<PendingRamDataTransfer>,
+        trace: Option<&mut StructuralBusTrace>,
     ) -> Result<(), String> {
         let ram_data_payload = ram_data_transfer.map(|transfer| transfer.expected);
         // M14I supplies successor fetch from immutable structural inputs,
@@ -1387,7 +1418,22 @@ impl Hp67LiveMachine {
             .as_ref()
             .unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.prefix_preconsumed() || ram_data_payload.is_some() {
-            let fused = run_structural_display_fetch_data_phase_cycle(
+            let fused = if let Some(trace) = trace {
+                run_structural_display_fetch_data_phase_cycle_traced(
+                &mut self.backplane,
+                address,
+                display_state,
+                &mut self.act_serial,
+                &mut self.fetch_rom,
+                &mut self.display_rom0,
+                &self.source,
+                &mut self.data_serial,
+                ram_data_payload,
+                trace,
+            )
+            .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
+            } else {
+                run_structural_display_fetch_data_phase_cycle(
                 &mut self.backplane,
                 address,
                 display_state,
@@ -1398,8 +1444,8 @@ impl Hp67LiveMachine {
                 &mut self.data_serial,
                 ram_data_payload,
             )
-            .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?;
-
+            .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
+            };
             if let Some(actual) = fused.completed_data {
                 return Err(format!(
                     "live cycle {cycle} RAM DATA frame completed inside the structural body instead of the pre-word b0/b1 tail: actual={actual:?}"
@@ -1410,6 +1456,19 @@ impl Hp67LiveMachine {
             self.pending_ram_data_transfer = ram_data_transfer;
             fused.word
         } else {
+            if let Some(trace) = trace {
+            run_structural_display_fetch_cycle_traced(
+                &mut self.backplane,
+                address,
+                display_state,
+                &mut self.act_serial,
+                &mut self.fetch_rom,
+                &mut self.display_rom0,
+                &self.source,
+                trace,
+            )
+            .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
+            } else {
             run_structural_display_fetch_cycle(
                 &mut self.backplane,
                 address,
@@ -1420,6 +1479,7 @@ impl Hp67LiveMachine {
                 &self.source,
             )
             .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
+            }
         };
         self.pipeline.complete_cycle(result.fetched_word);
 
@@ -1490,6 +1550,72 @@ mod official_pac_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn m14x_real_firmware_trace_matches_unobserved_live_boot() {
+        let mut fast = Hp67LiveMachine::power_on_default().unwrap();
+        let mut captured = Hp67LiveMachine::power_on_default().unwrap();
+        let mut trace = StructuralBusTrace::default();
+        for _ in 0..1200 {
+            fast.step_firmware_cycle_with_execution().unwrap();
+            captured.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+            assert_eq!(captured.machine.act.state, fast.machine.act.state);
+            assert_eq!(captured.machine.pc(), fast.machine.pc());
+            assert_eq!(captured.pipeline, fast.pipeline);
+            assert_eq!(captured.act_serial, fast.act_serial);
+            assert_eq!(captured.backplane.tick(), fast.backplane.tick());
+            assert_eq!(captured.display, fast.display);
+            assert_eq!(captured.optical_display_frame(), fast.optical_display_frame());
+            assert_eq!(captured.boot_cycle, fast.boot_cycle);
+        }
+        assert_eq!(captured.phase, LiveBootPhase::Idle);
+        assert_eq!(trace.samples.len(), 1200 * 224);
+        assert_eq!(trace.samples.last().unwrap().tick, 1200 * 224);
+    }
+
+    #[test]
+    fn m14x_live_ram_trace_preserves_cross_word_data_authority() {
+        let mut fast = Hp67LiveMachine::power_on_default().unwrap();
+        let mut captured = Hp67LiveMachine::power_on_default().unwrap();
+        for _ in 0..1200 {
+            fast.step_firmware_cycle_with_execution().unwrap();
+            captured.step_firmware_cycle_with_execution().unwrap();
+        }
+        let mut trace = StructuralBusTrace::default();
+        for live in [&mut fast, &mut captured] {
+            live.complete_pending_ram_data_before_word(live.boot_cycle).unwrap();
+            live.machine.act.state.instruction_state = ActInstructionState::Normal;
+            live.machine.act.state.c = [3; 14];
+            live.machine.act.state.ram_address = 0x20;
+        }
+        for i in 0..12 {
+            let word = if i % 2 == 0 { 0o1360 } else { 0o0070 };
+            fast.pipeline.complete_cycle(word);
+            captured.pipeline.complete_cycle(word);
+            fast.step_firmware_cycle_with_execution().unwrap();
+            captured.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+            assert_eq!(captured.machine.act.state, fast.machine.act.state);
+            assert_eq!(captured.act_serial, fast.act_serial);
+            assert_eq!(captured.pipeline, fast.pipeline);
+            assert_eq!(captured.backplane.tick(), fast.backplane.tick());
+        }
+        fast.complete_pending_ram_data_before_word(fast.boot_cycle).unwrap();
+        captured.complete_pending_ram_data_before_word(captured.boot_cycle).unwrap();
+        assert_eq!(captured.machine.act.state, fast.machine.act.state);
+        assert_eq!(trace.samples.len(), 12 * 224);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn m14x_capture_is_bounded_and_export_labels_actual_workload() {
+        assert!(capture_live_bus_tsv(0).is_err());
+        assert!(capture_live_bus_tsv(4097).is_err());
+        let output = capture_live_bus_tsv(2).unwrap();
+        assert_eq!(output.lines().count(), 3 + 448);
+        assert!(output.starts_with("# workload=live power-on firmware; words=2;"));
+        assert!(output.contains("uncalibrated"));
+        assert!(output.contains("\n448\t55\tHigh\tHigh\t"));
+    }
+
     use super::*;
     use hp67emu::{
         emulation::Drive,
@@ -1899,7 +2025,7 @@ mod tests {
         live.display_control_seen = true;
         live.machine.act.state.display_enable = false;
         for _ in 0..15 {
-            live.transport_fetch_word(0, None).unwrap();
+            live.transport_fetch_word(0, None, None).unwrap();
         }
         assert_eq!(live.display_exposure().completed_scans(), 1);
         assert_eq!(
@@ -1939,7 +2065,7 @@ mod tests {
         // An intentionally wrong oracle/live destination must not feed IS.
         live.machine.act.state.pc = 0x0450;
         live.machine.act.state.bank = 1;
-        live.transport_fetch_word(0, None).unwrap();
+        live.transport_fetch_word(0, None, None).unwrap();
         assert_eq!(live.fetch_rom.received_address(), Ok(0x0fc6));
         assert_eq!(live.act_serial.address(), 0x0fc6);
         assert_eq!(live.machine.pc(), 0x0450);
@@ -1996,7 +2122,7 @@ mod tests {
         assert_eq!(pending.expected_a[0], 0);
         assert!(pending.expected_carry);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural ADD word must complete");
         assert!(live
             .act_serial
@@ -2042,7 +2168,7 @@ mod tests {
         ));
         assert!(pending.expected_carry);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural compare word must complete");
         live.complete_serial_arithmetic_authority(0, Some(pending))
             .expect("serial compare image must match and commit");
@@ -2109,7 +2235,7 @@ mod tests {
             assert_eq!(live.machine.act.state.c, before.c);
             assert_eq!(live.machine.act.state.carry, before.carry);
 
-            live.transport_fetch_word(0, None)
+            live.transport_fetch_word(0, None, None)
                 .expect("structural arithmetic word must complete");
             live.complete_serial_arithmetic_authority(0, Some(pending))
                 .expect("structural arithmetic image must match and commit");
@@ -2150,7 +2276,7 @@ mod tests {
         assert!(!pending.expected_carry);
         assert!(pending.expected_previous_carry);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural P increment word must complete");
         live.complete_serial_control_authority(0, Some(pending))
             .expect("serial P increment image must match and commit");
@@ -2193,7 +2319,7 @@ mod tests {
             ActInstructionState::ThenGoto
         );
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural status-test word must complete");
         live.complete_serial_control_authority(0, Some(pending))
             .expect("serial status-test image must match and commit");
@@ -2230,7 +2356,7 @@ mod tests {
         assert_eq!(pending.expected_c, before.m1);
         assert_eq!(pending.expected_m1, before.c);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural C/M1 exchange word must complete");
         live.complete_serial_special_register_authority(0, Some(pending))
             .expect("serial C/M1 image must match and commit");
@@ -2262,7 +2388,7 @@ mod tests {
         assert_eq!(live.machine.act.state.p, before.p);
         assert_eq!(live.machine.act.state.c, before.c);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural load-constant word must complete");
         live.complete_serial_control_authority(0, Some(control))
             .expect("load-constant P/control image must match and commit");
@@ -2295,7 +2421,7 @@ mod tests {
         assert!(live.machine.act.state.decimal);
         assert!(!pending.expected_decimal);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural HEX-mode word must complete");
         live.complete_serial_mode_latch_authority(0, Some(pending))
             .expect("serial HEX-mode image must match and commit");
@@ -2328,7 +2454,7 @@ mod tests {
         assert_eq!(live.machine.act.state.ram_address, 0x11);
         assert_eq!(pending.expected_ram_address, 0x6d);
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural RAM-address word must complete");
         live.complete_serial_mode_latch_authority(0, Some(pending))
             .expect("serial RAM-address image must match and commit");
@@ -2364,7 +2490,7 @@ mod tests {
             .expect("serial snapshot must remain bound")
             .display_enable());
 
-        live.transport_fetch_word(0, None)
+        live.transport_fetch_word(0, None, None)
             .expect("structural display-toggle word must complete");
         live.complete_serial_mode_latch_authority(0, Some(pending))
             .expect("serial display-toggle image must match and commit");
