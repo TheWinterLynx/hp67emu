@@ -992,7 +992,6 @@ pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
     })
 }
 
-
 /// One observation after a committed scaffold PHI transition.
 ///
 /// `transport_bit` names the cell just processed, including b55 on the
@@ -1030,9 +1029,15 @@ impl StructuralBusTrace {
             writeln!(
                 output,
                 "{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}",
-                sample.tick, sample.transport_bit, sample.phi1, sample.phi2,
-                sample.isa, sample.act_drive, sample.rom_drive,
-            ).expect("writing to String cannot fail");
+                sample.tick,
+                sample.transport_bit,
+                sample.phi1,
+                sample.phi2,
+                sample.isa,
+                sample.act_drive,
+                sample.rom_drive,
+            )
+            .expect("writing to String cannot fail");
         }
         output
     }
@@ -1136,7 +1141,6 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
     Ok(act.fetched_word()?)
 }
 
-
 /// Run the structural display/fetch path with an opt-in IS/PHI trace.
 ///
 /// This diagnostic API executes real resolved-net transport, not a waveform
@@ -1156,12 +1160,23 @@ pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     let fetched_word = run_traced_structural_word_transport(
-        backplane, act, Some(act_state), rom, source, Some(&mut *rom0), trace,
+        backplane,
+        act,
+        Some(act_state),
+        rom,
+        source,
+        Some(&mut *rom0),
+        trace,
     )?;
     let display_byte = rom0.display_byte()?;
     let str_event = rom0.str_falling_event(display_scan_slot)?;
     let rcd_falling = act.complete_display_word();
-    Ok(StructuralWordResult { fetched_word, display_byte, str_event, rcd_falling })
+    Ok(StructuralWordResult {
+        fetched_word,
+        display_byte,
+        str_event,
+        rcd_falling,
+    })
 }
 
 #[cfg(test)]
@@ -1169,10 +1184,11 @@ mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
 
-
     #[test]
     fn m14w_traced_transport_matches_fast_path_across_complete_scan() {
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         let mut state = ActArchitecturalState::default();
         state.display_enable = true;
         state.a[0] = 7;
@@ -1191,13 +1207,26 @@ mod tests {
             fast_act.begin_execution(0o0210, &state).unwrap();
             traced_act.begin_execution(0o0210, &state).unwrap();
             let expected = run_structural_display_fetch_cycle(
-                &mut fast, address, &state, &mut fast_act, &mut fast_rom,
-                &mut fast_rom0, &source,
-            ).unwrap();
+                &mut fast,
+                address,
+                &state,
+                &mut fast_act,
+                &mut fast_rom,
+                &mut fast_rom0,
+                &source,
+            )
+            .unwrap();
             let actual = run_structural_display_fetch_cycle_traced(
-                &mut traced, address, &state, &mut traced_act, &mut traced_rom,
-                &mut traced_rom0, &source, &mut trace,
-            ).unwrap();
+                &mut traced,
+                address,
+                &state,
+                &mut traced_act,
+                &mut traced_rom,
+                &mut traced_rom0,
+                &source,
+                &mut trace,
+            )
+            .unwrap();
             assert_eq!(actual, expected);
             assert_eq!(traced_act, fast_act);
             let fast_image = fast_act.serial_mode_latch_result_image().unwrap();
@@ -1232,7 +1261,9 @@ mod tests {
                     46..=55 => word_from_bus |= high << (bit - 46),
                     _ => {}
                 }
-                if bit < 46 { assert_eq!(cell[0].rom_drive, Drive::HighZ); }
+                if bit < 46 {
+                    assert_eq!(cell[0].rom_drive, Drive::HighZ);
+                }
                 if (8..16).contains(&bit) || bit > 27 {
                     assert_eq!(cell[0].act_drive, Drive::HighZ);
                 }
@@ -1252,15 +1283,23 @@ mod tests {
 
     #[test]
     fn m14w_trace_keeps_only_committed_prefix_on_missing_rom() {
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         let mut backplane = Hp67ElectricalBackplane::default();
         let mut act = ActSerialEndpoint::new(0x002);
         let mut rom = RomFetchEndpoint::default();
         let mut rom0 = Rom0DisplayEndpoint::default();
         let mut trace = StructuralBusTrace::default();
         let result = run_structural_display_fetch_cycle_traced(
-            &mut backplane, 0x002, &ActArchitecturalState::default(),
-            &mut act, &mut rom, &mut rom0, &source, &mut trace,
+            &mut backplane,
+            0x002,
+            &ActArchitecturalState::default(),
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+            &mut trace,
         );
         assert!(result.is_err());
         // Address lookup fails at b27 before its four PHI transitions.
