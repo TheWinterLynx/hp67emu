@@ -992,10 +992,283 @@ pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
     })
 }
 
+
+/// One observation after a committed scaffold PHI transition.
+///
+/// `transport_bit` names the cell just processed, including b55 on the
+/// word-wrapping fourth transition. Ticks are ordinal, not physical durations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructuralBusSample {
+    pub tick: u64,
+    pub transport_bit: u8,
+    pub phi1: LogicLevel,
+    pub phi2: LogicLevel,
+    pub isa: LogicLevel,
+    pub act_drive: Drive,
+    pub rom_drive: Drive,
+}
+
+/// Opt-in IS/PHI capture. No storage or hooks are added to production transport.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StructuralBusTrace {
+    pub samples: Vec<StructuralBusSample>,
+}
+
+impl StructuralBusTrace {
+    /// Export actual observations, with explicit uncalibrated timing scope.
+    ///
+    /// Driver columns describe ACT and aggregate ROM ownership only. DATA,
+    /// SYNC, STR and RCD are intentionally absent: this API does not capture
+    /// their electrical timing. On a failed word the trace retains its prefix.
+    pub fn to_tsv(&self) -> String {
+        use std::fmt::Write;
+        let mut output = String::from(
+            "# HP67 structural IS/PHI; ordinal ticks; PHI widths and sampling edges uncalibrated\n\
+             tick\ttransport_bit\tphi1\tphi2\tisa\tact_drive\trom_drive\n",
+        );
+        for sample in &self.samples {
+            writeln!(
+                output,
+                "{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}",
+                sample.tick, sample.transport_bit, sample.phi1, sample.phi2,
+                sample.isa, sample.act_drive, sample.rom_drive,
+            ).expect("writing to String cannot fail");
+        }
+        output
+    }
+}
+
+/// Diagnostic twin: same IS/display/fetch traversal, recording each committed
+/// PHI transition. Kept separate to preserve production fast-path codegen.
+fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    act: &mut ActSerialEndpoint,
+    act_state: Option<&ActArchitecturalState>,
+    rom: &mut RomFetchEndpoint,
+    source: &S,
+    mut rom0: Option<&mut Rom0DisplayEndpoint>,
+    trace: &mut StructuralBusTrace,
+) -> Result<u16, StructuralWordError> {
+    rom.begin_cycle();
+    if let Some(endpoint) = rom0.as_deref_mut() {
+        endpoint.begin_word();
+    }
+
+    // The selected ACT display source is immutable for the whole b0..b7
+    // window: executing words read the pre-instruction snapshot and fetch-only
+    // words read the supplied live state. Encode it once per machine word
+    // instead of rebuilding the same ROM0 byte for all eight serial bits.
+    let display_byte = match act.encoded_display_byte(act_state) {
+        Ok(byte) => byte,
+        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+        Err(error) => return Err(error.into()),
+    };
+
+    // Each endpoint owns its named IS driver. Reset that ownership once at the
+    // word boundary, then publish only actual drive-state transitions below.
+    // This preserves every resolved bit-cell level while avoiding redundant
+    // High-Z/same-level writes on the shared electrical net.
+    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    let mut previous_act_drive = Drive::HighZ;
+    let mut previous_rom_drive = Drive::HighZ;
+
+    for expected_bit in 0..BITS_PER_WORD {
+        debug_assert_eq!(backplane.word_bit(), expected_bit);
+
+        let display_bit = display_data_serial_bit(expected_bit);
+        let act_drive = if let Some(serial_bit) = display_bit {
+            match display_byte {
+                Some(code) => wired_high_drive(((code >> serial_bit) & 1) != 0),
+                None => Drive::HighZ,
+            }
+        } else {
+            act_address_drive(act.address(), expected_bit)
+        };
+        if act_drive != previous_act_drive {
+            backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
+            previous_act_drive = act_drive;
+        }
+
+        let rom_drive = rom.drive_for_bit(expected_bit);
+        if rom_drive != previous_rom_drive {
+            backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, rom_drive);
+            previous_rom_drive = rom_drive;
+        }
+
+        let is_level = backplane.level(Hp67Net::Isa);
+        if is_level == LogicLevel::Contention {
+            return Err(SerialFetchError::IsaContention {
+                word_bit: expected_bit,
+            }
+            .into());
+        }
+
+        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+            endpoint.sample_for_bit(expected_bit, is_level)?;
+        }
+
+        match isa_window_for_bit(expected_bit) {
+            IsaWindow::RomAddress { .. } => {
+                rom.sample_for_bit(expected_bit, is_level, source)?;
+            }
+            IsaWindow::RomWord { .. } => {
+                act.sample_for_bit(expected_bit, is_level)?;
+            }
+            IsaWindow::Other => {}
+        }
+
+        for _ in 0..4 {
+            backplane.advance_clock();
+            trace.samples.push(StructuralBusSample {
+                tick: backplane.tick().get(),
+                transport_bit: expected_bit,
+                phi1: backplane.level(Hp67Net::Phi1),
+                phi2: backplane.level(Hp67Net::Phi2),
+                isa: backplane.level(Hp67Net::Isa),
+                act_drive,
+                rom_drive,
+            });
+        }
+        act.advance_execution_for_bit(expected_bit)?;
+    }
+
+    Ok(act.fetched_word()?)
+}
+
+
+/// Run the structural display/fetch path with an opt-in IS/PHI trace.
+///
+/// This diagnostic API executes real resolved-net transport, not a waveform
+/// synthesized from address/word values. It appends 224 samples on success;
+/// failed transport retains only the transitions actually committed.
+/// It is not the desktop live authority bridge or a physical timing capture.
+pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act_state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom: &mut RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    source: &S,
+    trace: &mut StructuralBusTrace,
+) -> Result<StructuralWordResult, StructuralWordError> {
+    let display_scan_slot = act.display_scan_slot();
+    act.begin_display_fetch_cycle(address)?;
+    let fetched_word = run_traced_structural_word_transport(
+        backplane, act, Some(act_state), rom, source, Some(&mut *rom0), trace,
+    )?;
+    let display_byte = rom0.display_byte()?;
+    let str_event = rom0.str_falling_event(display_scan_slot)?;
+    let rcd_falling = act.complete_display_word();
+    Ok(StructuralWordResult { fetched_word, display_byte, str_event, rcd_falling })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+
+    #[test]
+    fn m14w_traced_transport_matches_fast_path_across_complete_scan() {
+        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+        state.a[0] = 7;
+        state.b[0] = 3;
+        let mut fast = Hp67ElectricalBackplane::default();
+        let mut traced = Hp67ElectricalBackplane::default();
+        let mut fast_act = ActSerialEndpoint::new(0x07b);
+        let mut traced_act = ActSerialEndpoint::new(0x07b);
+        let mut fast_rom = RomFetchEndpoint::default();
+        let mut traced_rom = RomFetchEndpoint::default();
+        let mut fast_rom0 = Rom0DisplayEndpoint::default();
+        let mut traced_rom0 = Rom0DisplayEndpoint::default();
+        let mut trace = StructuralBusTrace::default();
+        for slot in 0..15 {
+            let address = if slot % 2 == 0 { 0x07b } else { 0x001 };
+            fast_act.begin_execution(0o0210, &state).unwrap();
+            traced_act.begin_execution(0o0210, &state).unwrap();
+            let expected = run_structural_display_fetch_cycle(
+                &mut fast, address, &state, &mut fast_act, &mut fast_rom,
+                &mut fast_rom0, &source,
+            ).unwrap();
+            let actual = run_structural_display_fetch_cycle_traced(
+                &mut traced, address, &state, &mut traced_act, &mut traced_rom,
+                &mut traced_rom0, &source, &mut trace,
+            ).unwrap();
+            assert_eq!(actual, expected);
+            assert_eq!(traced_act, fast_act);
+            let fast_image = fast_act.serial_mode_latch_result_image().unwrap();
+            let traced_image = traced_act.serial_mode_latch_result_image().unwrap();
+            assert!(fast_image.is_complete() && traced_image.is_complete());
+            assert_eq!(traced_image.display_enable(), fast_image.display_enable());
+            assert_eq!(traced_rom.received_address(), fast_rom.received_address());
+            assert_eq!(traced_act.display_scan_slot(), fast_act.display_scan_slot());
+            assert_eq!(traced.tick(), fast.tick());
+            for net in Hp67Net::ALL {
+                assert_eq!(traced.level(net), fast.level(net));
+            }
+            let rows = &trace.samples[slot * 224..(slot + 1) * 224];
+            let mut address_from_bus = 0u16;
+            let mut word_from_bus = 0u16;
+            let mut display_from_bus = 0u8;
+            for bit in 0..56usize {
+                let cell = &rows[bit * 4..bit * 4 + 4];
+                for (phase, sample) in cell.iter().enumerate() {
+                    assert_eq!(sample.tick, (slot * 224 + bit * 4 + phase + 1) as u64);
+                    assert_eq!(sample.transport_bit, bit as u8);
+                    assert_eq!(sample.phi1 == LogicLevel::Low, phase == 0);
+                    assert_eq!(sample.phi2 == LogicLevel::Low, phase == 2);
+                    assert_eq!(sample.isa, cell[0].isa);
+                    assert_ne!(sample.isa, LogicLevel::Contention);
+                    assert_ne!(sample.isa, LogicLevel::Floating);
+                }
+                let high = u16::from(cell[0].isa == LogicLevel::High);
+                match bit {
+                    0..=7 => display_from_bus |= (high as u8) << bit,
+                    16..=27 => address_from_bus |= high << (bit - 16),
+                    46..=55 => word_from_bus |= high << (bit - 46),
+                    _ => {}
+                }
+                if bit < 46 { assert_eq!(cell[0].rom_drive, Drive::HighZ); }
+                if (8..16).contains(&bit) || bit > 27 {
+                    assert_eq!(cell[0].act_drive, Drive::HighZ);
+                }
+            }
+            assert_eq!(address_from_bus, address);
+            assert_eq!(word_from_bus, actual.fetched_word);
+            assert_eq!(display_from_bus, actual.display_byte);
+        }
+        let tsv = trace.to_tsv();
+        assert_eq!(tsv.lines().count(), 2 + 15 * 224);
+        assert!(tsv.contains("uncalibrated"));
+        assert!(tsv.contains("\n3360\t55\tHigh\tHigh\t"));
+        assert_eq!(trace.samples.len(), 15 * 224);
+        assert_eq!(traced.word_index(), 15);
+        assert_eq!(traced.word_bit(), 0);
+    }
+
+    #[test]
+    fn m14w_trace_keeps_only_committed_prefix_on_missing_rom() {
+        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0x002);
+        let mut rom = RomFetchEndpoint::default();
+        let mut rom0 = Rom0DisplayEndpoint::default();
+        let mut trace = StructuralBusTrace::default();
+        let result = run_structural_display_fetch_cycle_traced(
+            &mut backplane, 0x002, &ActArchitecturalState::default(),
+            &mut act, &mut rom, &mut rom0, &source, &mut trace,
+        );
+        assert!(result.is_err());
+        // Address lookup fails at b27 before its four PHI transitions.
+        assert_eq!(trace.samples.len(), 27 * 4);
+        assert_eq!(trace.samples.last().unwrap().transport_bit, 26);
+        assert_eq!(backplane.tick().get(), 108);
+        assert_eq!(backplane.word_bit(), 27);
+    }
 
     struct FixtureRom {
         words: [(u16, u16); 2],

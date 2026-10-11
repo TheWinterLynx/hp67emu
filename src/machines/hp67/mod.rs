@@ -104,7 +104,7 @@ pub use electrical::{
 };
 pub use fetch::{
     run_structural_display_fetch_cycle, run_structural_display_fetch_data_phase_cycle,
-    run_structural_fetch_cycle, ActSerialEndpoint, FetchPipelineLatch, Hp67RomWordSource,
+    run_structural_display_fetch_cycle_traced, run_structural_fetch_cycle, StructuralBusSample, StructuralBusTrace, ActSerialEndpoint, FetchPipelineLatch, Hp67RomWordSource,
     RomFetchEndpoint, SerialFetchError, StructuralDataWordResult, StructuralWordError,
     StructuralWordResult,
 };

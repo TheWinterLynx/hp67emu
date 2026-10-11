@@ -252,3 +252,8 @@ M14T owner FULL GATE GREEN, integrated at a18c38998e3b9751db0ff336edefaa7b0e46f2
 ## M14V optical publication epochs
 
 M14U owner FULL GATE GREEN and integrated at fd56b529beeb9009768e37a52e012e7bf10ecad7. M14V prevents stale completed optical output from reappearing across firmware DISPLAY control. Discards the interrupted scan and waits for the following full scan, preserving raw transport and dwell. Owner local gate pending; no Pac expansion.
+
+
+## M14W structural bus trace
+
+M14V owner FULL GATE GREEN and integrated at 5dfdbffbd301eba8a923d5883e356258b5382ff0. M14W adds opt-in IS/PHI transition capture and ordinal-tick TSV export on the diagnostic structural display/fetch path, keeping both production loops untouched. Complete-scan differential and missing-ROM prefix regressions guard the diagnostic twin. Local owner gate pending. Subsequent work can connect live authority traffic and measured captures to this observation contract; electrical timing gaps remain explicit. No further Pac suites.

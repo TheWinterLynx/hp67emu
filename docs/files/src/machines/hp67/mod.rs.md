@@ -51,3 +51,6 @@ The flow image now restores the oracle's implied-GOTO completion latch as well a
 The live bridge verifies the entire pre-instruction ACT contract before transport, using its immutable snapshot, prior previous-carry and flow state. Any leaked oracle mutation is a hard contextual error. Whole ACT/RAM/CRC differential coverage spans all 1024 words, six address contexts, both carry states and normal/implied-GOTO state. Installed RAM results are compared only after the documented next-word b0/b1 tail. Unknown specials and ROM self-test remain rejected. This closes semantic ownership gaps without proving internal latch edges or removing the oracle.
 
 M14T adds the public display_exposure module for completed-scan nominal ROM0 segment dwell; electrical waveforms and optical routing remain separate concerns.
+
+
+M14W exports `StructuralBusSample`, `StructuralBusTrace` and `run_structural_display_fetch_cycle_traced` for optional diagnostic IS/PHI capture and ordinal-tick TSV export. The production transport and live authority bridge do not allocate trace storage or execute observer hooks. The trace API does not capture electrical DATA/SYNC/STR/RCD or calibrated PHI widths.

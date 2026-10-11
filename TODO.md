@@ -318,5 +318,16 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Invalidate previous optical snapshot on firmware DISPLAY control.
 - [x] Require a subsequent complete scan; preserve ACT/cathode and raw dwell counters.
 - [x] Exercise all fifteen interruption phases and real-firmware control path.
-- [ ] Owner full local gate and performance observations.
+- [x] Owner M14V FULL GATE GREEN; validated head integrated (5dfdbffbd301eba8a923d5883e356258b5382ff0).
 - [ ] Analog current, exact edges and physical duplicate-slot behavior remain unresolved.
+
+
+## M14W optional structural IS/PHI trace
+
+- [x] Capture committed PHI transitions and resolved IS from diagnostic display/fetch transport.
+- [x] Export ordinal-tick TSV with explicit timing limitations; retain failed-word prefix.
+- [x] Preserve production no-DATA/DATA loop code and live performance path.
+- [x] Add complete-scan differential/bus reconstruction and missing-ROM prefix regressions.
+- [ ] Owner local full gate and benchmark observations.
+- [ ] Capture actual desktop live authority traffic and compare against physical recordings in a subsequent slice.
+- [ ] DATA electrical ownership, exact PHI/sample edges and electrically timed SYNC/STR/RCD remain SOURCE-BLOCKED.
