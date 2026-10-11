@@ -1743,7 +1743,9 @@ mod tests {
             let before = live.display_exposure().completed_scans();
             let execution = live.step_firmware_cycle_with_execution().unwrap();
             if let Some(execution) = execution {
-                if let Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }) = execution.operation {
+                if let Hp67ArchitecturalOperation::Act(ActOperation::Special { opcode }) =
+                    execution.operation
+                {
                     if matches!(opcode, 0o0210 | 0o0310) {
                         controls += 1;
                         assert_eq!(live.optical_scan_floor, before + 2);
@@ -1753,7 +1755,12 @@ mod tests {
             }
         }
         assert!(controls > 0);
-        assert!(live.optical_display_frame().on_time_us().iter().flatten().any(|value| *value != 0));
+        assert!(live
+            .optical_display_frame()
+            .on_time_us()
+            .iter()
+            .flatten()
+            .any(|value| *value != 0));
     }
 
     #[test]
@@ -1779,8 +1786,16 @@ mod tests {
                 assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
                 live.step_firmware_cycle_with_execution().unwrap();
             }
-            assert!(live.optical_display_frame().on_time_us().iter().flatten().any(|value| *value != 0));
-            assert_eq!(live.optical_display_frame().segments(), live.display_frame().segments());
+            assert!(live
+                .optical_display_frame()
+                .on_time_us()
+                .iter()
+                .flatten()
+                .any(|value| *value != 0));
+            assert_eq!(
+                live.optical_display_frame().segments(),
+                live.display_frame().segments()
+            );
             // Advance from slot 1 to the next fixture phase using full words.
             for _ in 0..expected_slot {
                 live.step_firmware_cycle_with_execution().unwrap();
