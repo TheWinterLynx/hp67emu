@@ -1264,9 +1264,13 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
         for _ in 0..4 {
             backplane.advance_clock();
             trace.samples.push(StructuralBusSample {
-                tick: backplane.tick().get(), transport_bit: expected_bit,
-                phi1: backplane.level(Hp67Net::Phi1), phi2: backplane.level(Hp67Net::Phi2),
-                isa: backplane.level(Hp67Net::Isa), act_drive, rom_drive,
+                tick: backplane.tick().get(),
+                transport_bit: expected_bit,
+                phi1: backplane.level(Hp67Net::Phi1),
+                phi2: backplane.level(Hp67Net::Phi2),
+                isa: backplane.level(Hp67Net::Isa),
+                act_drive,
+                rom_drive,
             });
         }
         act.advance_execution_for_bit(expected_bit)?;

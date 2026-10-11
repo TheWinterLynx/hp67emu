@@ -5,19 +5,19 @@ use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
     display_register_index_for_scan_slot, restore_ram_block, run_structural_display_fetch_cycle,
-    run_structural_display_fetch_data_phase_cycle_traced, run_structural_display_fetch_cycle_traced, StructuralBusTrace,
-    run_structural_display_fetch_data_phase_cycle, ActInstructionState, ActOperation, ActRegister,
-    ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint, ActSerialFlowState,
-    ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
+    run_structural_display_fetch_cycle_traced, run_structural_display_fetch_data_phase_cycle,
+    run_structural_display_fetch_data_phase_cycle_traced, ActInstructionState, ActOperation,
+    ActRegister, ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint,
+    ActSerialFlowState, ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
     ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd,
     CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
     Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
     Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
-    RomFetchEndpoint, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
-    CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
+    RomFetchEndpoint, StructuralBusTrace, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY,
+    CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
+    HP67_OBSERVED_WORD_TIME_US,
 };
-
 
 /// Bounded diagnostic capture of actual live power-on firmware words.
 ///
@@ -564,7 +564,8 @@ impl Hp67LiveMachine {
     }
 
     fn step_firmware_cycle_with_trace(
-        &mut self, trace: Option<&mut StructuralBusTrace>,
+        &mut self,
+        trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
         let card_motor_was_on = self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true);
@@ -1420,31 +1421,31 @@ impl Hp67LiveMachine {
         let result = if self.data_serial.prefix_preconsumed() || ram_data_payload.is_some() {
             let fused = if let Some(trace) = trace {
                 run_structural_display_fetch_data_phase_cycle_traced(
-                &mut self.backplane,
-                address,
-                display_state,
-                &mut self.act_serial,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
-                &mut self.data_serial,
-                ram_data_payload,
-                trace,
-            )
-            .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
+                    &mut self.backplane,
+                    address,
+                    display_state,
+                    &mut self.act_serial,
+                    &mut self.fetch_rom,
+                    &mut self.display_rom0,
+                    &self.source,
+                    &mut self.data_serial,
+                    ram_data_payload,
+                    trace,
+                )
+                .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
             } else {
                 run_structural_display_fetch_data_phase_cycle(
-                &mut self.backplane,
-                address,
-                display_state,
-                &mut self.act_serial,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
-                &mut self.data_serial,
-                ram_data_payload,
-            )
-            .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
+                    &mut self.backplane,
+                    address,
+                    display_state,
+                    &mut self.act_serial,
+                    &mut self.fetch_rom,
+                    &mut self.display_rom0,
+                    &self.source,
+                    &mut self.data_serial,
+                    ram_data_payload,
+                )
+                .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
             };
             if let Some(actual) = fused.completed_data {
                 return Err(format!(
@@ -1457,28 +1458,28 @@ impl Hp67LiveMachine {
             fused.word
         } else {
             if let Some(trace) = trace {
-            run_structural_display_fetch_cycle_traced(
-                &mut self.backplane,
-                address,
-                display_state,
-                &mut self.act_serial,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
-                trace,
-            )
-            .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
+                run_structural_display_fetch_cycle_traced(
+                    &mut self.backplane,
+                    address,
+                    display_state,
+                    &mut self.act_serial,
+                    &mut self.fetch_rom,
+                    &mut self.display_rom0,
+                    &self.source,
+                    trace,
+                )
+                .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
             } else {
-            run_structural_display_fetch_cycle(
-                &mut self.backplane,
-                address,
-                display_state,
-                &mut self.act_serial,
-                &mut self.fetch_rom,
-                &mut self.display_rom0,
-                &self.source,
-            )
-            .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
+                run_structural_display_fetch_cycle(
+                    &mut self.backplane,
+                    address,
+                    display_state,
+                    &mut self.act_serial,
+                    &mut self.fetch_rom,
+                    &mut self.display_rom0,
+                    &self.source,
+                )
+                .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
             }
         };
         self.pipeline.complete_cycle(result.fetched_word);
@@ -1557,14 +1558,19 @@ mod tests {
         let mut trace = StructuralBusTrace::default();
         for _ in 0..1200 {
             fast.step_firmware_cycle_with_execution().unwrap();
-            captured.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+            captured
+                .step_firmware_cycle_with_trace(Some(&mut trace))
+                .unwrap();
             assert_eq!(captured.machine.act.state, fast.machine.act.state);
             assert_eq!(captured.machine.pc(), fast.machine.pc());
             assert_eq!(captured.pipeline, fast.pipeline);
             assert_eq!(captured.act_serial, fast.act_serial);
             assert_eq!(captured.backplane.tick(), fast.backplane.tick());
             assert_eq!(captured.display, fast.display);
-            assert_eq!(captured.optical_display_frame(), fast.optical_display_frame());
+            assert_eq!(
+                captured.optical_display_frame(),
+                fast.optical_display_frame()
+            );
             assert_eq!(captured.boot_cycle, fast.boot_cycle);
         }
         assert_eq!(captured.phase, LiveBootPhase::Idle);
@@ -1582,7 +1588,8 @@ mod tests {
         }
         let mut trace = StructuralBusTrace::default();
         for live in [&mut fast, &mut captured] {
-            live.complete_pending_ram_data_before_word(live.boot_cycle).unwrap();
+            live.complete_pending_ram_data_before_word(live.boot_cycle)
+                .unwrap();
             live.machine.act.state.instruction_state = ActInstructionState::Normal;
             live.machine.act.state.c = [3; 14];
             live.machine.act.state.ram_address = 0x20;
@@ -1592,14 +1599,19 @@ mod tests {
             fast.pipeline.complete_cycle(word);
             captured.pipeline.complete_cycle(word);
             fast.step_firmware_cycle_with_execution().unwrap();
-            captured.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+            captured
+                .step_firmware_cycle_with_trace(Some(&mut trace))
+                .unwrap();
             assert_eq!(captured.machine.act.state, fast.machine.act.state);
             assert_eq!(captured.act_serial, fast.act_serial);
             assert_eq!(captured.pipeline, fast.pipeline);
             assert_eq!(captured.backplane.tick(), fast.backplane.tick());
         }
-        fast.complete_pending_ram_data_before_word(fast.boot_cycle).unwrap();
-        captured.complete_pending_ram_data_before_word(captured.boot_cycle).unwrap();
+        fast.complete_pending_ram_data_before_word(fast.boot_cycle)
+            .unwrap();
+        captured
+            .complete_pending_ram_data_before_word(captured.boot_cycle)
+            .unwrap();
         assert_eq!(captured.machine.act.state, fast.machine.act.state);
         assert_eq!(trace.samples.len(), 12 * 224);
     }

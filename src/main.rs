@@ -33,9 +33,12 @@ fn main() -> eframe::Result<()> {
             if args.len() != 3 {
                 return Err("usage: hp67emu --trace-is <1..4096 words> <output.tsv>".to_owned());
             }
-            let words = args[1].parse::<usize>().map_err(|_| "invalid trace word count".to_owned())?;
+            let words = args[1]
+                .parse::<usize>()
+                .map_err(|_| "invalid trace word count".to_owned())?;
             let output = hp67::capture_live_bus_tsv(words)?;
-            std::fs::write(&args[2], output).map_err(|error| format!("trace export failed: {error}"))?;
+            std::fs::write(&args[2], output)
+                .map_err(|error| format!("trace export failed: {error}"))?;
             Ok(())
         })();
         if let Err(error) = result {
