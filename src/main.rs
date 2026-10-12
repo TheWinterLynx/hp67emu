@@ -25,7 +25,6 @@ fn native_options() -> eframe::NativeOptions {
     }
 }
 
-
 #[cfg(not(target_arch = "wasm32"))]
 fn compare_trace_files(args: &[String]) -> Result<bool, String> {
     use hp67emu::machines::hp67::bus_trace::{
@@ -35,8 +34,12 @@ fn compare_trace_files(args: &[String]) -> Result<bool, String> {
         return Err("usage: hp67emu --compare-is <expected.tsv> <actual.tsv> <report.txt> [expected_start actual_start]".to_owned());
     }
     let read = |path: &str| -> Result<_, String> {
-        let size = std::fs::metadata(path).map_err(|error| format!("{path}: {error}"))?.len();
-        if size > MAX_TRACE_BYTES as u64 { return Err(format!("{path}: trace exceeds byte limit")); }
+        let size = std::fs::metadata(path)
+            .map_err(|error| format!("{path}: {error}"))?
+            .len();
+        if size > MAX_TRACE_BYTES as u64 {
+            return Err(format!("{path}: trace exceeds byte limit"));
+        }
         let content = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
         import_bus_trace(&content).map_err(|error| format!("{path}: {error}"))
     };
@@ -48,12 +51,29 @@ fn compare_trace_files(args: &[String]) -> Result<bool, String> {
         }
     }
     let (expected_start, actual_start) = if args.len() == 6 {
-        (args[4].parse::<usize>().map_err(|_| "invalid expected start")?,
-         args[5].parse::<usize>().map_err(|_| "invalid actual start")?)
-    } else { (0, 0) };
-    let result = compare_bus_traces(&read(&args[1])?, &read(&args[2])?, expected_start, actual_start)?;
-    let report = format!("expected_file={}\nactual_file={}\n{}", args[1], args[2], result.report);
-    std::fs::write(&args[3], report).map_err(|error| format!("comparison report failed: {error}"))?;
+        (
+            args[4]
+                .parse::<usize>()
+                .map_err(|_| "invalid expected start")?,
+            args[5]
+                .parse::<usize>()
+                .map_err(|_| "invalid actual start")?,
+        )
+    } else {
+        (0, 0)
+    };
+    let result = compare_bus_traces(
+        &read(&args[1])?,
+        &read(&args[2])?,
+        expected_start,
+        actual_start,
+    )?;
+    let report = format!(
+        "expected_file={}\nactual_file={}\n{}",
+        args[1], args[2], result.report
+    );
+    std::fs::write(&args[3], report)
+        .map_err(|error| format!("comparison report failed: {error}"))?;
     Ok(result.matches)
 }
 
@@ -83,7 +103,10 @@ fn main() -> eframe::Result<()> {
         match compare_trace_files(&args) {
             Ok(true) => return Ok(()),
             Ok(false) => std::process::exit(2),
-            Err(error) => { eprintln!("{error}"); std::process::exit(1); }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
         }
     }
     eframe::run_native(
