@@ -338,5 +338,15 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Connect optional IS/PHI recorder to real live authority cycle and logical DATA twin.
 - [x] Bounded native CLI export (1..4096 words), with workload/reset/uncalibrated labels.
 - [x] Actual firmware boot parity, synthetic RAM cross-word authority parity and bounds regressions.
-- [ ] Owner local full gate, export smoke and performance observations.
+- [x] Owner M14X FULL GATE GREEN, including corrected waiting native-export gate; integrated a4c8ffa8d7e82b982bdabeda6757285e639fd47c.
 - [ ] Physical recording ingestion/alignment remains next; exact electrical edges remain SOURCE-BLOCKED.
+
+
+## M14Y ordinal trace comparison
+
+- [x] Strict bounded native/pin-only TSV import and explicit-index comparison.
+- [x] Preserve provenance, unknown levels, driver coverage and unmatched tails.
+- [x] Native reports and distinct match/mismatch/error exit codes.
+- [x] Regression coverage and native match/deliberate-mismatch gate prepared.
+- [ ] Owner full local gate.
+- [ ] Actual physical recordings and documented normalization remain required for hardware contrast.

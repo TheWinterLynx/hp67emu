@@ -262,3 +262,8 @@ M14V owner FULL GATE GREEN and integrated at 5dfdbffbd301eba8a923d5883e356258b53
 ## M14X live bus capture
 
 M14W owner FULL GATE GREEN and integrated at c0aeca92b4d7179e7320871c43f08e5c5358e250. M14X exports bounded actual live power-on firmware IS/PHI traffic via native CLI, including logical DATA transport parity, while retaining the ordinary loops. Physical recording alignment is the next comparison task. No calibrated timing or new Pac acceptance is claimed. Owner local gate pending.
+
+
+## M14Y ordinal trace comparison
+
+M14X owner FULL GATE GREEN, integrated at a4c8ffa8d7e82b982bdabeda6757285e639fd47c. M14Y imports native and normalized pin-only TSV, compares explicitly aligned suffixes and reports mismatches/coverage/provenance. Physical recordings remain unavailable; no hardware accuracy claim is inferred from self-comparison. Native validation covers match and deliberate mismatch. Owner local gate pending; no Pac expansion.

@@ -18,6 +18,7 @@ pub mod act_serial_result;
 pub mod act_serial_special_register;
 pub mod act_serial_state;
 pub mod architectural;
+pub mod bus_trace;
 pub mod card_flux;
 pub mod card_transport;
 pub mod crc;

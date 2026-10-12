@@ -23,3 +23,8 @@ The native diagnostic CLI `hp67emu --trace-is <1..4096 words> <output.tsv>` expo
 The live cycle routes an optional recorder only at the word boundary; ordinary calls pass None. Traced and ordinary words share the existing restore/oracle/authority-commit bridge. A dedicated traced DATA twin advances the same logical DATA visitor, preserving next-word b0/b1 tail authority without recording electrical DATA. Original production transport loops remain unchanged. Capture storage is local, bounded and discarded after export; no UI state or persistent trace session is introduced. Invalid counts or capture errors fail before file writing.
 
 Focused tests compare real firmware boot with and without recording, exercise alternating synthetic RAM ports through the same live bridge and validate export bounds/row count/workload labels. See research/M14X_LIVE_BUS_CAPTURE_2026-10-11.md.
+
+
+## M14Y offline comparison
+
+Adds GUI-free bus_trace module and native `--compare-is expected.tsv actual.tsv report.txt [expected_start actual_start]` adapter. Strict import preserves provenance/unknown levels, bounded inputs and optional driver coverage. Comparison uses explicit row indices and relative ordinal ticks, counts mismatches and unequal lengths, and writes a report. Native exit codes: 0 match, 2 mismatch, 1 input/output error. Input paths cannot be overwritten by report output. Windows GUI-subsystem processes must be invoked with Start-Process -Wait -PassThru in PowerShell gates. No transport loop or firmware execution changes. See research/M14Y_TRACE_COMPARISON_2026-10-12.md.
