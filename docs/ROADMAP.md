@@ -267,3 +267,8 @@ M14W owner FULL GATE GREEN and integrated at c0aeca92b4d7179e7320871c43f08e5c535
 ## M14Y ordinal trace comparison
 
 M14X owner FULL GATE GREEN, integrated at a4c8ffa8d7e82b982bdabeda6757285e639fd47c. M14Y imports native and normalized pin-only TSV, compares explicitly aligned suffixes and reports mismatches/coverage/provenance. Physical recordings remain unavailable; no hardware accuracy claim is inferred from self-comparison. Native validation covers match and deliberate mismatch. Owner local gate pending; no Pac expansion.
+
+
+## M14Z IS word decode
+
+M14Y owner FULL GATE GREEN, integrated at 4d673754661a5c20f3a7788d5af1a19de075ac8c. M14Z decodes complete native-observation IS words into display/address/fetched-instruction values, preserving provenance and coverage and rejecting incompatible observations. Exact physical edge claims remain blocked. Owner local gate pending; no new Pac tests.

@@ -77,6 +77,35 @@ fn compare_trace_files(args: &[String]) -> Result<bool, String> {
     Ok(result.matches)
 }
 
+
+#[cfg(not(target_arch = "wasm32"))]
+fn decode_trace_file(args: &[String]) -> Result<(), String> {
+    use hp67emu::machines::hp67::bus_trace::{decode_bus_report, import_bus_trace, MAX_TRACE_BYTES};
+    if args.len() != 3 && args.len() != 5 {
+        return Err("usage: hp67emu --decode-is <input.tsv> <report.txt> [start_row words]".to_owned());
+    }
+    if let Ok(output) = std::fs::canonicalize(&args[2]) {
+        if std::fs::canonicalize(&args[1]).ok().as_ref() == Some(&output) {
+            return Err("decode report must not overwrite input trace".to_owned());
+        }
+    }
+    let size = std::fs::metadata(&args[1]).map_err(|error| format!("trace input: {error}"))?.len();
+    if size > MAX_TRACE_BYTES as u64 { return Err("trace exceeds byte limit".to_owned()); }
+    let input = std::fs::read_to_string(&args[1]).map_err(|error| format!("trace read: {error}"))?;
+    let trace = import_bus_trace(&input)?;
+    let (start, words) = if args.len() == 5 {
+        (args[3].parse::<usize>().map_err(|_| "invalid start row")?,
+         args[4].parse::<usize>().map_err(|_| "invalid word count")?)
+    } else {
+        if trace.rows.len() % 224 != 0 {
+            return Err("partial trace: select explicit complete-word range".to_owned());
+        }
+        (0, trace.rows.len() / 224)
+    };
+    let report = format!("input_file={}\n{}", args[1], decode_bus_report(&trace, start, words)?);
+    std::fs::write(&args[2], report).map_err(|error| format!("decode report: {error}"))
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -108,6 +137,13 @@ fn main() -> eframe::Result<()> {
                 std::process::exit(1);
             }
         }
+    }
+    if args.first().map(String::as_str) == Some("--decode-is") {
+        if let Err(error) = decode_trace_file(&args) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return Ok(());
     }
     eframe::run_native(
         "HP-67 Emulator",

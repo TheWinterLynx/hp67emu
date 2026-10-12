@@ -348,5 +348,15 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Preserve provenance, unknown levels, driver coverage and unmatched tails.
 - [x] Native reports and distinct match/mismatch/error exit codes.
 - [x] Regression coverage and native match/deliberate-mismatch gate prepared.
-- [ ] Owner full local gate.
+- [x] Owner M14Y FULL GATE GREEN; exact validated head integrated.
 - [ ] Actual physical recordings and documented normalization remain required for hardware contrast.
+
+
+## M14Z IS word decode
+
+- [x] Strict complete-word decode from observed IS using source-locked bit windows.
+- [x] Native report with numeric fields, provenance, origins and explicit subset coverage.
+- [x] Reject unresolved/partial/shifted/incompatible observations.
+- [x] Transport-causal regression tests and native export/decode gate prepared.
+- [ ] Owner full local gate.
+- [ ] Physical captures/normalization and exact electrical edge evidence remain unresolved.
