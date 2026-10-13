@@ -360,3 +360,11 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Transport-causal regression tests and native export/decode gate prepared.
 - [ ] Owner full local gate.
 - [ ] Physical captures/normalization and exact electrical edge evidence remain unresolved.
+
+## M15A SYNC evidence correction
+
+- [x] Reinspect direct page-70 waveforms before scheduling electrical SYNC.
+- [x] Withdraw unsupported common PHI2-rising anchor in edge table V2.
+- [x] Regression-lock absent SYNC launch/sample/propagation.
+- [ ] Owner local formatting/warnings/all-targets/release validation.
+- [ ] Original acquisition metadata or independent hardware measurement.

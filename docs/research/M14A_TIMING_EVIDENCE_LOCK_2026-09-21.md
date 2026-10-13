@@ -28,9 +28,9 @@ interphase  -> PHI1 high, PHI2 high
 
 This locks polarity and ordering only. It does not claim equal durations, absolute widths, dead-time length or voltage amplitude. The electrical backplane now tracks this current phase explicitly and returns the crossed physical edge on every scheduler step; the separate word-timing counter remains only a completed-subphase/bit coordinate.
 
-### SYNC edge anchor
+### SYNC edge anchor — superseded by M15A
 
-The first two expanded page-70 captures isolate the rising and falling transitions of SYNC against PHI1/PHI2. Both SYNC transitions align with the **rising edge of PHI2**. M14A records that observation as `HP67_SYNC_TRANSITION_EDGE = Phi2Rising`.
+The first two expanded page-70 captures isolate the rising and falling transitions of SYNC against PHI1/PHI2. The initial review inferred a common PHI2-rising anchor. **That inference is withdrawn by M15A**: direct visual review shows SYNC rising before and falling after that edge. The current V2 contract stores no exact edge; see `M15A_SYNC_EVIDENCE_REVIEW_2026-10-13.md`.
 
 This does not yet assign launch/sample edges to IS or DATA and does not claim a quantified propagation delay.
 
@@ -101,7 +101,7 @@ The microsecond values are measured/approximate scope values, not oscillator des
 
 M14A now encodes `HP67_EDGE_CONTRACT_VERSION = 1` and `HP67_EDGE_CONTRACTS_V1` in `timing.rs`. Every relevant transfer has an explicit driver, receiver, signal-transition class, launch edge, sample edge, propagation bound, source page and evidence class.
 
-Crucially, unknown values are represented as `None` plus `SourceBlocked`; they are not filled from the temporary four-slot scaffold. At present only the SYNC transition has a direct PHI-relative anchor (`Phi2Rising`). ACT→ROM address, ROM→ACT instruction, both DATA directions, ACT→ROM0 display, STR and RCD remain explicitly blocked at the PHI launch/sample level.
+Crucially, unknown values are represented as `None` plus `SourceBlocked`; they are not filled from the temporary four-slot scaffold. M15A supersedes this V1 claim: SYNC also has no justified exact PHI-relative anchor in V2. ACT→ROM address, ROM→ACT instruction, both DATA directions, ACT→ROM0 display, STR and RCD remain explicitly blocked at the PHI launch/sample level.
 
 A regression test requires all currently blocked rows to keep `launch_edge`, `sample_edge` and propagation unset. This is intended to make later accidental timing invention fail loudly.
 

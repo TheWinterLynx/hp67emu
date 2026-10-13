@@ -137,15 +137,15 @@ pub enum Hp67ClockEdge {
     Phi2Rising,
 }
 
-/// Direct page-70 HP-67 captures show both the rising and falling transitions
-/// of SYNC aligned with the rising edge of PHI2.
+/// No exact SYNC transition edge is established by the reviewed capture.
 ///
-/// This is an observed edge relationship, not a propagation-delay claim. The
-/// current scheduler still lacks calibrated sub-microsecond transition timing.
-pub const HP67_SYNC_TRANSITION_EDGE: Hp67ClockEdge = Hp67ClockEdge::Phi2Rising;
+/// Page 70 places SYNC rising slightly before PHI2 rising and SYNC falling
+/// after it. Raster alignment cannot establish a common launch edge or a
+/// propagation bound. Keep this unavailable to production edge scheduling.
+pub const HP67_SYNC_TRANSITION_EDGE: Option<Hp67ClockEdge> = None;
 
 /// Version of the reviewed HP-67 PHI-relative edge-contract table.
-pub const HP67_EDGE_CONTRACT_VERSION: u8 = 1;
+pub const HP67_EDGE_CONTRACT_VERSION: u8 = 2;
 
 /// Physical participant named by one timing-contract row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -204,22 +204,21 @@ pub struct Hp67EdgeContract {
     pub evidence: Hp67TimingEvidence,
 }
 
-/// Reviewed M14A edge table.
+/// Reviewed edge table after M15A source-image review.
 ///
-/// Only SYNC currently has an exact PHI-relative transition anchor. The other
-/// rows preserve known ownership while explicitly keeping launch/sample edges
-/// source-blocked instead of silently inheriting the four-slot scaffold.
-pub const HP67_EDGE_CONTRACTS_V1: &[Hp67EdgeContract] = &[
+/// All launch/sample edges remain source-blocked. The table preserves known
+/// participants without inferring latch timing from a raster waveform.
+pub const HP67_EDGE_CONTRACTS_V2: &[Hp67EdgeContract] = &[
     Hp67EdgeContract {
         transfer: Hp67TimedTransfer::SyncTransition,
         driver: Hp67TimingParticipant::Unresolved,
         receiver: Hp67TimingParticipant::Unresolved,
         signal_transition: Hp67SignalTransition::Both,
-        launch_edge: Some(HP67_SYNC_TRANSITION_EDGE),
+        launch_edge: HP67_SYNC_TRANSITION_EDGE,
         sample_edge: None,
         max_propagation_ns: None,
         source_page: 70,
-        evidence: Hp67TimingEvidence::DirectCapture,
+        evidence: Hp67TimingEvidence::SourceBlocked,
     },
     Hp67EdgeContract {
         transfer: Hp67TimedTransfer::ActToRomAddress,
@@ -311,7 +310,7 @@ pub const fn edge_contract(transfer: Hp67TimedTransfer) -> &'static Hp67EdgeCont
         Hp67TimedTransfer::Rom0ToCathodeStr => 6,
         Hp67TimedTransfer::ActToCathodeRcd => 7,
     };
-    &HP67_EDGE_CONTRACTS_V1[index]
+    &HP67_EDGE_CONTRACTS_V2[index]
 }
 
 /// Meaning of the IS/ISA line at one HP-67 serial bit coordinate for fetch.
@@ -563,14 +562,11 @@ mod tests {
 
     #[test]
     fn m14a_edge_table_never_invents_blocked_phi_edges() {
-        assert_eq!(HP67_EDGE_CONTRACT_VERSION, 1);
-        assert_eq!(HP67_EDGE_CONTRACTS_V1.len(), 8);
-
-        let sync = edge_contract(Hp67TimedTransfer::SyncTransition);
-        assert_eq!(sync.launch_edge, Some(Hp67ClockEdge::Phi2Rising));
-        assert_eq!(sync.evidence, Hp67TimingEvidence::DirectCapture);
+        assert_eq!(HP67_EDGE_CONTRACT_VERSION, 2);
+        assert_eq!(HP67_EDGE_CONTRACTS_V2.len(), 8);
 
         for transfer in [
+            Hp67TimedTransfer::SyncTransition,
             Hp67TimedTransfer::ActToRomAddress,
             Hp67TimedTransfer::RomToActInstruction,
             Hp67TimedTransfer::ActToRomRamData,
@@ -588,8 +584,12 @@ mod tests {
     }
 
     #[test]
-    fn hp67_sync_transitions_are_anchored_to_phi2_rising() {
-        assert_eq!(HP67_SYNC_TRANSITION_EDGE, Hp67ClockEdge::Phi2Rising);
+    fn m15a_sync_raster_capture_does_not_define_an_exact_launch_edge() {
+        assert_eq!(HP67_SYNC_TRANSITION_EDGE, None);
+        let sync = edge_contract(Hp67TimedTransfer::SyncTransition);
+        assert_eq!(sync.source_page, 70);
+        assert_eq!(sync.signal_transition, Hp67SignalTransition::Both);
+        assert_eq!(sync.evidence, Hp67TimingEvidence::SourceBlocked);
     }
 
     #[test]
