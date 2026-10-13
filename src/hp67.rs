@@ -1575,7 +1575,7 @@ mod tests {
             let qualified = live.act_serial.fetched_instruction_state().unwrap();
             assert_eq!(qualified, live.machine.act.state.instruction_state);
             assert_eq!(
-                live.backplane.level(Hp67Net::Sync),
+                live.backplane.level(hp67emu::machines::hp67::Hp67Net::Sync),
                 hp67emu::emulation::LogicLevel::Low
             );
             match qualified {
