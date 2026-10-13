@@ -856,6 +856,18 @@ impl Hp67LiveMachine {
             image.commit(&mut self.machine.act.state);
         }
 
+        let qualified_state = self.act_serial.fetched_instruction_state()
+            .map_err(|error| format!("live cycle {cycle} SYNC qualification failed: {error:?}"))?;
+        if qualified_state != self.machine.act.state.instruction_state {
+            return Err(format!(
+                "live cycle {cycle} SYNC/oracle instruction-state mismatch: resolved={qualified_state:?} expected={:?}",
+                self.machine.act.state.instruction_state
+            ));
+        }
+        // Resolved SYNC owns the next-word instruction/data latch after the
+        // existing completed-word authority/oracle comparison succeeds.
+        self.machine.act.state.instruction_state = qualified_state;
+
         self.card_transport
             .advance_us(
                 HP67_OBSERVED_WORD_TIME_US,
@@ -1551,6 +1563,25 @@ mod official_pac_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn m15d_real_firmware_boot_uses_both_resolved_sync_qualifiers() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut normal = 0;
+        let mut implied = 0;
+        for _ in 0..1200 {
+            live.step_firmware_cycle_with_execution().unwrap();
+            let qualified = live.act_serial.fetched_instruction_state().unwrap();
+            assert_eq!(qualified, live.machine.act.state.instruction_state);
+            assert_eq!(live.backplane.level(Hp67Net::Sync), hp67emu::emulation::LogicLevel::Low);
+            match qualified {
+                ActInstructionState::Normal => normal += 1,
+                ActInstructionState::ThenGoto => implied += 1,
+            }
+        }
+        assert!(normal > 0 && implied > 0);
+        assert_eq!(live.backplane.tick().get(), 1200 * 224);
+    }
+
     #[test]
     fn m14x_real_firmware_trace_matches_unobserved_live_boot() {
         let mut fast = Hp67LiveMachine::power_on_default().unwrap();

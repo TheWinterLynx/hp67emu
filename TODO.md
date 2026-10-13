@@ -377,3 +377,13 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Cover all four structural transport variants and retained failure prefixes.
 - [ ] Owner formatting, focused/full tests, diagnostic and performance gates.
 - [ ] Exact ownership handoff edges and releasing output-enable behavior.
+
+## M15D SYNC-qualified fetch
+
+- [x] Apply explicit owner HP-97 equivalence assumption to executable behavior.
+- [x] Drive/sample resolved SYNC in all four structural transport loops.
+- [x] Suppress IF successor pulse; keep implied-GOTO payload distinct from opcode.
+- [x] Require ten stable qualifiers and reject floating/contention/mixed samples.
+- [x] Connect received qualification to live next-word latch after oracle agreement.
+- [ ] Owner full local gate, diagnostic and performance validation.
+- [ ] Replace coarse bit-cell publication with measured PHI/propagation scheduling.

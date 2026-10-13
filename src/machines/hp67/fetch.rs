@@ -19,7 +19,7 @@ use super::{
     act_serial_control::ActSerialControlResultImage,
     act_serial_crc_control::ActSerialCrcControlResultImage,
     act_serial_crc_data::ActSerialCrcDataResultImage,
-    act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister},
+    act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister, ActSerialWordClass},
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
     act_serial_ram::{ActSerialAbsentRamReadImage, ActSerialRamResultImage},
@@ -35,7 +35,7 @@ use super::{
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     timing::{
-        display_data_serial_bit, isa_window_for_bit, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
+        display_data_serial_bit, isa_window_for_bit, sync_decision_window, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
         ROM_ADDRESS_BITS, ROM_WORD_BITS,
     },
     wiring::{Hp67Driver, Hp67Net},
@@ -64,6 +64,9 @@ pub enum SerialFetchError {
     MissingRomWord { address: u16 },
     IncompleteAddress { received_mask: u16 },
     IncompleteRomWord { received_mask: u16 },
+    UnresolvedSync { word_bit: u8, level: LogicLevel },
+    ChangedSyncQualifier { word_bit: u8 },
+    MissingSyncQualifier,
 }
 
 /// Errors from a combined structural HP-67 word carrying display and fetch data.
@@ -180,6 +183,8 @@ pub struct ActSerialEndpoint {
     ram_topology_bound: bool,
     received_word: u16,
     received_mask: u16,
+    received_sync: Option<bool>,
+    received_sync_mask: u16,
 }
 
 impl ActSerialEndpoint {
@@ -207,6 +212,8 @@ impl ActSerialEndpoint {
             ram_topology_bound: false,
             received_word: 0,
             received_mask: 0,
+            received_sync: None,
+            received_sync_mask: 0,
         }
     }
 
@@ -377,6 +384,8 @@ impl ActSerialEndpoint {
         self.display_register_index = None;
         self.received_word = 0;
         self.received_mask = 0;
+        self.received_sync = None;
+        self.received_sync_mask = 0;
     }
 
     /// Start a combined display/fetch word from the ACT-owned display phase.
@@ -394,6 +403,8 @@ impl ActSerialEndpoint {
         );
         self.received_word = 0;
         self.received_mask = 0;
+        self.received_sync = None;
+        self.received_sync_mask = 0;
         Ok(())
     }
 
@@ -494,6 +505,58 @@ impl ActSerialEndpoint {
             return Ok(wired_high_drive(((code >> serial_bit) & 1) != 0));
         }
         Ok(act_address_drive(self.address, word_bit))
+    }
+
+    /// HP-97 service manual 2-15, applied under the owner's equivalence
+    /// assumption: executing an IF suppresses the concurrent successor qualifier.
+    /// Decode from the bound structural word, never post-oracle ACT state.
+    fn successor_is_instruction(&self) -> bool {
+        match self.execution.map(|execution| execution.class()) {
+            Some(ActSerialWordClass::Arithmetic { operation, .. }) => {
+                !(0x16..=0x1b).contains(&operation)
+            }
+            Some(ActSerialWordClass::SpecialOrPeripheral { opcode }) => {
+                !matches!(opcode & 0o77, 0o24 | 0o34 | 0o44 | 0o54)
+            }
+            // The currently executing implied-GOTO is data, even if its bits
+            // would decode as another IF. Fetch after that word is normal.
+            _ => true,
+        }
+    }
+
+    fn sample_sync_for_bit(
+        &mut self,
+        word_bit: u8,
+        level: LogicLevel,
+    ) -> Result<(), SerialFetchError> {
+        if !sync_decision_window(word_bit) {
+            return Ok(());
+        }
+        let qualifier = match level {
+            LogicLevel::High => true,
+            LogicLevel::Low => false,
+            _ => return Err(SerialFetchError::UnresolvedSync { word_bit, level }),
+        };
+        if self.received_sync.is_some_and(|previous| previous != qualifier) {
+            return Err(SerialFetchError::ChangedSyncQualifier { word_bit });
+        }
+        self.received_sync = Some(qualifier);
+        self.received_sync_mask |= 1u16 << (word_bit - super::timing::ROM_WORD_FIRST_BIT);
+        Ok(())
+    }
+
+    /// Instruction/data classification actually received on the resolved SYNC
+    /// net for all ten returned bits. Standalone IS-only sampling has no qualifier.
+    pub fn fetched_instruction_state(&self) -> Result<super::act::ActInstructionState, SerialFetchError> {
+        self.fetched_word()?;
+        if self.received_sync_mask != COMPLETE_WORD_MASK {
+            return Err(SerialFetchError::MissingSyncQualifier);
+        }
+        match self.received_sync {
+            Some(true) => Ok(super::act::ActInstructionState::Normal),
+            Some(false) => Ok(super::act::ActInstructionState::ThenGoto),
+            None => Err(SerialFetchError::MissingSyncQualifier),
+        }
     }
 
     /// Sample a resolved IS/ISA level during the ROM return window.
@@ -741,9 +804,14 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
     let mut previous_act_drive = Drive::HighZ;
     let mut previous_rom_drive = Drive::HighZ;
+    let instruction_qualifier = act.successor_is_instruction();
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
+        if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
+            backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
+        }
 
         let display_bit = display_data_serial_bit(expected_bit);
         let act_drive = if let Some(serial_bit) = display_bit {
@@ -776,6 +844,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
+                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
             }
             IsaWindow::Other => {}
@@ -787,6 +856,8 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         act.advance_execution_for_bit(expected_bit)?;
     }
 
+    // Coarse word boundary, not an asserted PHI launch edge or propagation time.
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
     Ok(act.fetched_word()?)
 }
 
@@ -831,9 +902,14 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
     let mut previous_act_drive = Drive::HighZ;
     let mut previous_rom_drive = Drive::HighZ;
+    let instruction_qualifier = act.successor_is_instruction();
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
+        if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
+            backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
+        }
 
         let display_bit = display_data_serial_bit(expected_bit);
         let act_drive = if let Some(serial_bit) = display_bit {
@@ -866,6 +942,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
+                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
             }
             IsaWindow::Other => {}
@@ -879,6 +956,8 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         act.advance_execution_for_bit(expected_bit)?;
     }
 
+    // Coarse word boundary, not an asserted PHI launch edge or propagation time.
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
     Ok(act.fetched_word()?)
 }
 
@@ -1085,9 +1164,14 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
     backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
     let mut previous_act_drive = Drive::HighZ;
     let mut previous_rom_drive = Drive::HighZ;
+    let instruction_qualifier = act.successor_is_instruction();
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
+        if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
+            backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
+        }
 
         let display_bit = display_data_serial_bit(expected_bit);
         let act_drive = if let Some(serial_bit) = display_bit {
@@ -1120,6 +1204,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
+                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
             }
             IsaWindow::Other => {}
@@ -1140,6 +1225,8 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
         act.advance_execution_for_bit(expected_bit)?;
     }
 
+    // Coarse word boundary, not an asserted PHI launch edge or propagation time.
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
     Ok(act.fetched_word()?)
 }
 
@@ -1215,9 +1302,14 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
     backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
     let mut previous_act_drive = Drive::HighZ;
     let mut previous_rom_drive = Drive::HighZ;
+    let instruction_qualifier = act.successor_is_instruction();
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
     for expected_bit in 0..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
+        if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
+            backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
+        }
 
         let display_bit = display_data_serial_bit(expected_bit);
         let act_drive = if let Some(serial_bit) = display_bit {
@@ -1250,6 +1342,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
+                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
             }
             IsaWindow::Other => {}
@@ -1272,6 +1365,8 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
         act.advance_execution_for_bit(expected_bit)?;
     }
 
+    // Coarse word boundary, not an asserted PHI launch edge or propagation time.
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
     Ok(act.fetched_word()?)
 }
 
@@ -1320,6 +1415,111 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+    #[test]
+    fn m15d_sync_successor_decode_matches_all_supported_oracle_words() {
+        use crate::machines::hp67::{ActArchitecturalCore, ActInstructionState};
+        let mut checked = 0;
+        for mode in [ActInstructionState::Normal, ActInstructionState::ThenGoto] {
+            for carry in [false, true] {
+                for word in 0..=ROM_WORD_MASK {
+                    let mut core = ActArchitecturalCore::default();
+                    core.state.instruction_state = mode;
+                    core.state.carry = carry;
+                    let before = core.state.clone();
+                    if core.execute_word(&mut ActRamImage::hp67(), word).is_err() {
+                        continue;
+                    }
+                    let mut act = ActSerialEndpoint::new(0x07b);
+                    act.begin_execution(word, &before).unwrap();
+                    assert_eq!(
+                        act.successor_is_instruction(),
+                        core.state.instruction_state == ActInstructionState::Normal,
+                        "word={word:03x} mode={mode:?} carry={carry}"
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 2048);
+    }
+
+    #[test]
+    fn m15d_resolved_sync_qualifies_normal_if_and_implied_goto_in_all_paths() {
+        use crate::machines::hp67::ActInstructionState;
+        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        for path in 0..4 {
+            let mut backplane = Hp67ElectricalBackplane::default();
+            let mut act = ActSerialEndpoint::new(0x07b);
+            let mut rom = RomFetchEndpoint::default();
+            let mut rom0 = Rom0DisplayEndpoint::default();
+            let mut data = Hp67DataSerialWordPath::default();
+            let mut trace = StructuralBusTrace::default();
+            for (mode, executing, expected) in [
+                (ActInstructionState::Normal, 0, ActInstructionState::Normal),
+                (ActInstructionState::Normal, 0o0034, ActInstructionState::ThenGoto),
+                (ActInstructionState::ThenGoto, 0o0034, ActInstructionState::Normal),
+            ] {
+                let mut state = ActArchitecturalState::default();
+                state.instruction_state = mode;
+                act.begin_execution(executing, &state).unwrap();
+                let result = match path {
+                    0 => run_structural_display_fetch_cycle(
+                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                        &mut rom0, &source,
+                    ).map(|result| result.fetched_word),
+                    1 => run_structural_display_fetch_data_phase_cycle(
+                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                        &mut rom0, &source, &mut data, None,
+                    ).map(|result| result.word.fetched_word),
+                    2 => run_structural_display_fetch_cycle_traced(
+                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                        &mut rom0, &source, &mut trace,
+                    ).map(|result| result.fetched_word),
+                    _ => run_structural_display_fetch_data_phase_cycle_traced(
+                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                        &mut rom0, &source, &mut data, None, &mut trace,
+                    ).map(|result| result.word.fetched_word),
+                };
+                assert_eq!(result.unwrap(), 0x04c);
+                assert_eq!(act.fetched_instruction_state().unwrap(), expected);
+                assert_eq!(backplane.level(Hp67Net::Sync), LogicLevel::Low);
+            }
+            assert_eq!(backplane.tick().get(), 3 * 224);
+            if path >= 2 { assert_eq!(trace.samples.len(), 3 * 224); }
+        }
+    }
+
+    #[test]
+    fn m15d_sync_contention_rejects_return_before_is_receiver_consumes_bit() {
+        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let mut backplane = Hp67ElectricalBackplane::default();
+        backplane.drive(Hp67Net::Sync, Hp67Driver::External, Drive::Low);
+        let mut act = ActSerialEndpoint::new(0x07b);
+        let mut rom = RomFetchEndpoint::default();
+        let result = run_structural_fetch_cycle(
+            &mut backplane, 0x07b, &mut act, &mut rom, &source,
+        );
+        assert_eq!(result, Err(SerialFetchError::UnresolvedSync {
+            word_bit: 46, level: LogicLevel::Contention,
+        }));
+        assert_eq!(backplane.tick().get(), 46 * 4);
+        assert_eq!(act.received_mask, 0);
+        assert!(act.fetched_instruction_state().is_err());
+    }
+
+    #[test]
+    fn m15d_sync_receiver_rejects_floating_and_changed_qualifier() {
+        let mut act = ActSerialEndpoint::new(0);
+        assert_eq!(act.sample_sync_for_bit(46, LogicLevel::Floating), Err(
+            SerialFetchError::UnresolvedSync { word_bit: 46, level: LogicLevel::Floating }
+        ));
+        act.sample_sync_for_bit(46, LogicLevel::High).unwrap();
+        assert_eq!(act.sample_sync_for_bit(47, LogicLevel::Low), Err(
+            SerialFetchError::ChangedSyncQualifier { word_bit: 47 }
+        ));
+        assert!(act.fetched_instruction_state().is_err());
+    }
 
     #[test]
     fn m15b_all_transport_paths_reject_hidden_high_overlap_before_sampling() {

@@ -122,3 +122,21 @@ display bit, with 20 previous transitions and no completed display byte.
 No receiver consumes that invalid cell. Existing transport differential tests
 remain the success-path parity checks. This does not prove exact ownership
 handoff timing or detect multiple releasing output enables.
+
+## M15D resolved SYNC qualification
+
+ACT now publishes a coarse SYNC pulse over b46..b55 for normal successor
+fetch and suppresses it when the bound executing word is an IF. A current
+implied-GOTO is treated as data regardless of its opcode bit pattern; its
+successor is normal. All four transport loops sample the actual resolved
+SYNC net before consuming each IS return bit. The endpoint accumulates a
+complete ten-bit qualifier mask, rejects floating/contention or changes
+inside the return window, and exposes `fetched_instruction_state()`. Standalone
+IS-only sampling cannot manufacture a valid qualifier.
+
+HP-97 manual figure 2-5/section 2-15 is used under the owner's explicit
+HP-97 equivalence instruction (2026-10-13). The bit-cell pulse model is a
+WORKING APPROXIMATION: immediate publication at existing bit coordinates and
+release at the completed word boundary do not assign physical PHI edges or
+propagation. V2's absent exact SYNC edge is unchanged. Legacy TSV still exports
+IS/PHI only; it does not acquire SYNC columns. No physical DATA model is added.

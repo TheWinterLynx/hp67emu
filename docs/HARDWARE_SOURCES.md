@@ -145,3 +145,17 @@ overlap that the generic resolver cannot mark as opposing-drive contention.
 This is protocol validation at existing approximate sample boundaries, not
 new evidence for PHI handoff timing or electrical DATA polarity. See
 `research/M15B_IS_OWNERSHIP_2026-10-13.md`.
+
+## Owner-directed HP-97 equivalence (2026-10-13)
+
+The owner explicitly instructed development to assume HP-97 equivalence for
+electrical progress. HP-97 behavior may therefore guide working implementations
+without a separate HP-67 equivalence proof. This is an engineering assumption,
+not a promotion of HP-97 measurements to direct HP-67 evidence. Conflicting
+direct observations remain visible and exact unknown edges remain unknown.
+
+M15D uses the HP-97 service manual figure 2-5, sections 2-14/2-15 (printed
+pages 2-4/2-5): ACT supplies SYNC, the return window is b46..b55, and IF suppresses
+the subsequent pulse so IS carries an implied-GOTO address. It connects a
+coarse pulse to the resolved net and ACT receiver in the actual live path.
+See `research/M15D_SYNC_QUALIFIED_FETCH_2026-10-13.md`.
