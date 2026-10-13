@@ -1339,29 +1339,63 @@ mod tests {
             let mut trace = StructuralBusTrace::default();
             let result = match path {
                 0 => run_structural_display_fetch_cycle(
-                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                    &mut rom0, &source,
-                ).map(|_| ()),
+                    &mut backplane,
+                    0x07b,
+                    &state,
+                    &mut act,
+                    &mut rom,
+                    &mut rom0,
+                    &source,
+                )
+                .map(|_| ()),
                 1 => run_structural_display_fetch_data_phase_cycle(
-                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                    &mut rom0, &source, &mut data, None,
-                ).map(|_| ()),
+                    &mut backplane,
+                    0x07b,
+                    &state,
+                    &mut act,
+                    &mut rom,
+                    &mut rom0,
+                    &source,
+                    &mut data,
+                    None,
+                )
+                .map(|_| ()),
                 2 => run_structural_display_fetch_cycle_traced(
-                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                    &mut rom0, &source, &mut trace,
-                ).map(|_| ()),
+                    &mut backplane,
+                    0x07b,
+                    &state,
+                    &mut act,
+                    &mut rom,
+                    &mut rom0,
+                    &source,
+                    &mut trace,
+                )
+                .map(|_| ()),
                 _ => run_structural_display_fetch_data_phase_cycle_traced(
-                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                    &mut rom0, &source, &mut data, None, &mut trace,
-                ).map(|_| ()),
+                    &mut backplane,
+                    0x07b,
+                    &state,
+                    &mut act,
+                    &mut rom,
+                    &mut rom0,
+                    &source,
+                    &mut data,
+                    None,
+                    &mut trace,
+                )
+                .map(|_| ()),
             };
-            assert_eq!(result, Err(StructuralWordError::Fetch(
-                SerialFetchError::InvalidIsaDrives {
-                    word_bit: 5,
-                    driver_mask: (1u16 << Hp67Driver::Act1820_2530.index())
-                        | (1u16 << Hp67Driver::External.index()),
-                }
-            )), "path {path}");
+            assert_eq!(
+                result,
+                Err(StructuralWordError::Fetch(
+                    SerialFetchError::InvalidIsaDrives {
+                        word_bit: 5,
+                        driver_mask: (1u16 << Hp67Driver::Act1820_2530.index())
+                            | (1u16 << Hp67Driver::External.index()),
+                    }
+                )),
+                "path {path}"
+            );
             assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::High);
             assert_eq!(backplane.tick().get(), 20);
             assert_eq!(backplane.word_bit(), 5);
@@ -1377,16 +1411,18 @@ mod tests {
         let mut backplane = Hp67ElectricalBackplane::default();
         backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::Low);
         assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::Low);
-        assert_eq!(sample_transport_isa(&backplane, 0), Err(
-            SerialFetchError::InvalidIsaDrives {
+        assert_eq!(
+            sample_transport_isa(&backplane, 0),
+            Err(SerialFetchError::InvalidIsaDrives {
                 word_bit: 0,
                 driver_mask: 1u16 << Hp67Driver::External.index(),
-            }
-        ));
+            })
+        );
         backplane.drive(Hp67Net::Isa, Hp67Driver::Act1820_2530, Drive::High);
-        assert_eq!(sample_transport_isa(&backplane, 0), Err(
-            SerialFetchError::IsaContention { word_bit: 0 }
-        ));
+        assert_eq!(
+            sample_transport_isa(&backplane, 0),
+            Err(SerialFetchError::IsaContention { word_bit: 0 })
+        );
     }
 
     #[test]

@@ -415,7 +415,10 @@ mod tests {
             assert_eq!(snapshot.level(Hp67Net::Isa), LogicLevel::High);
             fabric.commit_staged().unwrap();
             assert!(fabric.isa_drives_valid());
-            assert_eq!(fabric.active_isa_driver_mask(), 1u16 << rom.driver().index());
+            assert_eq!(
+                fabric.active_isa_driver_mask(),
+                1u16 << rom.driver().index()
+            );
             assert_eq!(fabric.tick(), Tick::ZERO);
         }
     }
