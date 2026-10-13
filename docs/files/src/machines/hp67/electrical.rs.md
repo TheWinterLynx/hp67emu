@@ -27,3 +27,15 @@ The direct typed pending-entry representation was validated on 2026-09-22 with t
 ## Timing/commit separation
 
 A scheduler commit is an electrical visibility boundary, not evidence that physical time or PHI advanced. Current PHI fixtures therefore perform `commit_staged()` followed by one explicit `advance_tick()`. Future same-coordinate settling events may commit without advancing PHI. Exact propagation timing remains source-blocked until hardware evidence supports it.
+
+## M15B IS contribution validation
+
+`isa_drives_valid()` checks cached counts for zero active-low contributions and
+at most one active-high contributor. The generic resolver still reports High
+for two High drives; that electrical level is distinct from valid IS ownership.
+`active_isa_driver_mask()` scans fixed driver identities only on an error path.
+Staged handoff is judged after atomic commit, never between pending entries.
+This policy is used by structural transport at its existing sample boundaries;
+`level()`, `begin_evaluation()` and `commit_staged()` retain their generic
+resolution semantics. It cannot detect overlapping output enables when all
+participants are HighZ and says nothing about unknown PHI-relative handoff.

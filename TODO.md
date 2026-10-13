@@ -368,3 +368,12 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Regression-lock absent SYNC launch/sample/propagation.
 - [ ] Owner local formatting/warnings/all-targets/release validation.
 - [ ] Original acquisition metadata or independent hardware measurement.
+
+## M15B IS contribution guard
+
+- [x] Detect multiple active High contributors before IS receiver sampling.
+- [x] Reject active Low IS contributions without inventing DATA polarity.
+- [x] Preserve generic net resolution, atomic handoff and contention diagnostics.
+- [x] Cover all four structural transport variants and retained failure prefixes.
+- [ ] Owner formatting, focused/full tests, diagnostic and performance gates.
+- [ ] Exact ownership handoff edges and releasing output-enable behavior.

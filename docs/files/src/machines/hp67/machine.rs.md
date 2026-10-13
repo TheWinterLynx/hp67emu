@@ -19,3 +19,10 @@ Stores one `Hp67ElectricalFabric`, whose net/driver state is fixed-size and dire
 
 
 `commit_staged()` and `advance_clock_edge()`/timing progression are intentionally separate. The backplane no longer equates every electrical commit with one PHI transition.
+
+## M15B IS sample policy
+
+Exposes the fabric's cached IS drive-validity check and exceptional driver mask
+to structural transport. These methods distinguish same-level active-high
+overlap and invalid active-low drive from the resolved logic level. They add
+no timing progression, passive bias or electrical DATA behavior.

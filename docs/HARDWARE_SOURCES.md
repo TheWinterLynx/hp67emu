@@ -135,3 +135,13 @@ The emulator is intended to execute real microcode, but source availability and 
 5. decide whether the repository can legally redistribute it.
 
 The core must support externally supplied ROM images so development is not blocked by redistribution policy.
+
+## M15B IS ownership enforcement
+
+The printed page-74 IS resistor experiment supports active-high/release drive
+and the accompanying bus discussion requires sole-chip control. Structural
+transport now checks committed contributor counts, including same-level High
+overlap that the generic resolver cannot mark as opposing-drive contention.
+This is protocol validation at existing approximate sample boundaries, not
+new evidence for PHI handoff timing or electrical DATA polarity. See
+`research/M15B_IS_OWNERSHIP_2026-10-13.md`.

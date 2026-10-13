@@ -108,3 +108,17 @@ The native diagnostic CLI `hp67emu --trace-is <1..4096 words> <output.tsv>` expo
 The live cycle routes an optional recorder only at the word boundary; ordinary calls pass None. Traced and ordinary words share the existing restore/oracle/authority-commit bridge. A dedicated traced DATA twin advances the same logical DATA visitor, preserving next-word b0/b1 tail authority without recording electrical DATA. Original production transport loops remain unchanged. Capture storage is local, bounded and discarded after export; no UI state or persistent trace session is introduced. Invalid counts or capture errors fail before file writing.
 
 Focused tests compare real firmware boot with and without recording, exercise alternating synthetic RAM ports through the same live bridge and validate export bounds/row count/workload labels. See research/M14X_LIVE_BUS_CAPTURE_2026-10-11.md.
+
+## M15B IS contribution guard
+
+All four no-DATA/DATA and untraced/traced loops use `sample_transport_isa()`
+after publishing both endpoint drives and before receiver sampling. Opposite
+drives keep the existing `IsaContention` error. Active-low or multiple High
+contributions fail with `InvalidIsaDrives` carrying word bit and a u16 mask
+indexed by `Hp67Driver`. Cached counts keep the valid path allocation-free;
+only the failure path scans contributor identities. Tests inject an additional
+High driver into each loop and require failure at the first overlapping b5
+display bit, with 20 previous transitions and no completed display byte.
+No receiver consumes that invalid cell. Existing transport differential tests
+remain the success-path parity checks. This does not prove exact ownership
+handoff timing or detect multiple releasing output enables.

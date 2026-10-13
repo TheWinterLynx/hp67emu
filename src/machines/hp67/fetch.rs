@@ -60,6 +60,7 @@ pub trait Hp67RomWordSource {
 pub enum SerialFetchError {
     FloatingIsa { word_bit: u8 },
     IsaContention { word_bit: u8 },
+    InvalidIsaDrives { word_bit: u8, driver_mask: u16 },
     MissingRomWord { address: u16 },
     IncompleteAddress { received_mask: u16 },
     IncompleteRomWord { received_mask: u16 },
@@ -127,6 +128,25 @@ fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, SerialFetchError>
         LogicLevel::Floating => Err(SerialFetchError::FloatingIsa { word_bit }),
         LogicLevel::Contention => Err(SerialFetchError::IsaContention { word_bit }),
     }
+}
+
+/// Sample after both endpoint contributions have been committed. A valid logic
+/// level alone does not prove sole IS ownership or active-high/release polarity.
+fn sample_transport_isa(
+    backplane: &Hp67ElectricalBackplane,
+    word_bit: u8,
+) -> Result<LogicLevel, SerialFetchError> {
+    let level = backplane.level(Hp67Net::Isa);
+    if level == LogicLevel::Contention {
+        return Err(SerialFetchError::IsaContention { word_bit });
+    }
+    if !backplane.isa_drives_valid() {
+        return Err(SerialFetchError::InvalidIsaDrives {
+            word_bit,
+            driver_mask: backplane.active_isa_driver_mask(),
+        });
+    }
+    Ok(level)
 }
 
 /// ACT-side state for structural 56-bit machine words.
@@ -745,13 +765,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = backplane.level(Hp67Net::Isa);
-        if is_level == LogicLevel::Contention {
-            return Err(SerialFetchError::IsaContention {
-                word_bit: expected_bit,
-            }
-            .into());
-        }
+        let is_level = sample_transport_isa(backplane, expected_bit)?;
 
         if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -841,13 +855,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = backplane.level(Hp67Net::Isa);
-        if is_level == LogicLevel::Contention {
-            return Err(SerialFetchError::IsaContention {
-                word_bit: expected_bit,
-            }
-            .into());
-        }
+        let is_level = sample_transport_isa(backplane, expected_bit)?;
 
         if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -1101,13 +1109,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = backplane.level(Hp67Net::Isa);
-        if is_level == LogicLevel::Contention {
-            return Err(SerialFetchError::IsaContention {
-                word_bit: expected_bit,
-            }
-            .into());
-        }
+        let is_level = sample_transport_isa(backplane, expected_bit)?;
 
         if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -1237,13 +1239,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = backplane.level(Hp67Net::Isa);
-        if is_level == LogicLevel::Contention {
-            return Err(SerialFetchError::IsaContention {
-                word_bit: expected_bit,
-            }
-            .into());
-        }
+        let is_level = sample_transport_isa(backplane, expected_bit)?;
 
         if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -1324,6 +1320,74 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+    #[test]
+    fn m15b_all_transport_paths_reject_hidden_high_overlap_before_sampling() {
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
+        // DISPLAY-off emits the measured blank byte 0x20: its first High is b5.
+        let state = ActArchitecturalState::default();
+        assert!(!state.display_enable);
+        for path in 0..4 {
+            let mut backplane = Hp67ElectricalBackplane::default();
+            backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::High);
+            let mut act = ActSerialEndpoint::new(0x07b);
+            let mut rom = RomFetchEndpoint::default();
+            let mut rom0 = Rom0DisplayEndpoint::default();
+            let mut data = Hp67DataSerialWordPath::default();
+            let mut trace = StructuralBusTrace::default();
+            let result = match path {
+                0 => run_structural_display_fetch_cycle(
+                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                    &mut rom0, &source,
+                ).map(|_| ()),
+                1 => run_structural_display_fetch_data_phase_cycle(
+                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                    &mut rom0, &source, &mut data, None,
+                ).map(|_| ()),
+                2 => run_structural_display_fetch_cycle_traced(
+                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                    &mut rom0, &source, &mut trace,
+                ).map(|_| ()),
+                _ => run_structural_display_fetch_data_phase_cycle_traced(
+                    &mut backplane, 0x07b, &state, &mut act, &mut rom,
+                    &mut rom0, &source, &mut data, None, &mut trace,
+                ).map(|_| ()),
+            };
+            assert_eq!(result, Err(StructuralWordError::Fetch(
+                SerialFetchError::InvalidIsaDrives {
+                    word_bit: 5,
+                    driver_mask: (1u16 << Hp67Driver::Act1820_2530.index())
+                        | (1u16 << Hp67Driver::External.index()),
+                }
+            )), "path {path}");
+            assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::High);
+            assert_eq!(backplane.tick().get(), 20);
+            assert_eq!(backplane.word_bit(), 5);
+            assert!(rom0.display_byte().is_err());
+            if path >= 2 {
+                assert_eq!(trace.samples.len(), 20);
+            }
+        }
+    }
+
+    #[test]
+    fn m15b_active_low_is_rejected_even_without_opposite_drive() {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::Low);
+        assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::Low);
+        assert_eq!(sample_transport_isa(&backplane, 0), Err(
+            SerialFetchError::InvalidIsaDrives {
+                word_bit: 0,
+                driver_mask: 1u16 << Hp67Driver::External.index(),
+            }
+        ));
+        backplane.drive(Hp67Net::Isa, Hp67Driver::Act1820_2530, Drive::High);
+        assert_eq!(sample_transport_isa(&backplane, 0), Err(
+            SerialFetchError::IsaContention { word_bit: 0 }
+        ));
+    }
 
     #[test]
     fn m14w_traced_transport_matches_fast_path_across_complete_scan() {

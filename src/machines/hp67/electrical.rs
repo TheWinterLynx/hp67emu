@@ -220,6 +220,28 @@ impl Hp67ElectricalFabric {
         self.nets[net.index()].drive(driver)
     }
 
+    /// IS permits active-high/release contributions from at most one driver.
+    ///
+    /// This checks the source-backed ownership policy, independently of logic
+    /// resolution: two High contributions still resolve High. It does not infer
+    /// output-enable timing or check roles that are currently releasing the bus.
+    pub fn isa_drives_valid(&self) -> bool {
+        let isa = &self.nets[Hp67Net::Isa.index()];
+        isa.low_driver_count == 0 && isa.high_driver_count <= 1
+    }
+
+    /// Diagnostic identities of all active IS contributors, in dense-slot order.
+    /// Called only after an ownership/polarity violation, never on a valid cell.
+    pub fn active_isa_driver_mask(&self) -> u16 {
+        Hp67Driver::ALL.into_iter().fold(0, |mask, driver| {
+            if self.drive(Hp67Net::Isa, driver) == Drive::HighZ {
+                mask
+            } else {
+                mask | (1u16 << driver.index())
+            }
+        })
+    }
+
     /// Claim one physical output identity once during machine composition.
     ///
     /// The returned token is intentionally non-Clone and non-Copy. Repeated
@@ -346,6 +368,57 @@ impl Hp67ElectricalFabric {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn m15b_is_policy_detects_same_level_overlap_and_active_low() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        assert!(fabric.isa_drives_valid());
+        assert_eq!(fabric.active_isa_driver_mask(), 0);
+        let act = Hp67Driver::Act1820_2530;
+        let rom = Hp67Driver::StructuralRomResponder;
+        fabric.set_drive_immediate(Hp67Net::Isa, act, Drive::High);
+        assert!(fabric.isa_drives_valid());
+        fabric.set_drive_immediate(Hp67Net::Isa, rom, Drive::High);
+        assert_eq!(fabric.level(Hp67Net::Isa), LogicLevel::High);
+        assert!(!fabric.isa_drives_valid());
+        assert_eq!(
+            fabric.active_isa_driver_mask(),
+            (1u16 << act.index()) | (1u16 << rom.index())
+        );
+        fabric.set_drive_immediate(Hp67Net::Isa, act, Drive::HighZ);
+        assert!(fabric.isa_drives_valid());
+        fabric.set_drive_immediate(Hp67Net::Isa, rom, Drive::Low);
+        assert_eq!(fabric.level(Hp67Net::Isa), LogicLevel::Low);
+        assert!(!fabric.isa_drives_valid());
+        fabric.set_drive_immediate(Hp67Net::Isa, rom, Drive::HighZ);
+        assert!(fabric.isa_drives_valid());
+    }
+
+    #[test]
+    fn m15b_staged_is_handoff_checks_final_committed_contributions() {
+        for reversed in [false, true] {
+            let mut fabric = Hp67ElectricalFabric::default();
+            let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
+            let rom = fabric
+                .claim_driver_owner(Hp67Driver::StructuralRomResponder)
+                .unwrap();
+            fabric.set_drive_immediate(Hp67Net::Isa, act.driver(), Drive::High);
+            let (snapshot, mut stager) = fabric.begin_evaluation().unwrap();
+            assert_eq!(snapshot.level(Hp67Net::Isa), LogicLevel::High);
+            if reversed {
+                stager.stage_drive(&rom, Hp67Net::Isa, Drive::High);
+                stager.stage_drive(&act, Hp67Net::Isa, Drive::HighZ);
+            } else {
+                stager.stage_drive(&act, Hp67Net::Isa, Drive::HighZ);
+                stager.stage_drive(&rom, Hp67Net::Isa, Drive::High);
+            }
+            assert_eq!(snapshot.level(Hp67Net::Isa), LogicLevel::High);
+            fabric.commit_staged().unwrap();
+            assert!(fabric.isa_drives_valid());
+            assert_eq!(fabric.active_isa_driver_mask(), 1u16 << rom.driver().index());
+            assert_eq!(fabric.tick(), Tick::ZERO);
+        }
+    }
 
     #[test]
     fn evidenced_idle_levels_are_encoded_in_dense_fabric() {

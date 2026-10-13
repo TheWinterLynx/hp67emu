@@ -57,6 +57,16 @@ impl Hp67ElectricalBackplane {
         self.fabric.level(net)
     }
 
+    /// Validate IS active-high/release polarity and observable sole-driver use.
+    pub fn isa_drives_valid(&self) -> bool {
+        self.fabric.isa_drives_valid()
+    }
+
+    /// Active IS driver identities for exceptional diagnostics.
+    pub fn active_isa_driver_mask(&self) -> u16 {
+        self.fabric.active_isa_driver_mask()
+    }
+
     pub fn drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         self.fabric.set_drive_immediate(net, driver, drive);
     }
