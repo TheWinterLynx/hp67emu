@@ -856,7 +856,9 @@ impl Hp67LiveMachine {
             image.commit(&mut self.machine.act.state);
         }
 
-        let qualified_state = self.act_serial.fetched_instruction_state()
+        let qualified_state = self
+            .act_serial
+            .fetched_instruction_state()
             .map_err(|error| format!("live cycle {cycle} SYNC qualification failed: {error:?}"))?;
         if qualified_state != self.machine.act.state.instruction_state {
             return Err(format!(
@@ -1572,7 +1574,10 @@ mod tests {
             live.step_firmware_cycle_with_execution().unwrap();
             let qualified = live.act_serial.fetched_instruction_state().unwrap();
             assert_eq!(qualified, live.machine.act.state.instruction_state);
-            assert_eq!(live.backplane.level(Hp67Net::Sync), hp67emu::emulation::LogicLevel::Low);
+            assert_eq!(
+                live.backplane.level(Hp67Net::Sync),
+                hp67emu::emulation::LogicLevel::Low
+            );
             match qualified {
                 ActInstructionState::Normal => normal += 1,
                 ActInstructionState::ThenGoto => implied += 1,

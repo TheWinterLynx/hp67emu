@@ -19,7 +19,9 @@ use super::{
     act_serial_control::ActSerialControlResultImage,
     act_serial_crc_control::ActSerialCrcControlResultImage,
     act_serial_crc_data::ActSerialCrcDataResultImage,
-    act_serial_execution::{ActSerialExecution, ActSerialExecutionError, ActSerialRegister, ActSerialWordClass},
+    act_serial_execution::{
+        ActSerialExecution, ActSerialExecutionError, ActSerialRegister, ActSerialWordClass,
+    },
     act_serial_flow::ActSerialFlowResultImage,
     act_serial_mode_latch::ActSerialModeLatchResultImage,
     act_serial_ram::{ActSerialAbsentRamReadImage, ActSerialRamResultImage},
@@ -35,8 +37,8 @@ use super::{
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     timing::{
-        display_data_serial_bit, isa_window_for_bit, sync_decision_window, IsaWindow, BITS_PER_DIGIT, BITS_PER_WORD,
-        ROM_ADDRESS_BITS, ROM_WORD_BITS,
+        display_data_serial_bit, isa_window_for_bit, sync_decision_window, IsaWindow,
+        BITS_PER_DIGIT, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS,
     },
     wiring::{Hp67Driver, Hp67Net},
 };
@@ -537,7 +539,10 @@ impl ActSerialEndpoint {
             LogicLevel::Low => false,
             _ => return Err(SerialFetchError::UnresolvedSync { word_bit, level }),
         };
-        if self.received_sync.is_some_and(|previous| previous != qualifier) {
+        if self
+            .received_sync
+            .is_some_and(|previous| previous != qualifier)
+        {
             return Err(SerialFetchError::ChangedSyncQualifier { word_bit });
         }
         self.received_sync = Some(qualifier);
@@ -547,7 +552,9 @@ impl ActSerialEndpoint {
 
     /// Instruction/data classification actually received on the resolved SYNC
     /// net for all ten returned bits. Standalone IS-only sampling has no qualifier.
-    pub fn fetched_instruction_state(&self) -> Result<super::act::ActInstructionState, SerialFetchError> {
+    pub fn fetched_instruction_state(
+        &self,
+    ) -> Result<super::act::ActInstructionState, SerialFetchError> {
         self.fetched_word()?;
         if self.received_sync_mask != COMPLETE_WORD_MASK {
             return Err(SerialFetchError::MissingSyncQualifier);
@@ -1447,7 +1454,9 @@ mod tests {
     #[test]
     fn m15d_resolved_sync_qualifies_normal_if_and_implied_goto_in_all_paths() {
         use crate::machines::hp67::ActInstructionState;
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         for path in 0..4 {
             let mut backplane = Hp67ElectricalBackplane::default();
             let mut act = ActSerialEndpoint::new(0x07b);
@@ -1457,52 +1466,96 @@ mod tests {
             let mut trace = StructuralBusTrace::default();
             for (mode, executing, expected) in [
                 (ActInstructionState::Normal, 0, ActInstructionState::Normal),
-                (ActInstructionState::Normal, 0o0034, ActInstructionState::ThenGoto),
-                (ActInstructionState::ThenGoto, 0o0034, ActInstructionState::Normal),
+                (
+                    ActInstructionState::Normal,
+                    0o0034,
+                    ActInstructionState::ThenGoto,
+                ),
+                (
+                    ActInstructionState::ThenGoto,
+                    0o0034,
+                    ActInstructionState::Normal,
+                ),
             ] {
                 let mut state = ActArchitecturalState::default();
                 state.instruction_state = mode;
                 act.begin_execution(executing, &state).unwrap();
                 let result = match path {
                     0 => run_structural_display_fetch_cycle(
-                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                        &mut rom0, &source,
-                    ).map(|result| result.fetched_word),
+                        &mut backplane,
+                        0x07b,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                    )
+                    .map(|result| result.fetched_word),
                     1 => run_structural_display_fetch_data_phase_cycle(
-                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                        &mut rom0, &source, &mut data, None,
-                    ).map(|result| result.word.fetched_word),
+                        &mut backplane,
+                        0x07b,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                        &mut data,
+                        None,
+                    )
+                    .map(|result| result.word.fetched_word),
                     2 => run_structural_display_fetch_cycle_traced(
-                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                        &mut rom0, &source, &mut trace,
-                    ).map(|result| result.fetched_word),
+                        &mut backplane,
+                        0x07b,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                        &mut trace,
+                    )
+                    .map(|result| result.fetched_word),
                     _ => run_structural_display_fetch_data_phase_cycle_traced(
-                        &mut backplane, 0x07b, &state, &mut act, &mut rom,
-                        &mut rom0, &source, &mut data, None, &mut trace,
-                    ).map(|result| result.word.fetched_word),
+                        &mut backplane,
+                        0x07b,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                        &mut data,
+                        None,
+                        &mut trace,
+                    )
+                    .map(|result| result.word.fetched_word),
                 };
                 assert_eq!(result.unwrap(), 0x04c);
                 assert_eq!(act.fetched_instruction_state().unwrap(), expected);
                 assert_eq!(backplane.level(Hp67Net::Sync), LogicLevel::Low);
             }
             assert_eq!(backplane.tick().get(), 3 * 224);
-            if path >= 2 { assert_eq!(trace.samples.len(), 3 * 224); }
+            if path >= 2 {
+                assert_eq!(trace.samples.len(), 3 * 224);
+            }
         }
     }
 
     #[test]
     fn m15d_sync_contention_rejects_return_before_is_receiver_consumes_bit() {
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         let mut backplane = Hp67ElectricalBackplane::default();
         backplane.drive(Hp67Net::Sync, Hp67Driver::External, Drive::Low);
         let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
-        let result = run_structural_fetch_cycle(
-            &mut backplane, 0x07b, &mut act, &mut rom, &source,
+        let result = run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source);
+        assert_eq!(
+            result,
+            Err(SerialFetchError::UnresolvedSync {
+                word_bit: 46,
+                level: LogicLevel::Contention,
+            })
         );
-        assert_eq!(result, Err(SerialFetchError::UnresolvedSync {
-            word_bit: 46, level: LogicLevel::Contention,
-        }));
         assert_eq!(backplane.tick().get(), 46 * 4);
         assert_eq!(act.received_mask, 0);
         assert!(act.fetched_instruction_state().is_err());
@@ -1511,13 +1564,18 @@ mod tests {
     #[test]
     fn m15d_sync_receiver_rejects_floating_and_changed_qualifier() {
         let mut act = ActSerialEndpoint::new(0);
-        assert_eq!(act.sample_sync_for_bit(46, LogicLevel::Floating), Err(
-            SerialFetchError::UnresolvedSync { word_bit: 46, level: LogicLevel::Floating }
-        ));
+        assert_eq!(
+            act.sample_sync_for_bit(46, LogicLevel::Floating),
+            Err(SerialFetchError::UnresolvedSync {
+                word_bit: 46,
+                level: LogicLevel::Floating
+            })
+        );
         act.sample_sync_for_bit(46, LogicLevel::High).unwrap();
-        assert_eq!(act.sample_sync_for_bit(47, LogicLevel::Low), Err(
-            SerialFetchError::ChangedSyncQualifier { word_bit: 47 }
-        ));
+        assert_eq!(
+            act.sample_sync_for_bit(47, LogicLevel::Low),
+            Err(SerialFetchError::ChangedSyncQualifier { word_bit: 47 })
+        );
         assert!(act.fetched_instruction_state().is_err());
     }
 
