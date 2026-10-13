@@ -375,5 +375,14 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Reject active Low IS contributions without inventing DATA polarity.
 - [x] Preserve generic net resolution, atomic handoff and contention diagnostics.
 - [x] Cover all four structural transport variants and retained failure prefixes.
-- [ ] Owner formatting, focused/full tests, diagnostic and performance gates.
+- [x] Owner M15B FULL GATE GREEN; diagnostic 12/12 and electrical/DATA/live benchmarks; exact head fc9a84d integrated.
 - [ ] Exact ownership handoff edges and releasing output-enable behavior.
+
+## M15C RAM source review
+
+- [x] Retrieve/hash/inventory the current ROMreader archive and inspect its help.
+- [x] Identify reader HEX as PIC programming payload, not calculator microcode.
+- [x] Inspect CalCom scanner manual and nested PCB archive for capture evidence.
+- [x] Distinguish HP-97 1818-0229 RAM observation from HP-67 parts.
+- [ ] Recover HP-67 IC definition files/dumps with physical-read provenance.
+- [ ] Recover original timestamped multi-channel captures and channel metadata.
