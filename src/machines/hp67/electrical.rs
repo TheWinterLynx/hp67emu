@@ -229,7 +229,10 @@ impl Hp67ElectricalFabric {
         self.nets[index].set_drive(Hp67Driver::StructuralRomResponder, ram);
         let after = self.nets[index].level();
         self.resolved_levels[index] = after;
-        match (before == LogicLevel::Contention, after == LogicLevel::Contention) {
+        match (
+            before == LogicLevel::Contention,
+            after == LogicLevel::Contention,
+        ) {
             (false, true) => self.contention_net_count += 1,
             (true, false) => self.contention_net_count -= 1,
             _ => {}
@@ -398,8 +401,14 @@ mod tests {
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
         fabric.commit_data_level_bridge(Drive::HighZ, Drive::Low);
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Low);
-        assert_eq!(fabric.drive(Hp67Net::Data, Hp67Driver::Act1820_2530), Drive::HighZ);
-        assert_eq!(fabric.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder), Drive::Low);
+        assert_eq!(
+            fabric.drive(Hp67Net::Data, Hp67Driver::Act1820_2530),
+            Drive::HighZ
+        );
+        assert_eq!(
+            fabric.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder),
+            Drive::Low
+        );
         assert_eq!(fabric.active_data_driver_count(), 1);
         assert!(fabric.begin_evaluation().is_ok());
         assert_eq!(fabric.tick(), Tick::ZERO);

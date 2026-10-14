@@ -13,8 +13,8 @@ use crate::emulation::{Drive, LogicLevel};
 
 use super::{
     act::{ActArchitecturalState, ActInstructionState, ActRegister, ACT_WORD_DIGITS},
-    timing::{data_serial_bit_for_word_bit, BITS_PER_DIGIT, BITS_PER_WORD},
     machine::Hp67ElectricalBackplane,
+    timing::{data_serial_bit_for_word_bit, BITS_PER_DIGIT, BITS_PER_WORD},
     wiring::Hp67Net,
 };
 
@@ -35,12 +35,27 @@ pub struct Hp67DataTransferPlan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hp67DataSerialError {
-    UnexpectedWordBit { expected: u8, actual: u8 },
-    MissingLogicalBit { word_bit: u8, serial_bit: u8 },
-    UnexpectedLogicalBit { word_bit: u8, serial_bit: u8 },
+    UnexpectedWordBit {
+        expected: u8,
+        actual: u8,
+    },
+    MissingLogicalBit {
+        word_bit: u8,
+        serial_bit: u8,
+    },
+    UnexpectedLogicalBit {
+        word_bit: u8,
+        serial_bit: u8,
+    },
     OverlappingFrameStart,
-    MissingElectricalOwner { word_bit: u8 },
-    InvalidElectricalSample { word_bit: u8, level: LogicLevel, active_drivers: u8 },
+    MissingElectricalOwner {
+        word_bit: u8,
+    },
+    InvalidElectricalSample {
+        word_bit: u8,
+        level: LogicLevel,
+        active_drivers: u8,
+    },
 }
 
 /// Decode the ACT instructions that exchange one 56-bit register through DATA.
@@ -275,7 +290,9 @@ impl Hp67DataSerialWordPath {
                     Hp67DataTransferDirection::PeripheralToAct => (Drive::HighZ, level),
                 }
             }
-            (Some(_), None) => return Err(Hp67DataSerialError::MissingElectricalOwner { word_bit }),
+            (Some(_), None) => {
+                return Err(Hp67DataSerialError::MissingElectricalOwner { word_bit })
+            }
             (None, _) => (Drive::HighZ, Drive::HighZ),
         };
         backplane.commit_data_level_bridge(act_drive, ram_drive);
@@ -283,13 +300,21 @@ impl Hp67DataSerialWordPath {
         let active_drivers = backplane.active_data_driver_count();
         let expected_drivers = u8::from(source_bit.is_some());
         if active_drivers != expected_drivers {
-            return Err(Hp67DataSerialError::InvalidElectricalSample { word_bit, level, active_drivers });
+            return Err(Hp67DataSerialError::InvalidElectricalSample {
+                word_bit,
+                level,
+                active_drivers,
+            });
         }
         match (source_bit.is_some(), level) {
             (true, LogicLevel::High) => Ok(Some(true)),
             (true, LogicLevel::Low) => Ok(Some(false)),
             (false, LogicLevel::Floating) => Ok(None),
-            _ => Err(Hp67DataSerialError::InvalidElectricalSample { word_bit, level, active_drivers }),
+            _ => Err(Hp67DataSerialError::InvalidElectricalSample {
+                word_bit,
+                level,
+                active_drivers,
+            }),
         }
     }
 
@@ -303,12 +328,16 @@ impl Hp67DataSerialWordPath {
         if !self.electrical_level_bridge {
             return self.preconsume_previous_tail();
         }
-        if !self.sink.frame_in_progress() { return Ok(None); }
+        if !self.sink.frame_in_progress() {
+            return Ok(None);
+        }
         let mut completed = None;
         for word_bit in 0..DATA_TAIL_BITS {
             let bit = self.drive_and_sample_level_bridge(word_bit, backplane)?;
             let next = self.sink.sample_word_bit(word_bit, bit)?;
-            if next.is_some() { completed = next; }
+            if next.is_some() {
+                completed = next;
+            }
         }
         self.prefix_preconsumed = true;
         Ok(completed)
@@ -323,7 +352,9 @@ impl Hp67DataSerialWordPath {
             return self.visit_transport_word_bit(word_bit);
         }
         let bit = self.drive_and_sample_level_bridge(word_bit, backplane)?;
-        if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS { return Ok(()); }
+        if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS {
+            return Ok(());
+        }
         let completed = self.sink.sample_word_bit(word_bit, bit)?;
         if completed.is_some() {
             debug_assert!(self.completed_payload.is_none());
@@ -331,7 +362,6 @@ impl Hp67DataSerialWordPath {
         }
         Ok(())
     }
-
 
     pub const fn prefix_preconsumed(&self) -> bool {
         self.prefix_preconsumed
@@ -420,21 +450,35 @@ mod tests {
         let a = patterned_register(1);
         let b = patterned_register(9);
         for (direction, payload, completed) in [
-            (Some(Hp67DataTransferDirection::ActToPeripheral), Some(a), None),
-            (Some(Hp67DataTransferDirection::PeripheralToAct), Some(b), Some(a)),
+            (
+                Some(Hp67DataTransferDirection::ActToPeripheral),
+                Some(a),
+                None,
+            ),
+            (
+                Some(Hp67DataTransferDirection::PeripheralToAct),
+                Some(b),
+                Some(a),
+            ),
             (None, None, Some(b)),
         ] {
             wired.enable_electrical_level_bridge(direction);
             wired.begin_word(payload);
             logical.begin_word(payload);
             for bit in 0..BITS_PER_WORD {
-                wired.visit_transport_word_bit_through_net(bit, &mut backplane).unwrap();
+                wired
+                    .visit_transport_word_bit_through_net(bit, &mut backplane)
+                    .unwrap();
                 logical.visit_transport_word_bit(bit).unwrap();
                 assert_eq!(wired.sink, logical.sink);
                 let active = wired.source.logical_bit_for_word_bit(bit).is_some();
                 assert_eq!(backplane.active_data_driver_count(), u8::from(active));
-                if !active { assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::Floating); }
-                for _ in 0..4 { backplane.advance_clock(); }
+                if !active {
+                    assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::Floating);
+                }
+                for _ in 0..4 {
+                    backplane.advance_clock();
+                }
             }
             assert_eq!(wired.complete_word(), completed);
             assert_eq!(logical.complete_word(), completed);
@@ -451,19 +495,29 @@ mod tests {
         path.enable_electrical_level_bridge(Some(Hp67DataTransferDirection::PeripheralToAct));
         path.begin_word(Some(payload));
         for bit in 0..BITS_PER_WORD {
-            path.visit_transport_word_bit_through_net(bit, &mut backplane).unwrap();
-            for _ in 0..4 { backplane.advance_clock(); }
+            path.visit_transport_word_bit_through_net(bit, &mut backplane)
+                .unwrap();
+            for _ in 0..4 {
+                backplane.advance_clock();
+            }
         }
         assert_eq!(path.complete_word(), None);
         let tick = backplane.tick();
-        assert_eq!(path.preconsume_previous_tail_through_net(&mut backplane).unwrap(), Some(payload));
+        assert_eq!(
+            path.preconsume_previous_tail_through_net(&mut backplane)
+                .unwrap(),
+            Some(payload)
+        );
         assert_eq!(backplane.tick(), tick);
         assert!(!path.frame_in_progress());
         path.enable_electrical_level_bridge(None);
         path.begin_word(None);
         for bit in 0..BITS_PER_WORD {
-            path.visit_transport_word_bit_through_net(bit, &mut backplane).unwrap();
-            for _ in 0..4 { backplane.advance_clock(); }
+            path.visit_transport_word_bit_through_net(bit, &mut backplane)
+                .unwrap();
+            for _ in 0..4 {
+                backplane.advance_clock();
+            }
         }
         assert_eq!(path.complete_word(), None);
         assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::Floating);
@@ -480,13 +534,25 @@ mod tests {
             payload[0] = 1;
             path.enable_electrical_level_bridge(Some(Hp67DataTransferDirection::ActToPeripheral));
             path.begin_word(Some(payload));
-            for bit in 0..2 { path.visit_transport_word_bit_through_net(bit, &mut backplane).unwrap(); }
+            for bit in 0..2 {
+                path.visit_transport_word_bit_through_net(bit, &mut backplane)
+                    .unwrap();
+            }
             backplane.drive(Hp67Net::Data, Hp67Driver::External, extra);
             let before = path.sink;
-            let level = if extra == Drive::High { LogicLevel::High } else { LogicLevel::Contention };
-            assert_eq!(path.visit_transport_word_bit_through_net(2, &mut backplane), Err(
-                Hp67DataSerialError::InvalidElectricalSample { word_bit: 2, level, active_drivers: 2 }
-            ));
+            let level = if extra == Drive::High {
+                LogicLevel::High
+            } else {
+                LogicLevel::Contention
+            };
+            assert_eq!(
+                path.visit_transport_word_bit_through_net(2, &mut backplane),
+                Err(Hp67DataSerialError::InvalidElectricalSample {
+                    word_bit: 2,
+                    level,
+                    active_drivers: 2
+                })
+            );
             assert_eq!(path.sink, before);
             assert_eq!(backplane.tick().get(), 0);
         }
@@ -498,10 +564,14 @@ mod tests {
         let mut backplane = Hp67ElectricalBackplane::default();
         path.enable_electrical_level_bridge(None);
         path.begin_word(Some([1; ACT_WORD_DIGITS]));
-        for bit in 0..2 { path.visit_transport_word_bit_through_net(bit, &mut backplane).unwrap(); }
-        assert_eq!(path.visit_transport_word_bit_through_net(2, &mut backplane), Err(
-            Hp67DataSerialError::MissingElectricalOwner { word_bit: 2 }
-        ));
+        for bit in 0..2 {
+            path.visit_transport_word_bit_through_net(bit, &mut backplane)
+                .unwrap();
+        }
+        assert_eq!(
+            path.visit_transport_word_bit_through_net(2, &mut backplane),
+            Err(Hp67DataSerialError::MissingElectricalOwner { word_bit: 2 })
+        );
     }
 
     #[test]

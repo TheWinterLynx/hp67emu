@@ -1434,7 +1434,7 @@ impl Hp67LiveMachine {
             .unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.prefix_preconsumed() || ram_data_payload.is_some() {
             self.data_serial.enable_electrical_level_bridge(
-                ram_data_transfer.map(|transfer| transfer.direction)
+                ram_data_transfer.map(|transfer| transfer.direction),
             );
             let fused = if let Some(trace) = trace {
                 run_structural_display_fetch_data_phase_cycle_traced(
@@ -1575,12 +1575,16 @@ mod tests {
         let before = [4; 14];
         let expected = [7; 14];
         assert!(live.machine.ram.write(0x20, before));
-        carry_one_data_frame_to_next_word_tail(&mut live, PendingRamDataTransfer {
-            direction: Hp67DataTransferDirection::ActToPeripheral,
-            address: 0x20,
-            expected,
-        });
-        live.backplane.drive(Hp67Net::Data, Hp67Driver::External, Drive::Low);
+        carry_one_data_frame_to_next_word_tail(
+            &mut live,
+            PendingRamDataTransfer {
+                direction: Hp67DataTransferDirection::ActToPeripheral,
+                address: 0x20,
+                expected,
+            },
+        );
+        live.backplane
+            .drive(Hp67Net::Data, Hp67Driver::External, Drive::Low);
         assert!(live.complete_pending_ram_data_before_word(0).is_err());
         assert_eq!(live.machine.ram.read(0x20), Some(before));
         assert!(live.pending_ram_data_transfer.is_some());
@@ -1712,7 +1716,8 @@ mod tests {
         transfer: PendingRamDataTransfer,
     ) {
         live.pending_ram_data_transfer = Some(transfer);
-        live.data_serial.enable_electrical_level_bridge(Some(transfer.direction));
+        live.data_serial
+            .enable_electrical_level_bridge(Some(transfer.direction));
         live.data_serial.begin_word(Some(transfer.expected));
         for word_bit in 0u8..56 {
             live.data_serial
