@@ -351,6 +351,14 @@ impl Hp67DataSerialWordPath {
         if !self.electrical_level_bridge {
             return self.visit_transport_word_bit(word_bit);
         }
+        if !(self.prefix_preconsumed && word_bit < DATA_TAIL_BITS)
+            && word_bit != self.sink.expected_word_bit()
+        {
+            return Err(Hp67DataSerialError::UnexpectedWordBit {
+                expected: self.sink.expected_word_bit(),
+                actual: word_bit,
+            });
+        }
         let bit = self.drive_and_sample_level_bridge(word_bit, backplane)?;
         if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS {
             return Ok(());
@@ -556,6 +564,25 @@ mod tests {
             assert_eq!(path.sink, before);
             assert_eq!(backplane.tick().get(), 0);
         }
+    }
+
+    #[test]
+    fn m15e_out_of_order_visit_does_not_change_pins_or_sink() {
+        let mut path = Hp67DataSerialWordPath::default();
+        let mut backplane = Hp67ElectricalBackplane::default();
+        path.enable_electrical_level_bridge(Some(Hp67DataTransferDirection::ActToPeripheral));
+        path.begin_word(Some([1; ACT_WORD_DIGITS]));
+        let sink = path.sink;
+        assert_eq!(
+            path.visit_transport_word_bit_through_net(56, &mut backplane),
+            Err(Hp67DataSerialError::UnexpectedWordBit {
+                expected: 0,
+                actual: 56,
+            })
+        );
+        assert_eq!(path.sink, sink);
+        assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::Floating);
+        assert_eq!(backplane.tick().get(), 0);
     }
 
     #[test]
