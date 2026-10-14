@@ -381,6 +381,6 @@ fn hp67_data_realtime_benchmark() {
     print_row("DATA logical phase source + sink", &data, words);
     println!();
     println!(
-        "Scope: M14B comparison only. The three real-firmware rows are measured in rotating interleaved order. The fused row mirrors the live logical RAM DATA integration for installed RAM addresses. DATA polarity, electrical ownership, physical RAM-chip mapping, PHI-relative launch/sample edges and propagation remain unresolved."
+        "Scope: M14B comparison only. The three real-firmware rows are measured in rotating interleaved order. The fused row retains the M14B logical phase fixture; it does not include the M15E resolved-net bridge. Run the live authority benchmark for that production path. DATA polarity, electrical ownership, physical RAM-chip mapping, PHI-relative launch/sample edges and propagation remain unresolved."
     );
 }

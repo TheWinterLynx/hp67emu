@@ -57,6 +57,15 @@ impl Hp67ElectricalBackplane {
         self.fabric.level(net)
     }
 
+    /// Structural DATA bridge commit; no device sees an intermediate handoff.
+    pub fn commit_data_level_bridge(&mut self, act: Drive, ram: Drive) {
+        self.fabric.commit_data_level_bridge(act, ram);
+    }
+
+    pub fn active_data_driver_count(&self) -> u8 {
+        self.fabric.active_data_driver_count()
+    }
+
     /// Validate IS active-high/release polarity and observable sole-driver use.
     pub fn isa_drives_valid(&self) -> bool {
         self.fabric.isa_drives_valid()

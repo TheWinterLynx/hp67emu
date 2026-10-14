@@ -140,3 +140,11 @@ WORKING APPROXIMATION: immediate publication at existing bit coordinates and
 release at the completed word boundary do not assign physical PHI edges or
 propagation. V2's absent exact SYNC edge is unchanged. Legacy TSV still exports
 IS/PHI only; it does not acquire SYNC columns. No physical DATA model is added.
+
+## M15E DATA net visitor
+
+The two DATA transport variants call `visit_transport_word_bit_through_net()`.
+Reference/default callers retain the old logical fixture; live opted-in words
+publish/sample resolved DATA during the same 56-bit traversal. Preconsumed b0/b1
+tails still replay pin state and validate contributors but do not duplicate sink
+completion. The no-DATA loops and TSV columns remain unchanged.

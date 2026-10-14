@@ -26,3 +26,9 @@ Exposes the fabric's cached IS drive-validity check and exceptional driver mask
 to structural transport. These methods distinguish same-level active-high
 overlap and invalid active-low drive from the resolved logic level. They add
 no timing progression, passive bias or electrical DATA behavior.
+
+## M15E DATA bridge surface
+
+Exposes one-observation DATA source handoff and cached active-contributor counts
+to the phase engine. No passive DATA bias, chip selection or time progression
+is inferred. Core floating resolution and existing PHI topology are unchanged.

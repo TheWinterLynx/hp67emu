@@ -27,3 +27,9 @@ The staged PHI benchmark paths call `commit_staged()` and then `advance_tick()` 
 ## M14O scope correction
 
 The dual architectural/structural and firmware rows now explicitly say historical. Their implementation and order remain unchanged for comparison, but they do not exercise live restoration, the ACT pre-state guard or completed authority commits. Use `m14o_live_authority_realtime_benchmark` in the hp67emu binary test target for actual live throughput. Do not equate the different workloads when comparing timings.
+
+## M15E workload distinction
+
+The structural full-row label explicitly names its no-DATA workload and directs
+resolved RAM DATA measurement to the separate actual-live benchmark. No timing
+fixture or fidelity operation is removed.

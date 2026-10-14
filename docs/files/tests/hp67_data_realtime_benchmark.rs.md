@@ -25,3 +25,9 @@ The three firmware paths must remain interleaved so sub-microsecond differences 
 Only transfers whose selected address is installed in `ActRamImage` participate in the RAM DATA experiment. CRC/card ports are excluded. The fused path advances DATA inside the same b0..b55 structural loop and completes bits 54/55 at the following word's b0/b1.
 
 This is a performance benchmark, not an electrical-fidelity claim. DATA pin polarity, passive bias, device ownership, PHI-relative launch/sample edges, propagation and physical 1818-* RAM mapping remain source-blocked.
+
+## M15E scope label
+
+The old fused row retains the original M14B logical workload. Its printed scope
+now explicitly excludes the live resolved-net bridge, whose cost is measured by
+`m14o_live_authority_realtime_benchmark`. Historical rows remain comparable.

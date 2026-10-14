@@ -39,3 +39,13 @@ This policy is used by structural transport at its existing sample boundaries;
 `level()`, `begin_evaluation()` and `commit_staged()` retain their generic
 resolution semantics. It cannot detect overlapping output enables when all
 participants are HighZ and says nothing about unknown PHI-relative handoff.
+
+## M15E structural DATA commit
+
+`commit_data_level_bridge()` updates ACT and aggregate structural RAM DATA
+contributions as one externally observable image, with one resolved-level and
+contention-counter update after both drivers change. No snapshot or device can
+see a transient intermediate handoff. Time does not advance. Other contributors
+remain intact so faults stay observable. `active_data_driver_count()` uses cached
+Low/High counts to expose same-level overlap. This specialized bridge does not
+replace the generic device scheduler or claim a physical DATA output stage.

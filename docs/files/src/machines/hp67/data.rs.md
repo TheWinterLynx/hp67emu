@@ -37,3 +37,26 @@ The fused word-path API exposes `frame_in_progress()` so the caller can select t
 `Hp67DataSerialWordPath::preconsume_previous_tail()` now reconstructs the preceding frame's serial bits 54/55 from the documented following-word b0/b1 positions before the new instruction-boundary bridge runs. `visit_transport_word_bit()` prevents those two logical DATA samples from being consumed twice when the shared structural IS/display/fetch loop subsequently traverses the same machine-word coordinates. A back-to-back frame may then start normally at b2.
 
 This is intentionally a logical scheduling split, not an electrical timing claim. No PHI edge, DATA polarity, passive level or propagation delay is assigned. Its purpose is causal: an installed-RAM read/write result can be committed from the reconstructed serial frame before the following architectural fallback instruction is allowed to observe C or RAM.
+
+## M15E resolved-net logical-level bridge
+
+The default DATA path remains logical-only for reference fixtures. Live RAM
+opts in per word with `enable_electrical_level_bridge(direction)`. Its sources
+encode bit values as explicit High/Low logical levels and release HighZ when no
+frame is active. This is a WORKING APPROXIMATION, not a claim about the physical
+DATA transistor stage, passive bias, voltage polarity or PHI timing. DATA's
+passive bias remains Floating. ACT writes use the ACT driver; reads use the
+existing aggregate structural ROM/RAM slot. Physical chip mapping is unknown.
+
+The source publishes both ownership contributions in one observable commit;
+the sink reconstructs from `Hp67Net::Data` resolved levels instead of receiving
+the source's bool directly. Counts reject extra contributors even when their
+levels agree, including idle ghost drivers. Floating or contention while a bit
+is required fails before sink mutation. Directions are retained independently
+for the prior b0/b1 tail and current b2..b55 body, preserving opposite-direction
+back-to-back frames. The existing early-tail scheduling bridge now uses the net;
+the later structural traversal replays those pins without consuming the sink
+twice. Early-tail publication remains unclocked and explicitly approximate.
+
+Replacing the logical-level adapter requires evidence for DATA output stage and
+launch/sample/handoff edges; it must preserve net reconstruction and diagnostics.

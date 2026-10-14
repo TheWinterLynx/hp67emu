@@ -1367,7 +1367,7 @@ impl Hp67LiveMachine {
     fn complete_pending_ram_data_before_word(&mut self, cycle: u64) -> Result<(), String> {
         let completed = if self.data_serial.frame_in_progress() {
             self.data_serial
-                .preconsume_previous_tail()
+                .preconsume_previous_tail_through_net(&mut self.backplane)
                 .map_err(|error| format!("live cycle {cycle} RAM DATA tail failed: {error:?}"))?
         } else {
             None
@@ -1433,6 +1433,9 @@ impl Hp67LiveMachine {
             .as_ref()
             .unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.prefix_preconsumed() || ram_data_payload.is_some() {
+            self.data_serial.enable_electrical_level_bridge(
+                ram_data_transfer.map(|transfer| transfer.direction)
+            );
             let fused = if let Some(trace) = trace {
                 run_structural_display_fetch_data_phase_cycle_traced(
                     &mut self.backplane,
@@ -1566,6 +1569,24 @@ mod official_pac_tests;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn m15e_live_ram_destination_is_not_committed_when_data_tail_is_contended() {
+        use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let before = [4; 14];
+        let expected = [7; 14];
+        assert!(live.machine.ram.write(0x20, before));
+        carry_one_data_frame_to_next_word_tail(&mut live, PendingRamDataTransfer {
+            direction: Hp67DataTransferDirection::ActToPeripheral,
+            address: 0x20,
+            expected,
+        });
+        live.backplane.drive(Hp67Net::Data, Hp67Driver::External, Drive::Low);
+        assert!(live.complete_pending_ram_data_before_word(0).is_err());
+        assert_eq!(live.machine.ram.read(0x20), Some(before));
+        assert!(live.pending_ram_data_transfer.is_some());
+    }
+
+    #[test]
     fn m15d_real_firmware_boot_uses_both_resolved_sync_qualifiers() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         let mut normal = 0;
@@ -1691,10 +1712,11 @@ mod tests {
         transfer: PendingRamDataTransfer,
     ) {
         live.pending_ram_data_transfer = Some(transfer);
+        live.data_serial.enable_electrical_level_bridge(Some(transfer.direction));
         live.data_serial.begin_word(Some(transfer.expected));
         for word_bit in 0u8..56 {
             live.data_serial
-                .visit_word_bit(word_bit)
+                .visit_transport_word_bit_through_net(word_bit, &mut live.backplane)
                 .expect("DATA body must accept the first word");
         }
         assert_eq!(live.data_serial.complete_word(), None);

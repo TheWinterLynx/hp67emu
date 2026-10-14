@@ -220,6 +220,28 @@ impl Hp67ElectricalFabric {
         self.nets[net.index()].drive(driver)
     }
 
+    /// Commit the two structural DATA source contributions as one observable
+    /// image. This is a logical-level bridge, not a physical output-stage model.
+    pub fn commit_data_level_bridge(&mut self, act: Drive, ram: Drive) {
+        let index = Hp67Net::Data.index();
+        let before = self.resolved_levels[index];
+        self.nets[index].set_drive(Hp67Driver::Act1820_2530, act);
+        self.nets[index].set_drive(Hp67Driver::StructuralRomResponder, ram);
+        let after = self.nets[index].level();
+        self.resolved_levels[index] = after;
+        match (before == LogicLevel::Contention, after == LogicLevel::Contention) {
+            (false, true) => self.contention_net_count += 1,
+            (true, false) => self.contention_net_count -= 1,
+            _ => {}
+        }
+    }
+
+    /// Observable DATA contributions, including additional physical/stimulus slots.
+    pub fn active_data_driver_count(&self) -> u8 {
+        let data = &self.nets[Hp67Net::Data.index()];
+        data.low_driver_count + data.high_driver_count
+    }
+
     /// IS permits active-high/release contributions from at most one driver.
     ///
     /// This checks the source-backed ownership policy, independently of logic
@@ -368,6 +390,23 @@ impl Hp67ElectricalFabric {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn m15e_data_bridge_handoff_publishes_one_resolved_image_without_advancing_time() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        fabric.commit_data_level_bridge(Drive::High, Drive::HighZ);
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+        fabric.commit_data_level_bridge(Drive::HighZ, Drive::Low);
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Low);
+        assert_eq!(fabric.drive(Hp67Net::Data, Hp67Driver::Act1820_2530), Drive::HighZ);
+        assert_eq!(fabric.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder), Drive::Low);
+        assert_eq!(fabric.active_data_driver_count(), 1);
+        assert!(fabric.begin_evaluation().is_ok());
+        assert_eq!(fabric.tick(), Tick::ZERO);
+        fabric.commit_data_level_bridge(Drive::HighZ, Drive::HighZ);
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
+        assert_eq!(fabric.active_data_driver_count(), 0);
+    }
 
     #[test]
     fn m15b_is_policy_detects_same_level_overlap_and_active_low() {

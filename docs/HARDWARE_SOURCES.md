@@ -159,3 +159,14 @@ pages 2-4/2-5): ACT supplies SYNC, the return window is b46..b55, and IF suppres
 the subsequent pulse so IS carries an implied-GOTO address. It connects a
 coarse pulse to the resolved net and ACT receiver in the actual live path.
 See `research/M15D_SYNC_QUALIFIED_FETCH_2026-10-13.md`.
+
+## M15E DATA level bridge boundary
+
+Under the owner's HP-97 equivalence direction, service manual 2-14/figure 2-5
+provides ACT/ROM bidirectional DATA roles, while direct HP-67 evidence provides
+the 56-bit b2 phase with next-word b0/b1 tail. M15E connects those logical bits
+to resolved DATA for live installed-RAM authority. Its explicit Low/High encoding
+is an abstract digital-level adapter, not new evidence for the physical DATA
+output stage, passive polarity or voltage. Those details remain unknown. DATA
+bias remains Floating; absent activity releases both structural drivers. See
+`research/M15E_DATA_NET_AUTHORITY_2026-10-14.md`.

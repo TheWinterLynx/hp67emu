@@ -19,3 +19,11 @@ Measure actual firmware idle, synthetic alternating installed-RAM ports and synt
 ## Implementation
 
 The ignored release-only benchmark directly calls `step_firmware_cycle_with_execution`, including snapshot/binding, architectural oracle, restoration guard, structural transport, exact result comparisons, authority commits and card-transport advance. RAM fixtures retain the continuous logical DATA tail. CRC fixtures refill/drain logical buffers within timed samples, with no inserted physical card; their numbers are stress costs, not card throughput. A normal regression runs odd/even word batches to lock continuous fixture state, tick counts, execution counts, port ownership and reconstructed RAM payload. Invalid workload environment values fail instead of silently using a default. Wall-clock Instant appears only in benchmark instrumentation. No fixed host speed threshold is a correctness claim.
+
+## M15E measured scope
+
+The actual live path now includes the opted-in resolved DATA logical-level bridge.
+The output labels distinguish that executable path from unresolved physical DATA
+output circuitry/chip mapping. The RAM stress row includes the bridge; the CRC
+row retains its separate peripheral path. Workloads and timing boundaries are
+unchanged.

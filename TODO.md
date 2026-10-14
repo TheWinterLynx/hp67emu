@@ -387,3 +387,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Connect received qualification to live next-word latch after oracle agreement.
 - [ ] Owner full local gate, diagnostic and performance validation.
 - [ ] Replace coarse bit-cell publication with measured PHI/propagation scheduling.
+
+## M15D validated integration
+
+- [x] Owner M15D FULL GATE GREEN; exact aa7241c integrated into main.
+- [x] DATA phase 0.939 us/word; live idle 1.105 us/word (289.60x nominal).
+
+## M15E resolved DATA level bridge
+
+- [x] Live installed-RAM reconstruction consumes resolved DATA body and tail.
+- [x] Bind ACT/aggregate RAM ownership and retain prior/current direction.
+- [x] Atomic source handoff, HighZ idle and same-level/contending fault checks.
+- [x] Keep default logical fixtures and label historical benchmark scope.
+- [ ] Owner full local gate, diagnostic and actual-live performance.
+- [ ] Physical output-stage/polarity/bias and PHI-relative DATA timing.
+- [ ] Replace the early-tail scheduling bridge with physical sampling timing.
