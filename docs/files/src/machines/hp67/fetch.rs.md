@@ -148,3 +148,20 @@ Reference/default callers retain the old logical fixture; live opted-in words
 publish/sample resolved DATA during the same 56-bit traversal. Preconsumed b0/b1
 tails still replay pin state and validate contributors but do not duplicate sink
 completion. The no-DATA loops and TSV columns remain unchanged.
+
+## M15F clocked DATA-tail prefix
+
+`run_structural_data_tail_prefix()` processes following-word b0/b1 through the
+shared IS display receiver, resolved DATA and all eight PHI transitions. It freezes
+the word's display byte from current A/B and marks a one-use ACT prefix token.
+The remaining transport accepts only a verified b2 continuation with ROM0, retains
+its first two display samples and resumes through b55. It does not reset IS
+ownership between prefix and body. A normal word still starts at b0. Every variant
+validates the transport start; mid-cell or unbound continuations fail contextually.
+
+The newly bound ACT execution accounts for its first two serial coordinates as
+bookkeeping before resuming b2; those coordinates have no separately clocked
+replay. Existing digit/control result images retain their approximated mutation
+timing. Prefix splitting fixes DATA transport chronology, not ACT internal latch
+edges, analog output stage or exact within-cell sampling. Complete traces retain
+224 samples/word and are regression-compared against whole-word transport.

@@ -48,6 +48,7 @@ pub enum Hp67DataSerialError {
         serial_bit: u8,
     },
     OverlappingFrameStart,
+    ElectricalBridgeRequired,
     MissingElectricalOwner {
         word_bit: u8,
     },
@@ -369,6 +370,17 @@ impl Hp67DataSerialWordPath {
             self.completed_payload = completed;
         }
         Ok(())
+    }
+
+    pub(crate) const fn electrical_level_bridge_enabled(&self) -> bool {
+        self.electrical_level_bridge
+    }
+
+    /// Finish a genuinely clocked b0/b1 prefix without replaying its sink later.
+    pub(crate) fn take_clocked_prefix_result(&mut self) -> Option<ActRegister> {
+        debug_assert_eq!(self.sink.expected_word_bit(), DATA_TAIL_BITS);
+        self.prefix_preconsumed = true;
+        self.completed_payload.take()
     }
 
     pub const fn prefix_preconsumed(&self) -> bool {

@@ -402,3 +402,18 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [ ] Owner full local gate, diagnostic and actual-live performance.
 - [ ] Physical output-stage/polarity/bias and PHI-relative DATA timing.
 - [ ] Replace the early-tail scheduling bridge with physical sampling timing.
+
+## M15E validated integration
+
+- [x] Owner M15E FULL GATE GREEN; exact 2bedade integrated.
+- [x] Diagnostic 12/12; live idle 1.100 us/word; RAM stress 1.554 us/word.
+
+## M15F clocked DATA tail
+
+- [x] Consume next-word b0/b1 through shared IS/display/DATA and eight PHI edges.
+- [x] Commit completed C/RAM payload after prefix, before next instruction inputs.
+- [x] Resume verified body at b2; preserve 56 cells, 224 edges and trace rows.
+- [x] Freeze display source, preserve ROM0 prefix and reject invalid starts.
+- [x] Whole-versus-split parity and actual-live write/read dependency regressions.
+- [ ] Owner full local gate, diagnostic and live performance measurements.
+- [ ] Exact PHI sample/write edges, DATA output stage and internal ACT mutation.

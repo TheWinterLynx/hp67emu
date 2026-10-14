@@ -69,6 +69,7 @@ pub enum SerialFetchError {
     UnresolvedSync { word_bit: u8, level: LogicLevel },
     ChangedSyncQualifier { word_bit: u8 },
     MissingSyncQualifier,
+    InvalidTransportStart { tick: u64 },
 }
 
 /// Errors from a combined structural HP-67 word carrying display and fetch data.
@@ -187,6 +188,7 @@ pub struct ActSerialEndpoint {
     received_mask: u16,
     received_sync: Option<bool>,
     received_sync_mask: u16,
+    clocked_prefix_display: Option<u8>,
 }
 
 impl ActSerialEndpoint {
@@ -216,6 +218,7 @@ impl ActSerialEndpoint {
             received_mask: 0,
             received_sync: None,
             received_sync_mask: 0,
+            clocked_prefix_display: None,
         }
     }
 
@@ -432,6 +435,20 @@ impl ActSerialEndpoint {
         };
         self.display_register_index = None;
         rcd_falling
+    }
+
+    fn take_clocked_prefix(
+        &mut self,
+        backplane: &Hp67ElectricalBackplane,
+        has_rom0: bool,
+    ) -> Result<(u8, Option<u8>), SerialFetchError> {
+        let first_bit = if self.clocked_prefix_display.is_some() { 2 } else { 0 };
+        if backplane.word_bit() != first_bit || backplane.tick().get() & 3 != 0
+            || (first_bit == 2 && !has_rom0)
+        {
+            return Err(SerialFetchError::InvalidTransportStart { tick: backplane.tick().get() });
+        }
+        Ok((first_bit, self.clocked_prefix_display.take()))
     }
 
     fn encoded_display_byte(
@@ -780,6 +797,64 @@ impl FetchPipelineLatch {
     }
 }
 
+/// Process following-word b0/b1 through shared IS/display/DATA and eight PHI
+/// transitions before the next instruction can consume the reconstructed tail.
+/// The remaining transport resumes at b2; no electrical cell is replayed.
+/// Exact within-cell sample/write edges remain uncalibrated.
+pub fn run_structural_data_tail_prefix(
+    backplane: &mut Hp67ElectricalBackplane,
+    state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    data: &mut Hp67DataSerialWordPath,
+    mut trace: Option<&mut StructuralBusTrace>,
+) -> Result<Option<super::act::ActRegister>, StructuralWordError> {
+    if backplane.word_bit() != 0 || backplane.tick().get() & 3 != 0
+        || act.clocked_prefix_display.is_some()
+    {
+        return Err(SerialFetchError::InvalidTransportStart { tick: backplane.tick().get() }.into());
+    }
+    if !data.electrical_level_bridge_enabled() {
+        return Err(Hp67DataSerialError::ElectricalBridgeRequired.into());
+    }
+    // DISPLAY depends on current A/B, not the completing C/RAM payload. Ignore
+    // the previous completed instruction's snapshot, which belongs to another word.
+    let mut source = *act;
+    source.execution_state = None;
+    source.execution_display_enable_override = None;
+    source.begin_display_fetch_cycle(act.address())?;
+    let byte = match source.encoded_display_byte(Some(state)) {
+        Ok(Some(byte)) => byte,
+        Ok(None) => HP67_ROM0_BLANK_CODE,
+        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => HP67_ROM0_BLANK_CODE,
+        Err(error) => return Err(error.into()),
+    };
+    rom0.begin_word();
+    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
+    for word_bit in 0..2 {
+        let act_drive = wired_high_drive(((byte >> word_bit) & 1) != 0);
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
+        let is_level = sample_transport_isa(backplane, word_bit)?;
+        rom0.sample_for_bit(word_bit, is_level)?;
+        data.visit_transport_word_bit_through_net(word_bit, backplane)?;
+        for _ in 0..4 {
+            backplane.advance_clock();
+            if let Some(trace) = trace.as_deref_mut() {
+                trace.samples.push(StructuralBusSample {
+                    tick: backplane.tick().get(), transport_bit: word_bit,
+                    phi1: backplane.level(Hp67Net::Phi1),
+                    phi2: backplane.level(Hp67Net::Phi2),
+                    isa: backplane.level(Hp67Net::Isa),
+                    act_drive, rom_drive: Drive::HighZ,
+                });
+            }
+        }
+    }
+    act.clocked_prefix_display = Some(byte);
+    Ok(data.take_clocked_prefix_result())
+}
+
 fn run_structural_word_transport<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     act: &mut ActSerialEndpoint,
@@ -788,33 +863,45 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     source: &S,
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
 ) -> Result<u16, StructuralWordError> {
+    let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
-    if let Some(endpoint) = rom0.as_deref_mut() {
-        endpoint.begin_word();
+    if first_bit == 0 {
+        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
     }
+    // These two execution coordinates are currently structural bookkeeping;
+    // their physical cells have already completed in the clocked prefix.
+    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
     // words read the supplied live state. Encode it once per machine word
     // instead of rebuilding the same ROM0 byte for all eight serial bits.
-    let display_byte = match act.encoded_display_byte(act_state) {
-        Ok(byte) => byte,
-        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
-        Err(error) => return Err(error.into()),
+    let display_byte = if let Some(byte) = prefix_byte {
+        Some(byte)
+    } else {
+        match act.encoded_display_byte(act_state) {
+            Ok(byte) => byte,
+            Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+            Err(error) => return Err(error.into()),
+        }
     };
 
     // Each endpoint owns its named IS driver. Reset that ownership once at the
     // word boundary, then publish only actual drive-state transitions below.
     // This preserves every resolved bit-cell level while avoiding redundant
     // High-Z/same-level writes on the shared electrical net.
-    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
-    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
-    let mut previous_act_drive = Drive::HighZ;
+    if first_bit == 0 {
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    }
+    let mut previous_act_drive = prefix_byte
+        .map(|byte| wired_high_drive(((byte >> 1) & 1) != 0))
+        .unwrap_or(Drive::HighZ);
     let mut previous_rom_drive = Drive::HighZ;
     let instruction_qualifier = act.successor_is_instruction();
     backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
-    for expected_bit in 0..BITS_PER_WORD {
+    for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
             backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
@@ -886,33 +973,45 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
     data: &mut Hp67DataSerialWordPath,
 ) -> Result<u16, StructuralWordError> {
+    let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
-    if let Some(endpoint) = rom0.as_deref_mut() {
-        endpoint.begin_word();
+    if first_bit == 0 {
+        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
     }
+    // These two execution coordinates are currently structural bookkeeping;
+    // their physical cells have already completed in the clocked prefix.
+    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
     // words read the supplied live state. Encode it once per machine word
     // instead of rebuilding the same ROM0 byte for all eight serial bits.
-    let display_byte = match act.encoded_display_byte(act_state) {
-        Ok(byte) => byte,
-        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
-        Err(error) => return Err(error.into()),
+    let display_byte = if let Some(byte) = prefix_byte {
+        Some(byte)
+    } else {
+        match act.encoded_display_byte(act_state) {
+            Ok(byte) => byte,
+            Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+            Err(error) => return Err(error.into()),
+        }
     };
 
     // Each endpoint owns its named IS driver. Reset that ownership once at the
     // word boundary, then publish only actual drive-state transitions below.
     // This preserves every resolved bit-cell level while avoiding redundant
     // High-Z/same-level writes on the shared electrical net.
-    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
-    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
-    let mut previous_act_drive = Drive::HighZ;
+    if first_bit == 0 {
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    }
+    let mut previous_act_drive = prefix_byte
+        .map(|byte| wired_high_drive(((byte >> 1) & 1) != 0))
+        .unwrap_or(Drive::HighZ);
     let mut previous_rom_drive = Drive::HighZ;
     let instruction_qualifier = act.successor_is_instruction();
     backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
-    for expected_bit in 0..BITS_PER_WORD {
+    for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
             backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
@@ -1148,33 +1247,45 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
     trace: &mut StructuralBusTrace,
 ) -> Result<u16, StructuralWordError> {
+    let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
-    if let Some(endpoint) = rom0.as_deref_mut() {
-        endpoint.begin_word();
+    if first_bit == 0 {
+        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
     }
+    // These two execution coordinates are currently structural bookkeeping;
+    // their physical cells have already completed in the clocked prefix.
+    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
     // words read the supplied live state. Encode it once per machine word
     // instead of rebuilding the same ROM0 byte for all eight serial bits.
-    let display_byte = match act.encoded_display_byte(act_state) {
-        Ok(byte) => byte,
-        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
-        Err(error) => return Err(error.into()),
+    let display_byte = if let Some(byte) = prefix_byte {
+        Some(byte)
+    } else {
+        match act.encoded_display_byte(act_state) {
+            Ok(byte) => byte,
+            Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+            Err(error) => return Err(error.into()),
+        }
     };
 
     // Each endpoint owns its named IS driver. Reset that ownership once at the
     // word boundary, then publish only actual drive-state transitions below.
     // This preserves every resolved bit-cell level while avoiding redundant
     // High-Z/same-level writes on the shared electrical net.
-    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
-    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
-    let mut previous_act_drive = Drive::HighZ;
+    if first_bit == 0 {
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    }
+    let mut previous_act_drive = prefix_byte
+        .map(|byte| wired_high_drive(((byte >> 1) & 1) != 0))
+        .unwrap_or(Drive::HighZ);
     let mut previous_rom_drive = Drive::HighZ;
     let instruction_qualifier = act.successor_is_instruction();
     backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
-    for expected_bit in 0..BITS_PER_WORD {
+    for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
             backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
@@ -1286,33 +1397,45 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
     data: &mut Hp67DataSerialWordPath,
     trace: &mut StructuralBusTrace,
 ) -> Result<u16, StructuralWordError> {
+    let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
-    if let Some(endpoint) = rom0.as_deref_mut() {
-        endpoint.begin_word();
+    if first_bit == 0 {
+        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
     }
+    // These two execution coordinates are currently structural bookkeeping;
+    // their physical cells have already completed in the clocked prefix.
+    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
     // words read the supplied live state. Encode it once per machine word
     // instead of rebuilding the same ROM0 byte for all eight serial bits.
-    let display_byte = match act.encoded_display_byte(act_state) {
-        Ok(byte) => byte,
-        Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
-        Err(error) => return Err(error.into()),
+    let display_byte = if let Some(byte) = prefix_byte {
+        Some(byte)
+    } else {
+        match act.encoded_display_byte(act_state) {
+            Ok(byte) => byte,
+            Err(ActDisplaySerialError::UnsupportedModifier { .. }) => Some(HP67_ROM0_BLANK_CODE),
+            Err(error) => return Err(error.into()),
+        }
     };
 
     // Each endpoint owns its named IS driver. Reset that ownership once at the
     // word boundary, then publish only actual drive-state transitions below.
     // This preserves every resolved bit-cell level while avoiding redundant
     // High-Z/same-level writes on the shared electrical net.
-    backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
-    backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
-    let mut previous_act_drive = Drive::HighZ;
+    if first_bit == 0 {
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::HighZ);
+        backplane.drive(Hp67Net::Isa, ROM_IS_DRIVER, Drive::HighZ);
+    }
+    let mut previous_act_drive = prefix_byte
+        .map(|byte| wired_high_drive(((byte >> 1) & 1) != 0))
+        .unwrap_or(Drive::HighZ);
     let mut previous_rom_drive = Drive::HighZ;
     let instruction_qualifier = act.successor_is_instruction();
     backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::Low);
 
-    for expected_bit in 0..BITS_PER_WORD {
+    for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         if expected_bit == super::timing::ROM_WORD_FIRST_BIT && instruction_qualifier {
             backplane.drive(Hp67Net::Sync, ACT_IS_DRIVER, Drive::High);
@@ -1422,6 +1545,84 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+    #[test]
+    fn m15f_clocked_tail_split_matches_whole_word_transport_and_trace() {
+        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let mut state = ActArchitecturalState::default();
+        state.display_enable = true;
+        state.a = [7; 14];
+        let mut split = Hp67ElectricalBackplane::default();
+        let mut whole = Hp67ElectricalBackplane::default();
+        let mut split_act = ActSerialEndpoint::new(0x07b);
+        let mut whole_act = ActSerialEndpoint::new(0x07b);
+        let mut split_rom = RomFetchEndpoint::default();
+        let mut whole_rom = RomFetchEndpoint::default();
+        let mut split_rom0 = Rom0DisplayEndpoint::default();
+        let mut whole_rom0 = Rom0DisplayEndpoint::default();
+        let mut split_data = Hp67DataSerialWordPath::default();
+        let mut whole_data = Hp67DataSerialWordPath::default();
+        let mut split_trace = StructuralBusTrace::default();
+        let mut whole_trace = StructuralBusTrace::default();
+        let first = [3; 14];
+        let second = [9; 14];
+        for (direction, payload, tail) in [
+            (Some(super::super::data::Hp67DataTransferDirection::ActToPeripheral), Some(first), None),
+            (Some(super::super::data::Hp67DataTransferDirection::PeripheralToAct), Some(second), Some(first)),
+            (None, None, Some(second)),
+        ] {
+            if tail.is_some() {
+                let tick = split.tick().get();
+                let received = run_structural_data_tail_prefix(
+                    &mut split, &state, &mut split_act, &mut split_rom0,
+                    &mut split_data, Some(&mut split_trace),
+                ).unwrap();
+                assert_eq!(received, tail);
+                assert_eq!(split.tick().get(), tick + 8);
+                assert_eq!(split.word_bit(), 2);
+                assert!(split_rom0.display_byte().is_err());
+            }
+            split_data.enable_electrical_level_bridge(direction);
+            whole_data.enable_electrical_level_bridge(direction);
+            split_act.begin_execution(0, &state).unwrap();
+            whole_act.begin_execution(0, &state).unwrap();
+            let partial = run_structural_display_fetch_data_phase_cycle_traced(
+                &mut split, 0x07b, &state, &mut split_act, &mut split_rom,
+                &mut split_rom0, &source, &mut split_data, payload, &mut split_trace,
+            ).unwrap();
+            let full = run_structural_display_fetch_data_phase_cycle_traced(
+                &mut whole, 0x07b, &state, &mut whole_act, &mut whole_rom,
+                &mut whole_rom0, &source, &mut whole_data, payload, &mut whole_trace,
+            ).unwrap();
+            assert_eq!(partial.completed_data, None);
+            assert_eq!(full.completed_data, tail);
+            assert_eq!(partial.word, full.word);
+            assert_eq!(split_act, whole_act);
+            assert_eq!(split_data, whole_data);
+            assert_eq!(split.tick(), whole.tick());
+            for net in Hp67Net::ALL { assert_eq!(split.level(net), whole.level(net)); }
+        }
+        assert_eq!(split_trace, whole_trace);
+        assert_eq!(split_trace.samples.len(), 3 * 224);
+        assert_eq!(split.tick().get(), 3 * 224);
+    }
+
+    #[test]
+    fn m15f_prefix_rejects_unbound_or_mid_cell_transport() {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut act = ActSerialEndpoint::new(0);
+        let mut rom0 = Rom0DisplayEndpoint::default();
+        let mut data = Hp67DataSerialWordPath::default();
+        let state = ActArchitecturalState::default();
+        assert_eq!(run_structural_data_tail_prefix(
+            &mut backplane, &state, &mut act, &mut rom0, &mut data, None,
+        ), Err(StructuralWordError::Data(Hp67DataSerialError::ElectricalBridgeRequired)));
+        backplane.advance_clock();
+        assert_eq!(run_structural_data_tail_prefix(
+            &mut backplane, &state, &mut act, &mut rom0, &mut data, None,
+        ), Err(StructuralWordError::Fetch(SerialFetchError::InvalidTransportStart { tick: 1 })));
+        assert_eq!(backplane.tick().get(), 1);
+    }
 
     #[test]
     fn m15d_sync_successor_decode_matches_all_supported_oracle_words() {

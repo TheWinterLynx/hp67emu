@@ -170,3 +170,12 @@ is an abstract digital-level adapter, not new evidence for the physical DATA
 output stage, passive polarity or voltage. Those details remain unknown. DATA
 bias remains Floating; absent activity releases both structural drivers. See
 `research/M15E_DATA_NET_AUTHORITY_2026-10-14.md`.
+
+## M15F following-word DATA completion
+
+The known b2 DATA phase places serial bits 54/55 at next-word b0/b1. M15F
+consumes them in the shared transport's actual clocked prefix and commits the
+reconstructed result only after those two cells complete. This removes the
+production unclocked-tail bridge. The DATA output-stage adapter and within-cell
+PHI sampling remain approximate; no exact edge or new hardware timing value is
+inferred. See `research/M15F_CLOCKED_DATA_TAIL_2026-10-14.md`.

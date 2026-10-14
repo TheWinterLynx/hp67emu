@@ -3,7 +3,7 @@ use std::time::Duration;
 use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
 
 use hp67emu::machines::hp67::{
-    act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
+    act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte, run_structural_data_tail_prefix,
     display_register_index_for_scan_slot, restore_ram_block, run_structural_display_fetch_cycle,
     run_structural_display_fetch_cycle_traced, run_structural_display_fetch_data_phase_cycle,
     run_structural_display_fetch_data_phase_cycle_traced, ActInstructionState, ActOperation,
@@ -565,7 +565,7 @@ impl Hp67LiveMachine {
 
     fn step_firmware_cycle_with_trace(
         &mut self,
-        trace: Option<&mut StructuralBusTrace>,
+        mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
         let card_motor_was_on = self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true);
@@ -589,7 +589,7 @@ impl Hp67LiveMachine {
         let mut crc_data_expected = None;
         let mut absent_ram_expected = None;
         self.pipeline.begin_cycle();
-        self.complete_pending_ram_data_before_word(cycle)?;
+        self.complete_pending_ram_data_with_prefix(cycle, trace.as_deref_mut())?;
         if let Some(word) = self.pipeline.executing_word() {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
@@ -1364,11 +1364,23 @@ impl Hp67LiveMachine {
         Ok(())
     }
 
+    #[cfg(test)]
     fn complete_pending_ram_data_before_word(&mut self, cycle: u64) -> Result<(), String> {
+        self.complete_pending_ram_data_with_prefix(cycle, None)
+    }
+
+    fn complete_pending_ram_data_with_prefix(
+        &mut self,
+        cycle: u64,
+        trace: Option<&mut StructuralBusTrace>,
+    ) -> Result<(), String> {
         let completed = if self.data_serial.frame_in_progress() {
-            self.data_serial
-                .preconsume_previous_tail_through_net(&mut self.backplane)
-                .map_err(|error| format!("live cycle {cycle} RAM DATA tail failed: {error:?}"))?
+            let mut display_state = self.machine.act.state.clone();
+            if !self.display_control_seen { display_state.display_enable = true; }
+            run_structural_data_tail_prefix(
+                &mut self.backplane, &display_state, &mut self.act_serial,
+                &mut self.display_rom0, &mut self.data_serial, trace,
+            ).map_err(|error| format!("live cycle {cycle} clocked RAM DATA prefix failed: {error:?}"))?
         } else {
             None
         };
@@ -1569,6 +1581,37 @@ mod official_pac_tests;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn m15f_live_write_read_dependency_uses_clocked_tail_with_224_transitions() {
+        use hp67emu::machines::hp67::Hp67Net;
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut trace = StructuralBusTrace::default();
+        let before = live.machine.ram.read(0x20).unwrap();
+        live.machine.act.state.c = [7; 14];
+        live.machine.act.state.ram_address = 0x20;
+        for (word, expected_c, expected_ram) in [
+            (0o1360, [7; 14], before),
+            (0o0070, [2; 14], [7; 14]),
+            (0, [7; 14], [7; 14]),
+        ] {
+            if word == 0o0070 { live.machine.act.state.c = [2; 14]; }
+            let tick = live.backplane.tick().get();
+            live.pipeline.complete_cycle(word);
+            live.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+            assert_eq!(live.machine.act.state.c, expected_c);
+            assert_eq!(live.machine.ram.read(0x20), Some(expected_ram));
+            assert_eq!(live.backplane.tick().get() - tick, 224);
+            assert_eq!(live.backplane.word_bit(), 0);
+        }
+        assert!(live.pending_ram_data_transfer.is_none());
+        assert_eq!(live.backplane.level(Hp67Net::Data), hp67emu::emulation::LogicLevel::Floating);
+        assert_eq!(trace.samples.len(), 3 * 224);
+        for (index, sample) in trace.samples.iter().enumerate() {
+            assert_eq!(sample.tick, index as u64 + 1);
+            assert_eq!(sample.transport_bit, ((index / 4) % 56) as u8);
+        }
+    }
+
+    #[test]
     fn m15e_live_ram_destination_is_not_committed_when_data_tail_is_contended() {
         use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
@@ -1651,6 +1694,11 @@ mod tests {
         for live in [&mut fast, &mut captured] {
             live.complete_pending_ram_data_before_word(live.boot_cycle)
                 .unwrap();
+            // A manual tail flush may leave this word at b2. Finish that word
+            // before beginning a capture of twelve complete synthetic words.
+            live.pipeline.complete_cycle(0);
+            live.step_firmware_cycle_with_execution().unwrap();
+            assert_eq!(live.backplane.word_bit(), 0);
             live.machine.act.state.instruction_state = ActInstructionState::Normal;
             live.machine.act.state.c = [3; 14];
             live.machine.act.state.ram_address = 0x20;

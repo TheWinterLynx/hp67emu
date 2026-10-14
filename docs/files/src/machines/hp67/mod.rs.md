@@ -68,3 +68,9 @@ Focused tests compare real firmware boot with and without recording, exercise al
 ## M14Y offline comparison
 
 Adds GUI-free bus_trace module and native `--compare-is expected.tsv actual.tsv report.txt [expected_start actual_start]` adapter. Strict import preserves provenance/unknown levels, bounded inputs and optional driver coverage. Comparison uses explicit row indices and relative ordinal ticks, counts mismatches and unequal lengths, and writes a report. Native exit codes: 0 match, 2 mismatch, 1 input/output error. Input paths cannot be overwritten by report output. Windows GUI-subsystem processes must be invoked with Start-Process -Wait -PassThru in PowerShell gates. No transport loop or firmware execution changes. See research/M14Y_TRACE_COMPARISON_2026-10-12.md.
+
+## M15F shared prefix export
+
+Re-exports `run_structural_data_tail_prefix()` for the live adapter. The API
+consumes b0/b1 on shared IS/display/DATA, then requires the paired transport to
+continue from b2 without repeating electrical cells or resetting ROM0 samples.

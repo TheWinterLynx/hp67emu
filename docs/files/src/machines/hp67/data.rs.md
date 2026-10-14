@@ -60,3 +60,12 @@ twice. Early-tail publication remains unclocked and explicitly approximate.
 
 Replacing the logical-level adapter requires evidence for DATA output stage and
 launch/sample/handoff edges; it must preserve net reconstruction and diagnostics.
+
+## M15F production tail completion
+
+Live transport no longer calls the unclocked early-tail method. The shared b0/b1
+prefix visits the same resolved-net sink while advancing the actual backplane.
+`take_clocked_prefix_result()` extracts that completion and marks the already
+consumed prefix for body continuation. The source tail/direction are retained
+until the following body binds its new payload. Legacy preconsume APIs remain
+for phase/reference fixtures; they no longer schedule production RAM authority.
