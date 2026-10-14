@@ -442,11 +442,18 @@ impl ActSerialEndpoint {
         backplane: &Hp67ElectricalBackplane,
         has_rom0: bool,
     ) -> Result<(u8, Option<u8>), SerialFetchError> {
-        let first_bit = if self.clocked_prefix_display.is_some() { 2 } else { 0 };
-        if backplane.word_bit() != first_bit || backplane.tick().get() & 3 != 0
+        let first_bit = if self.clocked_prefix_display.is_some() {
+            2
+        } else {
+            0
+        };
+        if backplane.word_bit() != first_bit
+            || backplane.tick().get() & 3 != 0
             || (first_bit == 2 && !has_rom0)
         {
-            return Err(SerialFetchError::InvalidTransportStart { tick: backplane.tick().get() });
+            return Err(SerialFetchError::InvalidTransportStart {
+                tick: backplane.tick().get(),
+            });
         }
         Ok((first_bit, self.clocked_prefix_display.take()))
     }
@@ -809,10 +816,14 @@ pub fn run_structural_data_tail_prefix(
     data: &mut Hp67DataSerialWordPath,
     mut trace: Option<&mut StructuralBusTrace>,
 ) -> Result<Option<super::act::ActRegister>, StructuralWordError> {
-    if backplane.word_bit() != 0 || backplane.tick().get() & 3 != 0
+    if backplane.word_bit() != 0
+        || backplane.tick().get() & 3 != 0
         || act.clocked_prefix_display.is_some()
     {
-        return Err(SerialFetchError::InvalidTransportStart { tick: backplane.tick().get() }.into());
+        return Err(SerialFetchError::InvalidTransportStart {
+            tick: backplane.tick().get(),
+        }
+        .into());
     }
     if !data.electrical_level_bridge_enabled() {
         return Err(Hp67DataSerialError::ElectricalBridgeRequired.into());
@@ -842,11 +853,13 @@ pub fn run_structural_data_tail_prefix(
             backplane.advance_clock();
             if let Some(trace) = trace.as_deref_mut() {
                 trace.samples.push(StructuralBusSample {
-                    tick: backplane.tick().get(), transport_bit: word_bit,
+                    tick: backplane.tick().get(),
+                    transport_bit: word_bit,
                     phi1: backplane.level(Hp67Net::Phi1),
                     phi2: backplane.level(Hp67Net::Phi2),
                     isa: backplane.level(Hp67Net::Isa),
-                    act_drive, rom_drive: Drive::HighZ,
+                    act_drive,
+                    rom_drive: Drive::HighZ,
                 });
             }
         }
@@ -866,11 +879,15 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
     if first_bit == 0 {
-        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
+        if let Some(endpoint) = rom0.as_deref_mut() {
+            endpoint.begin_word();
+        }
     }
     // These two execution coordinates are currently structural bookkeeping;
     // their physical cells have already completed in the clocked prefix.
-    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
+    for bit in 0..first_bit {
+        act.advance_execution_for_bit(bit)?;
+    }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
@@ -976,11 +993,15 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
     if first_bit == 0 {
-        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
+        if let Some(endpoint) = rom0.as_deref_mut() {
+            endpoint.begin_word();
+        }
     }
     // These two execution coordinates are currently structural bookkeeping;
     // their physical cells have already completed in the clocked prefix.
-    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
+    for bit in 0..first_bit {
+        act.advance_execution_for_bit(bit)?;
+    }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
@@ -1250,11 +1271,15 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
     if first_bit == 0 {
-        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
+        if let Some(endpoint) = rom0.as_deref_mut() {
+            endpoint.begin_word();
+        }
     }
     // These two execution coordinates are currently structural bookkeeping;
     // their physical cells have already completed in the clocked prefix.
-    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
+    for bit in 0..first_bit {
+        act.advance_execution_for_bit(bit)?;
+    }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
@@ -1400,11 +1425,15 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     rom.begin_cycle();
     if first_bit == 0 {
-        if let Some(endpoint) = rom0.as_deref_mut() { endpoint.begin_word(); }
+        if let Some(endpoint) = rom0.as_deref_mut() {
+            endpoint.begin_word();
+        }
     }
     // These two execution coordinates are currently structural bookkeeping;
     // their physical cells have already completed in the clocked prefix.
-    for bit in 0..first_bit { act.advance_execution_for_bit(bit)?; }
+    for bit in 0..first_bit {
+        act.advance_execution_for_bit(bit)?;
+    }
 
     // The selected ACT display source is immutable for the whole b0..b7
     // window: executing words read the pre-instruction snapshot and fetch-only
@@ -1548,7 +1577,9 @@ mod tests {
 
     #[test]
     fn m15f_clocked_tail_split_matches_whole_word_transport_and_trace() {
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         let mut state = ActArchitecturalState::default();
         state.display_enable = true;
         state.a = [7; 14];
@@ -1567,16 +1598,29 @@ mod tests {
         let first = [3; 14];
         let second = [9; 14];
         for (direction, payload, tail) in [
-            (Some(super::super::data::Hp67DataTransferDirection::ActToPeripheral), Some(first), None),
-            (Some(super::super::data::Hp67DataTransferDirection::PeripheralToAct), Some(second), Some(first)),
+            (
+                Some(super::super::data::Hp67DataTransferDirection::ActToPeripheral),
+                Some(first),
+                None,
+            ),
+            (
+                Some(super::super::data::Hp67DataTransferDirection::PeripheralToAct),
+                Some(second),
+                Some(first),
+            ),
             (None, None, Some(second)),
         ] {
             if tail.is_some() {
                 let tick = split.tick().get();
                 let received = run_structural_data_tail_prefix(
-                    &mut split, &state, &mut split_act, &mut split_rom0,
-                    &mut split_data, Some(&mut split_trace),
-                ).unwrap();
+                    &mut split,
+                    &state,
+                    &mut split_act,
+                    &mut split_rom0,
+                    &mut split_data,
+                    Some(&mut split_trace),
+                )
+                .unwrap();
                 assert_eq!(received, tail);
                 assert_eq!(split.tick().get(), tick + 8);
                 assert_eq!(split.word_bit(), 2);
@@ -1587,20 +1631,40 @@ mod tests {
             split_act.begin_execution(0, &state).unwrap();
             whole_act.begin_execution(0, &state).unwrap();
             let partial = run_structural_display_fetch_data_phase_cycle_traced(
-                &mut split, 0x07b, &state, &mut split_act, &mut split_rom,
-                &mut split_rom0, &source, &mut split_data, payload, &mut split_trace,
-            ).unwrap();
+                &mut split,
+                0x07b,
+                &state,
+                &mut split_act,
+                &mut split_rom,
+                &mut split_rom0,
+                &source,
+                &mut split_data,
+                payload,
+                &mut split_trace,
+            )
+            .unwrap();
             let full = run_structural_display_fetch_data_phase_cycle_traced(
-                &mut whole, 0x07b, &state, &mut whole_act, &mut whole_rom,
-                &mut whole_rom0, &source, &mut whole_data, payload, &mut whole_trace,
-            ).unwrap();
+                &mut whole,
+                0x07b,
+                &state,
+                &mut whole_act,
+                &mut whole_rom,
+                &mut whole_rom0,
+                &source,
+                &mut whole_data,
+                payload,
+                &mut whole_trace,
+            )
+            .unwrap();
             assert_eq!(partial.completed_data, None);
             assert_eq!(full.completed_data, tail);
             assert_eq!(partial.word, full.word);
             assert_eq!(split_act, whole_act);
             assert_eq!(split_data, whole_data);
             assert_eq!(split.tick(), whole.tick());
-            for net in Hp67Net::ALL { assert_eq!(split.level(net), whole.level(net)); }
+            for net in Hp67Net::ALL {
+                assert_eq!(split.level(net), whole.level(net));
+            }
         }
         assert_eq!(split_trace, whole_trace);
         assert_eq!(split_trace.samples.len(), 3 * 224);
@@ -1614,13 +1678,33 @@ mod tests {
         let mut rom0 = Rom0DisplayEndpoint::default();
         let mut data = Hp67DataSerialWordPath::default();
         let state = ActArchitecturalState::default();
-        assert_eq!(run_structural_data_tail_prefix(
-            &mut backplane, &state, &mut act, &mut rom0, &mut data, None,
-        ), Err(StructuralWordError::Data(Hp67DataSerialError::ElectricalBridgeRequired)));
+        assert_eq!(
+            run_structural_data_tail_prefix(
+                &mut backplane,
+                &state,
+                &mut act,
+                &mut rom0,
+                &mut data,
+                None,
+            ),
+            Err(StructuralWordError::Data(
+                Hp67DataSerialError::ElectricalBridgeRequired
+            ))
+        );
         backplane.advance_clock();
-        assert_eq!(run_structural_data_tail_prefix(
-            &mut backplane, &state, &mut act, &mut rom0, &mut data, None,
-        ), Err(StructuralWordError::Fetch(SerialFetchError::InvalidTransportStart { tick: 1 })));
+        assert_eq!(
+            run_structural_data_tail_prefix(
+                &mut backplane,
+                &state,
+                &mut act,
+                &mut rom0,
+                &mut data,
+                None,
+            ),
+            Err(StructuralWordError::Fetch(
+                SerialFetchError::InvalidTransportStart { tick: 1 }
+            ))
+        );
         assert_eq!(backplane.tick().get(), 1);
     }
 

@@ -3,9 +3,10 @@ use std::time::Duration;
 use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
 
 use hp67emu::machines::hp67::{
-    act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte, run_structural_data_tail_prefix,
-    display_register_index_for_scan_slot, restore_ram_block, run_structural_display_fetch_cycle,
-    run_structural_display_fetch_cycle_traced, run_structural_display_fetch_data_phase_cycle,
+    act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
+    display_register_index_for_scan_slot, restore_ram_block, run_structural_data_tail_prefix,
+    run_structural_display_fetch_cycle, run_structural_display_fetch_cycle_traced,
+    run_structural_display_fetch_data_phase_cycle,
     run_structural_display_fetch_data_phase_cycle_traced, ActInstructionState, ActOperation,
     ActRegister, ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint,
     ActSerialFlowState, ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
@@ -1376,11 +1377,20 @@ impl Hp67LiveMachine {
     ) -> Result<(), String> {
         let completed = if self.data_serial.frame_in_progress() {
             let mut display_state = self.machine.act.state.clone();
-            if !self.display_control_seen { display_state.display_enable = true; }
+            if !self.display_control_seen {
+                display_state.display_enable = true;
+            }
             run_structural_data_tail_prefix(
-                &mut self.backplane, &display_state, &mut self.act_serial,
-                &mut self.display_rom0, &mut self.data_serial, trace,
-            ).map_err(|error| format!("live cycle {cycle} clocked RAM DATA prefix failed: {error:?}"))?
+                &mut self.backplane,
+                &display_state,
+                &mut self.act_serial,
+                &mut self.display_rom0,
+                &mut self.data_serial,
+                trace,
+            )
+            .map_err(|error| {
+                format!("live cycle {cycle} clocked RAM DATA prefix failed: {error:?}")
+            })?
         } else {
             None
         };
@@ -1593,17 +1603,23 @@ mod tests {
             (0o0070, [2; 14], [7; 14]),
             (0, [7; 14], [7; 14]),
         ] {
-            if word == 0o0070 { live.machine.act.state.c = [2; 14]; }
+            if word == 0o0070 {
+                live.machine.act.state.c = [2; 14];
+            }
             let tick = live.backplane.tick().get();
             live.pipeline.complete_cycle(word);
-            live.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+            live.step_firmware_cycle_with_trace(Some(&mut trace))
+                .unwrap();
             assert_eq!(live.machine.act.state.c, expected_c);
             assert_eq!(live.machine.ram.read(0x20), Some(expected_ram));
             assert_eq!(live.backplane.tick().get() - tick, 224);
             assert_eq!(live.backplane.word_bit(), 0);
         }
         assert!(live.pending_ram_data_transfer.is_none());
-        assert_eq!(live.backplane.level(Hp67Net::Data), hp67emu::emulation::LogicLevel::Floating);
+        assert_eq!(
+            live.backplane.level(Hp67Net::Data),
+            hp67emu::emulation::LogicLevel::Floating
+        );
         assert_eq!(trace.samples.len(), 3 * 224);
         for (index, sample) in trace.samples.iter().enumerate() {
             assert_eq!(sample.tick, index as u64 + 1);
