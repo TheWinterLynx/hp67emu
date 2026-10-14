@@ -206,3 +206,19 @@ The live bridge verifies the entire pre-instruction ACT contract before transpor
 ## M14O live authority performance measurement
 
 `authority_benchmark_tests.rs` calls the actual live cycle rather than reconstructing a historical dual composition. Its ignored release benchmark reports real-firmware idle and labelled synthetic RAM/CRC load medians with 224-transition/execution-count invariants. Boot and warm-up are untimed; rounds rotate path order and preserve device state. Synthetic CRC fixture refill/drain cost is included and must not be interpreted as physical card throughput. Existing electrical/DATA fixture rows remain comparative references, not current live authority throughput.
+
+### M15F clocked DATA tail scheduling
+
+Live installed-RAM DATA no longer uses the M14C early unclocked tail or M15E
+pin replay. The shared following-word b0/b1 prefix now carries display/IS and
+resolved DATA through eight PHI transitions. C/RAM completion occurs after
+that prefix and before binding the next instruction's inputs. The paired
+transport resumes at b2, preserves the first two ROM0 samples and IS ownership,
+and completes 216 more transitions. A complete live word still has 56 cells,
+224 edges and 224 optional trace rows.
+
+ACT b0/b1 execution coordinates remain result-image bookkeeping after binding;
+this change does not establish internal ACT write edges. DATA output circuitry,
+physical chip mapping and exact within-cell launch/sample/propagation remain
+unresolved. Reference phase fixtures retain their legacy early-tail APIs, which
+no longer schedule production RAM authority.
