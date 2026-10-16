@@ -88,3 +88,17 @@ as observed rather than overwritten by the expected source value.
 This is a WORKING APPROXIMATION with a source-backed stable interval, not
 a measured latch-edge/propagation claim. Full words remain 56 cells and 224
 transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
+
+## M15I atomic serial publication
+
+Production `propose_transport_word_bit()` computes optional ACT/RAM DATA drives
+from immutable state, validates bit order/launch phase and returns errors before
+any serial pin changes. It is composed with IS/SYNC at the shared launch commit.
+No electrical DATA role returns `None` (preserve the net); an opted-in idle cell
+returns two HighZ contributions (release the modeled sources). Reference combined
+visitors retain their original API. The old standalone M15H launch helper is now
+test-only for isolated receiver fixtures; it is not a production publication path.
+
+The launch boundary and PHI1-rising sample checkpoint retain M15H
+WORKING APPROXIMATION status. No propagation delay, physical output stage or
+unknown latch edge is promoted to proven hardware behavior.

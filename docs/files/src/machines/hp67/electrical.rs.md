@@ -60,3 +60,24 @@ The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
 other cells; RCD shares that cell only in slot 15. Publishing before the four
 scaffold PHI transitions and restoring High at b8 are not physical edge/width
 claims. No extra tick or cathode-to-ACT feedback is added.
+
+## M15I atomic serial publication
+
+`commit_serial_launch()` installs ACT/aggregate-ROM IS, ACT SYNC and optional
+ACT/aggregate-RAM DATA contributions before refreshing any touched resolved net.
+It changes no tick and preserves every other contributor. The dense drive setter
+reports actual changes; unchanged contributions do not trigger redundant net
+resolution. Its two-source updates use non-short-circuit boolean OR so changing
+the first source can never skip the second. Direct DATA and immediate commits
+share the same resolved-level/contention-cache update primitive.
+
+A regression compares all 243 five-source images under three external drive
+states against independent generic `Net` resolution, including active counts,
+third-party contributions and entry/exit of cached contention. Another verifies
+handoff, no-role DATA preservation and explicit HighZ release. This specialized
+composition bridge does not claim physical per-chip output timing or replace
+composition-time ownership tokens for future independently scheduled devices.
+
+The launch boundary and PHI1-rising sample checkpoint retain M15H
+WORKING APPROXIMATION status. No propagation delay, physical output stage or
+unknown latch edge is promoted to proven hardware behavior.

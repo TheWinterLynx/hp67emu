@@ -46,3 +46,10 @@ the current shared display transport where previously wired.
 Printed scope now names the provisional PHI1-rising receiver checkpoint. The
 benchmark continues to distinguish computational headroom from proof of physical
 launch/latch edges, pulse widths and propagation.
+
+## M15I scope
+
+The printed full-row scope includes atomic IS/SYNC source publication. This
+no-DATA row does not acquire RAM transfers; optional DATA joins the same commit
+only in DATA-aware production paths, measured by the live authority benchmark.
+No timing calibration or performance threshold is introduced.

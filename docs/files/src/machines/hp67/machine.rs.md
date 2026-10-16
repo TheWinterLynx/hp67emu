@@ -52,3 +52,13 @@ pin is unresolved. Neither predicate advances time or changes electrical bias.
 This is a WORKING APPROXIMATION with a source-backed stable interval, not
 a measured latch-edge/propagation claim. Full words remain 56 cells and 224
 transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
+
+## M15I atomic serial publication
+
+Forwards the shared serial image to the dense fabric without advancing time.
+The transport validates the launch phase before this internal bridge is called;
+PHI stepping and receiver checkpoint validation remain separate operations.
+
+The launch boundary and PHI1-rising sample checkpoint retain M15H
+WORKING APPROXIMATION status. No propagation delay, physical output stage or
+unknown latch edge is promoted to proven hardware behavior.

@@ -43,11 +43,11 @@ impl Hp67DenseNet {
         }
     }
 
-    fn set_drive(&mut self, driver: Hp67Driver, drive: Drive) {
+    fn set_drive(&mut self, driver: Hp67Driver, drive: Drive) -> bool {
         let slot = &mut self.drives[driver.index()];
         let previous = *slot;
         if previous == drive {
-            return;
+            return false;
         }
 
         match previous {
@@ -61,6 +61,7 @@ impl Hp67DenseNet {
             Drive::Low => self.low_driver_count += 1,
             Drive::High => self.high_driver_count += 1,
         }
+        true
     }
 
     const fn level(&self) -> LogicLevel {
@@ -220,23 +221,46 @@ impl Hp67ElectricalFabric {
         self.nets[net.index()].drive(driver)
     }
 
+    /// Publish the current structural serial sources as one observable image.
+    /// Optional DATA leaves that net untouched when the caller has no DATA role.
+    /// External/other chip contributions survive. This commits no PHI/time edge.
+    pub(crate) fn commit_serial_launch(
+        &mut self,
+        act_is: Drive,
+        rom_is: Drive,
+        sync: Drive,
+        data: Option<(Drive, Drive)>,
+    ) {
+        let isa = &mut self.nets[Hp67Net::Isa.index()];
+        // Deliberately non-short-circuit: both contributions must be committed.
+        let isa_changed = isa.set_drive(Hp67Driver::Act1820_2530, act_is)
+            | isa.set_drive(Hp67Driver::StructuralRomResponder, rom_is);
+        let sync_changed = self.nets[Hp67Net::Sync.index()]
+            .set_drive(Hp67Driver::Act1820_2530, sync);
+        let data_changed = if let Some((act, ram)) = data {
+            let data_net = &mut self.nets[Hp67Net::Data.index()];
+            data_net.set_drive(Hp67Driver::Act1820_2530, act)
+                | data_net.set_drive(Hp67Driver::StructuralRomResponder, ram)
+        } else {
+            false
+        };
+        // No receiver/snapshot can observe the partially updated contribution
+        // set. Resolve only after all source proposals have been installed.
+        for (net, changed) in [(Hp67Net::Isa, isa_changed),
+            (Hp67Net::Sync, sync_changed), (Hp67Net::Data, data_changed)] {
+            if changed {
+                self.refresh_resolved_level(net.index());
+            }
+        }
+    }
+
     /// Commit the two structural DATA source contributions as one observable
     /// image. This is a logical-level bridge, not a physical output-stage model.
     pub fn commit_data_level_bridge(&mut self, act: Drive, ram: Drive) {
         let index = Hp67Net::Data.index();
-        let before = self.resolved_levels[index];
         self.nets[index].set_drive(Hp67Driver::Act1820_2530, act);
         self.nets[index].set_drive(Hp67Driver::StructuralRomResponder, ram);
-        let after = self.nets[index].level();
-        self.resolved_levels[index] = after;
-        match (
-            before == LogicLevel::Contention,
-            after == LogicLevel::Contention,
-        ) {
-            (false, true) => self.contention_net_count += 1,
-            (true, false) => self.contention_net_count -= 1,
-            _ => {}
-        }
+        self.refresh_resolved_level(index);
     }
 
     /// Number of active logical contributors, independent of resolved level.
@@ -367,8 +391,12 @@ impl Hp67ElectricalFabric {
     }
 
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
-        let previous_level = self.resolved_levels[net_index];
         self.nets[net_index].set_drive(driver, drive);
+        self.refresh_resolved_level(net_index);
+    }
+
+    fn refresh_resolved_level(&mut self, net_index: usize) {
+        let previous_level = self.resolved_levels[net_index];
         let next_level = self.nets[net_index].level();
         self.resolved_levels[net_index] = next_level;
 
@@ -399,6 +427,73 @@ impl Hp67ElectricalFabric {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn m15i_serial_launch_matches_generic_resolution_and_contention_cache() {
+        use crate::emulation::{DriverId, Net};
+        let drives = [Drive::HighZ, Drive::Low, Drive::High];
+        let mut fabric = Hp67ElectricalFabric::default();
+        fabric.set_drive_immediate(Hp67Net::Str, Hp67Driver::External, Drive::High);
+        // Every combination of the five serial source contributions, with an
+        // independent third contributor on each net. Reuse fabric across commits
+        // to exercise handoffs and changes into/out of cached contention.
+        for external in drives {
+            for net in [Hp67Net::Isa, Hp67Net::Sync, Hp67Net::Data] {
+                fabric.set_drive_immediate(net, Hp67Driver::External, external);
+            }
+            for code in 0..243usize {
+                let mut digits = code;
+                let image: [Drive; 5] = std::array::from_fn(|_| {
+                    let drive = drives[digits % 3]; digits /= 3; drive
+                });
+                let tick = fabric.tick();
+                fabric.commit_serial_launch(image[0], image[1], image[2], Some((image[3], image[4])));
+                assert_eq!(fabric.tick(), tick);
+                for (net, bias, act, rom) in [
+                    (Hp67Net::Isa, Bias::PullDown, image[0], image[1]),
+                    (Hp67Net::Sync, Bias::Floating, image[2], Drive::HighZ),
+                    (Hp67Net::Data, Bias::Floating, image[3], image[4]),
+                ] {
+                    let mut reference = Net::new(bias);
+                    reference.set_drive(DriverId::new("act"), act);
+                    reference.set_drive(DriverId::new("rom"), rom);
+                    reference.set_drive(DriverId::new("external"), external);
+                    assert_eq!(fabric.level(net), reference.level(), "code={code} net={net:?}");
+                    assert_eq!(fabric.active_driver_count(net),
+                        [act, rom, external].into_iter().filter(|d| *d != Drive::HighZ).count() as u8);
+                    assert_eq!(fabric.drive(net, Hp67Driver::External), external);
+                }
+                let expected_contention = Hp67Net::ALL.into_iter()
+                    .filter(|net| fabric.level(*net) == LogicLevel::Contention).count();
+                assert_eq!(fabric.contention_net_count as usize, expected_contention);
+                assert_eq!(fabric.begin_evaluation().is_err(), expected_contention != 0);
+                assert_eq!(fabric.level(Hp67Net::Str), LogicLevel::High);
+            }
+        }
+    }
+
+    #[test]
+    fn m15i_serial_handoff_and_absent_data_role_preserve_other_contributions() {
+        let mut fabric = Hp67ElectricalFabric::default();
+        fabric.commit_serial_launch(Drive::High, Drive::HighZ, Drive::High,
+            Some((Drive::Low, Drive::HighZ)));
+        fabric.commit_serial_launch(Drive::HighZ, Drive::High, Drive::Low,
+            Some((Drive::HighZ, Drive::High)));
+        assert!(fabric.isa_drives_valid());
+        assert_eq!(fabric.active_driver_count(Hp67Net::Isa), 1);
+        assert_eq!(fabric.active_data_driver_count(), 1);
+        assert_eq!(fabric.level(Hp67Net::Isa), LogicLevel::High);
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+        assert_eq!(fabric.contention_net_count, 0);
+        fabric.commit_serial_launch(Drive::HighZ, Drive::HighZ, Drive::Low, None);
+        assert_eq!(fabric.level(Hp67Net::Isa), LogicLevel::Low);
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::High);
+        assert_eq!(fabric.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder), Drive::High);
+        fabric.commit_serial_launch(Drive::HighZ, Drive::HighZ, Drive::Low,
+            Some((Drive::HighZ, Drive::HighZ)));
+        assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
+        assert_eq!(fabric.tick().get(), 0);
+    }
 
     #[test]
     fn m15e_data_bridge_handoff_publishes_one_resolved_image_without_advancing_time() {

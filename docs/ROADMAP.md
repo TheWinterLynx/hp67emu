@@ -294,3 +294,14 @@ stable interval, not proof of silicon latch timing. DATA sampling no longer
 republishes the source. Physical V2 edge-table unknowns and uncalibrated widths
 remain explicit. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
 Owner local M15H gate pending.
+
+## M15I atomic serial publication
+
+M15H is owner-validated and integrated. All display/fetch transports and the
+clocked DATA prefix now prepare immutable source proposals before a joint
+IS/SYNC/optional-DATA commit. Wrong phase or invalid DATA proposal leaves the
+previous pin image intact; word-start IS HighZ reset is removed. Full words
+retain 224 transitions. This changes simulator commit semantics and preserves
+M15H's provisional PHI policy; it does not establish unknown physical edges.
+See `docs/research/M15I_ATOMIC_SERIAL_PUBLICATION_2026-10-16.md`.
+Owner local M15I gate pending.

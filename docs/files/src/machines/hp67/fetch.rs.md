@@ -197,3 +197,24 @@ their original no-receiver/no-scan-advance assertions remain.
 This is a WORKING APPROXIMATION with a source-backed stable interval, not
 a measured latch-edge/propagation claim. Full words remain 56 cells and 224
 transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
+
+## M15I atomic serial publication
+
+All four transports and the clocked b0/b1 prefix prepare source proposals, then
+call the same guarded `publish_transport_sources()` commit. Wrong bit/phase fails
+before any net mutation. DATA proposal failure likewise prevents partial IS/SYNC
+publication. The word-start IS HighZ reset and per-endpoint sequential writes
+are removed: committed sources persist until the next complete image replaces
+them. Sources remain held through both clock pulses and are sampled at the
+unchanged provisional PHI1-rising checkpoint. Existing coarse end-word SYNC
+closure remains separate and unchanged; no exact falling-edge claim is added.
+
+Regressions require wrong-phase publication to preserve every resolved net and
+time, and an unowned DATA b2 proposal to leave the previous Low IS cell intact
+when the next display bit would be High. The receiver remains at a two-bit prefix
+and ACT scan phase does not advance. M15F/M15H parity and failure chronology are
+preserved, including 224 transitions per complete word.
+
+The launch boundary and PHI1-rising sample checkpoint retain M15H
+WORKING APPROXIMATION status. No propagation delay, physical output stage or
+unknown latch edge is promoted to proven hardware behavior.

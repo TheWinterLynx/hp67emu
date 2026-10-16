@@ -71,6 +71,15 @@ impl Hp67ElectricalBackplane {
         self.fabric.level(net)
     }
 
+    /// Composition bridge: one committed image of IS, SYNC and optional DATA.
+    /// The transport checks the launch boundary before invoking this operation.
+    pub(crate) fn commit_serial_launch(
+        &mut self, act_is: Drive, rom_is: Drive, sync: Drive,
+        data: Option<(Drive, Drive)>,
+    ) {
+        self.fabric.commit_serial_launch(act_is, rom_is, sync, data);
+    }
+
     /// Structural DATA bridge commit; no device sees an intermediate handoff.
     pub fn commit_data_level_bridge(&mut self, act: Drive, ram: Drive) {
         self.fabric.commit_data_level_bridge(act, ram);

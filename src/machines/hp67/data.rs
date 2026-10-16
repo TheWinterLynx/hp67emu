@@ -274,11 +274,7 @@ impl Hp67DataSerialWordPath {
         self.current_direction = direction;
     }
 
-    fn drive_level_bridge(
-        &self,
-        word_bit: u8,
-        backplane: &mut Hp67ElectricalBackplane,
-    ) -> Result<(), Hp67DataSerialError> {
+    fn level_bridge_drives(&self, word_bit: u8) -> Result<(Drive, Drive), Hp67DataSerialError> {
         let source_bit = self.source.logical_bit_for_word_bit(word_bit);
         let owner = if word_bit < DATA_TAIL_BITS {
             self.previous_direction
@@ -300,6 +296,13 @@ impl Hp67DataSerialWordPath {
             }
             (None, _) => (Drive::HighZ, Drive::HighZ),
         };
+        Ok((act_drive, ram_drive))
+    }
+
+    fn drive_level_bridge(
+        &self, word_bit: u8, backplane: &mut Hp67ElectricalBackplane,
+    ) -> Result<(), Hp67DataSerialError> {
+        let (act_drive, ram_drive) = self.level_bridge_drives(word_bit)?;
         backplane.commit_data_level_bridge(act_drive, ram_drive);
         Ok(())
     }
@@ -353,21 +356,31 @@ impl Hp67DataSerialWordPath {
         Ok(())
     }
 
-    /// Production publication; receiver state is untouched until its edge.
-    pub(crate) fn launch_transport_word_bit(
-        &self,
-        word_bit: u8,
-        backplane: &mut Hp67ElectricalBackplane,
-    ) -> Result<(), Hp67DataSerialError> {
+    /// Compute a proposal from immutable DATA state. Publication belongs to the
+    /// shared serial commit, so errors cannot leave IS/SYNC partially changed.
+    pub(crate) fn propose_transport_word_bit(
+        &self, word_bit: u8, backplane: &Hp67ElectricalBackplane,
+    ) -> Result<Option<(Drive, Drive)>, Hp67DataSerialError> {
         self.validate_transport_bit(word_bit)?;
         if !backplane.at_transport_launch_boundary() || backplane.word_bit() != word_bit {
             return Err(Hp67DataSerialError::InvalidTransportPhase {
-                word_bit,
-                tick: backplane.tick().get(),
+                word_bit, tick: backplane.tick().get(),
             });
         }
         if self.electrical_level_bridge {
-            self.drive_level_bridge(word_bit, backplane)?;
+            self.level_bridge_drives(word_bit).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Isolated M15H receiver fixtures; production publishes the shared image.
+    #[cfg(test)]
+    fn launch_transport_word_bit(
+        &self, word_bit: u8, backplane: &mut Hp67ElectricalBackplane,
+    ) -> Result<(), Hp67DataSerialError> {
+        if let Some((act, ram)) = self.propose_transport_word_bit(word_bit, backplane)? {
+            backplane.commit_data_level_bridge(act, ram);
         }
         Ok(())
     }
