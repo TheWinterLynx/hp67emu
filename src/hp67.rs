@@ -1523,7 +1523,9 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
             }
         };
-        let selected_bank = self.fetch_rom.physical_chip_set()
+        let selected_bank = self
+            .fetch_rom
+            .physical_chip_set()
             .and_then(|chips| chips.chips().iter().find(|chip| chip.selected()))
             .map(|chip| chip.profile().bank);
         if selected_bank != Some(requested_bank) {
@@ -1606,8 +1608,14 @@ mod tests {
             let before = live.backplane.tick().get();
             live.step_firmware_cycle_with_execution().unwrap();
             assert_eq!(live.backplane.tick().get() - before, 224);
-            assert!(live.fetch_rom.physical_chip_set().unwrap().has_autonomous_banks());
-            if live.phase == LiveBootPhase::Idle { break; }
+            assert!(live
+                .fetch_rom
+                .physical_chip_set()
+                .unwrap()
+                .has_autonomous_banks());
+            if live.phase == LiveBootPhase::Idle {
+                break;
+            }
         }
         assert_eq!(live.phase, LiveBootPhase::Idle);
         live.reset_power_on().unwrap();

@@ -60,7 +60,11 @@ pub trait Hp67RomWordSource {
     /// Explicit immutable bank lookup; autonomous ROMs never consult the
     /// provider's selected-bank state. Bank-0-only fixtures need no override.
     fn read_word_in_bank(&self, bank: u8, address: u16) -> Option<u16> {
-        if bank == 0 { self.read_word(address) } else { None }
+        if bank == 0 {
+            self.read_word(address)
+        } else {
+            None
+        }
     }
 
     /// Reference image/bank selection bridge, not an electrical bank-select pin.
@@ -805,11 +809,18 @@ impl RomFetchEndpoint {
 
     /// Live five-chip composition with persistent, bus-controlled bank latches.
     pub fn autonomous_roms() -> Self {
-        Self { physical_chips: Some(Hp67RomChipSet::autonomous()), ..Self::default() }
+        Self {
+            physical_chips: Some(Hp67RomChipSet::autonomous()),
+            ..Self::default()
+        }
     }
 
-    fn sample_instruction_for_bit(&mut self, bit: u8, level: LogicLevel, sync: LogicLevel)
-        -> Result<(), SerialFetchError> {
+    fn sample_instruction_for_bit(
+        &mut self,
+        bit: u8,
+        level: LogicLevel,
+        sync: LogicLevel,
+    ) -> Result<(), SerialFetchError> {
         if let Some(chips) = self.physical_chips.as_mut() {
             chips.sample_instruction_for_bit(bit, level, sync)?;
         }
@@ -1096,7 +1107,11 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
-                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
+                rom.sample_instruction_for_bit(
+                    expected_bit,
+                    is_level,
+                    backplane.level(Hp67Net::Sync),
+                )?;
             }
             IsaWindow::Other => {}
         }
@@ -1201,7 +1216,11 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
-                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
+                rom.sample_instruction_for_bit(
+                    expected_bit,
+                    is_level,
+                    backplane.level(Hp67Net::Sync),
+                )?;
             }
             IsaWindow::Other => {}
         }
@@ -1484,7 +1503,11 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
-                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
+                rom.sample_instruction_for_bit(
+                    expected_bit,
+                    is_level,
+                    backplane.level(Hp67Net::Sync),
+                )?;
             }
             IsaWindow::Other => {}
         }
@@ -1642,7 +1665,11 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
-                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
+                rom.sample_instruction_for_bit(
+                    expected_bit,
+                    is_level,
+                    backplane.level(Hp67Net::Sync),
+                )?;
             }
             IsaWindow::Other => {}
         }
@@ -1730,27 +1757,83 @@ mod tests {
             let mut trace = StructuralBusTrace::default();
             // Teenix printed p71/72 captured real firmware route. Deliberately
             // poison the provider's reference bank view before each transfer.
-            for (pc, bank, expected) in [(0x7f4, 0, 0x230), (0x7f5, 1, 0x11a),
-                (0x495, 1, 0x210), (0x0d5, 0, 0x0b4)] {
+            for (pc, bank, expected) in [
+                (0x7f4, 0, 0x230),
+                (0x7f5, 1, 0x11a),
+                (0x495, 1, 0x210),
+                (0x0d5, 0, 0x0b4),
+            ] {
                 source.select_bank(bank ^ 1);
                 let result = match path {
-                    0 => run_structural_display_fetch_cycle(&mut backplane, pc, &state,
-                        &mut act, &mut rom, &mut rom0, &source).map(|word| word.fetched_word),
-                    1 => run_structural_display_fetch_data_phase_cycle(&mut backplane, pc, &state,
-                        &mut act, &mut rom, &mut rom0, &source, &mut data, None).map(|word| word.word.fetched_word),
-                    2 => run_structural_display_fetch_cycle_traced(&mut backplane, pc, &state,
-                        &mut act, &mut rom, &mut rom0, &source, &mut trace).map(|word| word.fetched_word),
-                    _ => run_structural_display_fetch_data_phase_cycle_traced(&mut backplane, pc, &state,
-                        &mut act, &mut rom, &mut rom0, &source, &mut data, None, &mut trace).map(|word| word.word.fetched_word),
+                    0 => run_structural_display_fetch_cycle(
+                        &mut backplane,
+                        pc,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                    )
+                    .map(|word| word.fetched_word),
+                    1 => run_structural_display_fetch_data_phase_cycle(
+                        &mut backplane,
+                        pc,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                        &mut data,
+                        None,
+                    )
+                    .map(|word| word.word.fetched_word),
+                    2 => run_structural_display_fetch_cycle_traced(
+                        &mut backplane,
+                        pc,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                        &mut trace,
+                    )
+                    .map(|word| word.fetched_word),
+                    _ => run_structural_display_fetch_data_phase_cycle_traced(
+                        &mut backplane,
+                        pc,
+                        &state,
+                        &mut act,
+                        &mut rom,
+                        &mut rom0,
+                        &source,
+                        &mut data,
+                        None,
+                        &mut trace,
+                    )
+                    .map(|word| word.word.fetched_word),
                 };
                 assert_eq!(result, Ok(expected), "path={path} pc={pc:03x}");
                 let chips = rom.physical_chip_set().unwrap();
                 assert!(chips.has_autonomous_banks());
-                assert_eq!(chips.chips().iter().filter(|chip| chip.selected()).count(), 1);
-                assert_eq!(chips.chips().iter().find(|chip| chip.selected()).unwrap().profile().bank, bank);
+                assert_eq!(
+                    chips.chips().iter().filter(|chip| chip.selected()).count(),
+                    1
+                );
+                assert_eq!(
+                    chips
+                        .chips()
+                        .iter()
+                        .find(|chip| chip.selected())
+                        .unwrap()
+                        .profile()
+                        .bank,
+                    bank
+                );
             }
             assert_eq!(backplane.tick().get(), 4 * 224);
-            if path >= 2 { assert_eq!(trace.samples.len(), 4 * 224); }
+            if path >= 2 {
+                assert_eq!(trace.samples.len(), 4 * 224);
+            }
         }
     }
 

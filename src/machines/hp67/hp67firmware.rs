@@ -84,8 +84,9 @@ impl Hp67RomWordSource for Hp67Firmware {
         let pc = usize::from(address & 0x0fff);
         match bank {
             0 => Some(words()[pc]),
-            1 if (BANK1_BASE_PC..BANK1_BASE_PC + BANK1_WORDS).contains(&pc) =>
-                Some(words()[BANK0_WORDS + pc - BANK1_BASE_PC]),
+            1 if (BANK1_BASE_PC..BANK1_BASE_PC + BANK1_WORDS).contains(&pc) => {
+                Some(words()[BANK0_WORDS + pc - BANK1_BASE_PC])
+            }
             _ => None,
         }
     }
