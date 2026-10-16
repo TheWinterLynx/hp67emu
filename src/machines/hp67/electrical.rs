@@ -8,7 +8,7 @@
 
 use crate::emulation::{Bias, Drive, LogicLevel, Tick};
 
-use super::wiring::{Hp67Driver, Hp67Net};
+use super::{rom_devices::{RomIsDrives, HP67_ROM_PROFILES}, wiring::{Hp67Driver, Hp67Net}};
 
 const MAX_PENDING_DRIVES: usize = Hp67Net::COUNT * Hp67Driver::COUNT;
 
@@ -224,6 +224,7 @@ impl Hp67ElectricalFabric {
     /// Publish the current structural serial sources as one observable image.
     /// Optional DATA leaves that net untouched when the caller has no DATA role.
     /// External/other chip contributions survive. This commits no PHI/time edge.
+    #[cfg(test)]
     pub(crate) fn commit_serial_launch(
         &mut self,
         act_is: Drive,
@@ -231,10 +232,26 @@ impl Hp67ElectricalFabric {
         sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
+        self.commit_serial_launch_with_roms(act_is, RomIsDrives::Aggregate(rom_is), sync, data);
+    }
+
+    pub(crate) fn commit_serial_launch_with_roms(
+        &mut self, act_is: Drive, roms: RomIsDrives, sync: Drive,
+        data: Option<(Drive, Drive)>,
+    ) {
         let isa = &mut self.nets[Hp67Net::Isa.index()];
-        // Deliberately non-short-circuit: both contributions must be committed.
-        let isa_changed = isa.set_drive(Hp67Driver::Act1820_2530, act_is)
-            | isa.set_drive(Hp67Driver::StructuralRomResponder, rom_is);
+        let mut isa_changed = isa.set_drive(Hp67Driver::Act1820_2530, act_is);
+        match roms {
+            RomIsDrives::Aggregate(drive) => {
+                isa_changed |= isa.set_drive(Hp67Driver::StructuralRomResponder, drive);
+            }
+            RomIsDrives::Chips(drives) => {
+                isa_changed |= isa.set_drive(Hp67Driver::StructuralRomResponder, Drive::HighZ);
+                for (profile, drive) in HP67_ROM_PROFILES.into_iter().zip(drives) {
+                    isa_changed |= isa.set_drive(profile.driver, drive);
+                }
+            }
+        }
         let sync_changed =
             self.nets[Hp67Net::Sync.index()].set_drive(Hp67Driver::Act1820_2530, sync);
         let data_changed = if let Some((act, ram)) = data {

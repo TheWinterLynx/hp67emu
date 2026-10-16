@@ -81,3 +81,17 @@ composition-time ownership tokens for future independently scheduled devices.
 The launch boundary and PHI1-rising sample checkpoint retain M15H
 WORKING APPROXIMATION status. No propagation delay, physical output stage or
 unknown latch edge is promoted to proven hardware behavior.
+
+## M15J five-ROM composition
+
+The atomic launch accepts either the aggregate reference contribution or five
+named physical-ROM contributions. Physical mode explicitly releases the aggregate
+IS slot and installs every chip's proposal, including nonselected HighZ, before
+resolving IS. DATA still uses the aggregate RAM slot on its separate net. External
+and non-ROM driver contributions survive. The old aggregate commit wrapper is
+retained only for existing resolver fixtures. No PHI/time increment or passive
+bias change is added.
+
+Exact launch/latch delays remain unproven. The part/profile evidence and
+remaining bank/RAM bridges are recorded in
+`docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.

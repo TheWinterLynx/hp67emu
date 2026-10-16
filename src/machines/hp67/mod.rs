@@ -33,6 +33,7 @@ pub mod isa;
 pub mod keyboard;
 pub mod machine;
 pub mod magnetic_card;
+pub mod rom_devices;
 pub mod timing;
 pub mod wiring;
 

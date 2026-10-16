@@ -13,6 +13,7 @@ use super::{
         Hp67DriverOwner, Hp67ElectricalError, Hp67ElectricalFabric, Hp67ElectricalSnapshot,
         Hp67ElectricalStager,
     },
+    rom_devices::RomIsDrives,
     timing::{Hp67ClockEdge, Hp67ClockPhase, BITS_PER_DIGIT, BITS_PER_WORD},
     wiring::{Hp67Driver, Hp67Net},
 };
@@ -71,16 +72,20 @@ impl Hp67ElectricalBackplane {
         self.fabric.level(net)
     }
 
+    pub fn driver_drive(&self, net: Hp67Net, driver: Hp67Driver) -> Drive {
+        self.fabric.drive(net, driver)
+    }
+
     /// Composition bridge: one committed image of IS, SYNC and optional DATA.
     /// The transport checks the launch boundary before invoking this operation.
     pub(crate) fn commit_serial_launch(
         &mut self,
         act_is: Drive,
-        rom_is: Drive,
+        rom_is: RomIsDrives,
         sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
-        self.fabric.commit_serial_launch(act_is, rom_is, sync, data);
+        self.fabric.commit_serial_launch_with_roms(act_is, rom_is, sync, data);
     }
 
     /// Structural DATA bridge commit; no device sees an intermediate handoff.

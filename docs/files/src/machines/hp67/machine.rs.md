@@ -62,3 +62,14 @@ PHI stepping and receiver checkpoint validation remain separate operations.
 The launch boundary and PHI1-rising sample checkpoint retain M15H
 WORKING APPROXIMATION status. No propagation delay, physical output stage or
 unknown latch edge is promoted to proven hardware behavior.
+
+## M15J five-ROM composition
+
+Forwards typed aggregate/five-ROM IS launch images to the fabric.
+`driver_drive(net, driver)` exposes committed contributions for read-only ownership
+validation, including distinguishing the live physical sources from the aggregate
+reference slot. Neither operation adds timing or changes resolver semantics.
+
+Exact launch/latch delays remain unproven. The part/profile evidence and
+remaining bank/RAM bridges are recorded in
+`docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.

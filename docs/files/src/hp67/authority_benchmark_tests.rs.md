@@ -27,3 +27,13 @@ The output labels distinguish that executable path from unresolved physical DATA
 output circuitry/chip mapping. The RAM stress row includes the bridge; the CRC
 row retains its separate peripheral path. Workloads and timing boundaries are
 unchanged.
+
+## M15J five-ROM composition
+
+Printed live workload scope now names the five-ROM serial fetch. All three
+workloads use the actual live endpoint composition; RAM/CRC stress remains
+synthetic and the existing timing/authority assertions remain unchanged.
+
+Exact launch/latch delays remain unproven. The part/profile evidence and
+remaining bank/RAM bridges are recorded in
+`docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.

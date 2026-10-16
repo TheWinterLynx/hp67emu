@@ -74,3 +74,13 @@ Adds GUI-free bus_trace module and native `--compare-is expected.tsv actual.tsv 
 Re-exports `run_structural_data_tail_prefix()` for the live adapter. The API
 consumes b0/b1 on shared IS/display/DATA, then requires the paired transport to
 continue from b2 without repeating electrical cells or resetting ROM0 samples.
+
+## M15J five-ROM composition
+
+Exports the `rom_devices` module containing fixed chip profiles and ROM-side
+receiver state. Existing aggregate fetch APIs remain available for reference
+fixtures; live composition opts into the five-chip path explicitly.
+
+Exact launch/latch delays remain unproven. The part/profile evidence and
+remaining bank/RAM bridges are recorded in
+`docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.

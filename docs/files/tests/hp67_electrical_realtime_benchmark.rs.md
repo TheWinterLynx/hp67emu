@@ -53,3 +53,15 @@ The printed full-row scope includes atomic IS/SYNC source publication. This
 no-DATA row does not acquire RAM transfers; optional DATA joins the same commit
 only in DATA-aware production paths, measured by the live authority benchmark.
 No timing calibration or performance threshold is introduced.
+
+## M15J five-ROM composition
+
+Current structural-fetch and full-current rows now instantiate five ROM
+endpoints, matching the new live ROM-side composition. Historical dual rows
+retain aggregate fixtures for comparison. Scope text names distinct chip IS
+drivers. Logical M14B DATA fixtures remain separate; actual production including
+physical-ROM fetch plus resolved RAM DATA is measured by the live benchmark.
+
+Exact launch/latch delays remain unproven. The part/profile evidence and
+remaining bank/RAM bridges are recorded in
+`docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.

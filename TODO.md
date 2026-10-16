@@ -450,3 +450,14 @@ retain 224 transitions. This changes simulator commit semantics and preserves
 M15H's provisional PHI policy; it does not establish unknown physical edges.
 See `docs/research/M15I_ATOMIC_SERIAL_PUBLICATION_2026-10-16.md`.
 Owner local M15I gate pending.
+
+## M15J five-ROM live fetch
+
+M15I is owner-validated and integrated. Live ROM fetch now uses five independent
+serial address receivers and named IS drivers, releasing the aggregate IS source.
+Four transports and the clocked DATA prefix preserve 224 transitions/word.
+ROM1/2 part mapping uses the owner's HP-97 equivalence instruction; ROM4=0231
+is an explicit inventory-based working inference. Autonomous bank control, RAM
+DATA devices, ACT internal mutation and physical PHI calibration remain open.
+See `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md` for evidence and scope.
+Owner local M15J gate pending.

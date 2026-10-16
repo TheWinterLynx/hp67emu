@@ -362,7 +362,7 @@ impl Hp67LiveMachine {
             source: Hp67Firmware::default(),
             backplane: Hp67ElectricalBackplane::default(),
             act_serial: ActSerialEndpoint::new(0),
-            fetch_rom: RomFetchEndpoint::default(),
+            fetch_rom: RomFetchEndpoint::physical_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
             display_exposure: Hp67DisplayExposure::default(),
@@ -415,7 +415,7 @@ impl Hp67LiveMachine {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
         self.act_serial = ActSerialEndpoint::new(0);
-        self.fetch_rom = RomFetchEndpoint::default();
+        self.fetch_rom = RomFetchEndpoint::physical_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
         self.display_exposure = Hp67DisplayExposure::default();
@@ -1384,6 +1384,7 @@ impl Hp67LiveMachine {
                 &mut self.backplane,
                 &display_state,
                 &mut self.act_serial,
+                &self.fetch_rom,
                 &mut self.display_rom0,
                 &mut self.data_serial,
                 trace,
@@ -1590,6 +1591,35 @@ mod official_pac_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn m15j_live_firmware_uses_physical_rom_drivers_through_boot_and_reset() {
+        use hp67emu::emulation::Drive;
+        use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut checked = 0;
+        for _ in 0..512 {
+            let before = live.backplane.tick().get();
+            live.step_firmware_cycle_with_execution().unwrap();
+            let chips = live.fetch_rom.physical_chip_set().expect("live uses five ROM endpoints");
+            let address = live.fetch_rom.received_address().unwrap();
+            let fetched = live.act_serial.fetched_word().unwrap();
+            assert_eq!(chips.chips().iter().filter(|chip| chip.selected()).count(), 1);
+            for chip in chips.chips() {
+                assert_eq!(chip.received_address(), Ok(address));
+                assert_eq!(live.backplane.driver_drive(Hp67Net::Isa, chip.profile().driver),
+                    if chip.selected() && fetched & 0x200 != 0 { Drive::High } else { Drive::HighZ });
+            }
+            assert_eq!(live.backplane.driver_drive(Hp67Net::Isa, Hp67Driver::StructuralRomResponder), Drive::HighZ);
+            assert_eq!(live.backplane.tick().get() - before, 224);
+            checked += 1;
+            if live.phase == LiveBootPhase::Idle { break; }
+        }
+        assert_eq!(live.phase, LiveBootPhase::Idle);
+        assert!(checked > 100);
+        live.reset_power_on().unwrap();
+        assert!(live.fetch_rom.physical_chip_set().is_some());
+    }
+
     #[test]
     fn m15f_live_write_read_dependency_uses_clocked_tail_with_224_transitions() {
         use hp67emu::machines::hp67::Hp67Net;

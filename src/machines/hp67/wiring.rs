@@ -52,9 +52,9 @@ pub const CHIPSET: &[Hp67Chip] = &[
 /// Dense output-driver slots used by the HP-67 electrical fabric.
 ///
 /// Physical ICs receive one stable slot each. `StructuralRomResponder` is an
-/// explicit temporary slot for the current aggregate ROM fetch endpoint; M14B
-/// will replace it with the selected physical 1818-* device without changing
-/// the fabric or scheduler representation. `External` is reserved for
+/// explicit temporary slot for aggregate reference ROM fetch and the current
+/// logical-level RAM DATA bridge. Live ROM fetch uses the five physical ROM
+/// driver identities; RAM mapping remains a separate milestone. `External` is reserved for
 /// hardware-facing contacts/stimulus, not calculator IC behavior.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

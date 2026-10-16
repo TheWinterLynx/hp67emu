@@ -37,6 +37,7 @@ use super::{
     },
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
+    rom_devices::{Hp67RomChipSet, RomIsDrives},
     timing::{
         display_data_serial_bit, isa_window_for_bit, sync_decision_window, IsaWindow,
         BITS_PER_DIGIT, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS,
@@ -50,11 +51,14 @@ const ACT_IS_DRIVER: Hp67Driver = Hp67Driver::Act1820_2530;
 
 /// ROM lookup boundary used by the serial fetch responder.
 ///
-/// Physical 1818-* devices will implement this boundary later. Keeping lookup
-/// behind a trait lets the serial transport be tested without embedding HP ROM
-/// payloads or depending on the semantic reference ROM implementation.
+/// The physical-ROM composition and aggregate reference fixtures share this
+/// immutable lookup boundary. The existing selected-bank view remains a bridge;
+/// it is not an electrical input pin or an autonomous ROM bank latch.
 pub trait Hp67RomWordSource {
     fn read_word(&self, address: u16) -> Option<u16>;
+
+    /// Existing image/bank selection bridge, not an electrical bank-select pin.
+    fn selected_rom_bank(&self, _address: u16) -> u8 { 0 }
 }
 
 /// Errors that make a serial fetch electrically or structurally invalid.
@@ -72,6 +76,7 @@ pub enum SerialFetchError {
     InvalidTransportStart { tick: u64 },
     InvalidSamplePhase { tick: u64 },
     InvalidLaunchPhase { tick: u64 },
+    InvalidRomSelection { address: u16, bank: u8, selected: u8 },
 }
 
 /// Errors from a combined structural HP-67 word carrying display and fetch data.
@@ -163,7 +168,7 @@ fn publish_transport_sources(
     backplane: &mut Hp67ElectricalBackplane,
     word_bit: u8,
     act_is: Drive,
-    rom_is: Drive,
+    rom_is: RomIsDrives,
     sync: Drive,
     data: Option<(Drive, Drive)>,
 ) -> Result<(), SerialFetchError> {
@@ -750,13 +755,30 @@ pub struct RomFetchEndpoint {
     received_address: u16,
     received_mask: u16,
     response_word: Option<u16>,
+    physical_chips: Option<Hp67RomChipSet>,
 }
 
 impl RomFetchEndpoint {
+    pub fn physical_roms() -> Self {
+        Self { physical_chips: Some(Hp67RomChipSet::default()), ..Self::default() }
+    }
+
+    pub const fn physical_chip_set(&self) -> Option<&Hp67RomChipSet> {
+        self.physical_chips.as_ref()
+    }
+
+    pub(crate) fn is_drives_for_bit(&self, word_bit: u8) -> RomIsDrives {
+        match self.physical_chips.as_ref() {
+            Some(chips) => chips.is_drives_for_bit(word_bit),
+            None => RomIsDrives::Aggregate(self.drive_for_bit(word_bit)),
+        }
+    }
+
     pub fn begin_cycle(&mut self) {
         self.received_address = 0;
         self.received_mask = 0;
         self.response_word = None;
+        if let Some(chips) = self.physical_chips.as_mut() { chips.begin_cycle(); }
     }
 
     /// Sample ACT address bits from the resolved IS/ISA line. When b27 is
@@ -767,6 +789,9 @@ impl RomFetchEndpoint {
         level: LogicLevel,
         source: &S,
     ) -> Result<(), SerialFetchError> {
+        if let Some(chips) = self.physical_chips.as_mut() {
+            return chips.sample_for_bit(word_bit, level, source);
+        }
         let IsaWindow::RomAddress { serial_bit } = isa_window_for_bit(word_bit) else {
             return Ok(());
         };
@@ -797,6 +822,9 @@ impl RomFetchEndpoint {
     }
 
     pub const fn received_address(&self) -> Result<u16, SerialFetchError> {
+        if let Some(chips) = self.physical_chips.as_ref() {
+            return chips.chips()[0].received_address();
+        }
         if self.received_mask != COMPLETE_ADDRESS_MASK {
             return Err(SerialFetchError::IncompleteAddress {
                 received_mask: self.received_mask,
@@ -807,7 +835,10 @@ impl RomFetchEndpoint {
 
     /// ROM contribution to IS/ISA for the current bit cell. No response is
     /// driven until all twelve address bits have been captured and a word found.
-    pub const fn drive_for_bit(&self, word_bit: u8) -> Drive {
+    pub fn drive_for_bit(&self, word_bit: u8) -> Drive {
+        if let Some(chips) = self.physical_chips.as_ref() {
+            return chips.trace_drive_for_bit(word_bit);
+        }
         match self.response_word {
             Some(word) => rom_word_drive(word, word_bit),
             None => Drive::HighZ,
@@ -853,6 +884,7 @@ pub fn run_structural_data_tail_prefix(
     backplane: &mut Hp67ElectricalBackplane,
     state: &ActArchitecturalState,
     act: &mut ActSerialEndpoint,
+    rom: &RomFetchEndpoint,
     rom0: &mut Rom0DisplayEndpoint,
     data: &mut Hp67DataSerialWordPath,
     mut trace: Option<&mut StructuralBusTrace>,
@@ -889,7 +921,7 @@ pub fn run_structural_data_tail_prefix(
             backplane,
             word_bit,
             act_drive,
-            Drive::HighZ,
+            rom.is_drives_for_bit(word_bit),
             Drive::Low,
             data_drives,
         )?;
@@ -979,7 +1011,6 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         } else {
             act_address_drive(act.address(), expected_bit)
         };
-        let rom_drive = rom.drive_for_bit(expected_bit);
         let data_drives = None;
         let sync_drive = if sync_decision_window(expected_bit) && instruction_qualifier {
             Drive::High
@@ -990,7 +1021,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             backplane,
             expected_bit,
             act_drive,
-            rom_drive,
+            rom.is_drives_for_bit(expected_bit),
             sync_drive,
             data_drives,
         )?;
@@ -1084,7 +1115,6 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         } else {
             act_address_drive(act.address(), expected_bit)
         };
-        let rom_drive = rom.drive_for_bit(expected_bit);
         let data_drives = data.propose_transport_word_bit(expected_bit, backplane)?;
         let sync_drive = if sync_decision_window(expected_bit) && instruction_qualifier {
             Drive::High
@@ -1095,7 +1125,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             backplane,
             expected_bit,
             act_drive,
-            rom_drive,
+            rom.is_drives_for_bit(expected_bit),
             sync_drive,
             data_drives,
         )?;
@@ -1366,7 +1396,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
             backplane,
             expected_bit,
             act_drive,
-            rom_drive,
+            rom.is_drives_for_bit(expected_bit),
             sync_drive,
             data_drives,
         )?;
@@ -1523,7 +1553,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             backplane,
             expected_bit,
             act_drive,
-            rom_drive,
+            rom.is_drives_for_bit(expected_bit),
             sync_drive,
             data_drives,
         )?;
@@ -1628,13 +1658,59 @@ mod tests {
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
 
     #[test]
+    fn m15j_all_transport_variants_publish_the_selected_physical_rom_driver() {
+        use super::super::rom_devices::HP67_ROM_PROFILES;
+        struct Source(u8);
+        impl Hp67RomWordSource for Source {
+            fn selected_rom_bank(&self, _address: u16) -> u8 { self.0 }
+            fn read_word(&self, _address: u16) -> Option<u16> { Some(0x200) }
+        }
+        for path in 0..4 {
+            let mut backplane = Hp67ElectricalBackplane::default();
+            let mut act = ActSerialEndpoint::new(0);
+            let mut rom = RomFetchEndpoint::physical_roms();
+            let mut rom0 = Rom0DisplayEndpoint::default();
+            let mut data = Hp67DataSerialWordPath::default();
+            let state = ActArchitecturalState::default();
+            let mut trace = StructuralBusTrace::default();
+            for profile in HP67_ROM_PROFILES {
+                let source = Source(profile.bank);
+                let address = profile.first_address | 0x15;
+                let result = match path {
+                    0 => run_structural_display_fetch_cycle(&mut backplane, address, &state,
+                        &mut act, &mut rom, &mut rom0, &source).map(|word| word.fetched_word),
+                    1 => run_structural_display_fetch_data_phase_cycle(&mut backplane, address, &state,
+                        &mut act, &mut rom, &mut rom0, &source, &mut data, None).map(|word| word.word.fetched_word),
+                    2 => run_structural_display_fetch_cycle_traced(&mut backplane, address, &state,
+                        &mut act, &mut rom, &mut rom0, &source, &mut trace).map(|word| word.fetched_word),
+                    _ => run_structural_display_fetch_data_phase_cycle_traced(&mut backplane, address, &state,
+                        &mut act, &mut rom, &mut rom0, &source, &mut data, None, &mut trace).map(|word| word.word.fetched_word),
+                };
+                assert_eq!(result, Ok(0x200));
+                assert_eq!(backplane.driver_drive(Hp67Net::Isa, Hp67Driver::StructuralRomResponder), Drive::HighZ);
+                for candidate in HP67_ROM_PROFILES {
+                    assert_eq!(backplane.driver_drive(Hp67Net::Isa, candidate.driver),
+                        if candidate == profile { Drive::High } else { Drive::HighZ });
+                }
+                assert_eq!(backplane.active_driver_count(Hp67Net::Isa), 1);
+                for chip in rom.physical_chip_set().unwrap().chips() {
+                    assert_eq!(chip.received_address(), Ok(address));
+                    assert_eq!(chip.selected(), chip.profile() == profile);
+                }
+            }
+            assert_eq!(backplane.tick().get(), 5 * 224);
+            if path >= 2 { assert_eq!(trace.samples.len(), 5 * 224); }
+        }
+    }
+
+    #[test]
     fn m15i_invalid_launch_phase_preserves_the_entire_committed_image() {
         let mut backplane = Hp67ElectricalBackplane::default();
         publish_transport_sources(
             &mut backplane,
             0,
             Drive::High,
-            Drive::HighZ,
+            RomIsDrives::Aggregate(Drive::HighZ),
             Drive::High,
             Some((Drive::Low, Drive::HighZ)),
         )
@@ -1645,7 +1721,7 @@ mod tests {
                 &mut backplane,
                 bit,
                 Drive::HighZ,
-                Drive::High,
+                RomIsDrives::Aggregate(Drive::High),
                 Drive::Low,
                 Some((Drive::HighZ, Drive::High)),
             );
@@ -1764,6 +1840,15 @@ mod tests {
 
     #[test]
     fn m15f_clocked_tail_split_matches_whole_word_transport_and_trace() {
+        clocked_tail_split_matches_whole_word_transport_and_trace(false);
+    }
+
+    #[test]
+    fn m15j_physical_roms_preserve_clocked_data_tail_and_trace_parity() {
+        clocked_tail_split_matches_whole_word_transport_and_trace(true);
+    }
+
+    fn clocked_tail_split_matches_whole_word_transport_and_trace(physical: bool) {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
@@ -1774,8 +1859,8 @@ mod tests {
         let mut whole = Hp67ElectricalBackplane::default();
         let mut split_act = ActSerialEndpoint::new(0x07b);
         let mut whole_act = ActSerialEndpoint::new(0x07b);
-        let mut split_rom = RomFetchEndpoint::default();
-        let mut whole_rom = RomFetchEndpoint::default();
+        let mut split_rom = if physical { RomFetchEndpoint::physical_roms() } else { RomFetchEndpoint::default() };
+        let mut whole_rom = if physical { RomFetchEndpoint::physical_roms() } else { RomFetchEndpoint::default() };
         let mut split_rom0 = Rom0DisplayEndpoint::default();
         let mut whole_rom0 = Rom0DisplayEndpoint::default();
         let mut split_data = Hp67DataSerialWordPath::default();
@@ -1803,6 +1888,7 @@ mod tests {
                     &mut split,
                     &state,
                     &mut split_act,
+                    &split_rom,
                     &mut split_rom0,
                     &mut split_data,
                     Some(&mut split_trace),
@@ -1870,6 +1956,7 @@ mod tests {
                 &mut backplane,
                 &state,
                 &mut act,
+                &RomFetchEndpoint::default(),
                 &mut rom0,
                 &mut data,
                 None,
@@ -1884,6 +1971,7 @@ mod tests {
                 &mut backplane,
                 &state,
                 &mut act,
+                &RomFetchEndpoint::default(),
                 &mut rom0,
                 &mut data,
                 None,
@@ -2254,12 +2342,21 @@ mod tests {
 
     #[test]
     fn m14w_trace_keeps_only_committed_prefix_on_missing_rom() {
+        trace_keeps_only_committed_prefix_on_missing_rom(false);
+    }
+
+    #[test]
+    fn m15j_physical_missing_rom_retains_the_exact_committed_prefix() {
+        trace_keeps_only_committed_prefix_on_missing_rom(true);
+    }
+
+    fn trace_keeps_only_committed_prefix_on_missing_rom(physical: bool) {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
         let mut backplane = Hp67ElectricalBackplane::default();
         let mut act = ActSerialEndpoint::new(0x002);
-        let mut rom = RomFetchEndpoint::default();
+        let mut rom = if physical { RomFetchEndpoint::physical_roms() } else { RomFetchEndpoint::default() };
         let mut rom0 = Rom0DisplayEndpoint::default();
         let mut trace = StructuralBusTrace::default();
         let result = run_structural_display_fetch_cycle_traced(

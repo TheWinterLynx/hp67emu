@@ -218,3 +218,23 @@ preserved, including 224 transitions per complete word.
 The launch boundary and PHI1-rising sample checkpoint retain M15H
 WORKING APPROXIMATION status. No propagation delay, physical output stage or
 unknown latch edge is promoted to proven hardware behavior.
+
+## M15J five-ROM composition
+
+`RomFetchEndpoint::physical_roms()` enables five independent ROM receivers;
+its default remains the aggregate reference fixture. Address sampling and IS
+source proposals dispatch to that set, while `received_address()` retains its
+read-only inspection API. The live receiver still reads actual resolved IS;
+no response word is handed directly to ACT. All four transports publish distinct
+chip drives. The clocked DATA prefix now accepts the configured ROM endpoint
+explicitly, releasing its five IS sources before display b0/b1. Its signature
+change is applied to live and standalone callers. Legacy trace `rom_drive`
+continues to annotate the combined ROM contribution only.
+
+Focused tests exercise all five profiles through all four paths. The existing
+split/whole DATA-tail and missing-ROM prefix regressions now run in both modes,
+retaining exact 224-row words and 110-row failed lookup prefixes.
+
+Exact launch/latch delays remain unproven. The part/profile evidence and
+remaining bank/RAM bridges are recorded in
+`docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.
