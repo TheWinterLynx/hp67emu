@@ -409,7 +409,11 @@ mod tests {
             assert_eq!(endpoint.resolved_control_edges(), before);
             endpoint.sample_for_bit(bit, LogicLevel::Low).unwrap();
             endpoint.visit_control_bit(bit, 15, &mut backplane).unwrap();
-            let expected = if bit == 7 { LogicLevel::Low } else { LogicLevel::High };
+            let expected = if bit == 7 {
+                LogicLevel::Low
+            } else {
+                LogicLevel::High
+            };
             assert_eq!(backplane.level(Hp67Net::Str), expected);
             assert_eq!(backplane.level(Hp67Net::Rcd), expected);
             backplane.advance_clock();
@@ -417,7 +421,10 @@ mod tests {
             assert_eq!(backplane.level(Hp67Net::Str), expected);
             assert_eq!(backplane.level(Hp67Net::Rcd), expected);
         }
-        assert_eq!(endpoint.resolved_control_edges(), Ok((Rom0StrEvent { scan_slot: 15 }, true)));
+        assert_eq!(
+            endpoint.resolved_control_edges(),
+            Ok((Rom0StrEvent { scan_slot: 15 }, true))
+        );
         assert_eq!(backplane.tick().get(), 9 * 4);
     }
 

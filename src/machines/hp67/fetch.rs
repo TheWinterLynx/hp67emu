@@ -166,10 +166,13 @@ fn advance_transport_to_sample(backplane: &mut Hp67ElectricalBackplane) {
 /// Provisional receiver checkpoint. Physical latch edges remain in the
 /// separate evidence table; this guard prevents pre-clock receiver consumption.
 fn sample_transport_isa_at_edge(
-    backplane: &Hp67ElectricalBackplane, word_bit: u8,
+    backplane: &Hp67ElectricalBackplane,
+    word_bit: u8,
 ) -> Result<LogicLevel, SerialFetchError> {
     if !backplane.at_transport_sample_edge() || backplane.word_bit() != word_bit {
-        return Err(SerialFetchError::InvalidSamplePhase { tick: backplane.tick().get() });
+        return Err(SerialFetchError::InvalidSamplePhase {
+            tick: backplane.tick().get(),
+        });
     }
     sample_transport_isa(backplane, word_bit)
 }
@@ -1655,17 +1658,23 @@ mod tests {
             if tick == 2 {
                 assert_eq!(sampled, Ok(LogicLevel::High));
                 backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::Low);
-                assert_eq!(sample_transport_isa_at_edge(&backplane, 0),
-                    Err(SerialFetchError::InvalidSamplePhase { tick: 2 }));
+                assert_eq!(
+                    sample_transport_isa_at_edge(&backplane, 0),
+                    Err(SerialFetchError::InvalidSamplePhase { tick: 2 })
+                );
                 backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::HighZ);
                 backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::High);
-                assert!(matches!(sample_transport_isa_at_edge(&backplane, 0),
-                    Err(SerialFetchError::InvalidIsaDrives { .. })));
+                assert!(matches!(
+                    sample_transport_isa_at_edge(&backplane, 0),
+                    Err(SerialFetchError::InvalidIsaDrives { .. })
+                ));
                 backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::HighZ);
             } else {
                 assert_eq!(sampled, Err(SerialFetchError::InvalidSamplePhase { tick }));
             }
-            if tick < 4 { backplane.advance_clock(); }
+            if tick < 4 {
+                backplane.advance_clock();
+            }
         }
     }
 
@@ -2212,7 +2221,10 @@ mod tests {
         assert_eq!(trace.samples.last().unwrap().transport_bit, 27);
         assert_eq!(trace.samples.last().unwrap().phi1, LogicLevel::High);
         assert_eq!(trace.samples.last().unwrap().phi2, LogicLevel::High);
-        assert_eq!(backplane.clock_phase(), super::super::timing::Hp67ClockPhase::InterphaseAfterPhi1);
+        assert_eq!(
+            backplane.clock_phase(),
+            super::super::timing::Hp67ClockPhase::InterphaseAfterPhi1
+        );
         assert_eq!(backplane.tick().get(), 110);
         assert_eq!(backplane.word_bit(), 27);
     }

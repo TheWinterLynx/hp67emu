@@ -49,7 +49,10 @@ pub enum Hp67DataSerialError {
     },
     OverlappingFrameStart,
     ElectricalBridgeRequired,
-    InvalidTransportPhase { word_bit: u8, tick: u64 },
+    InvalidTransportPhase {
+        word_bit: u8,
+        tick: u64,
+    },
     MissingElectricalOwner {
         word_bit: u8,
     },
@@ -343,7 +346,8 @@ impl Hp67DataSerialWordPath {
             && word_bit != self.sink.expected_word_bit()
         {
             return Err(Hp67DataSerialError::UnexpectedWordBit {
-                expected: self.sink.expected_word_bit(), actual: word_bit,
+                expected: self.sink.expected_word_bit(),
+                actual: word_bit,
             });
         }
         Ok(())
@@ -351,11 +355,16 @@ impl Hp67DataSerialWordPath {
 
     /// Production publication; receiver state is untouched until its edge.
     pub(crate) fn launch_transport_word_bit(
-        &self, word_bit: u8, backplane: &mut Hp67ElectricalBackplane,
+        &self,
+        word_bit: u8,
+        backplane: &mut Hp67ElectricalBackplane,
     ) -> Result<(), Hp67DataSerialError> {
         self.validate_transport_bit(word_bit)?;
         if !backplane.at_transport_launch_boundary() || backplane.word_bit() != word_bit {
-            return Err(Hp67DataSerialError::InvalidTransportPhase { word_bit, tick: backplane.tick().get() });
+            return Err(Hp67DataSerialError::InvalidTransportPhase {
+                word_bit,
+                tick: backplane.tick().get(),
+            });
         }
         if self.electrical_level_bridge {
             self.drive_level_bridge(word_bit, backplane)?;
@@ -366,11 +375,16 @@ impl Hp67DataSerialWordPath {
     /// Sample existing resolved DATA without republishing the source. Clock
     /// phase failures occur before sink mutation, including on following-word tails.
     pub(crate) fn sample_transport_word_bit_at_edge(
-        &mut self, word_bit: u8, backplane: &Hp67ElectricalBackplane,
+        &mut self,
+        word_bit: u8,
+        backplane: &Hp67ElectricalBackplane,
     ) -> Result<(), Hp67DataSerialError> {
         self.validate_transport_bit(word_bit)?;
         if !backplane.at_transport_sample_edge() || backplane.word_bit() != word_bit {
-            return Err(Hp67DataSerialError::InvalidTransportPhase { word_bit, tick: backplane.tick().get() });
+            return Err(Hp67DataSerialError::InvalidTransportPhase {
+                word_bit,
+                tick: backplane.tick().get(),
+            });
         }
         if !self.electrical_level_bridge {
             return self.visit_transport_word_bit(word_bit);
@@ -537,8 +551,16 @@ mod tests {
         let a = patterned_register(3);
         let b = patterned_register(8);
         for (direction, payload, completed) in [
-            (Some(Hp67DataTransferDirection::ActToPeripheral), Some(a), None),
-            (Some(Hp67DataTransferDirection::PeripheralToAct), Some(b), Some(a)),
+            (
+                Some(Hp67DataTransferDirection::ActToPeripheral),
+                Some(a),
+                None,
+            ),
+            (
+                Some(Hp67DataTransferDirection::PeripheralToAct),
+                Some(b),
+                Some(a),
+            ),
             (None, None, Some(b)),
         ] {
             path.enable_electrical_level_bridge(direction);
@@ -547,21 +569,31 @@ mod tests {
                 let before = path.sink;
                 path.launch_transport_word_bit(bit, &mut backplane).unwrap();
                 assert_eq!(path.sink, before);
-                assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &backplane),
-                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })));
+                assert!(matches!(
+                    path.sample_transport_word_bit_at_edge(bit, &backplane),
+                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })
+                ));
                 assert_eq!(path.sink, before);
                 backplane.advance_clock();
-                assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &backplane),
-                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })));
+                assert!(matches!(
+                    path.sample_transport_word_bit_at_edge(bit, &backplane),
+                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })
+                ));
                 assert_eq!(path.sink, before);
                 let (_, edge) = backplane.advance_clock_edge();
-                assert_eq!(edge, super::super::timing::HP67_WORKING_TRANSPORT_SAMPLE_EDGE);
-                path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                assert_eq!(
+                    edge,
+                    super::super::timing::HP67_WORKING_TRANSPORT_SAMPLE_EDGE
+                );
+                path.sample_transport_word_bit_at_edge(bit, &backplane)
+                    .unwrap();
                 assert_eq!(path.sink.expected_word_bit(), (bit + 1) % BITS_PER_WORD);
                 let sampled = path.sink;
                 backplane.advance_clock();
-                assert!(matches!(path.sample_transport_word_bit_at_edge((bit + 1) % BITS_PER_WORD, &backplane),
-                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })));
+                assert!(matches!(
+                    path.sample_transport_word_bit_at_edge((bit + 1) % BITS_PER_WORD, &backplane),
+                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })
+                ));
                 assert_eq!(path.sink, sampled);
                 backplane.advance_clock();
             }
@@ -584,7 +616,8 @@ mod tests {
                 path.launch_transport_word_bit(bit, &mut backplane).unwrap();
                 backplane.advance_clock();
                 backplane.advance_clock();
-                path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                path.sample_transport_word_bit_at_edge(bit, &backplane)
+                    .unwrap();
                 backplane.advance_clock();
                 backplane.advance_clock();
             }
@@ -602,8 +635,14 @@ mod tests {
             backplane.advance_clock();
             let result = path.sample_transport_word_bit_at_edge(2, &backplane);
             if extra.is_some() {
-                assert!(matches!(result, Err(Hp67DataSerialError::InvalidElectricalSample {
-                    word_bit: 2, active_drivers: 2, .. })));
+                assert!(matches!(
+                    result,
+                    Err(Hp67DataSerialError::InvalidElectricalSample {
+                        word_bit: 2,
+                        active_drivers: 2,
+                        ..
+                    })
+                ));
                 assert_eq!(path.sink, before);
             } else {
                 result.unwrap();
