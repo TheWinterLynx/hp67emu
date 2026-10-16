@@ -1586,15 +1586,24 @@ mod tests {
 
     #[test]
     fn m15g_display_transport_rejects_control_fault_without_advancing_scan() {
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         for net in [Hp67Net::Str, Hp67Net::Rcd] {
             let mut backplane = Hp67ElectricalBackplane::default();
             let mut act = ActSerialEndpoint::new(0x07b);
             let mut rom = RomFetchEndpoint::default();
             let mut rom0 = Rom0DisplayEndpoint::default();
             backplane.drive(net, Hp67Driver::External, Drive::High);
-            let result = run_structural_display_fetch_cycle(&mut backplane, 0x07b,
-                &ActArchitecturalState::default(), &mut act, &mut rom, &mut rom0, &source);
+            let result = run_structural_display_fetch_cycle(
+                &mut backplane,
+                0x07b,
+                &ActArchitecturalState::default(),
+                &mut act,
+                &mut rom,
+                &mut rom0,
+                &source,
+            );
             assert!(matches!(result, Err(StructuralWordError::Display(
                 Rom0DisplayError::InvalidControlSample { net: failed, .. })) if failed == net));
             assert_eq!(act.display_scan_slot(), 1);
