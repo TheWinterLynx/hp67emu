@@ -362,7 +362,7 @@ impl Hp67LiveMachine {
             source: Hp67Firmware::default(),
             backplane: Hp67ElectricalBackplane::default(),
             act_serial: ActSerialEndpoint::new(0),
-            fetch_rom: RomFetchEndpoint::physical_roms(),
+            fetch_rom: RomFetchEndpoint::autonomous_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
             display_exposure: Hp67DisplayExposure::default(),
@@ -415,7 +415,7 @@ impl Hp67LiveMachine {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
         self.act_serial = ActSerialEndpoint::new(0);
-        self.fetch_rom = RomFetchEndpoint::physical_roms();
+        self.fetch_rom = RomFetchEndpoint::autonomous_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
         self.display_exposure = Hp67DisplayExposure::default();
@@ -1444,7 +1444,8 @@ impl Hp67LiveMachine {
             let bank = self.machine.prepare_hp67_fetch();
             (self.machine.pc(), bank)
         };
-        self.source.select_bank(requested_bank);
+        // Bank control belongs to the ROM receivers. The structural ACT bank
+        // below is only an independent comparison, never a source selection.
         let startup_display_state = if self.display_control_seen {
             None
         } else {
@@ -1522,6 +1523,12 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
             }
         };
+        let selected_bank = self.fetch_rom.physical_chip_set()
+            .and_then(|chips| chips.chips().iter().find(|chip| chip.selected()))
+            .map(|chip| chip.profile().bank);
+        if selected_bank != Some(requested_bank) {
+            return Err(format!("live cycle {cycle} ROM bank mismatch at {address:03x}: pins={selected_bank:?}, ACT={requested_bank}"));
+        }
         self.pipeline.complete_cycle(result.fetched_word);
 
         let scan_slot = result.str_event.scan_slot;
@@ -1591,6 +1598,24 @@ mod official_pac_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn m15k_live_rom_banks_ignore_provider_view_and_reset_with_power() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        for _ in 0..512 {
+            live.source.select_bank(1); // Deliberately wrong reference view.
+            let before = live.backplane.tick().get();
+            live.step_firmware_cycle_with_execution().unwrap();
+            assert_eq!(live.backplane.tick().get() - before, 224);
+            assert!(live.fetch_rom.physical_chip_set().unwrap().has_autonomous_banks());
+            if live.phase == LiveBootPhase::Idle { break; }
+        }
+        assert_eq!(live.phase, LiveBootPhase::Idle);
+        live.reset_power_on().unwrap();
+        let chips = live.fetch_rom.physical_chip_set().unwrap();
+        assert!(chips.has_autonomous_banks());
+        assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
+    }
+
     #[test]
     fn m15j_live_firmware_uses_physical_rom_drivers_through_boot_and_reset() {
         use hp67emu::emulation::Drive;

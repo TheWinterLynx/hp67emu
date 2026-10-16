@@ -20,7 +20,7 @@ Embed all 5120 populated 10-bit firmware words directly from version-controlled 
 
 ## Implementation
 
-`include_str!` embeds the ten repository files in the executable at compile time. A `OnceLock<[u16; 5120]>` parses each comma-separated octal word once, verifies the total word count and 10-bit range, and then serves immutable direct lookups. Bank 0 occupies indices `0..4096`; bank 1 occupies indices `4096..5120` and maps to logical PC `0x400..0x7ff`. Selecting bank 1 anywhere else returns the corresponding bank-0 word, matching the physical page-bank fallback already used by the machine.
+`include_str!` embeds the ten repository files in the executable at compile time. A `OnceLock<[u16; 5120]>` parses each comma-separated octal word once, verifies the total word count and 10-bit range, and then serves immutable direct lookups. Bank 0 occupies indices `0..4096`; bank 1 occupies indices `4096..5120` and maps to logical PC `0x400..0x7ff`. Selecting bank 1 anywhere else returns the corresponding bank-0 word, retaining the historical reference view (not a physical fallback claim).
 
 ## M15J five-ROM composition
 
@@ -35,3 +35,13 @@ through the five-ROM set and compares the resulting serial word to the provider.
 Exact launch/latch delays remain unproven. The part/profile evidence and
 remaining bank/RAM bridges are recorded in
 `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.
+
+## M15K autonomous ROM bank control
+
+`read_word_in_bank(bank, address)` supplies immutable explicit-bank words,
+independent of the mutable reference view. Bank 0 covers 4096 words, bank 1 only
+PC 400..7ff, and other requests return None. The old bank fallback belongs only
+to `read_word()` compatibility; it is not a physical fallback claim. Live chip
+selection never calls the reference bank bridge. Firmware bytes are unchanged.
+
+See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.

@@ -65,3 +65,12 @@ physical-ROM fetch plus resolved RAM DATA is measured by the live benchmark.
 Exact launch/latch delays remain unproven. The part/profile evidence and
 remaining bank/RAM bridges are recorded in
 `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.
+
+## M15K autonomous ROM bank control
+
+The current structural fetch/full paths construct autonomous ROMs; historical
+paths remain unchanged. Output labels include autonomous IS/SYNC bank latches.
+This adds bank-decoder work to the measured current path without changing its
+fixed workload, physical timing claims or diagnostic correctness contract.
+
+See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.

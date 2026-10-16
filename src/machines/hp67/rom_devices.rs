@@ -1,5 +1,5 @@
-//! Five HP-67 ROM serial endpoints. RAM ports and autonomous bank decoding are
-//! separate: the source still supplies the existing selected-bank view.
+//! Five HP-67 ROM serial endpoints with autonomous IS/SYNC bank latches.
+//! Explicit provider-view mode remains only for reference/comparison fixtures.
 
 use super::{
     fetch::{Hp67RomWordSource, SerialFetchError},
@@ -63,6 +63,7 @@ pub struct Hp67RomChipEndpoint {
     received_address: u16,
     received_mask: u16,
     selected: bool,
+    bank_latch: u8,
     response_word: Option<u16>,
 }
 
@@ -73,6 +74,7 @@ impl Hp67RomChipEndpoint {
             received_address: 0,
             received_mask: 0,
             selected: false,
+            bank_latch: 0,
             response_word: None,
         }
     }
@@ -80,6 +82,10 @@ impl Hp67RomChipEndpoint {
     pub const fn profile(&self) -> Hp67RomChipProfile {
         self.profile
     }
+    pub const fn bank_latch(&self) -> u8 {
+        self.bank_latch
+    }
+
     pub const fn selected(&self) -> bool {
         self.selected
     }
@@ -113,21 +119,41 @@ impl Hp67RomChipEndpoint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Hp67RomChipSet {
     chips: [Hp67RomChipEndpoint; HP67_ROM_CHIPS],
+    autonomous: bool,
+    observed_word: u16,
+    observed_mask: u16,
+    observed_sync: Option<bool>,
 }
 
 impl Default for Hp67RomChipSet {
     fn default() -> Self {
         Self {
             chips: HP67_ROM_PROFILES.map(Hp67RomChipEndpoint::new),
+            autonomous: false,
+            observed_word: 0,
+            observed_mask: 0,
+            observed_sync: None,
         }
     }
 }
 
 impl Hp67RomChipSet {
+    /// Production mode: bank selection is reconstructed from the resolved bus.
+    pub fn autonomous() -> Self {
+        Self { autonomous: true, ..Self::default() }
+    }
+
+    pub const fn has_autonomous_banks(&self) -> bool { self.autonomous }
+
     pub fn begin_cycle(&mut self) {
         for chip in &mut self.chips {
+            let bank = chip.bank_latch;
             *chip = Hp67RomChipEndpoint::new(chip.profile);
+            chip.bank_latch = bank;
         }
+        self.observed_word = 0;
+        self.observed_mask = 0;
+        self.observed_sync = None;
     }
 
     pub const fn chips(&self) -> &[Hp67RomChipEndpoint; HP67_ROM_CHIPS] {
@@ -156,12 +182,19 @@ impl Hp67RomChipSet {
             return Ok(());
         }
         let address = self.chips[0].received_address()?;
-        let bank = source.selected_rom_bank(address);
+        // Teenix printed p71: addressing ROM0 restores bank 0 in all chips.
+        // Commit only after the complete resolved address, before selection.
+        if self.autonomous && address < 0x400 {
+            for chip in &mut self.chips { chip.bank_latch = 0; }
+        }
+        let bank = if self.autonomous { self.chips[0].bank_latch }
+            else { source.selected_rom_bank(address) };
         let mut selected = 0;
         for chip in &mut self.chips {
             let local_address = chip.received_address()?;
-            chip.selected =
-                chip.profile.bank == bank && (local_address & 0xc00) == chip.profile.first_address;
+            let active_bank = if self.autonomous { chip.bank_latch } else { bank };
+            chip.selected = chip.profile.bank == active_bank
+                && (local_address & 0xc00) == chip.profile.first_address;
             selected += u8::from(chip.selected);
         }
         if selected != 1 {
@@ -174,12 +207,51 @@ impl Hp67RomChipSet {
         for chip in &mut self.chips {
             if chip.selected {
                 chip.response_word = Some(
-                    source
-                        .read_word(chip.received_address()?)
+                    (if self.autonomous {
+                        source.read_word_in_bank(chip.profile.bank, chip.received_address()?)
+                    } else {
+                        source.read_word(chip.received_address()?)
+                    })
                         .ok_or(SerialFetchError::MissingRomWord { address })?
                         & ROM_WORD_MASK,
                 );
             }
+        }
+        Ok(())
+    }
+
+    /// Observe the same resolved return as ACT. This shared observation is
+    /// validated before changing any chip latch; iteration order cannot matter.
+    /// Bank-set affects the NEXT address, never the response already in flight.
+    pub(crate) fn sample_instruction_for_bit(
+        &mut self, word_bit: u8, level: LogicLevel, sync: LogicLevel,
+    ) -> Result<(), SerialFetchError> {
+        if !self.autonomous { return Ok(()); }
+        let IsaWindow::RomWord { serial_bit } = isa_window_for_bit(word_bit) else {
+            return Ok(());
+        };
+        let qualifier = match sync {
+            LogicLevel::High => true,
+            LogicLevel::Low => false,
+            _ => return Err(SerialFetchError::UnresolvedSync { word_bit, level: sync }),
+        };
+        if self.observed_sync.is_some_and(|previous| previous != qualifier) {
+            return Err(SerialFetchError::ChangedSyncQualifier { word_bit });
+        }
+        let high = match level {
+            LogicLevel::High => true,
+            LogicLevel::Low => false,
+            LogicLevel::Floating => return Err(SerialFetchError::FloatingIsa { word_bit }),
+            LogicLevel::Contention => return Err(SerialFetchError::IsaContention { word_bit }),
+        };
+        self.observed_sync = Some(qualifier);
+        if high { self.observed_word |= 1 << serial_bit; }
+        else { self.observed_word &= !(1 << serial_bit); }
+        self.observed_mask |= 1 << serial_bit;
+        if serial_bit == 9 && self.observed_mask == ROM_WORD_MASK
+            && qualifier && self.observed_word == 0x230 {
+            // Set, not toggle: a repeated bank instruction cannot restore bank 0.
+            for chip in &mut self.chips { chip.bank_latch = 1; }
         }
         Ok(())
     }
@@ -243,6 +315,99 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    fn observe(chips: &mut Hp67RomChipSet, word: u16, sync: LogicLevel) {
+        for bit in 46..56 {
+            chips.sample_instruction_for_bit(bit,
+                if word & (1 << (bit - 46)) != 0 { LogicLevel::High }
+                else { LogicLevel::Low }, sync).unwrap();
+        }
+    }
+
+    #[test]
+    fn m15k_bank_latches_require_complete_normal_instruction_and_survive_cycle() {
+        for word in 0..=ROM_WORD_MASK {
+            for sync in [LogicLevel::Low, LogicLevel::High] {
+                let mut chips = Hp67RomChipSet::autonomous();
+                observe(&mut chips, word, sync);
+                let bank = u8::from(word == 0x230 && sync == LogicLevel::High);
+                assert!(chips.chips().iter().all(|chip| chip.bank_latch() == bank));
+                chips.begin_cycle();
+                assert!(chips.chips().iter().all(|chip| chip.bank_latch() == bank));
+            }
+        }
+        let mut chips = Hp67RomChipSet::autonomous();
+        observe(&mut chips, 0x230, LogicLevel::High);
+        chips.begin_cycle();
+        observe(&mut chips, 0x230, LogicLevel::High);
+        assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 1));
+    }
+
+    #[test]
+    fn m15k_incomplete_or_invalid_return_never_changes_bank_latches() {
+        for fault in [LogicLevel::Floating, LogicLevel::Contention, LogicLevel::Low] {
+            let mut chips = Hp67RomChipSet::autonomous();
+            for bit in 46..55 {
+                chips.sample_instruction_for_bit(bit,
+                    if 0x230 & (1 << (bit - 46)) != 0 { LogicLevel::High }
+                    else { LogicLevel::Low }, LogicLevel::High).unwrap();
+                assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
+            }
+            assert!(chips.sample_instruction_for_bit(55, LogicLevel::High, fault).is_err());
+            assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
+        }
+        for fault in [LogicLevel::Floating, LogicLevel::Contention] {
+            let mut chips = Hp67RomChipSet::autonomous();
+            assert!(chips.sample_instruction_for_bit(46, fault, LogicLevel::High).is_err());
+            assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
+        }
+        let mut chips = Hp67RomChipSet::autonomous();
+        // Missing b46 prevents a bank-set even when the remaining bits match.
+        for bit in 47..56 {
+            chips.sample_instruction_for_bit(bit,
+                if 0x230 & (1 << (bit - 46)) != 0 { LogicLevel::High }
+                else { LogicLevel::Low }, LogicLevel::High).unwrap();
+        }
+        assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
+    }
+
+    #[test]
+    fn m15k_autonomous_map_covers_all_addresses_without_provider_bank_control() {
+        struct RawSource;
+        impl Hp67RomWordSource for RawSource {
+            fn read_word(&self, _: u16) -> Option<u16> { panic!("provider view used") }
+            fn selected_rom_bank(&self, _: u16) -> u8 { panic!("host bank control used") }
+            fn read_word_in_bank(&self, bank: u8, pc: u16) -> Option<u16> {
+                Some((pc ^ (u16::from(bank) << 9)) & ROM_WORD_MASK)
+            }
+        }
+        for initial_bank in 0..2 {
+            for pc in 0..=ROM_ADDRESS_MASK {
+                let mut chips = Hp67RomChipSet::autonomous();
+                if initial_bank == 1 { observe(&mut chips, 0x230, LogicLevel::High); }
+                chips.begin_cycle();
+                let mut result = Ok(());
+                for bit in 16..28 {
+                    result = chips.sample_for_bit(bit,
+                        if pc & (1 << (bit - 16)) != 0 { LogicLevel::High }
+                        else { LogicLevel::Low }, &RawSource);
+                    if bit < 27 { assert!(result.is_ok()); }
+                }
+                let bank = if pc < 0x400 { 0 } else { initial_bank };
+                if bank == 1 && pc >= 0x800 {
+                    assert_eq!(result, Err(SerialFetchError::InvalidRomSelection {
+                        address: pc, bank, selected: 0 }));
+                    assert!(chips.chips().iter().all(|chip| chip.drive_for_bit(55) == Drive::HighZ));
+                } else {
+                    result.unwrap();
+                    let selected = chips.chips().iter().find(|chip| chip.selected()).unwrap();
+                    assert_eq!(selected.profile().bank, bank);
+                    assert_eq!(selected.response_word, Some((pc ^ (u16::from(bank) << 9)) & ROM_WORD_MASK));
+                }
+                assert!(chips.chips().iter().all(|chip| chip.bank_latch() == bank));
+            }
+        }
     }
 
     #[test]

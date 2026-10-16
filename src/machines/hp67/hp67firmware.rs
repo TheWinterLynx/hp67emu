@@ -80,9 +80,19 @@ impl Hp67Firmware {
 }
 
 impl Hp67RomWordSource for Hp67Firmware {
+    fn read_word_in_bank(&self, bank: u8, address: u16) -> Option<u16> {
+        let pc = usize::from(address & 0x0fff);
+        match bank {
+            0 => Some(words()[pc]),
+            1 if (BANK1_BASE_PC..BANK1_BASE_PC + BANK1_WORDS).contains(&pc) =>
+                Some(words()[BANK0_WORDS + pc - BANK1_BASE_PC]),
+            _ => None,
+        }
+    }
+
     fn selected_rom_bank(&self, address: u16) -> u8 {
         // Preserve the existing image view outside the populated bank-1 window.
-        // Autonomous per-chip bank latches are a separate fidelity milestone.
+        // Reference-only compatibility view; live autonomous ROMs do not use it.
         if (0x400..0x800).contains(&address) {
             self.requested_bank.get() & 1
         } else {

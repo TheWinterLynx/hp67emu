@@ -196,7 +196,7 @@ fn structural_fetch_stream(words: usize) -> u64 {
     let source = BenchmarkRom;
     let mut backplane = Hp67ElectricalBackplane::default();
     let mut act = ActSerialEndpoint::new(BENCH_ADDRESS);
-    let mut rom = RomFetchEndpoint::physical_roms();
+    let mut rom = RomFetchEndpoint::autonomous_roms();
     let mut checksum = 0u64;
     let mut last_fetched = 0u16;
 
@@ -223,7 +223,7 @@ fn full_current_structural_stream(words: usize) -> u64 {
 
     let mut backplane = Hp67ElectricalBackplane::default();
     let mut act = ActSerialEndpoint::new(BENCH_ADDRESS);
-    let mut rom = RomFetchEndpoint::physical_roms();
+    let mut rom = RomFetchEndpoint::autonomous_roms();
     let mut rom0 = Rom0DisplayEndpoint::default();
     let mut checksum = 0u64;
     let mut last_fetched = 0u16;
@@ -547,7 +547,7 @@ fn hp67_electrical_realtime_benchmark() {
     print_row("historical firmware dual composition", &firmware, words);
     println!();
     println!(
-        "Scope: current implementation only. The full row executes the current no-DATA structural path (live resolved RAM DATA is measured separately): 56 bit-cells/word, 4 PHI transitions/bit, five ROM endpoints with distinct IS drivers, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase, coarse resolved STR/RCD bridge, atomic IS/SYNC source publication, provisional PHI1-rising receiver checkpoint and serial ACT execution."
+        "Scope: current implementation only. The full row executes the current no-DATA structural path (live resolved RAM DATA is measured separately): 56 bit-cells/word, 4 PHI transitions/bit, five ROM endpoints with autonomous IS/SYNC bank latches and distinct IS drivers, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase, coarse resolved STR/RCD bridge, atomic IS/SYNC source publication, provisional PHI1-rising receiver checkpoint and serial ACT execution."
     );
     println!(
         "The historical dual rows retain their original fixture for comparable measurements. They do not execute the current live restore/comparison/authority-commit bridge. Run m14o_live_authority_realtime_benchmark to measure that bridge; its real-firmware idle row and labelled synthetic RAM/CRC loads are separate workloads. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, exact STR/RCD pulse widths/PHI edges, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."

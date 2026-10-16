@@ -52,12 +52,18 @@ const ACT_IS_DRIVER: Hp67Driver = Hp67Driver::Act1820_2530;
 /// ROM lookup boundary used by the serial fetch responder.
 ///
 /// The physical-ROM composition and aggregate reference fixtures share this
-/// immutable lookup boundary. The existing selected-bank view remains a bridge;
-/// it is not an electrical input pin or an autonomous ROM bank latch.
+/// immutable lookup boundary. Live ROMs use explicit bank/address reads after
+/// their own IS/SYNC decoding; provider-selected views are reference-only.
 pub trait Hp67RomWordSource {
     fn read_word(&self, address: u16) -> Option<u16>;
 
-    /// Existing image/bank selection bridge, not an electrical bank-select pin.
+    /// Explicit immutable bank lookup; autonomous ROMs never consult the
+    /// provider's selected-bank state. Bank-0-only fixtures need no override.
+    fn read_word_in_bank(&self, bank: u8, address: u16) -> Option<u16> {
+        if bank == 0 { self.read_word(address) } else { None }
+    }
+
+    /// Reference image/bank selection bridge, not an electrical bank-select pin.
     fn selected_rom_bank(&self, _address: u16) -> u8 {
         0
     }
@@ -789,11 +795,25 @@ pub struct RomFetchEndpoint {
 }
 
 impl RomFetchEndpoint {
+    /// Five-chip reference fixture retaining provider-selected bank views.
     pub fn physical_roms() -> Self {
         Self {
             physical_chips: Some(Hp67RomChipSet::default()),
             ..Self::default()
         }
+    }
+
+    /// Live five-chip composition with persistent, bus-controlled bank latches.
+    pub fn autonomous_roms() -> Self {
+        Self { physical_chips: Some(Hp67RomChipSet::autonomous()), ..Self::default() }
+    }
+
+    fn sample_instruction_for_bit(&mut self, bit: u8, level: LogicLevel, sync: LogicLevel)
+        -> Result<(), SerialFetchError> {
+        if let Some(chips) = self.physical_chips.as_mut() {
+            chips.sample_instruction_for_bit(bit, level, sync)?;
+        }
+        Ok(())
     }
 
     pub const fn physical_chip_set(&self) -> Option<&Hp67RomChipSet> {
@@ -1076,6 +1096,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
+                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
             }
             IsaWindow::Other => {}
         }
@@ -1180,6 +1201,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
+                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
             }
             IsaWindow::Other => {}
         }
@@ -1462,6 +1484,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
+                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
             }
             IsaWindow::Other => {}
         }
@@ -1619,6 +1642,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::RomWord { .. } => {
                 act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
                 act.sample_for_bit(expected_bit, is_level)?;
+                rom.sample_instruction_for_bit(expected_bit, is_level, backplane.level(Hp67Net::Sync))?;
             }
             IsaWindow::Other => {}
         }
@@ -1691,6 +1715,44 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+    #[test]
+    fn m15k_all_transports_follow_captured_bank_roundtrip_without_provider_selection() {
+        use super::super::hp67firmware::Hp67Firmware;
+        for path in 0..4 {
+            let mut backplane = Hp67ElectricalBackplane::default();
+            let mut act = ActSerialEndpoint::new(0);
+            let mut rom = RomFetchEndpoint::autonomous_roms();
+            let mut rom0 = Rom0DisplayEndpoint::default();
+            let mut data = Hp67DataSerialWordPath::default();
+            let state = ActArchitecturalState::default();
+            let source = Hp67Firmware::default();
+            let mut trace = StructuralBusTrace::default();
+            // Teenix printed p71/72 captured real firmware route. Deliberately
+            // poison the provider's reference bank view before each transfer.
+            for (pc, bank, expected) in [(0x7f4, 0, 0x230), (0x7f5, 1, 0x11a),
+                (0x495, 1, 0x210), (0x0d5, 0, 0x0b4)] {
+                source.select_bank(bank ^ 1);
+                let result = match path {
+                    0 => run_structural_display_fetch_cycle(&mut backplane, pc, &state,
+                        &mut act, &mut rom, &mut rom0, &source).map(|word| word.fetched_word),
+                    1 => run_structural_display_fetch_data_phase_cycle(&mut backplane, pc, &state,
+                        &mut act, &mut rom, &mut rom0, &source, &mut data, None).map(|word| word.word.fetched_word),
+                    2 => run_structural_display_fetch_cycle_traced(&mut backplane, pc, &state,
+                        &mut act, &mut rom, &mut rom0, &source, &mut trace).map(|word| word.fetched_word),
+                    _ => run_structural_display_fetch_data_phase_cycle_traced(&mut backplane, pc, &state,
+                        &mut act, &mut rom, &mut rom0, &source, &mut data, None, &mut trace).map(|word| word.word.fetched_word),
+                };
+                assert_eq!(result, Ok(expected), "path={path} pc={pc:03x}");
+                let chips = rom.physical_chip_set().unwrap();
+                assert!(chips.has_autonomous_banks());
+                assert_eq!(chips.chips().iter().filter(|chip| chip.selected()).count(), 1);
+                assert_eq!(chips.chips().iter().find(|chip| chip.selected()).unwrap().profile().bank, bank);
+            }
+            assert_eq!(backplane.tick().get(), 4 * 224);
+            if path >= 2 { assert_eq!(trace.samples.len(), 4 * 224); }
+        }
+    }
 
     #[test]
     fn m15j_all_transport_variants_publish_the_selected_physical_rom_driver() {

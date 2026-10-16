@@ -37,3 +37,11 @@ synthetic and the existing timing/authority assertions remain unchanged.
 Exact launch/latch delays remain unproven. The part/profile evidence and
 remaining bank/RAM bridges are recorded in
 `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.
+
+## M15K autonomous ROM bank control
+
+The actual desktop benchmark now includes autonomous ROM bank decoding, and
+its scope label says so. Workloads, timing methodology and assertions remain
+unchanged. Synthetic port loads still do not prove physical card throughput.
+
+See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.

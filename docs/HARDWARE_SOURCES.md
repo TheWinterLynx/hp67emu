@@ -222,4 +222,19 @@ ROM1/2 part mapping uses the owner's HP-97 equivalence instruction; ROM4=0231
 is an explicit inventory-based working inference. Autonomous bank control, RAM
 DATA devices, ACT internal mutation and physical PHI calibration remain open.
 See `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md` for evidence and scope.
-Owner local M15J gate pending.
+Owner local M15J gate GREEN; exact head integrated.
+
+## M15K autonomous ROM bank control
+
+M15J's exact formatted head `fa0c06364ffba7db7f8193b1301d970c6c9326a5`
+is owner-validated and integrated. Live ROMs now select from persistent per-chip
+bank latches driven by resolved IS/SYNC, not the firmware provider's bank view.
+Normal word 0x230 sets bank 1; a complete address below 0x400 restores bank 0.
+Bank-1 holes above 0x7ff fail instead of silently falling back. Provider-view
+fixtures remain explicit references. ACT bank state is comparison-only on this
+path. Timing remains 56 cells/224 PHI transitions; the b55 decoder checkpoint
+retains M15H's provisional PHI policy, not a newly proven physical latch edge.
+See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
+Owner local M15K gate pending. Physical DATA/RAM devices, internal ACT mutation,
+exact PHI calibration and propagation, display integration and magnetic sense
+remain open; this milestone does not claim completion of electrical fidelity.

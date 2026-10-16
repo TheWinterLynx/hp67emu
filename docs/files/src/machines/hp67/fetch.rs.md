@@ -238,3 +238,16 @@ retaining exact 224-row words and 110-row failed lookup prefixes.
 Exact launch/latch delays remain unproven. The part/profile evidence and
 remaining bank/RAM bridges are recorded in
 `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.
+
+## M15K autonomous ROM bank control
+
+All four shared-word transport loops now deliver the same resolved IS/SYNC
+return to the autonomous ROM bank observer after ACT validation at the existing
+receiver checkpoint. `autonomous_roms()` is the live factory;
+`physical_roms()` deliberately preserves M15J's provider-view reference fixture.
+`read_word_in_bank()` defaults to bank 0 only for bankless test sources. No clocks,
+source publication order or DATA prefix semantics change. A captured firmware
+bank roundtrip is covered through all four variants with a deliberately wrong
+provider bank view; the old 8192-view fixture remains intact.
+
+See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.

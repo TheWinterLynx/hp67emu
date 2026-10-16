@@ -16,8 +16,9 @@ returned word from the actual resolved electrical bus.
 
 `RomFetchEndpoint` owns an optional `Hp67RomChipSet`. Live construction/reset
 opts in; default reference fixtures retain their aggregate endpoint. Immutable
-firmware words remain behind `Hp67RomWordSource`; `selected_rom_bank()` supplies
-the existing image/bank view. `electrical.rs` publishes the five chip contributions
+firmware words remain behind `Hp67RomWordSource`; production uses explicit
+`read_word_in_bank()` after bus decoding. `selected_rom_bank()` supplies only
+the deliberately retained provider-view comparison fixture. `electrical.rs` publishes the five chip contributions
 atomically with ACT/SYNC/optional DATA. ROM0's IS fetch role and its display
 receiver share a physical identity but retain separate functional endpoints.
 
@@ -43,8 +44,29 @@ for a successful word. A later source-bank change cannot rewrite the latched
 response. Production publishes `RomIsDrives::Chips`; the legacy trace's single
 ROM contribution remains an aggregate annotation, not per-chip observation.
 
-Bank control remains the existing provider bridge, including its bank-0 fallback
-outside populated bank-1 PC 0x400..0x7ff. Autonomous ROM bank-instruction/SYNC
-latches are not implemented or inferred. RAM DATA ports remain aggregate and
+`autonomous()` enables production bank latches. Default construction retains
+M15J provider-view fixtures, explicitly documented as reference-only. Autonomous
+latches persist across `begin_cycle()` and are cleared only by reconstruction
+on power/reset or complete address 000..3ff. A validated ten-bit resolved return
+with stable High SYNC and value 0x230 sets every latch to 1 (never toggles).
+Low SYNC data, incomplete returns and unresolved/changed qualifiers cannot set
+latches. A shared immutable observation precedes the identical per-chip latch
+updates. The already-selected response remains intact. Bank-1 800..fff has no
+ROM and fails before lookup. No provider-bank fallback exists in live mode. RAM DATA ports remain aggregate and
 physical RAM address mapping/output circuitry remain separate work. M15H's
 provisional PHI checkpoints remain unchanged. See the M15J research note.
+
+## M15K autonomous ROM bank control
+
+M15J's exact formatted head `fa0c06364ffba7db7f8193b1301d970c6c9326a5`
+is owner-validated and integrated. Live ROMs now select from persistent per-chip
+bank latches driven by resolved IS/SYNC, not the firmware provider's bank view.
+Normal word 0x230 sets bank 1; a complete address below 0x400 restores bank 0.
+Bank-1 holes above 0x7ff fail instead of silently falling back. Provider-view
+fixtures remain explicit references. ACT bank state is comparison-only on this
+path. Timing remains 56 cells/224 PHI transitions; the b55 decoder checkpoint
+retains M15H's provisional PHI policy, not a newly proven physical latch edge.
+See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
+Owner local M15K gate pending. Physical DATA/RAM devices, internal ACT mutation,
+exact PHI calibration and propagation, display integration and magnetic sense
+remain open; this milestone does not claim completion of electrical fidelity.
