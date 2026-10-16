@@ -8,7 +8,10 @@
 
 use crate::emulation::{Bias, Drive, LogicLevel, Tick};
 
-use super::{rom_devices::{RomIsDrives, HP67_ROM_PROFILES}, wiring::{Hp67Driver, Hp67Net}};
+use super::{
+    rom_devices::{RomIsDrives, HP67_ROM_PROFILES},
+    wiring::{Hp67Driver, Hp67Net},
+};
 
 const MAX_PENDING_DRIVES: usize = Hp67Net::COUNT * Hp67Driver::COUNT;
 
@@ -236,7 +239,10 @@ impl Hp67ElectricalFabric {
     }
 
     pub(crate) fn commit_serial_launch_with_roms(
-        &mut self, act_is: Drive, roms: RomIsDrives, sync: Drive,
+        &mut self,
+        act_is: Drive,
+        roms: RomIsDrives,
+        sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
         let isa = &mut self.nets[Hp67Net::Isa.index()];

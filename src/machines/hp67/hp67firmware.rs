@@ -83,7 +83,11 @@ impl Hp67RomWordSource for Hp67Firmware {
     fn selected_rom_bank(&self, address: u16) -> u8 {
         // Preserve the existing image view outside the populated bank-1 window.
         // Autonomous per-chip bank latches are a separate fidelity milestone.
-        if (0x400..0x800).contains(&address) { self.requested_bank.get() & 1 } else { 0 }
+        if (0x400..0x800).contains(&address) {
+            self.requested_bank.get() & 1
+        } else {
+            0
+        }
     }
 
     fn read_word(&self, address: u16) -> Option<u16> {
@@ -106,8 +110,8 @@ mod tests {
 
     #[test]
     fn m15j_physical_rom_set_preserves_every_firmware_word_in_both_bank_views() {
-        use crate::emulation::{Drive, LogicLevel};
         use super::super::rom_devices::Hp67RomChipSet;
+        use crate::emulation::{Drive, LogicLevel};
         let source = Hp67Firmware::default();
         let mut chips = Hp67RomChipSet::default();
         for bank in 0..=1 {
@@ -115,15 +119,28 @@ mod tests {
             for address in 0..0x1000u16 {
                 chips.begin_cycle();
                 for bit in 16..28 {
-                    let level = if address & (1 << (bit - 16)) != 0 { LogicLevel::High } else { LogicLevel::Low };
+                    let level = if address & (1 << (bit - 16)) != 0 {
+                        LogicLevel::High
+                    } else {
+                        LogicLevel::Low
+                    };
                     chips.sample_for_bit(bit, level, &source).unwrap();
                 }
-                assert_eq!(chips.chips().iter().filter(|chip| chip.selected()).count(), 1);
+                assert_eq!(
+                    chips.chips().iter().filter(|chip| chip.selected()).count(),
+                    1
+                );
                 let mut received = 0u16;
                 for bit in 46..56 {
-                    if chips.trace_drive_for_bit(bit) == Drive::High { received |= 1 << (bit - 46); }
+                    if chips.trace_drive_for_bit(bit) == Drive::High {
+                        received |= 1 << (bit - 46);
+                    }
                 }
-                assert_eq!(Some(received), source.read_word(address), "bank={bank} address={address:03x}");
+                assert_eq!(
+                    Some(received),
+                    source.read_word(address),
+                    "bank={bank} address={address:03x}"
+                );
             }
         }
     }

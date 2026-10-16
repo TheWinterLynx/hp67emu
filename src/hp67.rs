@@ -1600,19 +1600,38 @@ mod tests {
         for _ in 0..512 {
             let before = live.backplane.tick().get();
             live.step_firmware_cycle_with_execution().unwrap();
-            let chips = live.fetch_rom.physical_chip_set().expect("live uses five ROM endpoints");
+            let chips = live
+                .fetch_rom
+                .physical_chip_set()
+                .expect("live uses five ROM endpoints");
             let address = live.fetch_rom.received_address().unwrap();
             let fetched = live.act_serial.fetched_word().unwrap();
-            assert_eq!(chips.chips().iter().filter(|chip| chip.selected()).count(), 1);
+            assert_eq!(
+                chips.chips().iter().filter(|chip| chip.selected()).count(),
+                1
+            );
             for chip in chips.chips() {
                 assert_eq!(chip.received_address(), Ok(address));
-                assert_eq!(live.backplane.driver_drive(Hp67Net::Isa, chip.profile().driver),
-                    if chip.selected() && fetched & 0x200 != 0 { Drive::High } else { Drive::HighZ });
+                assert_eq!(
+                    live.backplane
+                        .driver_drive(Hp67Net::Isa, chip.profile().driver),
+                    if chip.selected() && fetched & 0x200 != 0 {
+                        Drive::High
+                    } else {
+                        Drive::HighZ
+                    }
+                );
             }
-            assert_eq!(live.backplane.driver_drive(Hp67Net::Isa, Hp67Driver::StructuralRomResponder), Drive::HighZ);
+            assert_eq!(
+                live.backplane
+                    .driver_drive(Hp67Net::Isa, Hp67Driver::StructuralRomResponder),
+                Drive::HighZ
+            );
             assert_eq!(live.backplane.tick().get() - before, 224);
             checked += 1;
-            if live.phase == LiveBootPhase::Idle { break; }
+            if live.phase == LiveBootPhase::Idle {
+                break;
+            }
         }
         assert_eq!(live.phase, LiveBootPhase::Idle);
         assert!(checked > 100);

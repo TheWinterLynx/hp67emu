@@ -85,7 +85,8 @@ impl Hp67ElectricalBackplane {
         sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
-        self.fabric.commit_serial_launch_with_roms(act_is, rom_is, sync, data);
+        self.fabric
+            .commit_serial_launch_with_roms(act_is, rom_is, sync, data);
     }
 
     /// Structural DATA bridge commit; no device sees an intermediate handoff.
