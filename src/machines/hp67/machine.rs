@@ -74,7 +74,10 @@ impl Hp67ElectricalBackplane {
     /// Composition bridge: one committed image of IS, SYNC and optional DATA.
     /// The transport checks the launch boundary before invoking this operation.
     pub(crate) fn commit_serial_launch(
-        &mut self, act_is: Drive, rom_is: Drive, sync: Drive,
+        &mut self,
+        act_is: Drive,
+        rom_is: Drive,
+        sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
         self.fabric.commit_serial_launch(act_is, rom_is, sync, data);

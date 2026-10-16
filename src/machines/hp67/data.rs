@@ -300,7 +300,9 @@ impl Hp67DataSerialWordPath {
     }
 
     fn drive_level_bridge(
-        &self, word_bit: u8, backplane: &mut Hp67ElectricalBackplane,
+        &self,
+        word_bit: u8,
+        backplane: &mut Hp67ElectricalBackplane,
     ) -> Result<(), Hp67DataSerialError> {
         let (act_drive, ram_drive) = self.level_bridge_drives(word_bit)?;
         backplane.commit_data_level_bridge(act_drive, ram_drive);
@@ -359,12 +361,15 @@ impl Hp67DataSerialWordPath {
     /// Compute a proposal from immutable DATA state. Publication belongs to the
     /// shared serial commit, so errors cannot leave IS/SYNC partially changed.
     pub(crate) fn propose_transport_word_bit(
-        &self, word_bit: u8, backplane: &Hp67ElectricalBackplane,
+        &self,
+        word_bit: u8,
+        backplane: &Hp67ElectricalBackplane,
     ) -> Result<Option<(Drive, Drive)>, Hp67DataSerialError> {
         self.validate_transport_bit(word_bit)?;
         if !backplane.at_transport_launch_boundary() || backplane.word_bit() != word_bit {
             return Err(Hp67DataSerialError::InvalidTransportPhase {
-                word_bit, tick: backplane.tick().get(),
+                word_bit,
+                tick: backplane.tick().get(),
             });
         }
         if self.electrical_level_bridge {
@@ -377,7 +382,9 @@ impl Hp67DataSerialWordPath {
     /// Isolated M15H receiver fixtures; production publishes the shared image.
     #[cfg(test)]
     fn launch_transport_word_bit(
-        &self, word_bit: u8, backplane: &mut Hp67ElectricalBackplane,
+        &self,
+        word_bit: u8,
+        backplane: &mut Hp67ElectricalBackplane,
     ) -> Result<(), Hp67DataSerialError> {
         if let Some((act, ram)) = self.propose_transport_word_bit(word_bit, backplane)? {
             backplane.commit_data_level_bridge(act, ram);

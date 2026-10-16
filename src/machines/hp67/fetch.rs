@@ -168,7 +168,9 @@ fn publish_transport_sources(
     data: Option<(Drive, Drive)>,
 ) -> Result<(), SerialFetchError> {
     if !backplane.at_transport_launch_boundary() || backplane.word_bit() != word_bit {
-        return Err(SerialFetchError::InvalidLaunchPhase { tick: backplane.tick().get() });
+        return Err(SerialFetchError::InvalidLaunchPhase {
+            tick: backplane.tick().get(),
+        });
     }
     backplane.commit_serial_launch(act_is, rom_is, sync, data);
     Ok(())
@@ -883,7 +885,14 @@ pub fn run_structural_data_tail_prefix(
     for word_bit in 0..2 {
         let act_drive = wired_high_drive(((byte >> word_bit) & 1) != 0);
         let data_drives = data.propose_transport_word_bit(word_bit, backplane)?;
-        publish_transport_sources(backplane, word_bit, act_drive, Drive::HighZ, Drive::Low, data_drives)?;
+        publish_transport_sources(
+            backplane,
+            word_bit,
+            act_drive,
+            Drive::HighZ,
+            Drive::Low,
+            data_drives,
+        )?;
         for _ in 0..2 {
             backplane.advance_clock();
             if let Some(trace) = trace.as_deref_mut() {
@@ -977,7 +986,14 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         } else {
             Drive::Low
         };
-        publish_transport_sources(backplane, expected_bit, act_drive, rom_drive, sync_drive, data_drives)?;
+        publish_transport_sources(
+            backplane,
+            expected_bit,
+            act_drive,
+            rom_drive,
+            sync_drive,
+            data_drives,
+        )?;
 
         advance_transport_to_sample(backplane);
         let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
@@ -1075,7 +1091,14 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         } else {
             Drive::Low
         };
-        publish_transport_sources(backplane, expected_bit, act_drive, rom_drive, sync_drive, data_drives)?;
+        publish_transport_sources(
+            backplane,
+            expected_bit,
+            act_drive,
+            rom_drive,
+            sync_drive,
+            data_drives,
+        )?;
 
         advance_transport_to_sample(backplane);
         let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
@@ -1339,7 +1362,14 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
         } else {
             Drive::Low
         };
-        publish_transport_sources(backplane, expected_bit, act_drive, rom_drive, sync_drive, data_drives)?;
+        publish_transport_sources(
+            backplane,
+            expected_bit,
+            act_drive,
+            rom_drive,
+            sync_drive,
+            data_drives,
+        )?;
 
         for _ in 0..2 {
             backplane.advance_clock();
@@ -1489,7 +1519,14 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
         } else {
             Drive::Low
         };
-        publish_transport_sources(backplane, expected_bit, act_drive, rom_drive, sync_drive, data_drives)?;
+        publish_transport_sources(
+            backplane,
+            expected_bit,
+            act_drive,
+            rom_drive,
+            sync_drive,
+            data_drives,
+        )?;
 
         for _ in 0..2 {
             backplane.advance_clock();
@@ -1593,22 +1630,44 @@ mod tests {
     #[test]
     fn m15i_invalid_launch_phase_preserves_the_entire_committed_image() {
         let mut backplane = Hp67ElectricalBackplane::default();
-        publish_transport_sources(&mut backplane, 0, Drive::High, Drive::HighZ,
-            Drive::High, Some((Drive::Low, Drive::HighZ))).unwrap();
+        publish_transport_sources(
+            &mut backplane,
+            0,
+            Drive::High,
+            Drive::HighZ,
+            Drive::High,
+            Some((Drive::Low, Drive::HighZ)),
+        )
+        .unwrap();
         for (bit, expected_tick) in [(1, 0), (0, 1)] {
             let before = Hp67Net::ALL.map(|net| backplane.level(net));
-            let result = publish_transport_sources(&mut backplane, bit, Drive::HighZ,
-                Drive::High, Drive::Low, Some((Drive::HighZ, Drive::High)));
-            assert_eq!(result, Err(SerialFetchError::InvalidLaunchPhase { tick: expected_tick }));
+            let result = publish_transport_sources(
+                &mut backplane,
+                bit,
+                Drive::HighZ,
+                Drive::High,
+                Drive::Low,
+                Some((Drive::HighZ, Drive::High)),
+            );
+            assert_eq!(
+                result,
+                Err(SerialFetchError::InvalidLaunchPhase {
+                    tick: expected_tick
+                })
+            );
             assert_eq!(Hp67Net::ALL.map(|net| backplane.level(net)), before);
             assert_eq!(backplane.tick().get(), expected_tick);
-            if expected_tick == 0 { backplane.advance_clock(); }
+            if expected_tick == 0 {
+                backplane.advance_clock();
+            }
         }
     }
 
     #[test]
     fn m15i_data_proposal_failure_does_not_partially_publish_next_is_bit() {
-        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        let source = FixtureRom {
+            words: [(0x07b, 0x04c), (0x001, 0x3e3)],
+        };
         let mut backplane = Hp67ElectricalBackplane::default();
         let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
@@ -1618,16 +1677,32 @@ mod tests {
         state.display_enable = true;
         state.a[0] = 4; // b1 Low, next b2 High: a partial IS publication is visible.
         data.enable_electrical_level_bridge(None); // Required DATA owner missing.
-        let result = run_structural_display_fetch_data_phase_cycle(&mut backplane,
-            0x07b, &state, &mut act, &mut rom, &mut rom0, &source, &mut data, Some([1; 14]));
-        assert_eq!(result, Err(StructuralWordError::Data(
-            Hp67DataSerialError::MissingElectricalOwner { word_bit: 2 })));
+        let result = run_structural_display_fetch_data_phase_cycle(
+            &mut backplane,
+            0x07b,
+            &state,
+            &mut act,
+            &mut rom,
+            &mut rom0,
+            &source,
+            &mut data,
+            Some([1; 14]),
+        );
+        assert_eq!(
+            result,
+            Err(StructuralWordError::Data(
+                Hp67DataSerialError::MissingElectricalOwner { word_bit: 2 }
+            ))
+        );
         assert_eq!(backplane.tick().get(), 8);
         assert_eq!(backplane.word_bit(), 2);
         assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::Low);
         assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::Floating);
         assert_eq!(backplane.level(Hp67Net::Sync), LogicLevel::Low);
-        assert_eq!(rom0.display_byte(), Err(Rom0DisplayError::IncompleteDisplayByte { received_mask: 3 }));
+        assert_eq!(
+            rom0.display_byte(),
+            Err(Rom0DisplayError::IncompleteDisplayByte { received_mask: 3 })
+        );
         assert_eq!(act.display_scan_slot(), 1);
     }
 
