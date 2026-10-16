@@ -7,8 +7,9 @@
 //! the 10-bit ROM response at b46..b55, and the 56-bit DATA stream with its
 //! serial bit 0 appearing at machine-word bit b2. Display scope captures also
 //! bound STR/LED timing at the microsecond level. Exact PHI launch/sample edges
-//! remain deliberately unspecified until the waveform edge relationships are
-//! converted into a reviewed scheduler contract.
+//! remain unproven in the physical evidence table. A separate provisional
+//! execution policy now samples after PHI1 rising, inside the observed stable
+//! interval; it must not be read as proof of the silicon latch edge.
 
 /// Number of serial bits in one HP-67 digit/nibble.
 pub const BITS_PER_DIGIT: u8 = 4;
@@ -137,6 +138,12 @@ pub enum Hp67ClockEdge {
     Phi2Rising,
 }
 
+/// Provisional execution policy, distinct from the physical evidence table.
+/// Page 70 shows IS/DATA stable across PHI1. Selecting its rising edge as a
+/// digital receiver checkpoint is a WORKING APPROXIMATION, not a silicon latch
+/// claim. Sources publish in the preceding after-PHI2 interphase boundary.
+pub(crate) const HP67_WORKING_TRANSPORT_SAMPLE_EDGE: Hp67ClockEdge = Hp67ClockEdge::Phi1Rising;
+
 /// No exact SYNC transition edge is established by the reviewed capture.
 ///
 /// Page 70 places SYNC rising slightly before PHI2 rising and SYNC falling
@@ -190,7 +197,8 @@ pub enum Hp67TimedTransfer {
 /// One reviewed PHI-relative timing contract.
 ///
 /// `None` is deliberate: it means the reviewed sources do not yet justify that
-/// edge or propagation value. Production edge scheduling must not invent one.
+/// physical edge or propagation value. Any provisional execution policy must
+/// remain separate and explicitly labelled as a working approximation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Hp67EdgeContract {
     pub transfer: Hp67TimedTransfer,

@@ -39,3 +39,17 @@ The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
 other cells; RCD shares that cell only in slot 15. Publishing before the four
 scaffold PHI transitions and restoring High at b8 are not physical edge/width
 claims. No extra tick or cathode-to-ACT feedback is added.
+
+## M15H provisional PHI receiver scheduling
+
+Production callers now invoke the control bridge after the PHI1-rising IS
+receiver checkpoint. STR therefore falls after the final b7 display bit has
+been received; it returns High at the corresponding b8 checkpoint. Final-slot
+RCD uses that same provisional interval. No ordering inside the physical
+STR/RCD overlap is asserted. Reference direct visitors may still exercise the
+coarse bit bridge independently of production clock scheduling. A new regression
+exercises control publication at the production receiver checkpoint.
+
+This is a WORKING APPROXIMATION with a source-backed stable interval, not
+a measured latch-edge/propagation claim. Full words remain 56 cells and 224
+transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.

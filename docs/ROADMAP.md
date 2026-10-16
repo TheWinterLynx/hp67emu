@@ -283,3 +283,14 @@ output circuitry, propagation and cathode application inside the word remain
 unproven. Word timing stays 56 cells/224 transitions, including DATA prefix
 continuation. See `docs/research/M15G_RESOLVED_DISPLAY_CONTROLS_2026-10-16.md`.
 Owner local M15G gate pending; M15F exact validated head is integrated.
+
+## M15H PHI receiver scheduling
+
+M15G is owner-validated and integrated. Production transport now publishes
+sources before PHI1, commits PHI1 falling/rising, samples resolved IS/DATA, then
+commits PHI2 falling/rising. All variants and the clocked DATA prefix share this
+order. The PHI1-rising checkpoint is a WORKING APPROXIMATION within the observed
+stable interval, not proof of silicon latch timing. DATA sampling no longer
+republishes the source. Physical V2 edge-table unknowns and uncalibrated widths
+remain explicit. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
+Owner local M15H gate pending.

@@ -1,7 +1,8 @@
 //! Structural HP-67 ACT↔ROM serial fetch path.
 //!
 //! This module models the evidence-backed bit-cell transport on the shared IS/ISA
-//! line without yet claiming the exact PHI launch/sample edge. The ACT can emit
+//! line with a provisional PHI1-rising receiver checkpoint. Exact physical
+//! launch/latch edges remain unproven. The ACT can emit
 //! the eight-bit ROM0 display byte at b0..b7 and the 12-bit ROM address LSB-first
 //! at b16..b27 during the same 56-bit word. A ROM-side endpoint reconstructs the
 //! address through the resolved electrical net, the selected ROM word is looked
@@ -70,6 +71,7 @@ pub enum SerialFetchError {
     ChangedSyncQualifier { word_bit: u8 },
     MissingSyncQualifier,
     InvalidTransportStart { tick: u64 },
+    InvalidSamplePhase { tick: u64 },
 }
 
 /// Errors from a combined structural HP-67 word carrying display and fetch data.
@@ -153,6 +155,23 @@ fn sample_transport_isa(
         });
     }
     Ok(level)
+}
+
+fn advance_transport_to_sample(backplane: &mut Hp67ElectricalBackplane) {
+    backplane.advance_clock_edge();
+    let (_, edge) = backplane.advance_clock_edge();
+    debug_assert_eq!(edge, super::timing::HP67_WORKING_TRANSPORT_SAMPLE_EDGE);
+}
+
+/// Provisional receiver checkpoint. Physical latch edges remain in the
+/// separate evidence table; this guard prevents pre-clock receiver consumption.
+fn sample_transport_isa_at_edge(
+    backplane: &Hp67ElectricalBackplane, word_bit: u8,
+) -> Result<LogicLevel, SerialFetchError> {
+    if !backplane.at_transport_sample_edge() || backplane.word_bit() != word_bit {
+        return Err(SerialFetchError::InvalidSamplePhase { tick: backplane.tick().get() });
+    }
+    sample_transport_isa(backplane, word_bit)
 }
 
 /// ACT-side state for structural 56-bit machine words.
@@ -846,11 +865,26 @@ pub fn run_structural_data_tail_prefix(
     for word_bit in 0..2 {
         let act_drive = wired_high_drive(((byte >> word_bit) & 1) != 0);
         backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
-        let is_level = sample_transport_isa(backplane, word_bit)?;
+        data.launch_transport_word_bit(word_bit, backplane)?;
+        for _ in 0..2 {
+            backplane.advance_clock();
+            if let Some(trace) = trace.as_deref_mut() {
+                trace.samples.push(StructuralBusSample {
+                    tick: backplane.tick().get(),
+                    transport_bit: word_bit,
+                    phi1: backplane.level(Hp67Net::Phi1),
+                    phi2: backplane.level(Hp67Net::Phi2),
+                    isa: backplane.level(Hp67Net::Isa),
+                    act_drive,
+                    rom_drive: Drive::HighZ,
+                });
+            }
+        }
+        let is_level = sample_transport_isa_at_edge(backplane, word_bit)?;
         rom0.sample_for_bit(word_bit, is_level)?;
         rom0.visit_control_bit(word_bit, act.display_scan_slot(), backplane)?;
-        data.visit_transport_word_bit_through_net(word_bit, backplane)?;
-        for _ in 0..4 {
+        data.sample_transport_word_bit_at_edge(word_bit, backplane)?;
+        for _ in 0..2 {
             backplane.advance_clock();
             if let Some(trace) = trace.as_deref_mut() {
                 trace.samples.push(StructuralBusSample {
@@ -945,7 +979,8 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = sample_transport_isa(backplane, expected_bit)?;
+        advance_transport_to_sample(backplane);
+        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -963,7 +998,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        for _ in 0..4 {
+        for _ in 0..2 {
             backplane.advance_clock();
         }
         act.advance_execution_for_bit(expected_bit)?;
@@ -1060,7 +1095,9 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = sample_transport_isa(backplane, expected_bit)?;
+        data.launch_transport_word_bit(expected_bit, backplane)?;
+        advance_transport_to_sample(backplane);
+        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -1078,9 +1115,9 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        data.visit_transport_word_bit_through_net(expected_bit, backplane)?;
+        data.sample_transport_word_bit_at_edge(expected_bit, backplane)?;
 
-        for _ in 0..4 {
+        for _ in 0..2 {
             backplane.advance_clock();
         }
         act.advance_execution_for_bit(expected_bit)?;
@@ -1341,7 +1378,19 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = sample_transport_isa(backplane, expected_bit)?;
+        for _ in 0..2 {
+            backplane.advance_clock();
+            trace.samples.push(StructuralBusSample {
+                tick: backplane.tick().get(),
+                transport_bit: expected_bit,
+                phi1: backplane.level(Hp67Net::Phi1),
+                phi2: backplane.level(Hp67Net::Phi2),
+                isa: backplane.level(Hp67Net::Isa),
+                act_drive,
+                rom_drive,
+            });
+        }
+        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -1359,7 +1408,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        for _ in 0..4 {
+        for _ in 0..2 {
             backplane.advance_clock();
             trace.samples.push(StructuralBusSample {
                 tick: backplane.tick().get(),
@@ -1497,7 +1546,20 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             previous_rom_drive = rom_drive;
         }
 
-        let is_level = sample_transport_isa(backplane, expected_bit)?;
+        data.launch_transport_word_bit(expected_bit, backplane)?;
+        for _ in 0..2 {
+            backplane.advance_clock();
+            trace.samples.push(StructuralBusSample {
+                tick: backplane.tick().get(),
+                transport_bit: expected_bit,
+                phi1: backplane.level(Hp67Net::Phi1),
+                phi2: backplane.level(Hp67Net::Phi2),
+                isa: backplane.level(Hp67Net::Isa),
+                act_drive,
+                rom_drive,
+            });
+        }
+        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
@@ -1515,9 +1577,9 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        data.visit_transport_word_bit_through_net(expected_bit, backplane)?;
+        data.sample_transport_word_bit_at_edge(expected_bit, backplane)?;
 
-        for _ in 0..4 {
+        for _ in 0..2 {
             backplane.advance_clock();
             trace.samples.push(StructuralBusSample {
                 tick: backplane.tick().get(),
@@ -1585,6 +1647,29 @@ mod tests {
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
 
     #[test]
+    fn m15h_is_receiver_rejects_early_and_late_phases_and_observes_interedge_faults() {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, Drive::High);
+        for tick in 0..=4 {
+            let sampled = sample_transport_isa_at_edge(&backplane, backplane.word_bit());
+            if tick == 2 {
+                assert_eq!(sampled, Ok(LogicLevel::High));
+                backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::Low);
+                assert_eq!(sample_transport_isa_at_edge(&backplane, 0),
+                    Err(SerialFetchError::InvalidSamplePhase { tick: 2 }));
+                backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::HighZ);
+                backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::High);
+                assert!(matches!(sample_transport_isa_at_edge(&backplane, 0),
+                    Err(SerialFetchError::InvalidIsaDrives { .. })));
+                backplane.drive(Hp67Net::Isa, Hp67Driver::External, Drive::HighZ);
+            } else {
+                assert_eq!(sampled, Err(SerialFetchError::InvalidSamplePhase { tick }));
+            }
+            if tick < 4 { backplane.advance_clock(); }
+        }
+    }
+
+    #[test]
     fn m15g_display_transport_rejects_control_fault_without_advancing_scan() {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
@@ -1607,7 +1692,7 @@ mod tests {
             assert!(matches!(result, Err(StructuralWordError::Display(
                 Rom0DisplayError::InvalidControlSample { net: failed, .. })) if failed == net));
             assert_eq!(act.display_scan_slot(), 1);
-            assert_eq!(backplane.tick().get(), 0);
+            assert_eq!(backplane.tick().get(), 2);
         }
     }
 
@@ -1877,7 +1962,7 @@ mod tests {
                 level: LogicLevel::Contention,
             })
         );
-        assert_eq!(backplane.tick().get(), 46 * 4);
+        assert_eq!(backplane.tick().get(), 46 * 4 + 2);
         assert_eq!(act.received_mask, 0);
         assert!(act.fetched_instruction_state().is_err());
     }
@@ -1976,11 +2061,11 @@ mod tests {
                 "path {path}"
             );
             assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::High);
-            assert_eq!(backplane.tick().get(), 20);
+            assert_eq!(backplane.tick().get(), 22);
             assert_eq!(backplane.word_bit(), 5);
             assert!(rom0.display_byte().is_err());
             if path >= 2 {
-                assert_eq!(trace.samples.len(), 20);
+                assert_eq!(trace.samples.len(), 22);
             }
         }
     }
@@ -2122,10 +2207,13 @@ mod tests {
             &mut trace,
         );
         assert!(result.is_err());
-        // Address lookup fails at b27 before its four PHI transitions.
-        assert_eq!(trace.samples.len(), 27 * 4);
-        assert_eq!(trace.samples.last().unwrap().transport_bit, 26);
-        assert_eq!(backplane.tick().get(), 108);
+        // Address lookup now fails at the b27 PHI1-rising sample checkpoint.
+        assert_eq!(trace.samples.len(), 27 * 4 + 2);
+        assert_eq!(trace.samples.last().unwrap().transport_bit, 27);
+        assert_eq!(trace.samples.last().unwrap().phi1, LogicLevel::High);
+        assert_eq!(trace.samples.last().unwrap().phi2, LogicLevel::High);
+        assert_eq!(backplane.clock_phase(), super::super::timing::Hp67ClockPhase::InterphaseAfterPhi1);
+        assert_eq!(backplane.tick().get(), 110);
         assert_eq!(backplane.word_bit(), 27);
     }
 

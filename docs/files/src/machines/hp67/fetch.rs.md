@@ -179,3 +179,21 @@ The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
 other cells; RCD shares that cell only in slot 15. Publishing before the four
 scaffold PHI transitions and restoring High at b8 are not physical edge/width
 claims. No extra tick or cathode-to-ACT feedback is added.
+
+## M15H provisional PHI receiver scheduling
+
+All four transport loops and the M15F prefix publish sources at the bit's
+starting boundary, commit PHI1 falling/rising, sample resolved IS and DATA, then
+commit PHI2 falling/rising. IS sampling is phase-guarded before ROM0, ROM or ACT
+receives a bit. ROM0 control publication follows reception of the complete b7
+byte at this checkpoint. ACT result bookkeeping remains at cell completion.
+Trace twins record both halves and retain every committed transition. Successful
+word traces remain 224 rows. Sampling/lookup failures now preserve the first two
+transitions of the failing cell: the missing-ROM b27 regression requires 110
+rows, last row b27 with both clocks High, rather than the former 108 rows.
+Similarly IS ownership, SYNC and display-control failures occur two ticks later;
+their original no-receiver/no-scan-advance assertions remain.
+
+This is a WORKING APPROXIMATION with a source-backed stable interval, not
+a measured latch-edge/propagation claim. Full words remain 56 cells and 224
+transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.

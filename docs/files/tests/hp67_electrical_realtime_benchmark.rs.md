@@ -40,3 +40,9 @@ Display-capable rows now include the coarse resolved STR/RCD bridge. Printed
 scope distinguishes that logical pin path from unproven physical pulse widths,
 PHI edges and propagation. Historical rows retain their fixtures but also use
 the current shared display transport where previously wired.
+
+## M15H scope
+
+Printed scope now names the provisional PHI1-rising receiver checkpoint. The
+benchmark continues to distinguish computational headroom from proof of physical
+launch/latch edges, pulse widths and propagation.

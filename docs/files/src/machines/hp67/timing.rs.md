@@ -17,3 +17,15 @@ Define 4 bits per digit, 14 digits per word and 56 bits per word; encode ROM0 di
 
 
 M14A also defines versioned edge-contract table V2. It records ownership/source metadata for SYNC, IS address/instruction traffic, DATA in both directions, ROM0 display traffic, STR and RCD. Unknown launch/sample edges and propagation are deliberately represented as source-blocked values and protected by regression tests rather than inferred from the temporary scheduler.
+
+## M15H provisional PHI receiver scheduling
+
+`HP67_WORKING_TRANSPORT_SAMPLE_EDGE` names PHI1 rising as a provisional digital
+receiver checkpoint inside the stable PHI1 interval shown by the reviewed page-70
+capture. This execution policy is deliberately separate from the physical V2
+edge table: no unknown is promoted to DirectCapture and the exact silicon latch
+edge, launch delay and pulse widths are still unproven.
+
+This is a WORKING APPROXIMATION with a source-backed stable interval, not
+a measured latch-edge/propagation claim. Full words remain 56 cells and 224
+transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.

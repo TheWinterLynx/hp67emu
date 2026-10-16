@@ -69,3 +69,22 @@ prefix visits the same resolved-net sink while advancing the actual backplane.
 consumed prefix for body continuation. The source tail/direction are retained
 until the following body binds its new payload. Legacy preconsume APIs remain
 for phase/reference fixtures; they no longer schedule production RAM authority.
+
+## M15H provisional PHI receiver scheduling
+
+Production DATA now separates `launch_transport_word_bit()` from
+`sample_transport_word_bit_at_edge()`. Publication validates bit order and the
+after-PHI2 interphase boundary; it does not mutate the sink. Sampling requires
+PHI1 rising's committed phase, correct bit coordinate and both resolved clocks
+High. It reads existing DATA contributions without re-driving them, validates
+ownership/level and only then consumes the bit. Reference combined visitors
+retain their original unclocked API for isolated fixtures.
+
+New tests reject early/late samples without sink mutation, traverse both DATA
+directions plus following-word tails, and introduce agreeing/opposing extra
+drivers between launch and receive. A changed committed source bit is consumed
+as observed rather than overwritten by the expected source value.
+
+This is a WORKING APPROXIMATION with a source-backed stable interval, not
+a measured latch-edge/propagation claim. Full words remain 56 cells and 224
+transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.

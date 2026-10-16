@@ -4,10 +4,10 @@
 //! serial bit 0 appears at machine-word bit b2. Bits 54 and 55 therefore appear
 //! at b0/b1 of the following machine word. This module models that cross-word
 //! phase exactly at the logical-bit level while deliberately leaving electrical
-//! polarity, passive bias and PHI-relative launch/sample edges unresolved.
-//! M14C may consume the following-word b0/b1 logical tail before the next
-//! instruction-boundary bridge, while the structural loop still traverses those
-//! physical word coordinates later. That split is not a PHI-edge claim.
+//! polarity, passive bias and physical latch edges unresolved. Production now
+//! separates publication from PHI1-rising sampling using a provisional policy,
+//! including the genuinely clocked following-word b0/b1 tail. Combined unclocked
+//! visitors remain reference adapters and do not establish physical timing.
 
 use crate::emulation::{Drive, LogicLevel};
 
@@ -49,6 +49,7 @@ pub enum Hp67DataSerialError {
     },
     OverlappingFrameStart,
     ElectricalBridgeRequired,
+    InvalidTransportPhase { word_bit: u8, tick: u64 },
     MissingElectricalOwner {
         word_bit: u8,
     },
@@ -270,11 +271,11 @@ impl Hp67DataSerialWordPath {
         self.current_direction = direction;
     }
 
-    fn drive_and_sample_level_bridge(
+    fn drive_level_bridge(
         &self,
         word_bit: u8,
         backplane: &mut Hp67ElectricalBackplane,
-    ) -> Result<Option<bool>, Hp67DataSerialError> {
+    ) -> Result<(), Hp67DataSerialError> {
         let source_bit = self.source.logical_bit_for_word_bit(word_bit);
         let owner = if word_bit < DATA_TAIL_BITS {
             self.previous_direction
@@ -297,6 +298,15 @@ impl Hp67DataSerialWordPath {
             (None, _) => (Drive::HighZ, Drive::HighZ),
         };
         backplane.commit_data_level_bridge(act_drive, ram_drive);
+        Ok(())
+    }
+
+    fn sample_level_bridge(
+        &self,
+        word_bit: u8,
+        backplane: &Hp67ElectricalBackplane,
+    ) -> Result<Option<bool>, Hp67DataSerialError> {
+        let source_bit = self.source.logical_bit_for_word_bit(word_bit);
         let level = backplane.level(Hp67Net::Data);
         let active_drivers = backplane.active_data_driver_count();
         let expected_drivers = u8::from(source_bit.is_some());
@@ -317,6 +327,64 @@ impl Hp67DataSerialWordPath {
                 active_drivers,
             }),
         }
+    }
+
+    fn drive_and_sample_level_bridge(
+        &self,
+        word_bit: u8,
+        backplane: &mut Hp67ElectricalBackplane,
+    ) -> Result<Option<bool>, Hp67DataSerialError> {
+        self.drive_level_bridge(word_bit, backplane)?;
+        self.sample_level_bridge(word_bit, backplane)
+    }
+
+    fn validate_transport_bit(&self, word_bit: u8) -> Result<(), Hp67DataSerialError> {
+        if !(self.prefix_preconsumed && word_bit < DATA_TAIL_BITS)
+            && word_bit != self.sink.expected_word_bit()
+        {
+            return Err(Hp67DataSerialError::UnexpectedWordBit {
+                expected: self.sink.expected_word_bit(), actual: word_bit,
+            });
+        }
+        Ok(())
+    }
+
+    /// Production publication; receiver state is untouched until its edge.
+    pub(crate) fn launch_transport_word_bit(
+        &self, word_bit: u8, backplane: &mut Hp67ElectricalBackplane,
+    ) -> Result<(), Hp67DataSerialError> {
+        self.validate_transport_bit(word_bit)?;
+        if !backplane.at_transport_launch_boundary() || backplane.word_bit() != word_bit {
+            return Err(Hp67DataSerialError::InvalidTransportPhase { word_bit, tick: backplane.tick().get() });
+        }
+        if self.electrical_level_bridge {
+            self.drive_level_bridge(word_bit, backplane)?;
+        }
+        Ok(())
+    }
+
+    /// Sample existing resolved DATA without republishing the source. Clock
+    /// phase failures occur before sink mutation, including on following-word tails.
+    pub(crate) fn sample_transport_word_bit_at_edge(
+        &mut self, word_bit: u8, backplane: &Hp67ElectricalBackplane,
+    ) -> Result<(), Hp67DataSerialError> {
+        self.validate_transport_bit(word_bit)?;
+        if !backplane.at_transport_sample_edge() || backplane.word_bit() != word_bit {
+            return Err(Hp67DataSerialError::InvalidTransportPhase { word_bit, tick: backplane.tick().get() });
+        }
+        if !self.electrical_level_bridge {
+            return self.visit_transport_word_bit(word_bit);
+        }
+        let bit = self.sample_level_bridge(word_bit, backplane)?;
+        if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS {
+            return Ok(());
+        }
+        let completed = self.sink.sample_word_bit(word_bit, bit)?;
+        if completed.is_some() {
+            debug_assert!(self.completed_payload.is_none());
+            self.completed_payload = completed;
+        }
+        Ok(())
     }
 
     /// Existing b0/b1 scheduling bridge, now reconstructed through resolved DATA.
@@ -460,6 +528,90 @@ mod tests {
 
     fn patterned_register(seed: u8) -> ActRegister {
         std::array::from_fn(|digit| (seed.wrapping_add(digit as u8 * 3)) & 0x0f)
+    }
+
+    #[test]
+    fn m15h_data_waits_for_phi1_rising_across_direction_and_tail_boundaries() {
+        let mut path = Hp67DataSerialWordPath::default();
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let a = patterned_register(3);
+        let b = patterned_register(8);
+        for (direction, payload, completed) in [
+            (Some(Hp67DataTransferDirection::ActToPeripheral), Some(a), None),
+            (Some(Hp67DataTransferDirection::PeripheralToAct), Some(b), Some(a)),
+            (None, None, Some(b)),
+        ] {
+            path.enable_electrical_level_bridge(direction);
+            path.begin_word(payload);
+            for bit in 0..BITS_PER_WORD {
+                let before = path.sink;
+                path.launch_transport_word_bit(bit, &mut backplane).unwrap();
+                assert_eq!(path.sink, before);
+                assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &backplane),
+                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })));
+                assert_eq!(path.sink, before);
+                backplane.advance_clock();
+                assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &backplane),
+                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })));
+                assert_eq!(path.sink, before);
+                let (_, edge) = backplane.advance_clock_edge();
+                assert_eq!(edge, super::super::timing::HP67_WORKING_TRANSPORT_SAMPLE_EDGE);
+                path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                assert_eq!(path.sink.expected_word_bit(), (bit + 1) % BITS_PER_WORD);
+                let sampled = path.sink;
+                backplane.advance_clock();
+                assert!(matches!(path.sample_transport_word_bit_at_edge((bit + 1) % BITS_PER_WORD, &backplane),
+                    Err(Hp67DataSerialError::InvalidTransportPhase { .. })));
+                assert_eq!(path.sink, sampled);
+                backplane.advance_clock();
+            }
+            assert_eq!(path.complete_word(), completed);
+        }
+        assert_eq!(backplane.tick().get(), 3 * 224);
+    }
+
+    #[test]
+    fn m15h_data_samples_resolved_pin_without_republishing_at_receive_edge() {
+        use super::super::wiring::Hp67Driver;
+        for extra in [None, Some(Drive::High), Some(Drive::Low)] {
+            let mut path = Hp67DataSerialWordPath::default();
+            let mut backplane = Hp67ElectricalBackplane::default();
+            let mut payload = [0; ACT_WORD_DIGITS];
+            payload[0] = 1;
+            path.enable_electrical_level_bridge(Some(Hp67DataTransferDirection::ActToPeripheral));
+            path.begin_word(Some(payload));
+            for bit in 0..2 {
+                path.launch_transport_word_bit(bit, &mut backplane).unwrap();
+                backplane.advance_clock();
+                backplane.advance_clock();
+                path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                backplane.advance_clock();
+                backplane.advance_clock();
+            }
+            path.launch_transport_word_bit(2, &mut backplane).unwrap();
+            assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::High);
+            let before = path.sink;
+            backplane.advance_clock();
+            if let Some(drive) = extra {
+                backplane.drive(Hp67Net::Data, Hp67Driver::External, drive);
+            } else {
+                // Stimulus changes the committed source contribution after launch.
+                // A receiver that republishes its expected bit would hide this.
+                backplane.drive(Hp67Net::Data, Hp67Driver::Act1820_2530, Drive::Low);
+            }
+            backplane.advance_clock();
+            let result = path.sample_transport_word_bit_at_edge(2, &backplane);
+            if extra.is_some() {
+                assert!(matches!(result, Err(Hp67DataSerialError::InvalidElectricalSample {
+                    word_bit: 2, active_drivers: 2, .. })));
+                assert_eq!(path.sink, before);
+            } else {
+                result.unwrap();
+                assert_eq!(path.sink.assembling.unwrap()[0] & 1, 0);
+                assert_eq!(backplane.level(Hp67Net::Data), LogicLevel::Low);
+            }
+            assert_eq!(backplane.tick().get(), 10);
+        }
     }
 
     #[test]

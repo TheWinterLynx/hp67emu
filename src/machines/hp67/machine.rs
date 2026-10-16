@@ -43,6 +43,20 @@ impl Hp67ElectricalBackplane {
         }
     }
 
+    /// Provisional transport checkpoints; resolved PHI pins must agree with
+    /// the ordinal clock phase. These do not calibrate physical pulse widths.
+    pub(crate) fn at_transport_launch_boundary(&self) -> bool {
+        self.clock_phase() == Hp67ClockPhase::InterphaseAfterPhi2
+            && self.level(Hp67Net::Phi1) == LogicLevel::High
+            && self.level(Hp67Net::Phi2) == LogicLevel::High
+    }
+
+    pub(crate) fn at_transport_sample_edge(&self) -> bool {
+        self.clock_phase() == Hp67ClockPhase::InterphaseAfterPhi1
+            && self.level(Hp67Net::Phi1) == LogicLevel::High
+            && self.level(Hp67Net::Phi2) == LogicLevel::High
+    }
+
     /// Current 4-bit digit coordinate (`0..13`).
     pub const fn word_digit(&self) -> u8 {
         self.word_bit() / BITS_PER_DIGIT

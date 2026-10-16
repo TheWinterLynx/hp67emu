@@ -146,7 +146,7 @@ impl Rom0DisplayEndpoint {
     }
 
     /// Coarse bit-cell bridge: low during b7, high otherwise. The one-cell
-    /// width and publication before PHI are approximations, not physical edges.
+    /// width and caller-selected checkpoint are approximations, not physical edges.
     /// Both outputs are published before the downstream receiver samples either.
     pub(crate) fn visit_control_bit(
         &mut self,
@@ -395,6 +395,30 @@ mod tests {
                 .sample_for_bit(bit, level)
                 .expect("display bit must sample");
         }
+    }
+
+    #[test]
+    fn m15h_display_control_pulse_follows_the_receiver_checkpoint() {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut endpoint = Rom0DisplayEndpoint::default();
+        endpoint.begin_word();
+        for bit in 0..9 {
+            let before = endpoint.resolved_control_edges();
+            backplane.advance_clock();
+            backplane.advance_clock();
+            assert_eq!(endpoint.resolved_control_edges(), before);
+            endpoint.sample_for_bit(bit, LogicLevel::Low).unwrap();
+            endpoint.visit_control_bit(bit, 15, &mut backplane).unwrap();
+            let expected = if bit == 7 { LogicLevel::Low } else { LogicLevel::High };
+            assert_eq!(backplane.level(Hp67Net::Str), expected);
+            assert_eq!(backplane.level(Hp67Net::Rcd), expected);
+            backplane.advance_clock();
+            backplane.advance_clock();
+            assert_eq!(backplane.level(Hp67Net::Str), expected);
+            assert_eq!(backplane.level(Hp67Net::Rcd), expected);
+        }
+        assert_eq!(endpoint.resolved_control_edges(), Ok((Rom0StrEvent { scan_slot: 15 }, true)));
+        assert_eq!(backplane.tick().get(), 9 * 4);
     }
 
     #[test]

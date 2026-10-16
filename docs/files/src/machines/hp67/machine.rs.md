@@ -42,3 +42,13 @@ The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
 other cells; RCD shares that cell only in slot 15. Publishing before the four
 scaffold PHI transitions and restoring High at b8 are not physical edge/width
 claims. No extra tick or cathode-to-ACT feedback is added.
+
+## M15H provisional PHI receiver scheduling
+
+Adds internal launch/sample phase predicates combining ordinal phase with both
+resolved PHI levels. Phase count alone cannot authorize a receiver if a clock
+pin is unresolved. Neither predicate advances time or changes electrical bias.
+
+This is a WORKING APPROXIMATION with a source-backed stable interval, not
+a measured latch-edge/propagation claim. Full words remain 56 cells and 224
+transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
