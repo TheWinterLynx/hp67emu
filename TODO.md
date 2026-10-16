@@ -417,3 +417,14 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Whole-versus-split parity and actual-live write/read dependency regressions.
 - [ ] Owner full local gate, diagnostic and live performance measurements.
 - [ ] Exact PHI sample/write edges, DATA output stage and internal ACT mutation.
+
+## M15G resolved STR/RCD bridge
+
+The display transports now publish named ROM0 STR and ACT RCD logical outputs
+and derive downstream events from resolved pins, rejecting extra contributors
+and contention. STR Low in b7, RCD overlap in slot 15, and High restoration at
+b8 form an explicit WORKING APPROXIMATION. Exact PHI edges, physical pulse widths,
+output circuitry, propagation and cathode application inside the word remain
+unproven. Word timing stays 56 cells/224 transitions, including DATA prefix
+continuation. See `docs/research/M15G_RESOLVED_DISPLAY_CONTROLS_2026-10-16.md`.
+Owner local M15G gate pending; M15F exact validated head is integrated.

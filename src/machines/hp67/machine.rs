@@ -62,6 +62,10 @@ impl Hp67ElectricalBackplane {
         self.fabric.commit_data_level_bridge(act, ram);
     }
 
+    pub fn active_driver_count(&self, net: Hp67Net) -> u8 {
+        self.fabric.active_driver_count(net)
+    }
+
     pub fn active_data_driver_count(&self) -> u8 {
         self.fabric.active_data_driver_count()
     }

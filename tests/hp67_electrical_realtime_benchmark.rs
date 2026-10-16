@@ -547,9 +547,9 @@ fn hp67_electrical_realtime_benchmark() {
     print_row("historical firmware dual composition", &firmware, words);
     println!();
     println!(
-        "Scope: current implementation only. The full row executes the current no-DATA structural path (live resolved RAM DATA is measured separately): 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase and serial ACT execution."
+        "Scope: current implementation only. The full row executes the current no-DATA structural path (live resolved RAM DATA is measured separately): 56 bit-cells/word, 4 PHI transitions/bit, resolved IS ownership, ACT->ROM 12-bit address, ROM->ACT 10-bit return, ROM0 display traffic, 15-slot display phase, coarse resolved STR/RCD bridge and serial ACT execution."
     );
     println!(
-        "The historical dual rows retain their original fixture for comparable measurements. They do not execute the current live restore/comparison/authority-commit bridge. Run m14o_live_authority_realtime_benchmark to measure that bridge; its real-firmware idle row and labelled synthetic RAM/CRC loads are separate workloads. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, electrically timed STR/RCD nets, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
+        "The historical dual rows retain their original fixture for comparable measurements. They do not execute the current live restore/comparison/authority-commit bridge. Run m14o_live_authority_realtime_benchmark to measure that bridge; its real-firmware idle row and labelled synthetic RAM/CRC loads are separate workloads. Not yet represented electrically: DATA transfers/RAM devices, PHI-relative IS/DATA launch/sample edges, exact STR/RCD pulse widths/PHI edges, exact PHI widths/dead time, and propagation delays. Therefore this measures realtime computational headroom, not final hardware-timing accuracy."
     );
 }

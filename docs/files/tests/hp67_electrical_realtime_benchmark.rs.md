@@ -33,3 +33,10 @@ The dual architectural/structural and firmware rows now explicitly say historica
 The structural full-row label explicitly names its no-DATA workload and directs
 resolved RAM DATA measurement to the separate actual-live benchmark. No timing
 fixture or fidelity operation is removed.
+
+## M15G scope
+
+Display-capable rows now include the coarse resolved STR/RCD bridge. Printed
+scope distinguishes that logical pin path from unproven physical pulse widths,
+PHI edges and propagation. Historical rows retain their fixtures but also use
+the current shared display transport where previously wired.

@@ -222,3 +222,14 @@ this change does not establish internal ACT write edges. DATA output circuitry,
 physical chip mapping and exact within-cell launch/sample/propagation remain
 unresolved. Reference phase fixtures retain their legacy early-tail APIs, which
 no longer schedule production RAM authority.
+
+## M15G resolved STR/RCD bridge
+
+The display transports now publish named ROM0 STR and ACT RCD logical outputs
+and derive downstream events from resolved pins, rejecting extra contributors
+and contention. STR Low in b7, RCD overlap in slot 15, and High restoration at
+b8 form an explicit WORKING APPROXIMATION. Exact PHI edges, physical pulse widths,
+output circuitry, propagation and cathode application inside the word remain
+unproven. Word timing stays 56 cells/224 transitions, including DATA prefix
+continuation. See `docs/research/M15G_RESOLVED_DISPLAY_CONTROLS_2026-10-16.md`.
+Owner local M15G gate pending; M15F exact validated head is integrated.

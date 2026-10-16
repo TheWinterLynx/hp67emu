@@ -49,3 +49,14 @@ see a transient intermediate handoff. Time does not advance. Other contributors
 remain intact so faults stay observable. `active_data_driver_count()` uses cached
 Low/High counts to expose same-level overlap. This specialized bridge does not
 replace the generic device scheduler or claim a physical DATA output stage.
+
+## M15G resolved display controls
+
+`active_driver_count(net)` exposes cached low-plus-high contributor counts for
+STR/RCD ownership checks without scanning driver slots. It does not assign a
+physical output stage or modify resolution, staged commits, bias or time.
+
+The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
+other cells; RCD shares that cell only in slot 15. Publishing before the four
+scaffold PHI transitions and restoring High at b8 are not physical edge/width
+claims. No extra tick or cathode-to-ACT feedback is added.

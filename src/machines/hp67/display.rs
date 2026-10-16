@@ -7,7 +7,8 @@
 //! coarse bit/scan facts without inventing final PHI-relative edges, pulse
 //! widths, transistor delays or LED current.
 
-use crate::emulation::LogicLevel;
+use crate::emulation::{Drive, LogicLevel};
+use super::{machine::Hp67ElectricalBackplane, wiring::{Hp67Driver, Hp67Net}};
 
 use super::timing::{display_data_serial_bit, DISPLAY_DATA_BITS};
 
@@ -78,6 +79,8 @@ pub enum Rom0DisplayError {
     IsaContention { word_bit: u8 },
     IncompleteDisplayByte { received_mask: u8 },
     InvalidScanSlot(u8),
+    InvalidControlSample { word_bit: u8, net: Hp67Net, level: LogicLevel, active_drivers: u8 },
+    MissingControlEdge,
     UnknownDisplayCode { scan_slot: u8, code: u8 },
 }
 
@@ -113,12 +116,59 @@ fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, Rom0DisplayError>
 pub struct Rom0DisplayEndpoint {
     received_byte: u8,
     received_mask: u8,
+    resolved_control_edges: Option<(Rom0StrEvent, bool)>,
+    previous_control_levels: Option<(LogicLevel, LogicLevel)>,
 }
 
 impl Rom0DisplayEndpoint {
     pub fn begin_word(&mut self) {
         self.received_byte = 0;
         self.received_mask = 0;
+        self.resolved_control_edges = None;
+        self.previous_control_levels = None;
+    }
+
+    /// Coarse bit-cell bridge: low during b7, high otherwise. The one-cell
+    /// width and publication before PHI are approximations, not physical edges.
+    /// Both outputs are published before the downstream receiver samples either.
+    pub(crate) fn visit_control_bit(
+        &mut self,
+        word_bit: u8,
+        scan_slot: u8,
+        backplane: &mut Hp67ElectricalBackplane,
+    ) -> Result<(), Rom0DisplayError> {
+        let str_low = word_bit == 7;
+        let rcd_low = str_low && scan_slot == HP67_DISPLAY_SCAN_SLOTS;
+        if matches!(word_bit, 0 | 7 | 8) {
+            if str_low {
+                self.str_falling_event(scan_slot)?;
+            }
+            backplane.drive(Hp67Net::Str, Hp67Driver::RomDisplay1818_0268,
+                if str_low { Drive::Low } else { Drive::High });
+            backplane.drive(Hp67Net::Rcd, Hp67Driver::Act1820_2530,
+                if rcd_low { Drive::Low } else { Drive::High });
+        }
+        // Sole contributors are required even when an extra driver agrees.
+        for (net, low) in [(Hp67Net::Str, str_low), (Hp67Net::Rcd, rcd_low)] {
+            let level = backplane.level(net);
+            let active_drivers = backplane.active_driver_count(net);
+            if active_drivers != 1 || level != if low { LogicLevel::Low } else { LogicLevel::High } {
+                return Err(Rom0DisplayError::InvalidControlSample { word_bit, net, level, active_drivers });
+            }
+        }
+        if str_low {
+            if self.previous_control_levels != Some((LogicLevel::High, LogicLevel::High)) {
+                return Err(Rom0DisplayError::MissingControlEdge);
+            }
+            self.resolved_control_edges = Some((Rom0StrEvent { scan_slot },
+                backplane.level(Hp67Net::Rcd) == LogicLevel::Low));
+        }
+        self.previous_control_levels = Some((backplane.level(Hp67Net::Str), backplane.level(Hp67Net::Rcd)));
+        Ok(())
+    }
+
+    pub(crate) fn resolved_control_edges(&self) -> Result<(Rom0StrEvent, bool), Rom0DisplayError> {
+        self.resolved_control_edges.ok_or(Rom0DisplayError::MissingControlEdge)
     }
 
     pub fn sample_for_bit(
@@ -305,6 +355,52 @@ mod tests {
             endpoint
                 .sample_for_bit(bit, level)
                 .expect("display bit must sample");
+        }
+    }
+
+    #[test]
+    fn m15g_resolved_controls_drive_fifteen_slots_and_downstream_cathode() {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let mut endpoint = Rom0DisplayEndpoint::default();
+        let mut cathode = CathodeDriver1820_1749::default();
+        for slot in 1..=HP67_DISPLAY_SCAN_SLOTS {
+            endpoint.begin_word();
+            assert_eq!(endpoint.resolved_control_edges(), Err(Rom0DisplayError::MissingControlEdge));
+            for bit in 0..56 {
+                endpoint.sample_for_bit(bit, LogicLevel::Low).unwrap();
+                endpoint.visit_control_bit(bit, slot, &mut backplane).unwrap();
+                for _ in 0..4 {
+                    backplane.advance_clock();
+                    assert_eq!(backplane.level(Hp67Net::Str), if bit == 7 { LogicLevel::Low } else { LogicLevel::High });
+                    assert_eq!(backplane.level(Hp67Net::Rcd), if bit == 7 && slot == 15 { LogicLevel::Low } else { LogicLevel::High });
+                }
+            }
+            let (str_event, rcd) = endpoint.resolved_control_edges().unwrap();
+            assert_eq!(str_event.scan_slot, slot);
+            assert_eq!(rcd, slot == 15);
+            cathode.apply_control_edges(str_event, rcd).unwrap();
+        }
+        assert_eq!(cathode.scan_slot(), 1);
+        assert_eq!(backplane.tick().get(), 15 * 224);
+    }
+
+    #[test]
+    fn m15g_control_receiver_rejects_extra_drivers_before_emitting_edges() {
+        for net in [Hp67Net::Str, Hp67Net::Rcd] {
+            for drive in [Drive::Low, Drive::High] {
+                let mut backplane = Hp67ElectricalBackplane::default();
+                let mut endpoint = Rom0DisplayEndpoint::default();
+                endpoint.begin_word();
+                for bit in 0..7 {
+                    endpoint.sample_for_bit(bit, LogicLevel::Low).unwrap();
+                    endpoint.visit_control_bit(bit, 15, &mut backplane).unwrap();
+                }
+                backplane.drive(net, Hp67Driver::External, drive);
+                endpoint.sample_for_bit(7, LogicLevel::Low).unwrap();
+                assert!(matches!(endpoint.visit_control_bit(7, 15, &mut backplane),
+                    Err(Rom0DisplayError::InvalidControlSample { net: failed, active_drivers: 2, .. }) if failed == net));
+                assert_eq!(endpoint.resolved_control_edges(), Err(Rom0DisplayError::MissingControlEdge));
+            }
         }
     }
 

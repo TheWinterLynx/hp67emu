@@ -848,6 +848,7 @@ pub fn run_structural_data_tail_prefix(
         backplane.drive(Hp67Net::Isa, ACT_IS_DRIVER, act_drive);
         let is_level = sample_transport_isa(backplane, word_bit)?;
         rom0.sample_for_bit(word_bit, is_level)?;
+        rom0.visit_control_bit(word_bit, act.display_scan_slot(), backplane)?;
         data.visit_transport_word_bit_through_net(word_bit, backplane)?;
         for _ in 0..4 {
             backplane.advance_clock();
@@ -946,8 +947,9 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
 
         let is_level = sample_transport_isa(backplane, expected_bit)?;
 
-        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+        if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
+            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1060,8 +1062,9 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
 
         let is_level = sample_transport_isa(backplane, expected_bit)?;
 
-        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+        if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
+            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1126,8 +1129,8 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
 /// an immutable pre-instruction A/B/C/P/radix snapshot and a private structural
 /// result image; ADD/SUB additionally maintain the source-backed carry/borrow
 /// chain across selected digit boundaries. ROM0 reconstructs the
-/// same resolved bits and emits the returned `Rom0StrEvent`; ACT independently
-/// reports the coarse RCD falling boundary after slot 15. No cathode state enters
+/// same resolved bits. The coarse STR/RCD level bridge supplies the returned
+/// control events from resolved pins, with RCD overlapping STR in slot 15. No cathode state enters
 /// this API.
 ///
 /// This establishes source-backed ownership at word/bit and arithmetic-digit
@@ -1153,8 +1156,9 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
         Some(&mut *rom0),
     )?;
     let display_byte = rom0.display_byte()?;
-    let str_event = rom0.str_falling_event(display_scan_slot)?;
-    let rcd_falling = act.complete_display_word();
+    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
+    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    act.complete_display_word();
     Ok(StructuralWordResult {
         fetched_word,
         display_byte,
@@ -1166,8 +1170,8 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
 /// M14B/M14C structural word that advances logical DATA alongside the same
 /// b0..b55 IS/fetch/display transport.
 ///
-/// DATA remains logical-only here. This function deliberately does not drive or
-/// sample `Hp67Net::Data`, choose DATA polarity, or assign a PHI edge.
+/// DATA uses either the reference logical fixture or the opted-in live resolved
+/// level bridge. Neither path assigns physical output circuitry or a PHI edge.
 pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
     backplane: &mut Hp67ElectricalBackplane,
     address: u16,
@@ -1193,8 +1197,9 @@ pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
     )?;
     let completed_data = data.complete_word();
     let display_byte = rom0.display_byte()?;
-    let str_event = rom0.str_falling_event(display_scan_slot)?;
-    let rcd_falling = act.complete_display_word();
+    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
+    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    act.complete_display_word();
     Ok(StructuralDataWordResult {
         word: StructuralWordResult {
             fetched_word,
@@ -1338,8 +1343,9 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
 
         let is_level = sample_transport_isa(backplane, expected_bit)?;
 
-        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+        if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
+            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1401,8 +1407,9 @@ pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
         trace,
     )?;
     let display_byte = rom0.display_byte()?;
-    let str_event = rom0.str_falling_event(display_scan_slot)?;
-    let rcd_falling = act.complete_display_word();
+    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
+    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    act.complete_display_word();
     Ok(StructuralWordResult {
         fetched_word,
         display_byte,
@@ -1492,8 +1499,9 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
 
         let is_level = sample_transport_isa(backplane, expected_bit)?;
 
-        if let (Some(endpoint), Some(_)) = (rom0.as_deref_mut(), display_bit) {
+        if let Some(endpoint) = rom0.as_deref_mut() {
             endpoint.sample_for_bit(expected_bit, is_level)?;
+            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1557,8 +1565,9 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
     )?;
     let completed_data = data.complete_word();
     let display_byte = rom0.display_byte()?;
-    let str_event = rom0.str_falling_event(display_scan_slot)?;
-    let rcd_falling = act.complete_display_word();
+    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
+    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    act.complete_display_word();
     Ok(StructuralDataWordResult {
         word: StructuralWordResult {
             fetched_word,
@@ -1574,6 +1583,24 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+    #[test]
+    fn m15g_display_transport_rejects_control_fault_without_advancing_scan() {
+        let source = FixtureRom { words: [(0x07b, 0x04c), (0x001, 0x3e3)] };
+        for net in [Hp67Net::Str, Hp67Net::Rcd] {
+            let mut backplane = Hp67ElectricalBackplane::default();
+            let mut act = ActSerialEndpoint::new(0x07b);
+            let mut rom = RomFetchEndpoint::default();
+            let mut rom0 = Rom0DisplayEndpoint::default();
+            backplane.drive(net, Hp67Driver::External, Drive::High);
+            let result = run_structural_display_fetch_cycle(&mut backplane, 0x07b,
+                &ActArchitecturalState::default(), &mut act, &mut rom, &mut rom0, &source);
+            assert!(matches!(result, Err(StructuralWordError::Display(
+                Rom0DisplayError::InvalidControlSample { net: failed, .. })) if failed == net));
+            assert_eq!(act.display_scan_slot(), 1);
+            assert_eq!(backplane.tick().get(), 0);
+        }
+    }
 
     #[test]
     fn m15f_clocked_tail_split_matches_whole_word_transport_and_trace() {

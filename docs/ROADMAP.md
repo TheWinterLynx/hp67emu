@@ -272,3 +272,14 @@ M14X owner FULL GATE GREEN, integrated at a4c8ffa8d7e82b982bdabeda6757285e639fd4
 ## M14Z IS word decode
 
 M14Y owner FULL GATE GREEN, integrated at 4d673754661a5c20f3a7788d5af1a19de075ac8c. M14Z decodes complete native-observation IS words into display/address/fetched-instruction values, preserving provenance and coverage and rejecting incompatible observations. Exact physical edge claims remain blocked. Owner local gate pending; no new Pac tests.
+
+## M15G resolved STR/RCD bridge
+
+The display transports now publish named ROM0 STR and ACT RCD logical outputs
+and derive downstream events from resolved pins, rejecting extra contributors
+and contention. STR Low in b7, RCD overlap in slot 15, and High restoration at
+b8 form an explicit WORKING APPROXIMATION. Exact PHI edges, physical pulse widths,
+output circuitry, propagation and cathode application inside the word remain
+unproven. Word timing stays 56 cells/224 transitions, including DATA prefix
+continuation. See `docs/research/M15G_RESOLVED_DISPLAY_CONTROLS_2026-10-16.md`.
+Owner local M15G gate pending; M15F exact validated head is integrated.

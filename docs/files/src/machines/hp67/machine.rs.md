@@ -32,3 +32,13 @@ no timing progression, passive bias or electrical DATA behavior.
 Exposes one-observation DATA source handoff and cached active-contributor counts
 to the phase engine. No passive DATA bias, chip selection or time progression
 is inferred. Core floating resolution and existing PHI topology are unchanged.
+
+## M15G resolved display controls
+
+Forwards `active_driver_count(net)` to the fabric so the display level bridge
+can reject same-level extra contributors as well as resolved contention.
+
+The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
+other cells; RCD shares that cell only in slot 15. Publishing before the four
+scaffold PHI transitions and restoring High at b8 are not physical edge/width
+claims. No extra tick or cathode-to-ACT feedback is added.

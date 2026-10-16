@@ -239,6 +239,12 @@ impl Hp67ElectricalFabric {
         }
     }
 
+    /// Number of active logical contributors, independent of resolved level.
+    pub fn active_driver_count(&self, net: Hp67Net) -> u8 {
+        let net = &self.nets[net.index()];
+        net.low_driver_count + net.high_driver_count
+    }
+
     /// Observable DATA contributions, including additional physical/stimulus slots.
     pub fn active_data_driver_count(&self) -> u8 {
         let data = &self.nets[Hp67Net::Data.index()];

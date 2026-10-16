@@ -165,3 +165,17 @@ replay. Existing digit/control result images retain their approximated mutation
 timing. Prefix splitting fixes DATA transport chronology, not ACT internal latch
 edges, analog output stage or exact within-cell sampling. Complete traces retain
 224 samples/word and are regression-compared against whole-word transport.
+
+## M15G resolved display controls
+
+All four display-capable transport loops and the shared b0/b1 DATA prefix now
+visit the control bridge. Thus prefix continuations retain the same control
+receiver state as whole-word traversal. Display wrappers obtain STR/RCD from the
+resolved receiver latch before advancing ACT scan phase; they no longer manufacture
+those output events at word completion. Fetch-only callers without ROM0 retain
+their prior scope. Legacy TSV columns remain unchanged (IS/PHI only).
+
+The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
+other cells; RCD shares that cell only in slot 15. Publishing before the four
+scaffold PHI transitions and restoring High at b8 are not physical edge/width
+claims. No extra tick or cathode-to-ACT feedback is added.

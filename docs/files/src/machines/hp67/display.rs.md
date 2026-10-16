@@ -23,3 +23,19 @@ Reconstruct one complete display byte from IS `b0..b7`; reject floating/contenti
 `Hp67SegmentMask` uses bits A..G/DP. `Rom0DisplayEndpoint` samples one resolved IS bit per evidenced display bit time and only produces a byte after all eight bits arrive. `str_falling_event()` emits a `Rom0StrEvent` only after a complete byte and valid scan slot. `CathodeDriver1820_1749::apply_control_edges()` validates that the ROM0 STR slot matches the downstream cathode phase, requires RCD only at the final slot, and returns to slot 1 after the observed slot-15 STR/RCD boundary without inventing ordering inside their physical overlap.
 
 The earlier transcription of the reviewed HP-67 capture assigned `0x0A=o` and `0x0C=r`, but that assignment is inconsistent with the calculator's own firmware and documented user-visible behavior. The pinned HP-67/97 card firmware constructs the second-pass prompt by loading display codes 11, 10 and 13 for `C`, `r`, `d`; Hewlett-Packard documentation independently states that the calculator displays `Crd` when another card pass is required. Therefore production decodes `0x0A=r`, `0x0B=C`, `0x0C=o`, and `0x0D=d`. The capture's two semantic labels are treated as transposed, while its electrical timing/byte observations remain valid.
+
+## M15G resolved display controls
+
+The production `visit_control_bit()` bridge publishes named ROM0 STR and ACT RCD
+logical contributions, validates both resolved pins and sole-contributor counts,
+and records the observed High-to-Low STR transition with the resolved RCD level.
+It requires a complete display byte before falling STR. All cells are checked;
+same-level extra drives and opposite-level contention fail before edge emission.
+`begin_word()` clears the receiver latch. Reference `str_falling_event()` remains
+available for isolated structural fixtures, while production reads
+`resolved_control_edges()`. Cathode application remains deferred to word completion.
+
+The pulse bridge is a WORKING APPROXIMATION: STR is Low in b7 and High in
+other cells; RCD shares that cell only in slot 15. Publishing before the four
+scaffold PHI transitions and restoring High at b8 are not physical edge/width
+claims. No extra tick or cathode-to-ACT feedback is added.
