@@ -337,14 +337,20 @@ impl Hp67DataSerialWordPath {
         if source_bit.is_some() {
             let expected = match self.direction_for_word_bit(word_bit) {
                 Some(Hp67DataTransferDirection::ActToPeripheral) => Hp67Driver::Act1820_2530,
-                Some(Hp67DataTransferDirection::PeripheralToAct) => Hp67Driver::StructuralRomResponder,
+                Some(Hp67DataTransferDirection::PeripheralToAct) => {
+                    Hp67Driver::StructuralRomResponder
+                }
                 None => return Err(Hp67DataSerialError::MissingElectricalOwner { word_bit }),
             };
             // Count alone accepts a sole impostor with a perfectly valid level.
             // Check identity, not expected bit value: the sink still consumes
             // the actual resolved DATA sample without republishing anything.
             if backplane.driver_drive(Hp67Net::Data, expected) == Drive::HighZ {
-                return Err(Hp67DataSerialError::InvalidElectricalOwner { word_bit, expected, level });
+                return Err(Hp67DataSerialError::InvalidElectricalOwner {
+                    word_bit,
+                    expected,
+                    level,
+                });
             }
         }
         match (source_bit.is_some(), level) {
@@ -592,8 +598,16 @@ mod tests {
             let mut path = Hp67DataSerialWordPath::default();
             let mut backplane = Hp67ElectricalBackplane::default();
             for (word, direction, payload) in [
-                (0, Some(Hp67DataTransferDirection::ActToPeripheral), Some([seed; ACT_WORD_DIGITS])),
-                (1, Some(Hp67DataTransferDirection::PeripheralToAct), Some([seed; ACT_WORD_DIGITS])),
+                (
+                    0,
+                    Some(Hp67DataTransferDirection::ActToPeripheral),
+                    Some([seed; ACT_WORD_DIGITS]),
+                ),
+                (
+                    1,
+                    Some(Hp67DataTransferDirection::PeripheralToAct),
+                    Some([seed; ACT_WORD_DIGITS]),
+                ),
                 (2, None, None),
             ] {
                 path.enable_electrical_level_bridge(direction);
@@ -613,14 +627,22 @@ mod tests {
                         let level = backplane.level(Hp67Net::Data);
                         let drive = backplane.driver_drive(Hp67Net::Data, expected);
                         for wrong in Hp67Driver::ALL {
-                            if wrong == expected { continue; }
+                            if wrong == expected {
+                                continue;
+                            }
                             let mut faulted = backplane.clone();
                             faulted.drive(Hp67Net::Data, expected, Drive::HighZ);
                             faulted.drive(Hp67Net::Data, wrong, drive);
                             assert_eq!(faulted.active_data_driver_count(), 1);
                             assert_eq!(faulted.level(Hp67Net::Data), level);
-                            assert_eq!(path.sample_transport_word_bit_at_edge(bit, &faulted),
-                                Err(Hp67DataSerialError::InvalidElectricalOwner { word_bit: bit, expected, level }));
+                            assert_eq!(
+                                path.sample_transport_word_bit_at_edge(bit, &faulted),
+                                Err(Hp67DataSerialError::InvalidElectricalOwner {
+                                    word_bit: bit,
+                                    expected,
+                                    level
+                                })
+                            );
                             assert_eq!(path, before);
                             assert_eq!(faulted.tick(), backplane.tick());
                         }
@@ -629,18 +651,36 @@ mod tests {
                         for wrong in Hp67Driver::ALL {
                             let mut faulted = backplane.clone();
                             let drive = if seed == 0 { Drive::Low } else { Drive::High };
-                            let level = if seed == 0 { LogicLevel::Low } else { LogicLevel::High };
+                            let level = if seed == 0 {
+                                LogicLevel::Low
+                            } else {
+                                LogicLevel::High
+                            };
                             faulted.drive(Hp67Net::Data, wrong, drive);
-                            assert_eq!(path.sample_transport_word_bit_at_edge(bit, &faulted),
-                                Err(Hp67DataSerialError::InvalidElectricalSample { word_bit: bit, level, active_drivers: 1 }));
+                            assert_eq!(
+                                path.sample_transport_word_bit_at_edge(bit, &faulted),
+                                Err(Hp67DataSerialError::InvalidElectricalSample {
+                                    word_bit: bit,
+                                    level,
+                                    active_drivers: 1
+                                })
+                            );
                             assert_eq!(path, before);
                         }
                     }
-                    path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                    path.sample_transport_word_bit_at_edge(bit, &backplane)
+                        .unwrap();
                     backplane.advance_clock();
                     backplane.advance_clock();
                 }
-                assert_eq!(path.complete_word(), if word == 0 { None } else { Some([seed; ACT_WORD_DIGITS]) });
+                assert_eq!(
+                    path.complete_word(),
+                    if word == 0 {
+                        None
+                    } else {
+                        Some([seed; ACT_WORD_DIGITS])
+                    }
+                );
             }
             assert_eq!(backplane.tick().get(), 3 * 224);
         }
@@ -651,8 +691,16 @@ mod tests {
         let mut path = Hp67DataSerialWordPath::default();
         let mut backplane = Hp67ElectricalBackplane::default();
         for (word, direction, payload) in [
-            (0, Some(Hp67DataTransferDirection::ActToPeripheral), Some([0; ACT_WORD_DIGITS])),
-            (1, Some(Hp67DataTransferDirection::PeripheralToAct), Some([0; ACT_WORD_DIGITS])),
+            (
+                0,
+                Some(Hp67DataTransferDirection::ActToPeripheral),
+                Some([0; ACT_WORD_DIGITS]),
+            ),
+            (
+                1,
+                Some(Hp67DataTransferDirection::PeripheralToAct),
+                Some([0; ACT_WORD_DIGITS]),
+            ),
             (2, None, None),
         ] {
             path.enable_electrical_level_bridge(direction);
@@ -671,11 +719,19 @@ mod tests {
                     backplane.drive(Hp67Net::Data, owner, Drive::High);
                 }
                 backplane.advance_clock();
-                path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                path.sample_transport_word_bit_at_edge(bit, &backplane)
+                    .unwrap();
                 backplane.advance_clock();
                 backplane.advance_clock();
             }
-            assert_eq!(path.complete_word(), if word == 0 { None } else { Some([15; ACT_WORD_DIGITS]) });
+            assert_eq!(
+                path.complete_word(),
+                if word == 0 {
+                    None
+                } else {
+                    Some([15; ACT_WORD_DIGITS])
+                }
+            );
         }
         assert_eq!(backplane.tick().get(), 3 * 224);
     }
