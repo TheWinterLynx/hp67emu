@@ -104,7 +104,10 @@ impl LiveBenchmark {
                 .live
                 .step_firmware_cycle_with_execution()
                 .unwrap_or_else(|error| {
-                    panic!("full live authority cycle failed: workload={:?} sequence={} error={error}", self.workload, self.sequence)
+                    panic!(
+                        "full live authority cycle failed: workload={:?} sequence={} error={error}",
+                        self.workload, self.sequence
+                    )
                 })
                 .expect("booted benchmark pipeline must execute every word");
             if self.workload == Workload::CrcPorts && write {
@@ -140,10 +143,19 @@ impl LiveBenchmark {
             .is_complete());
         if self.workload != Workload::FirmwareIdle {
             assert_eq!(self.live.machine.pc(), SYNTHETIC_FETCH_PC);
-            assert_eq!(self.live.fetch_rom.received_address(), Ok(SYNTHETIC_FETCH_PC));
+            assert_eq!(
+                self.live.fetch_rom.received_address(),
+                Ok(SYNTHETIC_FETCH_PC)
+            );
             assert_eq!(self.live.act_serial.fetched_word(), Ok(0x3e3));
-            assert!(self.live.fetch_rom.physical_chip_set().unwrap().chips()
-                .iter().all(|chip| chip.bank_latch() == 0));
+            assert!(self
+                .live
+                .fetch_rom
+                .physical_chip_set()
+                .unwrap()
+                .chips()
+                .iter()
+                .all(|chip| chip.bank_latch() == 0));
         }
         if self.workload == Workload::RamPorts {
             assert!(self.live.pending_ram_data_transfer.is_some());
@@ -206,11 +218,23 @@ fn m15k_bank_guard_rejects_port_injection_after_unexecuted_bank_fetch() {
     fixture.live.step_firmware_cycle_with_execution().unwrap();
     assert_eq!(fixture.live.act_serial.fetched_word(), Ok(0x230));
     assert_eq!(fixture.live.machine.act.state.bank, 0);
-    assert!(fixture.live.fetch_rom.physical_chip_set().unwrap().chips()
-        .iter().all(|chip| chip.bank_latch() == 1));
+    assert!(fixture
+        .live
+        .fetch_rom
+        .physical_chip_set()
+        .unwrap()
+        .chips()
+        .iter()
+        .all(|chip| chip.bank_latch() == 1));
     fixture.live.pipeline.complete_cycle(0o0070);
-    let error = fixture.live.step_firmware_cycle_with_execution().unwrap_err();
-    assert!(error.contains("ROM bank mismatch at 7f5: pins=Some(1), ACT=0"), "{error}");
+    let error = fixture
+        .live
+        .step_firmware_cycle_with_execution()
+        .unwrap_err();
+    assert!(
+        error.contains("ROM bank mismatch at 7f5: pins=Some(1), ACT=0"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -226,7 +250,10 @@ fn m15k_synthetic_port_loads_keep_real_fetch_coherent_across_long_batches() {
         assert_eq!(fixture.sequence, 4097);
         assert_eq!(fixture.live.machine.pc(), SYNTHETIC_FETCH_PC);
         if workload == Workload::RamPorts {
-            fixture.live.complete_pending_ram_data_before_word(0).unwrap();
+            fixture
+                .live
+                .complete_pending_ram_data_before_word(0)
+                .unwrap();
             assert_eq!(fixture.live.machine.ram.read(0x20), Some([3; 14]));
             assert_eq!(fixture.live.machine.act.state.c, [3; 14]);
         }
