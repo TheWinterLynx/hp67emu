@@ -1,0 +1,31 @@
+name: M15N cargo fmt only
+
+on:
+  push:
+    branches: [agent/m15n-autonomous-serial-ram]
+    paths-ignore:
+      - '**/*.md'
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/m15n-autonomous-serial-ram
+      - name: Format Rust only
+        run: cargo fmt --all
+      - name: Verify Rust formatting only
+        run: cargo fmt --all -- --check
+      - name: Save rustfmt output on feature branch
+        run: |
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- '*.rs'
+            git commit -m 'Style: apply cargo fmt to M15N autonomous serial RAM'
+            git push origin HEAD:agent/m15n-autonomous-serial-ram
+          fi

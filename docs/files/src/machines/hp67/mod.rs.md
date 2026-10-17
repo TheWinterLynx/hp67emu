@@ -84,3 +84,11 @@ fixtures; live composition opts into the five-chip path explicitly.
 Exact launch/latch delays remain unproven. The part/profile evidence and
 remaining bank/RAM bridges are recorded in
 `docs/research/M15J_FIVE_ROM_ENDPOINTS_2026-10-16.md`.
+
+## M15N autonomous serial RAM
+
+Exports `serial_ram` and Hp67SerialRam/Error/Event plus the 64-word logical
+capacity constant. The device is an aggregate logical RAM with independent
+IS/SYNC command capture, DATA address/write reception, storage and read drive.
+It is available to separate electrical compositions; desktop live is not yet
+migrated. See `docs/research/M15N_AUTONOMOUS_SERIAL_RAM_2026-10-18.md`.

@@ -34,6 +34,7 @@ pub mod keyboard;
 pub mod machine;
 pub mod magnetic_card;
 pub mod rom_devices;
+pub mod serial_ram;
 pub mod timing;
 pub mod wiring;
 
@@ -124,6 +125,7 @@ pub use magnetic_card::{
     HP67_CARD_CONTAINER_BYTES, HP67_CARD_LOGICAL_BYTES, HP67_CARD_LOGICAL_BYTES_PER_TRACK,
     HP67_CARD_RECORDS_PER_TRACK,
 };
+pub use serial_ram::{Hp67SerialRam, Hp67SerialRamError, Hp67SerialRamEvent, HP67_SERIAL_RAM_WORDS};
 pub use timing::{
     data_serial_bit_for_word_bit, display_data_serial_bit, edge_contract, isa_window_for_bit,
     sync_decision_window, Hp67ClockEdge, Hp67ClockPhase, Hp67EdgeContract, Hp67SignalTransition,

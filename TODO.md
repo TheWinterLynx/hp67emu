@@ -505,4 +505,16 @@ before receive-state mutation; complete ROM-observed words are exposed for
 comparison with ACT. This strengthens the simulator's serial contract without
 claiming new physical PHI timing, RAM mapping or analog glitch behavior.
 See `docs/research/M15M_ROM_RECEIVER_ORDER_2026-10-18.md`.
-Owner local M15M gate pending.
+Owner local M15M gate GREEN; exact head integrated.
+
+## M15N autonomous serial RAM device
+
+M15M's exact validated head `1c5c8f987c9fde0bdd87f581db16a6ae99023ba8` is
+integrated. M15N adds an autonomous aggregate logical RAM: own 64 registers,
+commands from resolved IS/SYNC, address/write frames from DATA, stored-data read
+responses, cross-word tails and logical block clear. It runs in a separate
+224-transition electrical composition. Desktop live still uses its existing
+bridge until C-to-address DATA and consistent command forwarding are integrated.
+Physical RAM-chip mapping, output circuitry and exact latch timing remain open.
+See `docs/research/M15N_AUTONOMOUS_SERIAL_RAM_2026-10-18.md`.
+Owner local M15N gate pending.
