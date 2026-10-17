@@ -473,6 +473,23 @@ fixtures remain explicit references. ACT bank state is comparison-only on this
 path. Timing remains 56 cells/224 PHI transitions; the b55 decoder checkpoint
 retains M15H's provisional PHI policy, not a newly proven physical latch edge.
 See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
-Owner local M15K gate pending. Physical DATA/RAM devices, internal ACT mutation,
+Owner local M15K gate GREEN; exact v3 head integrated. Physical DATA/RAM devices, internal ACT mutation,
 exact PHI calibration and propagation, display integration and magnetic sense
 remain open; this milestone does not claim completion of electrical fidelity.
+
+## M15L DATA receiver owner identity
+
+M15K is owner-validated at exact head
+`8937b8e99408f1df89e511554c8b183d0d21158e` and integrated. Diagnostic 12/12
+retains its cycles; live idle measured 1.410 us/word (226.92x), synthetic pinned-PC
+RAM 1.958 us (163.45x), CRC 1.397 us (229.11x). Synthetic workloads are stress
+loads, not physical card throughput.
+
+M15L rejects a sole DATA conductor with the wrong identity even when its level
+is valid. It retains the previous frame's owner at b0/b1, checks the current one
+at b2..b55 and consumes the actual resolved value without re-driving it. This is
+validation of the existing logical-level bridge: ACT writes and aggregate
+peripheral reads. Physical RAM chip/address mapping and output circuitry remain
+unresolved. PHI scheduling/counts and all production authority paths remain.
+See `docs/research/M15L_DATA_OWNER_IDENTITY_2026-10-17.md`.
+Owner local M15L gate pending.

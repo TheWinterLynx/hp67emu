@@ -10,7 +10,10 @@ Direct HP-67 captures establish that DATA is a continuous 56-bit LSB-first regis
 
 ## Relationships
 
-Uses `ActArchitecturalState`/`ActRegister` only as the current semantic source type and `data_serial_bit_for_word_bit()` from `timing.rs` as the hardware-evidence mapping. It does not read or write `Hp67Net::Data`; electrical DATA polarity, passive bias, ownership handoff and PHI-relative timing remain source-blocked.
+Uses `ActArchitecturalState`/`ActRegister` only as the current semantic source type and `data_serial_bit_for_word_bit()` from `timing.rs` as the hardware-evidence mapping. Default reference fixtures use logical samples. The live logical-level bridge
+publishes and samples resolved `Hp67Net::Data` with explicit driver roles;
+physical DATA polarity, passive bias, chip mapping and exact PHI timing remain
+source-blocked.
 
 ## Responsibilities
 
@@ -102,3 +105,29 @@ test-only for isolated receiver fixtures; it is not a production publication pat
 The launch boundary and PHI1-rising sample checkpoint retain M15H
 WORKING APPROXIMATION status. No propagation delay, physical output stage or
 unknown latch edge is promoted to proven hardware behavior.
+
+## M15L DATA receiver owner identity
+
+A sole active driver is necessary but insufficient: a different device could
+replace the legitimate source, preserve the same Low/High level and previously
+be accepted. Sampling now requires the expected named driver to be non-HighZ,
+in addition to the existing active-count and resolved-level checks. ACT writes
+expect `Act1820_2530`; peripheral reads expect the existing aggregate
+`StructuralRomResponder`. This validates the M15E bridge contract, not physical
+RAM-chip mapping or transistor polarity.
+
+`direction_for_word_bit()` supplies the preceding frame's direction at b0/b1
+and the current frame's direction at b2..b55 to both proposal and receive paths.
+Wrong sole ownership reports `InvalidElectricalOwner` with bit, expected driver
+and resolved level before changing sink/frame/completion state. Extra/missing
+contributors, idle ghost drivers and invalid levels retain their existing error
+checks. Sampling never republishes a source or compares its value to the
+expected payload. No clocks, allocations or bus commits are added.
+
+Tests replace every active cell's owner with every other named driver at both
+logic levels, including the opposite-direction handoff and both following-word
+tails. All twelve idle ghost contributions remain rejected. The full DATA state
+must remain unchanged on failure, while a correct owner changing zero to one
+at the receive edge must reconstruct an all-ones register in both directions.
+Each three-word fixture retains exactly 672 PHI transitions. See
+`docs/research/M15L_DATA_OWNER_IDENTITY_2026-10-17.md`.

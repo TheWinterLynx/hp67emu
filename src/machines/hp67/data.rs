@@ -15,7 +15,7 @@ use super::{
     act::{ActArchitecturalState, ActInstructionState, ActRegister, ACT_WORD_DIGITS},
     machine::Hp67ElectricalBackplane,
     timing::{data_serial_bit_for_word_bit, BITS_PER_DIGIT, BITS_PER_WORD},
-    wiring::Hp67Net,
+    wiring::{Hp67Driver, Hp67Net},
 };
 
 const DATA_TAIL_BITS: u8 = 2;
@@ -55,6 +55,11 @@ pub enum Hp67DataSerialError {
     },
     MissingElectricalOwner {
         word_bit: u8,
+    },
+    InvalidElectricalOwner {
+        word_bit: u8,
+        expected: Hp67Driver,
+        level: LogicLevel,
     },
     InvalidElectricalSample {
         word_bit: u8,
@@ -274,13 +279,17 @@ impl Hp67DataSerialWordPath {
         self.current_direction = direction;
     }
 
-    fn level_bridge_drives(&self, word_bit: u8) -> Result<(Drive, Drive), Hp67DataSerialError> {
-        let source_bit = self.source.logical_bit_for_word_bit(word_bit);
-        let owner = if word_bit < DATA_TAIL_BITS {
+    fn direction_for_word_bit(&self, word_bit: u8) -> Option<Hp67DataTransferDirection> {
+        if word_bit < DATA_TAIL_BITS {
             self.previous_direction
         } else {
             self.current_direction
-        };
+        }
+    }
+
+    fn level_bridge_drives(&self, word_bit: u8) -> Result<(Drive, Drive), Hp67DataSerialError> {
+        let source_bit = self.source.logical_bit_for_word_bit(word_bit);
+        let owner = self.direction_for_word_bit(word_bit);
         let (act_drive, ram_drive) = match (source_bit, owner) {
             (Some(bit), Some(direction)) => {
                 // Digital logic-level adapter only; does not assert push-pull
@@ -324,6 +333,19 @@ impl Hp67DataSerialWordPath {
                 level,
                 active_drivers,
             });
+        }
+        if source_bit.is_some() {
+            let expected = match self.direction_for_word_bit(word_bit) {
+                Some(Hp67DataTransferDirection::ActToPeripheral) => Hp67Driver::Act1820_2530,
+                Some(Hp67DataTransferDirection::PeripheralToAct) => Hp67Driver::StructuralRomResponder,
+                None => return Err(Hp67DataSerialError::MissingElectricalOwner { word_bit }),
+            };
+            // Count alone accepts a sole impostor with a perfectly valid level.
+            // Check identity, not expected bit value: the sink still consumes
+            // the actual resolved DATA sample without republishing anything.
+            if backplane.driver_drive(Hp67Net::Data, expected) == Drive::HighZ {
+                return Err(Hp67DataSerialError::InvalidElectricalOwner { word_bit, expected, level });
+            }
         }
         match (source_bit.is_some(), level) {
             (true, LogicLevel::High) => Ok(Some(true)),
@@ -562,6 +584,100 @@ mod tests {
 
     fn patterned_register(seed: u8) -> ActRegister {
         std::array::from_fn(|digit| (seed.wrapping_add(digit as u8 * 3)) & 0x0f)
+    }
+
+    #[test]
+    fn m15l_data_rejects_every_sole_wrong_driver_across_bodies_and_tails() {
+        for seed in [0, 15] {
+            let mut path = Hp67DataSerialWordPath::default();
+            let mut backplane = Hp67ElectricalBackplane::default();
+            for (word, direction, payload) in [
+                (0, Some(Hp67DataTransferDirection::ActToPeripheral), Some([seed; ACT_WORD_DIGITS])),
+                (1, Some(Hp67DataTransferDirection::PeripheralToAct), Some([seed; ACT_WORD_DIGITS])),
+                (2, None, None),
+            ] {
+                path.enable_electrical_level_bridge(direction);
+                path.begin_word(payload);
+                for bit in 0..BITS_PER_WORD {
+                    path.launch_transport_word_bit(bit, &mut backplane).unwrap();
+                    backplane.advance_clock();
+                    backplane.advance_clock();
+                    // Independent fixture roles: write body/tail, read body/tail.
+                    let expected = match (word, bit) {
+                        (0, 2..=55) | (1, 0..=1) => Some(Hp67Driver::Act1820_2530),
+                        (1, 2..=55) | (2, 0..=1) => Some(Hp67Driver::StructuralRomResponder),
+                        _ => None,
+                    };
+                    if let Some(expected) = expected {
+                        let before = path;
+                        let level = backplane.level(Hp67Net::Data);
+                        let drive = backplane.driver_drive(Hp67Net::Data, expected);
+                        for wrong in Hp67Driver::ALL {
+                            if wrong == expected { continue; }
+                            let mut faulted = backplane.clone();
+                            faulted.drive(Hp67Net::Data, expected, Drive::HighZ);
+                            faulted.drive(Hp67Net::Data, wrong, drive);
+                            assert_eq!(faulted.active_data_driver_count(), 1);
+                            assert_eq!(faulted.level(Hp67Net::Data), level);
+                            assert_eq!(path.sample_transport_word_bit_at_edge(bit, &faulted),
+                                Err(Hp67DataSerialError::InvalidElectricalOwner { word_bit: bit, expected, level }));
+                            assert_eq!(path, before);
+                            assert_eq!(faulted.tick(), backplane.tick());
+                        }
+                    } else {
+                        let before = path;
+                        for wrong in Hp67Driver::ALL {
+                            let mut faulted = backplane.clone();
+                            let drive = if seed == 0 { Drive::Low } else { Drive::High };
+                            let level = if seed == 0 { LogicLevel::Low } else { LogicLevel::High };
+                            faulted.drive(Hp67Net::Data, wrong, drive);
+                            assert_eq!(path.sample_transport_word_bit_at_edge(bit, &faulted),
+                                Err(Hp67DataSerialError::InvalidElectricalSample { word_bit: bit, level, active_drivers: 1 }));
+                            assert_eq!(path, before);
+                        }
+                    }
+                    path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                    backplane.advance_clock();
+                    backplane.advance_clock();
+                }
+                assert_eq!(path.complete_word(), if word == 0 { None } else { Some([seed; ACT_WORD_DIGITS]) });
+            }
+            assert_eq!(backplane.tick().get(), 3 * 224);
+        }
+    }
+
+    #[test]
+    fn m15l_valid_data_owner_delivers_observed_bits_in_both_directions_and_tails() {
+        let mut path = Hp67DataSerialWordPath::default();
+        let mut backplane = Hp67ElectricalBackplane::default();
+        for (word, direction, payload) in [
+            (0, Some(Hp67DataTransferDirection::ActToPeripheral), Some([0; ACT_WORD_DIGITS])),
+            (1, Some(Hp67DataTransferDirection::PeripheralToAct), Some([0; ACT_WORD_DIGITS])),
+            (2, None, None),
+        ] {
+            path.enable_electrical_level_bridge(direction);
+            path.begin_word(payload);
+            for bit in 0..BITS_PER_WORD {
+                path.launch_transport_word_bit(bit, &mut backplane).unwrap();
+                backplane.advance_clock();
+                let expected = match (word, bit) {
+                    (0, 2..=55) | (1, 0..=1) => Some(Hp67Driver::Act1820_2530),
+                    (1, 2..=55) | (2, 0..=1) => Some(Hp67Driver::StructuralRomResponder),
+                    _ => None,
+                };
+                if let Some(owner) = expected {
+                    // Same owner, changed committed bit: zero source payload
+                    // must reconstruct as ones from the real sampled net.
+                    backplane.drive(Hp67Net::Data, owner, Drive::High);
+                }
+                backplane.advance_clock();
+                path.sample_transport_word_bit_at_edge(bit, &backplane).unwrap();
+                backplane.advance_clock();
+                backplane.advance_clock();
+            }
+            assert_eq!(path.complete_word(), if word == 0 { None } else { Some([15; ACT_WORD_DIGITS]) });
+        }
+        assert_eq!(backplane.tick().get(), 3 * 224);
     }
 
     #[test]

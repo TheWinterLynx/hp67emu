@@ -1673,6 +1673,47 @@ mod tests {
     }
 
     #[test]
+    fn m15l_live_data_owners_preserve_write_read_results_in_both_transports() {
+        use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
+        for seed in [0, 15] {
+            for traced in [false, true] {
+                let mut live = Hp67LiveMachine::power_on_default().unwrap();
+                let mut trace = StructuralBusTrace::default();
+                let initial_ram = live.machine.ram.read(0x20).unwrap();
+                live.machine.act.state.c = [seed; 14];
+                live.machine.act.state.ram_address = 0x20;
+                for (word, owner, expected_c, expected_ram) in [
+                    (0o1360, Some(Hp67Driver::Act1820_2530), [seed; 14], initial_ram),
+                    (0o0070, Some(Hp67Driver::StructuralRomResponder), [2; 14], [seed; 14]),
+                    (0, None, [seed; 14], [seed; 14]),
+                ] {
+                    if word == 0o0070 { live.machine.act.state.c = [2; 14]; }
+                    let tick = live.backplane.tick().get();
+                    live.pipeline.complete_cycle(word);
+                    if traced {
+                        live.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+                    } else {
+                        live.step_firmware_cycle_with_execution().unwrap();
+                    }
+                    assert_eq!(live.backplane.tick().get() - tick, 224);
+                    assert_eq!(live.machine.act.state.c, expected_c);
+                    assert_eq!(live.machine.ram.read(0x20), Some(expected_ram));
+                    for driver in [Hp67Driver::Act1820_2530, Hp67Driver::StructuralRomResponder] {
+                        assert_eq!(live.backplane.driver_drive(Hp67Net::Data, driver),
+                            if owner == Some(driver) {
+                                if seed == 0 { Drive::Low } else { Drive::High }
+                            } else { Drive::HighZ });
+                    }
+                    assert_eq!(live.backplane.active_data_driver_count(), u8::from(owner.is_some()));
+                }
+                assert!(live.pending_ram_data_transfer.is_none());
+                assert_eq!(live.backplane.level(Hp67Net::Data), hp67emu::emulation::LogicLevel::Floating);
+                assert_eq!(trace.samples.len(), if traced { 3 * 224 } else { 0 });
+            }
+        }
+    }
+
+    #[test]
     fn m15f_live_write_read_dependency_uses_clocked_tail_with_224_transitions() {
         use hp67emu::machines::hp67::Hp67Net;
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
