@@ -1679,18 +1679,29 @@ mod tests {
             let mut trace = StructuralBusTrace::default();
             for _ in 0..1200 {
                 let tick = live.backplane.tick().get();
-                if traced { live.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap(); }
-                else { live.step_firmware_cycle_with_execution().unwrap(); }
+                if traced {
+                    live.step_firmware_cycle_with_trace(Some(&mut trace))
+                        .unwrap();
+                } else {
+                    live.step_firmware_cycle_with_execution().unwrap();
+                }
                 let chips = live.fetch_rom.physical_chip_set().unwrap();
                 assert_eq!(chips.received_word(), live.act_serial.fetched_word());
-                assert!(chips.chips().iter().all(|chip|
-                    chip.received_address() == live.fetch_rom.received_address()));
+                assert!(chips
+                    .chips()
+                    .iter()
+                    .all(|chip| chip.received_address() == live.fetch_rom.received_address()));
                 assert_eq!(live.backplane.tick().get() - tick, 224);
             }
             assert_eq!(live.phase, LiveBootPhase::Idle);
             assert_eq!(trace.samples.len(), if traced { 1200 * 224 } else { 0 });
             live.reset_power_on().unwrap();
-            assert!(live.fetch_rom.physical_chip_set().unwrap().received_word().is_err());
+            assert!(live
+                .fetch_rom
+                .physical_chip_set()
+                .unwrap()
+                .received_word()
+                .is_err());
         }
     }
 
