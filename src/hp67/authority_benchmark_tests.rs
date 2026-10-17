@@ -3,6 +3,12 @@ use super::*;
 use hp67emu::machines::hp67::{BITS_PER_WORD, CRC_CARD_WORD_MASK};
 use std::{env, hint::black_box, time::Instant};
 
+// Synthetic port instructions are injected, not read from the firmware stream.
+// Keep their concurrent real ROM fetch at 001 (3e3), away from bank-set 230.
+// This is test-fixture setup, never a production PC/bank override.
+const SYNTHETIC_PORT_PC: u16 = 0x000;
+const SYNTHETIC_FETCH_PC: u16 = SYNTHETIC_PORT_PC + 1;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Workload {
     FirmwareIdle,
@@ -65,6 +71,13 @@ impl LiveBenchmark {
         let mut checksum = 0u64;
         for _ in 0..words {
             let write = self.sequence % 2 == 0;
+            if self.workload != Workload::FirmwareIdle {
+                // Walking firmware addresses while replacing their opcodes can
+                // fetch a bank-set seen by ROMs but never executed by ACT. Pin
+                // only the synthetic fixture's pre-execution PC; the real bus,
+                // ROM bank latches and production bank guard remain active.
+                self.live.machine.act.state.pc = SYNTHETIC_PORT_PC;
+            }
             match self.workload {
                 Workload::FirmwareIdle => {}
                 Workload::RamPorts => {
@@ -90,7 +103,9 @@ impl LiveBenchmark {
             let execution = self
                 .live
                 .step_firmware_cycle_with_execution()
-                .expect("full live authority cycle must succeed")
+                .unwrap_or_else(|error| {
+                    panic!("full live authority cycle failed: workload={:?} sequence={} error={error}", self.workload, self.sequence)
+                })
                 .expect("booted benchmark pipeline must execute every word");
             if self.workload == Workload::CrcPorts && write {
                 let Hp67ArchitecturalOperation::CrcDataWrite { card_word, .. } =
@@ -123,6 +138,13 @@ impl LiveBenchmark {
             .serial_execution()
             .unwrap()
             .is_complete());
+        if self.workload != Workload::FirmwareIdle {
+            assert_eq!(self.live.machine.pc(), SYNTHETIC_FETCH_PC);
+            assert_eq!(self.live.fetch_rom.received_address(), Ok(SYNTHETIC_FETCH_PC));
+            assert_eq!(self.live.act_serial.fetched_word(), Ok(0x3e3));
+            assert!(self.live.fetch_rom.physical_chip_set().unwrap().chips()
+                .iter().all(|chip| chip.bank_latch() == 0));
+        }
         if self.workload == Workload::RamPorts {
             assert!(self.live.pending_ram_data_transfer.is_some());
             assert!(self.live.data_serial.frame_in_progress());
@@ -167,6 +189,46 @@ fn m14o_live_benchmark_workloads_preserve_word_and_port_invariants() {
                 .unwrap();
             assert_eq!(benchmark.live.machine.ram.read(0x20), Some([3; 14]));
             assert_eq!(benchmark.live.machine.act.state.c, [3; 14]);
+        }
+    }
+}
+
+#[test]
+fn m15k_bank_guard_rejects_port_injection_after_unexecuted_bank_fetch() {
+    let mut fixture = LiveBenchmark::new(Workload::RamPorts);
+    // Reproduce the old benchmark: a port executes while the real ROM returns
+    // bank-set from 7f4. Replacing that fetched instruction on the next cycle
+    // must still fail. Fixing the fixture must not disable the production guard.
+    fixture.live.machine.act.state.pc = 0x7f3;
+    fixture.live.machine.act.state.bank = 0;
+    fixture.live.machine.act.state.delayed_rom = None;
+    fixture.live.pipeline.complete_cycle(0o1360);
+    fixture.live.step_firmware_cycle_with_execution().unwrap();
+    assert_eq!(fixture.live.act_serial.fetched_word(), Ok(0x230));
+    assert_eq!(fixture.live.machine.act.state.bank, 0);
+    assert!(fixture.live.fetch_rom.physical_chip_set().unwrap().chips()
+        .iter().all(|chip| chip.bank_latch() == 1));
+    fixture.live.pipeline.complete_cycle(0o0070);
+    let error = fixture.live.step_firmware_cycle_with_execution().unwrap_err();
+    assert!(error.contains("ROM bank mismatch at 7f5: pins=Some(1), ACT=0"), "{error}");
+}
+
+#[test]
+fn m15k_synthetic_port_loads_keep_real_fetch_coherent_across_long_batches() {
+    for workload in [Workload::RamPorts, Workload::CrcPorts] {
+        let mut fixture = LiveBenchmark::new(workload);
+        // Starting immediately before the old failure catches accidental
+        // restoration of the walking-PC fixture without a multi-round bench.
+        fixture.live.machine.act.state.pc = 0x7f3;
+        fixture.live.machine.act.state.delayed_rom = None;
+        fixture.run_words(2047);
+        fixture.run_words(2050);
+        assert_eq!(fixture.sequence, 4097);
+        assert_eq!(fixture.live.machine.pc(), SYNTHETIC_FETCH_PC);
+        if workload == Workload::RamPorts {
+            fixture.live.complete_pending_ram_data_before_word(0).unwrap();
+            assert_eq!(fixture.live.machine.ram.read(0x20), Some([3; 14]));
+            assert_eq!(fixture.live.machine.act.state.c, [3; 14]);
         }
     }
 }
@@ -217,6 +279,6 @@ fn m14o_live_authority_realtime_benchmark() {
         );
     }
     println!("Live firmware row uses the actual desktop live cycle, frozen inputs, restore guard, five-ROM serial fetch/display with autonomous IS/SYNC bank latches, oracle comparisons and authority commits. All rows require 56 bit-cells and 224 PHI transitions per word.");
-    println!("RAM/CRC rows inject synthetic port opcodes through that same live cycle; timed CRC fixture refill/drain overhead is included. They are stress loads, not firmware card throughput or magnetic/electrical timing evidence.");
+    println!("RAM/CRC rows inject synthetic port opcodes with fixture PC pinned to 000 (concurrent real ROM fetch 001); PC setup and CRC fixture refill/drain overhead are timed. They are stress loads, not firmware card throughput or magnetic/electrical timing evidence.");
     println!("Boot excluded; live resolved DATA logical-level bridge and CRC buffers included; DATA physical output stage/chip mapping, exact PHI edges, STR/RCD propagation and magnetic sense/serialization remain source-blocked. No speed threshold is a correctness assertion.");
 }

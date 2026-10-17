@@ -67,3 +67,19 @@ Rust is absent in the editing environment. Static diff/documentation checks are
 run here; GitHub Actions formats Rust only. Focused tests, full -Dwarnings suite,
 release, diagnostic 12/12 and three benchmark suites are the owner's local gate.
 Owner M15K runtime gate is pending; no measured result is claimed in advance.
+
+## Owner v2 gate feedback — 2026-10-17
+
+Stages 1–8 completed; stage 9 failed at cycle 2198 with ROM bank 1 versus ACT
+bank 0 at 7f5. The synthetic port fixture walked real ROM addresses but replaced
+every fetched opcode before execution. It therefore let ROMs observe 230 at
+7f4 while preventing ACT from executing the bank instruction. The bank guard
+correctly exposed the inconsistent fixture.
+
+The correction is confined to the benchmark/test fixture: pin synthetic PC 000
+before each injected port word, preserving real concurrent fetch 001/3e3 and all
+live authority/electrical work. FirmwareIdle is unchanged. Timed samples include
+PC fixture setup; output states the changed workload. A negative reproduction
+keeps the guard strict and a long positive regression covers both port loads.
+No production bank semantics, firmware bytes, PHI transitions or resolver logic
+change. M15K remains unmerged until the corrected full local gate passes.
