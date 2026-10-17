@@ -48,6 +48,8 @@ impl LiveBenchmark {
             .unwrap();
         if workload != Workload::FirmwareIdle {
             live.machine.act.state.instruction_state = ActInstructionState::Normal;
+            // The synthetic stream has no preceding delayed-select opcode.
+            live.machine.act.state.delayed_rom = None;
             live.machine.act.state.c = [3; 14];
             live.machine.act.state.ram_address = 0x20;
         }
@@ -245,7 +247,8 @@ fn m15k_synthetic_port_loads_keep_real_fetch_coherent_across_long_batches() {
         // restoration of the walking-PC fixture without a multi-round bench.
         fixture.live.machine.act.state.pc = 0x7f3;
         fixture.live.machine.act.state.delayed_rom = None;
-        fixture.run_words(2047);
+        fixture.run_words(1);
+        fixture.run_words(2046);
         fixture.run_words(2050);
         assert_eq!(fixture.sequence, 4097);
         assert_eq!(fixture.live.machine.pc(), SYNTHETIC_FETCH_PC);

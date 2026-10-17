@@ -56,8 +56,9 @@ next injected port replaced that opcode before ACT executed it, correctly
 triggering the production bank-consistency failure. This is not evidence for
 changing ROM latch or ACT behavior.
 
-Only synthetic workloads now pin the pre-execution fixture PC to 000, so the
-concurrent real ROM fetch is always 001/3e3. The assignment is included in timed
+Only synthetic workloads now clear the inherited delayed-ROM selector during
+fixture setup and pin the pre-execution fixture PC to 000, so the concurrent
+real ROM fetch is always 001/3e3, including a one-word warmup. The assignment is included in timed
 work. Actual firmware idle has no PC override. No source-bank setter, ROM-latch
 reset, alternate executor or disabled guard is introduced. Bus resolution,
 56 cells, 224 transitions, oracle comparisons and DATA/CRC lifecycles remain.
@@ -66,6 +67,6 @@ used a different address workload and are not directly equivalent measurements.
 
 A negative regression reproduces the former 7f4/7f5 mismatch and requires the
 unchanged guard to reject it. A positive regression starts both synthetic loads
-at that boundary and runs 2047 + 2050 words, asserting complete execution/tick
+at that boundary and runs 1 + 2046 + 2050 words, asserting complete execution/tick
 counts, address 001, returned word 3e3, zeroed autonomous bank latches and RAM/CRC
 invariants across batches. Rust runtime validation remains the owner's gate.
