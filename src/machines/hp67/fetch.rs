@@ -89,6 +89,14 @@ pub enum SerialFetchError {
     MissingRomWord {
         address: u16,
     },
+    UnexpectedRomAddressBit {
+        word_bit: u8,
+        received_bits: u8,
+    },
+    UnexpectedRomReturnBit {
+        word_bit: u8,
+        received_bits: u8,
+    },
     IncompleteAddress {
         received_mask: u16,
     },

@@ -251,3 +251,15 @@ bank roundtrip is covered through all four variants with a deliberately wrong
 provider bank view; the old 8192-view fixture remains intact.
 
 See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
+
+## M15M ordered ROM reception
+
+SerialFetchError adds UnexpectedRomAddressBit and UnexpectedRomReturnBit,
+each reporting the attempted machine-word coordinate and number of valid bits
+already received. The five-chip endpoint rejects wrong sequence before mutating
+its address/return state. Aggregate reference endpoints retain their historical
+behavior. All four transports continue to supply the same resolved samples and
+unchanged clock sequence; the existing full-transport bank roundtrip tests
+exercise the new ordered receivers without fixture shortcuts.
+
+See `docs/research/M15M_ROM_RECEIVER_ORDER_2026-10-18.md`.

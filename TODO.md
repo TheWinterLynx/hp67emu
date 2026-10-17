@@ -492,4 +492,17 @@ validation of the existing logical-level bridge: ACT writes and aggregate
 peripheral reads. Physical RAM chip/address mapping and output circuitry remain
 unresolved. PHI scheduling/counts and all production authority paths remain.
 See `docs/research/M15L_DATA_OWNER_IDENTITY_2026-10-17.md`.
-Owner local M15L gate pending.
+Owner local M15L gate GREEN; exact head integrated.
+
+## M15M ordered ROM reception
+
+M15L's exact head `16e76444012abb27b8ea2f81de2d518202451568` is
+owner-validated and integrated: diagnostic 12/12 with unchanged cycles; live
+idle 1.469 us/word, synthetic RAM 1.872 us, CRC 1.441 us. M15M makes address
+and autonomous return receivers require a contiguous sequence before selecting
+ROM or decoding bank-set. Wrong coordinates, repetitions and replay are errors
+before receive-state mutation; complete ROM-observed words are exposed for
+comparison with ACT. This strengthens the simulator's serial contract without
+claiming new physical PHI timing, RAM mapping or analog glitch behavior.
+See `docs/research/M15M_ROM_RECEIVER_ORDER_2026-10-18.md`.
+Owner local M15M gate pending.

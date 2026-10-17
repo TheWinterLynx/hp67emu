@@ -70,3 +70,31 @@ See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
 Owner local M15K gate pending. Physical DATA/RAM devices, internal ACT mutation,
 exact PHI calibration and propagation, display integration and magnetic sense
 remain open; this milestone does not claim completion of electrical fidelity.
+
+## M15M ordered ROM reception
+
+Address and autonomous return receivers now track contiguous sample counts,
+not just a set of visited bit coordinates. Address samples must arrive once
+in b16..b27 order; return samples must arrive once in b46..b55 order. Skips,
+repetitions and replay after completion fail before receiver state changes or
+firmware lookup. Malformed input levels and changed SYNC likewise leave the
+next expected coordinate intact. Valid address completion retains the existing
+selection/lookup failure semantics; this is not rollback of a completed lookup.
+
+The address counter guards the shared resolved observation before all five
+independent chip address images update. The return counter replaces the former
+unordered mask. Only the tenth valid return sample can decode bank-set. Cycle
+initialization clears both receivers while retaining bank latches.
+`received_word()` exposes the complete ROM-observed return for diagnostics;
+partial autonomous returns and provider-view fixtures report IncompleteRomWord.
+
+New tests enumerate invalid coordinates after every prefix in both address
+modes and the autonomous return, assert complete state preservation and no
+extra source reads, then accept the valid suffix. Level/SYNC faults exercise
+each coordinate. The older M15K missing-first-bit test is deliberately tightened:
+it now requires immediate rejection at b47 rather than accepting a partial mask
+and merely checking that bank-set did not occur. Its no-bank-change assertion
+remains. This is a simulator receive-order contract, not a silicon glitch filter
+or proof of any new PHI edge.
+
+See `docs/research/M15M_ROM_RECEIVER_ORDER_2026-10-18.md`.

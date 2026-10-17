@@ -1673,6 +1673,28 @@ mod tests {
     }
 
     #[test]
+    fn m15m_live_rom_observers_match_act_returns_across_boot_and_idle() {
+        for traced in [false, true] {
+            let mut live = Hp67LiveMachine::power_on_default().unwrap();
+            let mut trace = StructuralBusTrace::default();
+            for _ in 0..1200 {
+                let tick = live.backplane.tick().get();
+                if traced { live.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap(); }
+                else { live.step_firmware_cycle_with_execution().unwrap(); }
+                let chips = live.fetch_rom.physical_chip_set().unwrap();
+                assert_eq!(chips.received_word(), live.act_serial.fetched_word());
+                assert!(chips.chips().iter().all(|chip|
+                    chip.received_address() == live.fetch_rom.received_address()));
+                assert_eq!(live.backplane.tick().get() - tick, 224);
+            }
+            assert_eq!(live.phase, LiveBootPhase::Idle);
+            assert_eq!(trace.samples.len(), if traced { 1200 * 224 } else { 0 });
+            live.reset_power_on().unwrap();
+            assert!(live.fetch_rom.physical_chip_set().unwrap().received_word().is_err());
+        }
+    }
+
+    #[test]
     fn m15l_live_data_owners_preserve_write_read_results_in_both_transports() {
         use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
         for seed in [0, 15] {

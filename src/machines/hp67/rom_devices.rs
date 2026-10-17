@@ -4,7 +4,7 @@
 use super::{
     fetch::{Hp67RomWordSource, SerialFetchError},
     isa::{rom_word_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
-    timing::{isa_window_for_bit, IsaWindow, ROM_ADDRESS_BITS},
+    timing::{isa_window_for_bit, IsaWindow, ROM_ADDRESS_BITS, ROM_WORD_BITS},
     wiring::Hp67Driver,
 };
 use crate::emulation::{Drive, LogicLevel};
@@ -121,7 +121,8 @@ pub struct Hp67RomChipSet {
     chips: [Hp67RomChipEndpoint; HP67_ROM_CHIPS],
     autonomous: bool,
     observed_word: u16,
-    observed_mask: u16,
+    received_address_bits: u8,
+    received_return_bits: u8,
     observed_sync: Option<bool>,
 }
 
@@ -131,7 +132,8 @@ impl Default for Hp67RomChipSet {
             chips: HP67_ROM_PROFILES.map(Hp67RomChipEndpoint::new),
             autonomous: false,
             observed_word: 0,
-            observed_mask: 0,
+            received_address_bits: 0,
+            received_return_bits: 0,
             observed_sync: None,
         }
     }
@@ -157,7 +159,8 @@ impl Hp67RomChipSet {
             chip.bank_latch = bank;
         }
         self.observed_word = 0;
-        self.observed_mask = 0;
+        self.received_address_bits = 0;
+        self.received_return_bits = 0;
         self.observed_sync = None;
     }
 
@@ -174,6 +177,11 @@ impl Hp67RomChipSet {
         let IsaWindow::RomAddress { serial_bit } = isa_window_for_bit(word_bit) else {
             return Ok(());
         };
+        if serial_bit != self.received_address_bits {
+            return Err(SerialFetchError::UnexpectedRomAddressBit {
+                word_bit, received_bits: self.received_address_bits,
+            });
+        }
         let high = match level {
             LogicLevel::High => true,
             LogicLevel::Low => false,
@@ -183,6 +191,7 @@ impl Hp67RomChipSet {
         for chip in &mut self.chips {
             chip.sample_address_bit(serial_bit, high);
         }
+        self.received_address_bits += 1;
         if serial_bit + 1 != ROM_ADDRESS_BITS {
             return Ok(());
         }
@@ -249,6 +258,11 @@ impl Hp67RomChipSet {
         let IsaWindow::RomWord { serial_bit } = isa_window_for_bit(word_bit) else {
             return Ok(());
         };
+        if serial_bit != self.received_return_bits {
+            return Err(SerialFetchError::UnexpectedRomReturnBit {
+                word_bit, received_bits: self.received_return_bits,
+            });
+        }
         let qualifier = match sync {
             LogicLevel::High => true,
             LogicLevel::Low => false,
@@ -277,9 +291,8 @@ impl Hp67RomChipSet {
         } else {
             self.observed_word &= !(1 << serial_bit);
         }
-        self.observed_mask |= 1 << serial_bit;
-        if serial_bit == 9
-            && self.observed_mask == ROM_WORD_MASK
+        self.received_return_bits += 1;
+        if self.received_return_bits == ROM_WORD_BITS
             && qualifier
             && self.observed_word == 0x230
         {
@@ -289,6 +302,17 @@ impl Hp67RomChipSet {
             }
         }
         Ok(())
+    }
+
+    /// Complete return observed on resolved IS by autonomous ROM receivers.
+    /// Provider-view fixtures do not monitor the return and remain incomplete.
+    pub const fn received_word(&self) -> Result<u16, SerialFetchError> {
+        if self.received_return_bits != ROM_WORD_BITS {
+            return Err(SerialFetchError::IncompleteRomWord {
+                received_mask: (1u16 << self.received_return_bits) - 1,
+            });
+        }
+        Ok(self.observed_word & ROM_WORD_MASK)
     }
 
     pub(crate) fn is_drives_for_bit(&self, word_bit: u8) -> RomIsDrives {
@@ -368,6 +392,122 @@ mod tests {
         }
     }
 
+    fn resolved_bit(word: u16, serial_bit: u8) -> LogicLevel {
+        if word & (1 << serial_bit) != 0 { LogicLevel::High } else { LogicLevel::Low }
+    }
+
+    #[test]
+    fn m15m_address_receiver_rejects_skips_repeats_and_replays_before_mutation() {
+        for autonomous in [false, true] {
+            for prefix in 0..=ROM_ADDRESS_BITS {
+                let mut chips = if autonomous { Hp67RomChipSet::autonomous() }
+                    else { Hp67RomChipSet::default() };
+                let source = Source { bank: Cell::new(0), reads: Cell::new(0) };
+                for serial_bit in 0..prefix {
+                    chips.sample_for_bit(16 + serial_bit, resolved_bit(0x123, serial_bit), &source).unwrap();
+                }
+                let before = chips;
+                let reads = source.reads.get();
+                for serial_bit in 0..ROM_ADDRESS_BITS {
+                    if serial_bit == prefix { continue; }
+                    assert_eq!(chips.sample_for_bit(16 + serial_bit, LogicLevel::High, &source),
+                        Err(SerialFetchError::UnexpectedRomAddressBit { word_bit: 16 + serial_bit, received_bits: prefix }));
+                    assert_eq!(chips, before);
+                    assert_eq!(source.reads.get(), reads);
+                }
+                // A rejected callback consumes no bit; the valid suffix works.
+                for serial_bit in prefix..ROM_ADDRESS_BITS {
+                    chips.sample_for_bit(16 + serial_bit, resolved_bit(0x123, serial_bit), &source).unwrap();
+                }
+                assert_eq!(source.reads.get(), 1);
+                assert!(chips.chips().iter().all(|chip| chip.received_address() == Ok(0x123)));
+                assert_eq!(chips.chips().iter().filter(|chip| chip.selected()).count(), 1);
+                chips.begin_cycle();
+                chips.sample_for_bit(16, LogicLevel::High, &source).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn m15m_return_receiver_rejects_reorder_and_only_decodes_complete_bank_word() {
+        for prefix in 0..=ROM_WORD_BITS {
+            let mut chips = Hp67RomChipSet::autonomous();
+            for serial_bit in 0..prefix {
+                chips.sample_instruction_for_bit(46 + serial_bit,
+                    resolved_bit(0x230, serial_bit), LogicLevel::High).unwrap();
+            }
+            let before = chips;
+            for serial_bit in 0..ROM_WORD_BITS {
+                if serial_bit == prefix { continue; }
+                assert_eq!(chips.sample_instruction_for_bit(46 + serial_bit, LogicLevel::High, LogicLevel::High),
+                    Err(SerialFetchError::UnexpectedRomReturnBit { word_bit: 46 + serial_bit, received_bits: prefix }));
+                assert_eq!(chips, before);
+            }
+            if prefix < ROM_WORD_BITS {
+                assert_eq!(chips.received_word(), Err(SerialFetchError::IncompleteRomWord {
+                    received_mask: (1u16 << prefix) - 1,
+                }));
+                assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
+            }
+            for serial_bit in prefix..ROM_WORD_BITS {
+                chips.sample_instruction_for_bit(46 + serial_bit,
+                    resolved_bit(0x230, serial_bit), LogicLevel::High).unwrap();
+            }
+            assert_eq!(chips.received_word(), Ok(0x230));
+            assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 1));
+            chips.begin_cycle();
+            assert!(chips.received_word().is_err());
+            assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 1));
+        }
+    }
+
+    #[test]
+    fn m15m_invalid_levels_preserve_the_next_bit_and_valid_suffix_can_complete() {
+        for prefix in 0..ROM_WORD_BITS {
+            for fault in 0..5 {
+                if fault == 4 && prefix == 0 { continue; }
+                let mut chips = Hp67RomChipSet::autonomous();
+                for serial_bit in 0..prefix {
+                    chips.sample_instruction_for_bit(46 + serial_bit,
+                        resolved_bit(0x230, serial_bit), LogicLevel::High).unwrap();
+                }
+                let before = chips;
+                let (level, sync) = match fault {
+                    0 => (LogicLevel::Floating, LogicLevel::High),
+                    1 => (LogicLevel::Contention, LogicLevel::High),
+                    2 => (LogicLevel::Low, LogicLevel::Floating),
+                    3 => (LogicLevel::Low, LogicLevel::Contention),
+                    _ => (LogicLevel::Low, LogicLevel::Low),
+                };
+                assert!(chips.sample_instruction_for_bit(46 + prefix, level, sync).is_err());
+                assert_eq!(chips, before);
+                for serial_bit in prefix..ROM_WORD_BITS {
+                    chips.sample_instruction_for_bit(46 + serial_bit,
+                        resolved_bit(0x230, serial_bit), LogicLevel::High).unwrap();
+                }
+                assert_eq!(chips.received_word(), Ok(0x230));
+                assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 1));
+            }
+        }
+        for prefix in 0..ROM_ADDRESS_BITS {
+            for level in [LogicLevel::Floating, LogicLevel::Contention] {
+                let mut chips = Hp67RomChipSet::autonomous();
+                let source = Source { bank: Cell::new(0), reads: Cell::new(0) };
+                for serial_bit in 0..prefix {
+                    chips.sample_for_bit(16 + serial_bit, resolved_bit(0x123, serial_bit), &source).unwrap();
+                }
+                let before = chips;
+                assert!(chips.sample_for_bit(16 + prefix, level, &source).is_err());
+                assert_eq!(chips, before);
+                assert_eq!(source.reads.get(), 0);
+                for serial_bit in prefix..ROM_ADDRESS_BITS {
+                    chips.sample_for_bit(16 + serial_bit, resolved_bit(0x123, serial_bit), &source).unwrap();
+                }
+                assert_eq!(source.reads.get(), 1);
+            }
+        }
+    }
+
     #[test]
     fn m15k_bank_latches_require_complete_normal_instruction_and_survive_cycle() {
         for word in 0..=ROM_WORD_MASK {
@@ -422,20 +562,11 @@ mod tests {
             assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
         }
         let mut chips = Hp67RomChipSet::autonomous();
-        // Missing b46 prevents a bank-set even when the remaining bits match.
-        for bit in 47..56 {
-            chips
-                .sample_instruction_for_bit(
-                    bit,
-                    if 0x230 & (1 << (bit - 46)) != 0 {
-                        LogicLevel::High
-                    } else {
-                        LogicLevel::Low
-                    },
-                    LogicLevel::High,
-                )
-                .unwrap();
-        }
+        // Missing b46 now rejects the first out-of-order sample immediately.
+        let before = chips;
+        assert_eq!(chips.sample_instruction_for_bit(47, LogicLevel::Low, LogicLevel::High),
+            Err(SerialFetchError::UnexpectedRomReturnBit { word_bit: 47, received_bits: 0 }));
+        assert_eq!(chips, before);
         assert!(chips.chips().iter().all(|chip| chip.bank_latch() == 0));
     }
 
