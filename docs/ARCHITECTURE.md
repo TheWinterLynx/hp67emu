@@ -322,4 +322,14 @@ responses, cross-word tails and logical block clear. It runs in a separate
 bridge until C-to-address DATA and consistent command forwarding are integrated.
 Physical RAM-chip mapping, output circuitry and exact latch timing remain open.
 See `docs/research/M15N_AUTONOMOUS_SERIAL_RAM_2026-10-18.md`.
-Owner local M15N gate pending.
+Owner local M15N FULL GATE GREEN; exact ad4e1053 head integrated.
+
+
+## M15O live address DATA
+
+Live C-to-address now transmits frozen C through resolved DATA body and clocked
+next-word tail. It preserves M14H ACT selector authority, strict receive checks,
+traced/untraced parity and 224 PHI transitions/word. Autonomous RAM remains a
+separate fixture until command forwarding and device-owned live reads/storage
+are connected. Physical DATA stage, per-IC mapping and exact PHI timing remain
+SOURCE-BLOCKED. See research/M15O_LIVE_ADDRESS_DATA_2026-10-19.md. Owner gate pending.

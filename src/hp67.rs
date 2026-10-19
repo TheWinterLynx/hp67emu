@@ -342,6 +342,7 @@ pub struct Hp67LiveMachine {
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
+    pending_address_data_frame: Option<ActRegister>,
     machine: Hp67ArchitecturalMachine,
     keyboard: Hp67Keyboard,
     card_transport: Hp67CardTransport,
@@ -370,6 +371,7 @@ impl Hp67LiveMachine {
             pipeline: FetchPipelineLatch::default(),
             data_serial: Hp67DataSerialWordPath::default(),
             pending_ram_data_transfer: None,
+            pending_address_data_frame: None,
             machine: Hp67ArchitecturalMachine::default(),
             keyboard: Hp67Keyboard::default(),
             card_transport: Hp67CardTransport::default(),
@@ -423,6 +425,7 @@ impl Hp67LiveMachine {
         self.pipeline = FetchPipelineLatch::default();
         self.data_serial = Hp67DataSerialWordPath::default();
         self.pending_ram_data_transfer = None;
+        self.pending_address_data_frame = None;
         self.machine = Hp67ArchitecturalMachine::default();
         self.keyboard = Hp67Keyboard::default();
         self.card_transport = Hp67CardTransport::default();
@@ -1396,6 +1399,20 @@ impl Hp67LiveMachine {
             None
         };
 
+        // Address frames observe the same resolved 56-bit path, but never write
+        // RAM or C. M14H retains the ACT selector's completed-word authority;
+        // full-frame reception here is for the peripheral command/data path.
+        if let Some(expected) = self.pending_address_data_frame {
+            if self.pending_ram_data_transfer.is_some() {
+                return Err(format!("live cycle {cycle} overlapping address/RAM DATA authority"));
+            }
+            if completed != Some(expected) {
+                return Err(format!("live cycle {cycle} address DATA authority mismatch: expected={expected:?} actual={completed:?}"));
+            }
+            self.pending_address_data_frame = None;
+            return Ok(());
+        }
+
         match (self.pending_ram_data_transfer.take(), completed) {
             (Some(pending), Some(actual)) if actual == pending.expected => {
                 match pending.direction {
@@ -1434,7 +1451,23 @@ impl Hp67LiveMachine {
         ram_data_transfer: Option<PendingRamDataTransfer>,
         trace: Option<&mut StructuralBusTrace>,
     ) -> Result<(), String> {
-        let ram_data_payload = ram_data_transfer.map(|transfer| transfer.expected);
+        let address_data_frame = if self.act_serial.serial_mode_latch_result_image()
+            .is_some_and(|image| image.action() == ActSerialModeLatchAction::SelectRamAddressFromC)
+        {
+            let snapshot = self.act_serial.serial_execution_state()
+                .ok_or_else(|| format!("live cycle {cycle} address DATA missing ACT snapshot"))?;
+            Some(std::array::from_fn(|digit| snapshot.register_digit(ActSerialRegister::C, digit as u8)
+                .expect("C snapshot must contain fourteen digits")))
+        } else { None };
+        if address_data_frame.is_some() && ram_data_transfer.is_some() {
+            return Err(format!("live cycle {cycle} overlapping address/RAM DATA sources"));
+        }
+        let data_payload = address_data_frame.or(ram_data_transfer.map(|transfer| transfer.expected));
+        let data_direction = if address_data_frame.is_some() {
+            Some(Hp67DataTransferDirection::ActToPeripheral)
+        } else {
+            ram_data_transfer.map(|transfer| transfer.direction)
+        };
         // M14I supplies successor fetch from immutable structural inputs,
         // never the oracle-mutated PC. Fetch-only startup retains its old path.
         let flow = self.act_serial.serial_flow_result_image();
@@ -1456,10 +1489,8 @@ impl Hp67LiveMachine {
         let display_state = startup_display_state
             .as_ref()
             .unwrap_or(&self.machine.act.state);
-        let result = if self.data_serial.prefix_preconsumed() || ram_data_payload.is_some() {
-            self.data_serial.enable_electrical_level_bridge(
-                ram_data_transfer.map(|transfer| transfer.direction),
-            );
+        let result = if self.data_serial.prefix_preconsumed() || data_payload.is_some() {
+            self.data_serial.enable_electrical_level_bridge(data_direction);
             let fused = if let Some(trace) = trace {
                 run_structural_display_fetch_data_phase_cycle_traced(
                     &mut self.backplane,
@@ -1470,7 +1501,7 @@ impl Hp67LiveMachine {
                     &mut self.display_rom0,
                     &self.source,
                     &mut self.data_serial,
-                    ram_data_payload,
+                    data_payload,
                     trace,
                 )
                 .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
@@ -1484,7 +1515,7 @@ impl Hp67LiveMachine {
                     &mut self.display_rom0,
                     &self.source,
                     &mut self.data_serial,
-                    ram_data_payload,
+                    data_payload,
                 )
                 .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
             };
@@ -1495,7 +1526,9 @@ impl Hp67LiveMachine {
             }
 
             debug_assert!(self.pending_ram_data_transfer.is_none());
+            debug_assert!(self.pending_address_data_frame.is_none());
             self.pending_ram_data_transfer = ram_data_transfer;
+            self.pending_address_data_frame = address_data_frame;
             fused.word
         } else {
             if let Some(trace) = trace {
@@ -1585,6 +1618,9 @@ impl Hp67LiveMachine {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod address_data_tests;
 
 #[cfg(test)]
 mod authority_benchmark_tests;
