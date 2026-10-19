@@ -34,8 +34,16 @@ fn m15o_address_write_read_use_frozen_data_and_clocked_tails() {
                     assert_eq!(live.pending_address_data_frame, Some(address_c));
                     assert!(live.pending_ram_data_transfer.is_none());
                     assert_eq!(live.machine.ram, before);
-                    assert_eq!(live.backplane.driver_drive(Hp67Net::Data, Hp67Driver::Act1820_2530), Drive::High);
-                    assert_eq!(live.backplane.driver_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder), Drive::HighZ);
+                    assert_eq!(
+                        live.backplane
+                            .driver_drive(Hp67Net::Data, Hp67Driver::Act1820_2530),
+                        Drive::High
+                    );
+                    assert_eq!(
+                        live.backplane
+                            .driver_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder),
+                        Drive::HighZ
+                    );
                     assert_eq!(live.backplane.active_data_driver_count(), 1);
                 } else {
                     assert!(live.pending_address_data_frame.is_none());
@@ -99,9 +107,13 @@ fn m15o_address_tail_fault_blocks_next_instruction_and_preserves_destination() {
     let ram = live.machine.ram.clone();
     let state = live.machine.act.state.clone();
     let cycle = live.boot_cycle;
-    live.backplane.drive(Hp67Net::Data, Hp67Driver::External, Drive::Low);
+    live.backplane
+        .drive(Hp67Net::Data, Hp67Driver::External, Drive::Low);
     live.pipeline.complete_cycle(0o1360);
-    assert!(live.step_firmware_cycle_with_execution().unwrap_err().contains("prefix failed"));
+    assert!(live
+        .step_firmware_cycle_with_execution()
+        .unwrap_err()
+        .contains("prefix failed"));
     assert_eq!(live.pending_address_data_frame, Some([15; 14]));
     assert_eq!(live.machine.act.state, state);
     assert_eq!(live.machine.ram, ram);
@@ -117,12 +129,17 @@ fn m15o_real_firmware_address_frames_match_in_both_transports() {
     for _ in 0..1200 {
         let tick = ordinary.backplane.tick().get();
         ordinary.step_firmware_cycle_with_execution().unwrap();
-        recorded.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+        recorded
+            .step_firmware_cycle_with_trace(Some(&mut trace))
+            .unwrap();
         assert_eq!(ordinary.backplane.tick().get() - tick, 224);
         assert_eq!(ordinary.backplane.tick(), recorded.backplane.tick());
         assert_eq!(ordinary.machine.act.state, recorded.machine.act.state);
         assert_eq!(ordinary.machine.ram, recorded.machine.ram);
-        assert_eq!(ordinary.pending_address_data_frame, recorded.pending_address_data_frame);
+        assert_eq!(
+            ordinary.pending_address_data_frame,
+            recorded.pending_address_data_frame
+        );
         address_frames += usize::from(ordinary.pending_address_data_frame.is_some());
     }
     assert!(address_frames > 0);

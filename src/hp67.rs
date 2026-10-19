@@ -1404,7 +1404,9 @@ impl Hp67LiveMachine {
         // full-frame reception here is for the peripheral command/data path.
         if let Some(expected) = self.pending_address_data_frame {
             if self.pending_ram_data_transfer.is_some() {
-                return Err(format!("live cycle {cycle} overlapping address/RAM DATA authority"));
+                return Err(format!(
+                    "live cycle {cycle} overlapping address/RAM DATA authority"
+                ));
             }
             if completed != Some(expected) {
                 return Err(format!("live cycle {cycle} address DATA authority mismatch: expected={expected:?} actual={completed:?}"));
@@ -1451,18 +1453,30 @@ impl Hp67LiveMachine {
         ram_data_transfer: Option<PendingRamDataTransfer>,
         trace: Option<&mut StructuralBusTrace>,
     ) -> Result<(), String> {
-        let address_data_frame = if self.act_serial.serial_mode_latch_result_image()
+        let address_data_frame = if self
+            .act_serial
+            .serial_mode_latch_result_image()
             .is_some_and(|image| image.action() == ActSerialModeLatchAction::SelectRamAddressFromC)
         {
-            let snapshot = self.act_serial.serial_execution_state()
+            let snapshot = self
+                .act_serial
+                .serial_execution_state()
                 .ok_or_else(|| format!("live cycle {cycle} address DATA missing ACT snapshot"))?;
-            Some(std::array::from_fn(|digit| snapshot.register_digit(ActSerialRegister::C, digit as u8)
-                .expect("C snapshot must contain fourteen digits")))
-        } else { None };
+            Some(std::array::from_fn(|digit| {
+                snapshot
+                    .register_digit(ActSerialRegister::C, digit as u8)
+                    .expect("C snapshot must contain fourteen digits")
+            }))
+        } else {
+            None
+        };
         if address_data_frame.is_some() && ram_data_transfer.is_some() {
-            return Err(format!("live cycle {cycle} overlapping address/RAM DATA sources"));
+            return Err(format!(
+                "live cycle {cycle} overlapping address/RAM DATA sources"
+            ));
         }
-        let data_payload = address_data_frame.or(ram_data_transfer.map(|transfer| transfer.expected));
+        let data_payload =
+            address_data_frame.or(ram_data_transfer.map(|transfer| transfer.expected));
         let data_direction = if address_data_frame.is_some() {
             Some(Hp67DataTransferDirection::ActToPeripheral)
         } else {
@@ -1490,7 +1504,8 @@ impl Hp67LiveMachine {
             .as_ref()
             .unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.prefix_preconsumed() || data_payload.is_some() {
-            self.data_serial.enable_electrical_level_bridge(data_direction);
+            self.data_serial
+                .enable_electrical_level_bridge(data_direction);
             let fused = if let Some(trace) = trace {
                 run_structural_display_fetch_data_phase_cycle_traced(
                     &mut self.backplane,
