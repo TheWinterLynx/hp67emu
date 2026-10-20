@@ -37,7 +37,10 @@ impl LiveBenchmark {
     fn new(workload: Workload) -> Self {
         let mut live = if workload == Workload::FirmwareIdle {
             Hp67LiveMachine::power_on_default()
-        } else { Hp67LiveMachine::power_on_reference_fixture() }.unwrap();
+        } else {
+            Hp67LiveMachine::power_on_reference_fixture()
+        }
+        .unwrap();
         for _ in 0..BOOT_CYCLE_LIMIT {
             live.step_firmware_cycle()
                 .expect("live benchmark boot must succeed");

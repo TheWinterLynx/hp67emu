@@ -114,9 +114,11 @@ pub use fetch::{
     StructuralBusSample, StructuralBusTrace, StructuralDataWordResult, StructuralWordError,
     StructuralWordResult,
 };
-pub use fetch::{run_structural_data_tail_prefix_with_ram,
+pub use fetch::{
+    run_structural_data_tail_prefix_with_ram,
+    run_structural_display_fetch_data_phase_cycle_traced_with_ram,
     run_structural_display_fetch_data_phase_cycle_with_ram,
-    run_structural_display_fetch_data_phase_cycle_traced_with_ram};
+};
 pub use hp67firmware::Hp67Firmware;
 pub use isa::{
     act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,

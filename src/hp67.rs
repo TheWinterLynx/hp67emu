@@ -4,10 +4,11 @@ use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
 
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
-    display_register_index_for_scan_slot, restore_ram_block, run_structural_data_tail_prefix_with_ram,
-    run_structural_display_fetch_cycle, run_structural_display_fetch_cycle_traced,
-    run_structural_display_fetch_data_phase_cycle_with_ram,
-    run_structural_display_fetch_data_phase_cycle_traced_with_ram, ActInstructionState, ActOperation,
+    display_register_index_for_scan_slot, restore_ram_block,
+    run_structural_data_tail_prefix_with_ram, run_structural_display_fetch_cycle,
+    run_structural_display_fetch_cycle_traced,
+    run_structural_display_fetch_data_phase_cycle_traced_with_ram,
+    run_structural_display_fetch_data_phase_cycle_with_ram, ActInstructionState, ActOperation,
     ActRegister, ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint,
     ActSerialFlowState, ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
     ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd,
@@ -426,7 +427,9 @@ impl Hp67LiveMachine {
         self.optical_scan_floor = 0;
         self.pipeline = FetchPipelineLatch::default();
         self.data_serial = Hp67DataSerialWordPath::default().with_ram_command_receiver();
-        if let Some(ram) = self.serial_ram.as_mut() { ram.reset(); }
+        if let Some(ram) = self.serial_ram.as_mut() {
+            ram.reset();
+        }
         self.pending_ram_data_transfer = None;
         self.pending_address_data_frame = None;
         self.machine = Hp67ArchitecturalMachine::default();
@@ -845,14 +848,26 @@ impl Hp67LiveMachine {
         if let Some(ram) = self.serial_ram.as_ref() {
             // C-to-address completes on the next word's b1. All other selector
             // effects have completed at this checkpoint in the logical model.
-            if self.pending_address_data_frame.is_none() && ram.address() != self.machine.act.state.ram_address {
-                return Err(format!("live cycle {cycle} autonomous RAM selector mismatch: device={:02x} ACT={:02x}", ram.address(), self.machine.act.state.ram_address));
+            if self.pending_address_data_frame.is_none()
+                && ram.address() != self.machine.act.state.ram_address
+            {
+                return Err(format!(
+                    "live cycle {cycle} autonomous RAM selector mismatch: device={:02x} ACT={:02x}",
+                    ram.address(),
+                    self.machine.act.state.ram_address
+                ));
             }
-            if let Some(base) = self.act_serial.serial_ram_result_image().and_then(|image| image.clear_base()) {
+            if let Some(base) = self
+                .act_serial
+                .serial_ram_result_image()
+                .and_then(|image| image.clear_base())
+            {
                 for low in 0..16 {
                     let address = base | low;
                     if ram.register(address).copied() != self.machine.ram.read(address) {
-                        return Err(format!("live cycle {cycle} autonomous RAM clear mismatch at {address:02x}"));
+                        return Err(format!(
+                            "live cycle {cycle} autonomous RAM clear mismatch at {address:02x}"
+                        ));
                     }
                 }
             }
@@ -1515,11 +1530,15 @@ impl Hp67LiveMachine {
             ));
         }
         let data_payload = address_data_frame.or(ram_data_transfer.map(|transfer| {
-            if self.serial_ram.is_some() && transfer.direction == Hp67DataTransferDirection::PeripheralToAct {
+            if self.serial_ram.is_some()
+                && transfer.direction == Hp67DataTransferDirection::PeripheralToAct
+            {
                 // A frame mask only. Read bits are proposed exclusively by the
                 // autonomous RAM's own storage, never by this oracle expectation.
                 [0; 14]
-            } else { transfer.expected }
+            } else {
+                transfer.expected
+            }
         }));
         let data_direction = if address_data_frame.is_some() {
             Some(Hp67DataTransferDirection::ActToPeripheral)
@@ -2547,7 +2566,8 @@ mod tests {
 
     #[test]
     fn serial_add_result_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.a[0] = 9;
         live.machine.act.state.b[0] = 1;
         live.machine.act.state.p = 0;
@@ -2590,7 +2610,8 @@ mod tests {
 
     #[test]
     fn serial_compare_commits_carry_but_preserves_registers_and_then_goto_state() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.a[0] = 2;
         live.machine.act.state.c[0] = 3;
         live.machine.act.state.p = 0;
@@ -2701,7 +2722,8 @@ mod tests {
 
     #[test]
     fn serial_p_increment_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.p = 13;
         live.machine.act.state.p_change = [0, -1, 1];
         live.machine.act.state.carry = true;
@@ -2741,7 +2763,8 @@ mod tests {
 
     #[test]
     fn serial_status_test_commits_then_goto_and_condition_from_structural_image() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.status[7] = true;
         live.machine.act.state.carry = false;
         let before = live.machine.act.state.clone();
@@ -2785,7 +2808,8 @@ mod tests {
 
     #[test]
     fn serial_special_register_transfer_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.c = patterned_act_register(3);
         live.machine.act.state.m1 = patterned_act_register(9);
         let before = live.machine.act.state.clone();
@@ -2819,7 +2843,8 @@ mod tests {
 
     #[test]
     fn load_constant_splits_p_and_c_authority_without_overlap() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.p = 4;
         live.machine.act.state.c = patterned_act_register(2);
         let before = live.machine.act.state.clone();
@@ -2853,7 +2878,8 @@ mod tests {
 
     #[test]
     fn serial_hex_mode_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.decimal = true;
         let before = live.machine.act.state.clone();
         let word = 0o0420;
@@ -2883,7 +2909,8 @@ mod tests {
 
     #[test]
     fn serial_ram_address_select_uses_pre_instruction_c_and_commits_at_b55() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.ram_address = 0x11;
         live.machine.act.state.c[0] = 0x0d;
         live.machine.act.state.c[1] = 0x06;
@@ -2916,7 +2943,8 @@ mod tests {
 
     #[test]
     fn serial_display_toggle_keeps_same_word_display_source_pre_instruction() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.display_enable = false;
         let before = live.machine.act.state.clone();
         let word = 0o0210;
@@ -2952,7 +2980,8 @@ mod tests {
 
     #[test]
     fn installed_ram_write_commits_only_from_reconstructed_data_frame() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.ram_address = 0x12;
         live.machine.act.state.c = patterned_act_register(3);
         let before = live
@@ -2980,7 +3009,8 @@ mod tests {
 
     #[test]
     fn installed_ram_read_commits_c_only_from_reconstructed_data_frame() {
-        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
+        let mut live =
+            Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         let payload = patterned_act_register(9);
         let original_c = patterned_act_register(1);
         live.machine.act.state.ram_address = 0x21;

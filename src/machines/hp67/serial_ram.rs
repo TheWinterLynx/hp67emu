@@ -280,11 +280,22 @@ impl Hp67SerialRam {
         } else {
             None
         };
-        Ok(Hp67SerialRamSample { bit, command_receiver, data: data_sample })
+        Ok(Hp67SerialRamSample {
+            bit,
+            command_receiver,
+            data: data_sample,
+        })
     }
 
-    pub(crate) fn commit_sample(&mut self, sample: Hp67SerialRamSample) -> Option<Hp67SerialRamEvent> {
-        let Hp67SerialRamSample { bit, command_receiver, data: data_sample } = sample;
+    pub(crate) fn commit_sample(
+        &mut self,
+        sample: Hp67SerialRamSample,
+    ) -> Option<Hp67SerialRamEvent> {
+        let Hp67SerialRamSample {
+            bit,
+            command_receiver,
+            data: data_sample,
+        } = sample;
         self.command_receiver = command_receiver;
         let mut event = None;
         if let Some(value) = data_sample {
