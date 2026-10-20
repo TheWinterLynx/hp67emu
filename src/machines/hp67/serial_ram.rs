@@ -1,8 +1,8 @@
 //! Autonomous aggregate RAM participant for the logical-level DATA bus.
 //!
 //! Commands come only from resolved IS/SYNC in the preceding word. Address
-//! and write frames come only from resolved DATA. This is a separate composition
-//! from the desktop's existing authority bridge, not physical RAM-chip mapping.
+//! and write frames come only from resolved DATA. Both live and standalone
+//! compositions use this aggregate logical device, not physical RAM-chip mapping.
 
 use super::{
     act::{ActRegister, ACT_WORD_DIGITS},
@@ -280,22 +280,11 @@ impl Hp67SerialRam {
         } else {
             None
         };
-        Ok(Hp67SerialRamSample {
-            bit,
-            command_receiver,
-            data: data_sample,
-        })
+        Ok(Hp67SerialRamSample { bit, command_receiver, data: data_sample })
     }
 
-    pub(crate) fn commit_sample(
-        &mut self,
-        sample: Hp67SerialRamSample,
-    ) -> Option<Hp67SerialRamEvent> {
-        let Hp67SerialRamSample {
-            bit,
-            command_receiver,
-            data: data_sample,
-        } = sample;
+    pub(crate) fn commit_sample(&mut self, sample: Hp67SerialRamSample) -> Option<Hp67SerialRamEvent> {
+        let Hp67SerialRamSample { bit, command_receiver, data: data_sample } = sample;
         self.command_receiver = command_receiver;
         let mut event = None;
         if let Some(value) = data_sample {

@@ -18,4 +18,4 @@ Compare complete live ACT/CRC/RAM state, all 64 device registers, traces/ticks, 
 
 ## Implementation
 
-Two thousand firmware words in each transport must match the reference while device RAM matches every logical slot. Another real-firmware run alters only oracle memory before an installed read; the actual RAM response must remain original and fail the next-b1 authority comparison without committing C. A physical Digit1 contact can exercise firmware beyond idle.
+Two thousand firmware words in each transport must match the reference while device RAM matches every logical slot. Another real-firmware run alters only oracle memory before an installed read; the actual RAM response must remain original and fail the next-b1 authority comparison without committing C. Physical RCL then Digit0 contacts exercise a real recall beyond idle if boot has not already supplied a read.
