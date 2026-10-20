@@ -1504,7 +1504,9 @@ impl Hp67LiveMachine {
             .as_ref()
             .unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.ram_command_receiver_enabled()
-            || self.data_serial.prefix_preconsumed() || data_payload.is_some() {
+            || self.data_serial.prefix_preconsumed()
+            || data_payload.is_some()
+        {
             self.data_serial
                 .enable_electrical_level_bridge(data_direction);
             let fused = if let Some(trace) = trace {
@@ -1575,10 +1577,16 @@ impl Hp67LiveMachine {
         // An independent RAM control observer consumes the real IS/SYNC
         // window. Neither the oracle nor the injected fixture opcode feeds it.
         if self.data_serial.ram_command_receiver_enabled() {
-            let frame = self.data_serial.received_ram_command()
+            let frame = self
+                .data_serial
+                .received_ram_command()
                 .ok_or_else(|| format!("live cycle {cycle} RAM command window incomplete"))?;
-            let state = self.act_serial.fetched_instruction_state()
-                .map_err(|error| format!("live cycle {cycle} ACT SYNC receive failed: {error:?}"))?;
+            let state = self
+                .act_serial
+                .fetched_instruction_state()
+                .map_err(|error| {
+                    format!("live cycle {cycle} ACT SYNC receive failed: {error:?}")
+                })?;
             if frame.word != result.fetched_word
                 || frame.instruction != (state == ActInstructionState::Normal)
             {

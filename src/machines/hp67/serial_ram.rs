@@ -230,7 +230,9 @@ impl Hp67SerialRam {
         // after DATA validation so an invalid input cannot consume the other.
         let mut command_receiver = self.command_receiver;
         if (ROM_WORD_FIRST_BIT..=ROM_WORD_LAST_BIT).contains(&bit) {
-            command_receiver.sample_at_edge(bus).map_err(Hp67SerialRamError::Command)?;
+            command_receiver
+                .sample_at_edge(bus)
+                .map_err(Hp67SerialRamError::Command)?;
         }
         let data_sample = if self.incoming.is_some() {
             let level = bus.level(Hp67Net::Data);
@@ -288,8 +290,11 @@ impl Hp67SerialRam {
             self.read_tail = None;
         }
         if bit == BITS_PER_WORD - 1 {
-            self.next_command = self.command_receiver.received_frame()
-                .expect("all ten IS/SYNC bits validated").command();
+            self.next_command = self
+                .command_receiver
+                .received_frame()
+                .expect("all ten IS/SYNC bits validated")
+                .command();
             self.read_tail = self.read_body.take().map(|word| {
                 [
                     data_register_serial_bit(&word, 54),

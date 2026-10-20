@@ -281,7 +281,9 @@ impl Hp67DataSerialWordPath {
     }
 
     pub fn received_ram_command(&self) -> Option<Hp67RamCommandFrame> {
-        self.ram_command_receiver.as_ref().and_then(|receiver| receiver.received_frame())
+        self.ram_command_receiver
+            .as_ref()
+            .and_then(|receiver| receiver.received_frame())
     }
 
     pub const fn frame_in_progress(&self) -> bool {
@@ -453,9 +455,13 @@ impl Hp67DataSerialWordPath {
             });
         }
         let mut command_receiver = self.ram_command_receiver;
-        if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT).contains(&word_bit) {
+        if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT)
+            .contains(&word_bit)
+        {
             if let Some(receiver) = command_receiver.as_mut() {
-                receiver.sample_at_edge(backplane).map_err(Hp67DataSerialError::RamCommand)?;
+                receiver
+                    .sample_at_edge(backplane)
+                    .map_err(Hp67DataSerialError::RamCommand)?;
             }
         }
         if !self.electrical_level_bridge {
@@ -628,16 +634,22 @@ mod tests {
         path.begin_word(Some([7; ACT_WORD_DIGITS]));
         for bit in 0..BITS_PER_WORD {
             let drives = path.propose_transport_word_bit(bit, &bus).unwrap();
-            bus.commit_serial_launch(Drive::HighZ, RomIsDrives::Aggregate(rom_word_drive(0x270, bit)),
-                if bit >= 46 { Drive::High } else { Drive::Low }, drives);
+            bus.commit_serial_launch(
+                Drive::HighZ,
+                RomIsDrives::Aggregate(rom_word_drive(0x270, bit)),
+                if bit >= 46 { Drive::High } else { Drive::Low },
+                drives,
+            );
             bus.advance_clock();
             bus.advance_clock();
             if bit >= 46 {
                 let before = path;
                 let mut broken = bus.clone();
                 broken.drive(Hp67Net::Sync, Hp67Driver::External, Drive::Low);
-                assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &broken),
-                    Err(Hp67DataSerialError::RamCommand(_))));
+                assert!(matches!(
+                    path.sample_transport_word_bit_at_edge(bit, &broken),
+                    Err(Hp67DataSerialError::RamCommand(_))
+                ));
                 assert_eq!(path, before);
             }
             path.sample_transport_word_bit_at_edge(bit, &bus).unwrap();

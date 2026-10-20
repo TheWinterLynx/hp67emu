@@ -11,12 +11,19 @@ fn m15p_live_ram_command_observer_matches_real_firmware_in_both_transports() {
     for _ in 0..1200 {
         let tick = ordinary.backplane.tick().get();
         ordinary.step_firmware_cycle_with_execution().unwrap();
-        recorded.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+        recorded
+            .step_firmware_cycle_with_trace(Some(&mut trace))
+            .unwrap();
         let frame = ordinary.data_serial.received_ram_command().unwrap();
         assert_eq!(frame, recorded.data_serial.received_ram_command().unwrap());
         assert_eq!(frame.word, ordinary.act_serial.fetched_word().unwrap());
-        assert_eq!(frame.instruction, ordinary.act_serial.fetched_instruction_state().unwrap() == ActInstructionState::Normal);
-        if frame.command() != Hp67RamCommand::Idle { commands += 1; }
+        assert_eq!(
+            frame.instruction,
+            ordinary.act_serial.fetched_instruction_state().unwrap() == ActInstructionState::Normal
+        );
+        if frame.command() != Hp67RamCommand::Idle {
+            commands += 1;
+        }
         if !frame.instruction {
             implied += 1;
             assert_eq!(frame.command(), Hp67RamCommand::Idle);

@@ -33,8 +33,8 @@ pub mod isa;
 pub mod keyboard;
 pub mod machine;
 pub mod magnetic_card;
-pub mod rom_devices;
 pub mod ram_command;
+pub mod rom_devices;
 pub mod serial_ram;
 pub mod timing;
 pub mod wiring;
@@ -144,4 +144,6 @@ pub use timing::{
 };
 pub use wiring::{Hp67Chip, Hp67Driver, Hp67Net, CHIPSET};
 
-pub use ram_command::{Hp67RamCommand, Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver};
+pub use ram_command::{
+    Hp67RamCommand, Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver,
+};
