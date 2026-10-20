@@ -91,10 +91,19 @@ impl Hp67ElectricalBackplane {
 
     /// The independent RAM owns a distinct aggregate DATA contribution.
     pub(crate) fn commit_autonomous_ram_launch(
-        &mut self, act_is: Drive, rom_is: RomIsDrives, sync: Drive,
+        &mut self,
+        act_is: Drive,
+        rom_is: RomIsDrives,
+        sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
-        self.fabric.commit_serial_launch_with_data_owner(act_is, rom_is, sync, data, Hp67Driver::RamAggregate);
+        self.fabric.commit_serial_launch_with_data_owner(
+            act_is,
+            rom_is,
+            sync,
+            data,
+            Hp67Driver::RamAggregate,
+        );
     }
 
     /// Structural DATA bridge commit; no device sees an intermediate handoff.

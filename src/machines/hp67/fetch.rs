@@ -265,16 +265,24 @@ fn publish_transport_sources(
 }
 
 fn publish_transport_sources_with_ram_owner(
-    backplane: &mut Hp67ElectricalBackplane, word_bit: u8, act_is: Drive,
-    rom_is: RomIsDrives, sync: Drive, data: Option<(Drive, Drive)>, autonomous_ram: bool,
+    backplane: &mut Hp67ElectricalBackplane,
+    word_bit: u8,
+    act_is: Drive,
+    rom_is: RomIsDrives,
+    sync: Drive,
+    data: Option<(Drive, Drive)>,
+    autonomous_ram: bool,
 ) -> Result<(), SerialFetchError> {
     if !backplane.at_transport_launch_boundary() || backplane.word_bit() != word_bit {
         return Err(SerialFetchError::InvalidLaunchPhase {
             tick: backplane.tick().get(),
         });
     }
-    if autonomous_ram { backplane.commit_autonomous_ram_launch(act_is, rom_is, sync, data); }
-    else { backplane.commit_serial_launch(act_is, rom_is, sync, data); }
+    if autonomous_ram {
+        backplane.commit_autonomous_ram_launch(act_is, rom_is, sync, data);
+    } else {
+        backplane.commit_serial_launch(act_is, rom_is, sync, data);
+    }
     Ok(())
 }
 
@@ -1026,7 +1034,9 @@ pub fn run_structural_data_tail_prefix_with_ram(
     mut trace: Option<&mut StructuralBusTrace>,
     mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<Option<super::act::ActRegister>, StructuralWordError> {
-    if ram.is_some() { data.use_autonomous_ram_owner(); }
+    if ram.is_some() {
+        data.use_autonomous_ram_owner();
+    }
     if backplane.word_bit() != 0
         || backplane.tick().get() & 3 != 0
         || act.clocked_prefix_display.is_some()
@@ -1222,7 +1232,9 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     data: &mut Hp67DataSerialWordPath,
     mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<u16, StructuralWordError> {
-    if ram.is_some() { data.use_autonomous_ram_owner(); }
+    if ram.is_some() {
+        data.use_autonomous_ram_owner();
+    }
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     if first_bit == 0 {
         if let Some(ram) = ram.as_deref_mut() {
@@ -1701,7 +1713,9 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
     trace: &mut StructuralBusTrace,
     mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<u16, StructuralWordError> {
-    if ram.is_some() { data.use_autonomous_ram_owner(); }
+    if ram.is_some() {
+        data.use_autonomous_ram_owner();
+    }
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
     if first_bit == 0 {
         if let Some(ram) = ram.as_deref_mut() {

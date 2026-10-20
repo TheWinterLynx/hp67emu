@@ -245,12 +245,22 @@ impl Hp67ElectricalFabric {
         sync: Drive,
         data: Option<(Drive, Drive)>,
     ) {
-        self.commit_serial_launch_with_data_owner(act_is, roms, sync, data, Hp67Driver::StructuralRomResponder);
+        self.commit_serial_launch_with_data_owner(
+            act_is,
+            roms,
+            sync,
+            data,
+            Hp67Driver::StructuralRomResponder,
+        );
     }
 
     pub(crate) fn commit_serial_launch_with_data_owner(
-        &mut self, act_is: Drive, roms: RomIsDrives, sync: Drive,
-        data: Option<(Drive, Drive)>, data_owner: Hp67Driver,
+        &mut self,
+        act_is: Drive,
+        roms: RomIsDrives,
+        sync: Drive,
+        data: Option<(Drive, Drive)>,
+        data_owner: Hp67Driver,
     ) {
         let isa = &mut self.nets[Hp67Net::Isa.index()];
         let mut isa_changed = isa.set_drive(Hp67Driver::Act1820_2530, act_is);
@@ -269,8 +279,7 @@ impl Hp67ElectricalFabric {
             self.nets[Hp67Net::Sync.index()].set_drive(Hp67Driver::Act1820_2530, sync);
         let data_changed = if let Some((act, ram)) = data {
             let data_net = &mut self.nets[Hp67Net::Data.index()];
-            data_net.set_drive(Hp67Driver::Act1820_2530, act)
-                | data_net.set_drive(data_owner, ram)
+            data_net.set_drive(Hp67Driver::Act1820_2530, act) | data_net.set_drive(data_owner, ram)
         } else {
             false
         };
@@ -464,15 +473,36 @@ mod tests {
     #[test]
     fn m15r_ram_launch_preserves_foreign_rom_data_contribution() {
         let mut fabric = Hp67ElectricalFabric::default();
-        fabric.set_drive_immediate(Hp67Net::Data, Hp67Driver::StructuralRomResponder, Drive::High);
-        fabric.commit_serial_launch_with_data_owner(Drive::HighZ, RomIsDrives::Aggregate(Drive::HighZ), Drive::Low,
-            Some((Drive::HighZ, Drive::Low)), Hp67Driver::RamAggregate);
+        fabric.set_drive_immediate(
+            Hp67Net::Data,
+            Hp67Driver::StructuralRomResponder,
+            Drive::High,
+        );
+        fabric.commit_serial_launch_with_data_owner(
+            Drive::HighZ,
+            RomIsDrives::Aggregate(Drive::HighZ),
+            Drive::Low,
+            Some((Drive::HighZ, Drive::Low)),
+            Hp67Driver::RamAggregate,
+        );
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Contention);
         assert_eq!(fabric.active_data_driver_count(), 2);
-        assert_eq!(fabric.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder), Drive::High);
-        fabric.set_drive_immediate(Hp67Net::Data, Hp67Driver::StructuralRomResponder, Drive::HighZ);
-        fabric.commit_serial_launch_with_data_owner(Drive::HighZ, RomIsDrives::Aggregate(Drive::HighZ), Drive::Low,
-            Some((Drive::HighZ, Drive::HighZ)), Hp67Driver::RamAggregate);
+        assert_eq!(
+            fabric.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder),
+            Drive::High
+        );
+        fabric.set_drive_immediate(
+            Hp67Net::Data,
+            Hp67Driver::StructuralRomResponder,
+            Drive::HighZ,
+        );
+        fabric.commit_serial_launch_with_data_owner(
+            Drive::HighZ,
+            RomIsDrives::Aggregate(Drive::HighZ),
+            Drive::Low,
+            Some((Drive::HighZ, Drive::HighZ)),
+            Hp67Driver::RamAggregate,
+        );
         assert_eq!(fabric.level(Hp67Net::Data), LogicLevel::Floating);
         assert_eq!(fabric.tick(), Tick::ZERO);
     }

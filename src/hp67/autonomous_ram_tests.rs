@@ -90,24 +90,50 @@ fn m15q_corrupted_oracle_ram_cannot_supply_read_bits_to_live_act() {
 
 #[test]
 fn m15r_live_reads_use_ram_driver_and_release_reference_rom_driver() {
-    use hp67emu::{emulation::Drive, machines::hp67::{Hp67Driver, Hp67Net}};
+    use hp67emu::{
+        emulation::Drive,
+        machines::hp67::{Hp67Driver, Hp67Net},
+    };
     for traced in [false, true] {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         let mut trace = StructuralBusTrace::default();
         let mut reads = 0;
         for cycle in 0..2000 {
-            if cycle == 500 { live.set_key_contact(Some(Hp67Key::Rcl)); }
-            if cycle == 700 { live.set_key_contact(None); }
-            if cycle == 1200 { live.set_key_contact(Some(Hp67Key::Digit0)); }
-            if cycle == 1400 { live.set_key_contact(None); }
+            if cycle == 500 {
+                live.set_key_contact(Some(Hp67Key::Rcl));
+            }
+            if cycle == 700 {
+                live.set_key_contact(None);
+            }
+            if cycle == 1200 {
+                live.set_key_contact(Some(Hp67Key::Digit0));
+            }
+            if cycle == 1400 {
+                live.set_key_contact(None);
+            }
             let tick = live.backplane.tick().get();
-            live.step_firmware_cycle_with_trace(if traced { Some(&mut trace) } else { None }).unwrap();
+            live.step_firmware_cycle_with_trace(if traced { Some(&mut trace) } else { None })
+                .unwrap();
             assert_eq!(live.backplane.tick().get() - tick, 224);
-            assert_eq!(live.backplane.driver_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder), Drive::HighZ);
-            if live.pending_ram_data_transfer.is_some_and(|transfer| transfer.direction == Hp67DataTransferDirection::PeripheralToAct) {
+            assert_eq!(
+                live.backplane
+                    .driver_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder),
+                Drive::HighZ
+            );
+            if live.pending_ram_data_transfer.is_some_and(|transfer| {
+                transfer.direction == Hp67DataTransferDirection::PeripheralToAct
+            }) {
                 reads += 1;
-                assert_ne!(live.backplane.driver_drive(Hp67Net::Data, Hp67Driver::RamAggregate), Drive::HighZ);
-                assert_eq!(live.backplane.driver_drive(Hp67Net::Data, Hp67Driver::Act1820_2530), Drive::HighZ);
+                assert_ne!(
+                    live.backplane
+                        .driver_drive(Hp67Net::Data, Hp67Driver::RamAggregate),
+                    Drive::HighZ
+                );
+                assert_eq!(
+                    live.backplane
+                        .driver_drive(Hp67Net::Data, Hp67Driver::Act1820_2530),
+                    Drive::HighZ
+                );
                 assert_eq!(live.backplane.active_data_driver_count(), 1);
             }
         }
