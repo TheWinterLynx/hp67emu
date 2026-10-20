@@ -8,6 +8,7 @@ use super::{
     act::{ActRegister, ACT_WORD_DIGITS},
     data::data_register_serial_bit,
     machine::Hp67ElectricalBackplane,
+    ram_command::{Hp67RamCommand as Command, Hp67RamCommandError, Hp67RamCommandReceiver},
     timing::{BITS_PER_WORD, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT},
     wiring::{Hp67Driver, Hp67Net},
 };
@@ -28,14 +29,7 @@ pub enum Hp67SerialRamError {
     },
     BodyNotBound,
     IncompleteDataFrame,
-    InvalidInstruction {
-        word_bit: u8,
-        is: LogicLevel,
-        sync: LogicLevel,
-    },
-    ChangedSync {
-        word_bit: u8,
-    },
+    Command(Hp67RamCommandError),
     InvalidData {
         word_bit: u8,
         level: LogicLevel,
@@ -48,34 +42,6 @@ pub enum Hp67SerialRamEvent {
     AddressLatched { address: u8 },
     WriteCommitted { address: u8 },
     BlockCleared { base: u8 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Command {
-    Idle,
-    Address,
-    Write(Option<u8>),
-    Read(Option<u8>),
-    Clear,
-}
-
-impl Command {
-    fn decode(word: u16, instruction: bool) -> Self {
-        if !instruction {
-            return Self::Idle;
-        }
-        match word {
-            0o1160 => Self::Address,
-            0o1260 => Self::Clear,
-            0o1360 => Self::Write(None),
-            0o0070 => Self::Read(None),
-            _ => match word & 0o77 {
-                0o50 => Self::Write(Some(((word >> 6) & 0xf) as u8)),
-                0o70 => Self::Read(Some(((word >> 6) & 0xf) as u8)),
-                _ => Self::Idle,
-            },
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,8 +68,7 @@ pub struct Hp67SerialRam {
     active: bool,
     expected_bit: u8,
     body_bound: bool,
-    observed_word: u16,
-    observed_sync: Option<bool>,
+    command_receiver: Hp67RamCommandReceiver,
     incoming: Option<IncomingFrame>,
     read_body: Option<ActRegister>,
     read_tail: Option<[bool; 2]>,
@@ -119,8 +84,7 @@ impl Default for Hp67SerialRam {
             active: false,
             expected_bit: 0,
             body_bound: false,
-            observed_word: 0,
-            observed_sync: None,
+            command_receiver: Hp67RamCommandReceiver::default(),
             incoming: None,
             read_body: None,
             read_tail: None,
@@ -157,8 +121,7 @@ impl Hp67SerialRam {
         self.active = true;
         self.expected_bit = 0;
         self.body_bound = false;
-        self.observed_word = 0;
-        self.observed_sync = None;
+        self.command_receiver = Hp67RamCommandReceiver::default();
         self.executing = self.next_command;
         self.next_command = Command::Idle;
         Ok(())
@@ -263,32 +226,12 @@ impl Hp67SerialRam {
                 tick: bus.tick().get(),
             });
         }
-        let instruction_sample = if (ROM_WORD_FIRST_BIT..=ROM_WORD_LAST_BIT).contains(&bit) {
-            let is = bus.level(Hp67Net::Isa);
-            let sync = bus.level(Hp67Net::Sync);
-            let (value, qualifier) = match (is, sync) {
-                (LogicLevel::High, LogicLevel::High) => (true, true),
-                (LogicLevel::Low, LogicLevel::High) => (false, true),
-                (LogicLevel::High, LogicLevel::Low) => (true, false),
-                (LogicLevel::Low, LogicLevel::Low) => (false, false),
-                _ => {
-                    return Err(Hp67SerialRamError::InvalidInstruction {
-                        word_bit: bit,
-                        is,
-                        sync,
-                    })
-                }
-            };
-            if self
-                .observed_sync
-                .is_some_and(|previous| previous != qualifier)
-            {
-                return Err(Hp67SerialRamError::ChangedSync { word_bit: bit });
-            }
-            Some((value, qualifier))
-        } else {
-            None
-        };
+        // Copy only the small receiver image, never the RAM array. Commit it
+        // after DATA validation so an invalid input cannot consume the other.
+        let mut command_receiver = self.command_receiver;
+        if (ROM_WORD_FIRST_BIT..=ROM_WORD_LAST_BIT).contains(&bit) {
+            command_receiver.sample_at_edge(bus).map_err(Hp67SerialRamError::Command)?;
+        }
         let data_sample = if self.incoming.is_some() {
             let level = bus.level(Hp67Net::Data);
             let active_drivers = bus.active_data_driver_count();
@@ -316,13 +259,7 @@ impl Hp67SerialRam {
             None
         };
         // All fallible observation is above this line.
-        if let Some((value, qualifier)) = instruction_sample {
-            let serial = bit - ROM_WORD_FIRST_BIT;
-            if value {
-                self.observed_word |= 1 << serial;
-            }
-            self.observed_sync = Some(qualifier);
-        }
+        self.command_receiver = command_receiver;
         let mut event = None;
         if let Some(value) = data_sample {
             let frame = self.incoming.as_mut().expect("validated incoming frame");
@@ -351,8 +288,8 @@ impl Hp67SerialRam {
             self.read_tail = None;
         }
         if bit == BITS_PER_WORD - 1 {
-            self.next_command =
-                Command::decode(self.observed_word, self.observed_sync == Some(true));
+            self.next_command = self.command_receiver.received_frame()
+                .expect("all ten IS/SYNC bits validated").command();
             self.read_tail = self.read_body.take().map(|word| {
                 [
                     data_register_serial_bit(&word, 54),

@@ -332,4 +332,15 @@ next-word tail. It preserves M14H ACT selector authority, strict receive checks,
 traced/untraced parity and 224 PHI transitions/word. Autonomous RAM remains a
 separate fixture until command forwarding and device-owned live reads/storage
 are connected. Physical DATA stage, per-IC mapping and exact PHI timing remain
-SOURCE-BLOCKED. See research/M15O_LIVE_ADDRESS_DATA_2026-10-19.md. Owner gate pending.
+SOURCE-BLOCKED. See research/M15O_LIVE_ADDRESS_DATA_2026-10-19.md. Owner M15O FULL GATE GREEN; exact f5548296 head integrated.
+
+
+## M15P independent live RAM command receiver
+
+Live now receives actual resolved IS/SYNC through the same receiver as autonomous
+RAM and compares complete word/qualifier against ACT after every word. Synthetic
+execution injection cannot feed this observer. Default live words use the
+DATA-capable shared loop even with idle DATA. Autonomous RAM storage/read driving
+is still separate; next is its joint read proposal and oracle comparison. Exact
+physical edges/output stage/mapping remain blocked. See
+`docs/research/M15P_LIVE_RAM_COMMANDS_2026-10-20.md`. Owner gate pending.

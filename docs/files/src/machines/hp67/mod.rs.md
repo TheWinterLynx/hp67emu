@@ -92,3 +92,20 @@ capacity constant. The device is an aggregate logical RAM with independent
 IS/SYNC command capture, DATA address/write reception, storage and read drive.
 It is available to separate electrical compositions; desktop live is not yet
 migrated. See `docs/research/M15N_AUTONOMOUS_SERIAL_RAM_2026-10-18.md`.
+
+
+## M15P shared RAM command reception
+
+The reusable ram_command receiver now observes all ten resolved IS/SYNC samples
+at the existing provisional receive checkpoint. The live composition attaches
+it to the DATA-capable transport on every word, including words with idle DATA,
+and compares its complete raw word/qualifier against ACT's independent receiver.
+The autonomous RAM uses the same receiver and promotes its decoded command into
+its existing next-word pipeline. No host opcode enters either receive path.
+
+This connects live command observation, not autonomous live storage/read drive.
+Synthetic execution injection deliberately remains separate from concurrent
+ROM fetch; the observer sees the actual ROM word. No comparison against the
+injected executing opcode is made. DATA body/tail authority remains M15O.
+Exact PHI edges/output circuitry and per-chip RAM mapping stay SOURCE-BLOCKED.
+See docs/research/M15P_LIVE_RAM_COMMANDS_2026-10-20.md.

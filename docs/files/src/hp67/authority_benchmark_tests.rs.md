@@ -70,3 +70,10 @@ unchanged guard to reject it. A positive regression starts both synthetic loads
 at that boundary and runs 1 + 2046 + 2050 words, asserting complete execution/tick
 counts, address 001, returned word 3e3, zeroed autonomous bank latches and RAM/CRC
 invariants across batches. Rust runtime validation remains the owner's gate.
+
+
+M15P: the production live path now includes an independent resolved IS/SYNC RAM
+command observer on every word. The benchmark scope reports that cost and notes
+that synthetic injected execution does not feed this observer: it receives the
+concurrent real ROM fetch. Autonomous RAM storage/read response is still measured
+only by the separate M15N fixture. No workload, timing loop or threshold changed.

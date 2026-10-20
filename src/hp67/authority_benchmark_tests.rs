@@ -308,7 +308,7 @@ fn m14o_live_authority_realtime_benchmark() {
             us(samples[index][rounds - 1])
         );
     }
-    println!("Live firmware row uses the actual desktop live cycle, frozen inputs, restore guard, five-ROM serial fetch/display with autonomous IS/SYNC bank latches, oracle comparisons and authority commits. All rows require 56 bit-cells and 224 PHI transitions per word.");
-    println!("RAM/CRC rows inject synthetic port opcodes with fixture PC pinned to 000 (concurrent real ROM fetch 001); PC setup and CRC fixture refill/drain overhead are timed. They are stress loads, not firmware card throughput or magnetic/electrical timing evidence.");
+    println!("Live firmware row uses the actual desktop live cycle, frozen inputs, restore guard, five-ROM serial fetch/display with autonomous IS/SYNC bank latches, independent RAM IS/SYNC command reception, oracle comparisons and authority commits. All rows require 56 bit-cells and 224 PHI transitions per word.");
+    println!("RAM/CRC rows inject synthetic port opcodes with fixture PC pinned to 000 (concurrent real ROM fetch 001); PC setup and CRC fixture refill/drain overhead are timed. The RAM command observer sees the concurrent real ROM fetch, not those injected opcodes. They are stress loads, not firmware card throughput or magnetic/electrical timing evidence.");
     println!("Boot excluded; live resolved DATA logical-level bridge and CRC buffers included; DATA physical output stage/chip mapping, exact PHI edges, STR/RCD propagation and magnetic sense/serialization remain source-blocked. No speed threshold is a correctness assertion.");
 }

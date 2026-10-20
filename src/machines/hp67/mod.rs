@@ -34,6 +34,7 @@ pub mod keyboard;
 pub mod machine;
 pub mod magnetic_card;
 pub mod rom_devices;
+pub mod ram_command;
 pub mod serial_ram;
 pub mod timing;
 pub mod wiring;
@@ -142,3 +143,5 @@ pub use timing::{
     ROM_ADDRESS_LAST_BIT, ROM_WORD_BITS, ROM_WORD_FIRST_BIT, ROM_WORD_LAST_BIT,
 };
 pub use wiring::{Hp67Chip, Hp67Driver, Hp67Net, CHIPSET};
+
+pub use ram_command::{Hp67RamCommand, Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver};

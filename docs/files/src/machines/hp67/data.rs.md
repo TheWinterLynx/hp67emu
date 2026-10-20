@@ -131,3 +131,20 @@ must remain unchanged on failure, while a correct owner changing zero to one
 at the receive edge must reconstruct an all-ones register in both directions.
 Each three-word fixture retains exactly 672 PHI transitions. See
 `docs/research/M15L_DATA_OWNER_IDENTITY_2026-10-17.md`.
+
+
+## M15P shared RAM command reception
+
+The reusable ram_command receiver now observes all ten resolved IS/SYNC samples
+at the existing provisional receive checkpoint. The live composition attaches
+it to the DATA-capable transport on every word, including words with idle DATA,
+and compares its complete raw word/qualifier against ACT's independent receiver.
+The autonomous RAM uses the same receiver and promotes its decoded command into
+its existing next-word pipeline. No host opcode enters either receive path.
+
+This connects live command observation, not autonomous live storage/read drive.
+Synthetic execution injection deliberately remains separate from concurrent
+ROM fetch; the observer sees the actual ROM word. No comparison against the
+injected executing opcode is made. DATA body/tail authority remains M15O.
+Exact PHI edges/output circuitry and per-chip RAM mapping stay SOURCE-BLOCKED.
+See docs/research/M15P_LIVE_RAM_COMMANDS_2026-10-20.md.

@@ -369,7 +369,7 @@ impl Hp67LiveMachine {
             display_exposure: Hp67DisplayExposure::default(),
             optical_scan_floor: 0,
             pipeline: FetchPipelineLatch::default(),
-            data_serial: Hp67DataSerialWordPath::default(),
+            data_serial: Hp67DataSerialWordPath::default().with_ram_command_receiver(),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
             machine: Hp67ArchitecturalMachine::default(),
@@ -423,7 +423,7 @@ impl Hp67LiveMachine {
         self.display_exposure = Hp67DisplayExposure::default();
         self.optical_scan_floor = 0;
         self.pipeline = FetchPipelineLatch::default();
-        self.data_serial = Hp67DataSerialWordPath::default();
+        self.data_serial = Hp67DataSerialWordPath::default().with_ram_command_receiver();
         self.pending_ram_data_transfer = None;
         self.pending_address_data_frame = None;
         self.machine = Hp67ArchitecturalMachine::default();
@@ -1503,7 +1503,8 @@ impl Hp67LiveMachine {
         let display_state = startup_display_state
             .as_ref()
             .unwrap_or(&self.machine.act.state);
-        let result = if self.data_serial.prefix_preconsumed() || data_payload.is_some() {
+        let result = if self.data_serial.ram_command_receiver_enabled()
+            || self.data_serial.prefix_preconsumed() || data_payload.is_some() {
             self.data_serial
                 .enable_electrical_level_bridge(data_direction);
             let fused = if let Some(trace) = trace {
@@ -1571,6 +1572,19 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} shared word failed: {error:?}"))?
             }
         };
+        // An independent RAM control observer consumes the real IS/SYNC
+        // window. Neither the oracle nor the injected fixture opcode feeds it.
+        if self.data_serial.ram_command_receiver_enabled() {
+            let frame = self.data_serial.received_ram_command()
+                .ok_or_else(|| format!("live cycle {cycle} RAM command window incomplete"))?;
+            let state = self.act_serial.fetched_instruction_state()
+                .map_err(|error| format!("live cycle {cycle} ACT SYNC receive failed: {error:?}"))?;
+            if frame.word != result.fetched_word
+                || frame.instruction != (state == ActInstructionState::Normal)
+            {
+                return Err(format!("live cycle {cycle} RAM/ACT command mismatch: RAM={frame:?} ACT={:03x}/{state:?}", result.fetched_word));
+            }
+        }
         let selected_bank = self
             .fetch_rom
             .physical_chip_set()
@@ -1633,6 +1647,9 @@ impl Hp67LiveMachine {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod ram_command_tests;
 
 #[cfg(test)]
 mod address_data_tests;

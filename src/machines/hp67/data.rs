@@ -14,6 +14,7 @@ use crate::emulation::{Drive, LogicLevel};
 use super::{
     act::{ActArchitecturalState, ActInstructionState, ActRegister, ACT_WORD_DIGITS},
     machine::Hp67ElectricalBackplane,
+    ram_command::{Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver},
     timing::{data_serial_bit_for_word_bit, BITS_PER_DIGIT, BITS_PER_WORD},
     wiring::{Hp67Driver, Hp67Net},
 };
@@ -35,6 +36,7 @@ pub struct Hp67DataTransferPlan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hp67DataSerialError {
+    RamCommand(Hp67RamCommandError),
     UnexpectedWordBit {
         expected: u8,
         actual: u8,
@@ -263,9 +265,25 @@ pub struct Hp67DataSerialWordPath {
     electrical_level_bridge: bool,
     current_direction: Option<Hp67DataTransferDirection>,
     previous_direction: Option<Hp67DataTransferDirection>,
+    ram_command_receiver: Option<Hp67RamCommandReceiver>,
 }
 
 impl Hp67DataSerialWordPath {
+    /// Attach the RAM control receiver to the same resolved sampling schedule.
+    /// This observes commands only; read sources/storage retain their owners.
+    pub fn with_ram_command_receiver(mut self) -> Self {
+        self.ram_command_receiver = Some(Hp67RamCommandReceiver::default());
+        self
+    }
+
+    pub const fn ram_command_receiver_enabled(&self) -> bool {
+        self.ram_command_receiver.is_some()
+    }
+
+    pub fn received_ram_command(&self) -> Option<Hp67RamCommandFrame> {
+        self.ram_command_receiver.as_ref().and_then(|receiver| receiver.received_frame())
+    }
+
     pub const fn frame_in_progress(&self) -> bool {
         self.sink.frame_in_progress()
     }
@@ -434,8 +452,16 @@ impl Hp67DataSerialWordPath {
                 tick: backplane.tick().get(),
             });
         }
+        let mut command_receiver = self.ram_command_receiver;
+        if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT).contains(&word_bit) {
+            if let Some(receiver) = command_receiver.as_mut() {
+                receiver.sample_at_edge(backplane).map_err(Hp67DataSerialError::RamCommand)?;
+            }
+        }
         if !self.electrical_level_bridge {
-            return self.visit_transport_word_bit(word_bit);
+            self.visit_transport_word_bit(word_bit)?;
+            self.ram_command_receiver = command_receiver;
+            return Ok(());
         }
         let bit = self.sample_level_bridge(word_bit, backplane)?;
         if self.prefix_preconsumed && word_bit < DATA_TAIL_BITS {
@@ -446,6 +472,7 @@ impl Hp67DataSerialWordPath {
             debug_assert!(self.completed_payload.is_none());
             self.completed_payload = completed;
         }
+        self.ram_command_receiver = command_receiver;
         Ok(())
     }
 
@@ -590,6 +617,35 @@ mod tests {
 
     fn patterned_register(seed: u8) -> ActRegister {
         std::array::from_fn(|digit| (seed.wrapping_add(digit as u8 * 3)) & 0x0f)
+    }
+
+    #[test]
+    fn m15p_invalid_ram_command_cannot_consume_a_data_bit() {
+        use super::super::{isa::rom_word_drive, rom_devices::RomIsDrives};
+        let mut path = Hp67DataSerialWordPath::default().with_ram_command_receiver();
+        let mut bus = Hp67ElectricalBackplane::default();
+        path.enable_electrical_level_bridge(Some(Hp67DataTransferDirection::ActToPeripheral));
+        path.begin_word(Some([7; ACT_WORD_DIGITS]));
+        for bit in 0..BITS_PER_WORD {
+            let drives = path.propose_transport_word_bit(bit, &bus).unwrap();
+            bus.commit_serial_launch(Drive::HighZ, RomIsDrives::Aggregate(rom_word_drive(0x270, bit)),
+                if bit >= 46 { Drive::High } else { Drive::Low }, drives);
+            bus.advance_clock();
+            bus.advance_clock();
+            if bit >= 46 {
+                let before = path;
+                let mut broken = bus.clone();
+                broken.drive(Hp67Net::Sync, Hp67Driver::External, Drive::Low);
+                assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &broken),
+                    Err(Hp67DataSerialError::RamCommand(_))));
+                assert_eq!(path, before);
+            }
+            path.sample_transport_word_bit_at_edge(bit, &bus).unwrap();
+            bus.advance_clock();
+            bus.advance_clock();
+        }
+        assert_eq!(path.received_ram_command().unwrap().word, 0x270);
+        assert_eq!(bus.tick().get(), 224);
     }
 
     #[test]
