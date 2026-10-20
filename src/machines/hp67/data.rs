@@ -266,6 +266,7 @@ pub struct Hp67DataSerialWordPath {
     current_direction: Option<Hp67DataTransferDirection>,
     previous_direction: Option<Hp67DataTransferDirection>,
     ram_command_receiver: Option<Hp67RamCommandReceiver>,
+    autonomous_ram_owner: bool,
 }
 
 impl Hp67DataSerialWordPath {
@@ -284,6 +285,10 @@ impl Hp67DataSerialWordPath {
         self.ram_command_receiver
             .as_ref()
             .and_then(|receiver| receiver.received_frame())
+    }
+
+    pub(crate) fn use_autonomous_ram_owner(&mut self) {
+        self.autonomous_ram_owner = true;
     }
 
     pub const fn frame_in_progress(&self) -> bool {
@@ -358,7 +363,8 @@ impl Hp67DataSerialWordPath {
             let expected = match self.direction_for_word_bit(word_bit) {
                 Some(Hp67DataTransferDirection::ActToPeripheral) => Hp67Driver::Act1820_2530,
                 Some(Hp67DataTransferDirection::PeripheralToAct) => {
-                    Hp67Driver::StructuralRomResponder
+                    if self.autonomous_ram_owner { Hp67Driver::RamAggregate }
+                    else { Hp67Driver::StructuralRomResponder }
                 }
                 None => return Err(Hp67DataSerialError::MissingElectricalOwner { word_bit }),
             };
@@ -623,6 +629,47 @@ mod tests {
 
     fn patterned_register(seed: u8) -> ActRegister {
         std::array::from_fn(|digit| (seed.wrapping_add(digit as u8 * 3)) & 0x0f)
+    }
+
+    #[test]
+    fn m15r_autonomous_ram_identity_is_required_for_read_body_and_tail() {
+        use super::super::rom_devices::RomIsDrives;
+        for seed in [0, 15] {
+            let mut path = Hp67DataSerialWordPath::default();
+            path.use_autonomous_ram_owner();
+            let mut bus = Hp67ElectricalBackplane::default();
+            for word in 0..2 {
+                path.enable_electrical_level_bridge(if word == 0 { Some(Hp67DataTransferDirection::PeripheralToAct) } else { None });
+                path.begin_word(if word == 0 { Some([seed; 14]) } else { None });
+                for bit in 0..BITS_PER_WORD {
+                    let drives = path.propose_transport_word_bit(bit, &bus).unwrap();
+                    bus.commit_autonomous_ram_launch(Drive::HighZ, RomIsDrives::Aggregate(Drive::HighZ), Drive::Low, drives);
+                    bus.advance_clock(); bus.advance_clock();
+                    if (word == 0 && bit >= 2) || (word == 1 && bit < 2) {
+                        let before = path;
+                        let drive = bus.driver_drive(Hp67Net::Data, Hp67Driver::RamAggregate);
+                        for wrong in Hp67Driver::ALL {
+                            if wrong == Hp67Driver::RamAggregate { continue; }
+                            let mut broken = bus.clone();
+                            broken.drive(Hp67Net::Data, Hp67Driver::RamAggregate, Drive::HighZ);
+                            broken.drive(Hp67Net::Data, wrong, drive);
+                            assert_eq!(broken.level(Hp67Net::Data), bus.level(Hp67Net::Data));
+                            assert!(matches!(path.sample_transport_word_bit_at_edge(bit, &broken), Err(Hp67DataSerialError::InvalidElectricalOwner { expected: Hp67Driver::RamAggregate, .. })));
+                            assert_eq!(path, before);
+                        }
+                        let mut overlap = bus.clone();
+                        overlap.drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder, drive);
+                        assert!(path.sample_transport_word_bit_at_edge(bit, &overlap).is_err());
+                        assert_eq!(path, before);
+                    }
+                    path.sample_transport_word_bit_at_edge(bit, &bus).unwrap();
+                    bus.advance_clock(); bus.advance_clock();
+                }
+                assert_eq!(path.complete_word(), if word == 0 { None } else { Some([seed; 14]) });
+            }
+            assert_eq!(bus.tick().get(), 448);
+            assert_eq!(bus.level(Hp67Net::Data), LogicLevel::Floating);
+        }
     }
 
     #[test]

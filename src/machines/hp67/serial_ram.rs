@@ -418,7 +418,7 @@ mod tests {
                 } else {
                     Drive::Low
                 };
-                self.bus.commit_serial_launch(
+                self.bus.commit_autonomous_ram_launch(
                     act_address_drive(0x123, bit),
                     RomIsDrives::Aggregate(rom_word_drive(fetched, bit)),
                     sync,
@@ -437,7 +437,7 @@ mod tests {
                     assert_eq!(self.bus.active_data_driver_count(), 1);
                     assert_ne!(
                         self.bus
-                            .driver_drive(Hp67Net::Data, Hp67Driver::StructuralRomResponder),
+                            .driver_drive(Hp67Net::Data, Hp67Driver::RamAggregate),
                         Drive::HighZ
                     );
                     let serial = if bit < 2 { bit + 54 } else { bit - 2 };

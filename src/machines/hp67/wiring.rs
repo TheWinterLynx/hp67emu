@@ -53,7 +53,8 @@ pub const CHIPSET: &[Hp67Chip] = &[
 ///
 /// Physical ICs receive one stable slot each. `StructuralRomResponder` is an
 /// explicit temporary slot for aggregate reference ROM fetch and the current
-/// logical-level RAM DATA bridge. Live ROM fetch uses the five physical ROM
+/// reference RAM DATA bridge. Autonomous RAM uses RamAggregate without asserting
+/// a physical chip map. Live ROM fetch uses the five physical ROM
 /// driver identities; RAM mapping remains a separate milestone. `External` is reserved for
 /// hardware-facing contacts/stimulus, not calculator IC behavior.
 #[repr(u8)]
@@ -71,10 +72,12 @@ pub enum Hp67Driver {
     CardSenseAmplifier1826_0322,
     DisplayTransistorArray1858_0050,
     External,
+    /// Aggregate autonomous RAM; not a per-IC mapping claim.
+    RamAggregate,
 }
 
 impl Hp67Driver {
-    pub const COUNT: usize = 12;
+    pub const COUNT: usize = 13;
 
     pub const fn index(self) -> usize {
         self as usize
@@ -93,6 +96,7 @@ impl Hp67Driver {
         Self::CardSenseAmplifier1826_0322,
         Self::DisplayTransistorArray1858_0050,
         Self::External,
+        Self::RamAggregate,
     ];
 }
 

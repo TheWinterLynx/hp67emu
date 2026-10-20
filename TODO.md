@@ -549,4 +549,13 @@ a frame mask; reference RAM remains comparison only. Clocked tails and 224 PHI
 transitions remain. Host-injected tests use an explicit test-only reference
 composition, while real firmware/key/program/card/diagnostic paths keep autonomous
 RAM. Physical per-IC mapping/output circuitry and exact PHI/propagation remain
-blocked. See `docs/research/M15Q_LIVE_AUTONOMOUS_RAM_2026-10-20.md`. Owner gate pending.
+blocked. See `docs/research/M15Q_LIVE_AUTONOMOUS_RAM_2026-10-20.md`. Owner M15Q FULL GATE GREEN; exact 73564395 head integrated.
+
+
+## M15R independent RAM DATA driver
+
+Autonomous RAM now drives a named RamAggregate contribution instead of the
+reference ROM responder. Joint publication, foreign-source contention and strict
+read body/tail ownership checks remain. This is logical aggregate identity;
+physical chip mapping/output stage and exact PHI edges remain open. See
+`docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`. Owner gate pending.
