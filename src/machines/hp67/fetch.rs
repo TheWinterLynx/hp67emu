@@ -38,6 +38,7 @@ use super::{
     isa::{act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK},
     machine::Hp67ElectricalBackplane,
     rom_devices::{Hp67RomChipSet, RomIsDrives},
+    serial_ram::{Hp67SerialRam, Hp67SerialRamError},
     timing::{
         display_data_serial_bit, isa_window_for_bit, sync_decision_window, IsaWindow,
         BITS_PER_DIGIT, BITS_PER_WORD, ROM_ADDRESS_BITS, ROM_WORD_BITS,
@@ -135,6 +136,7 @@ pub enum StructuralWordError {
     ActDisplay(ActDisplaySerialError),
     ActExecution(ActSerialExecutionError),
     Data(Hp67DataSerialError),
+    Ram(Hp67SerialRamError),
 }
 
 impl From<SerialFetchError> for StructuralWordError {
@@ -165,6 +167,39 @@ impl From<Hp67DataSerialError> for StructuralWordError {
     fn from(error: Hp67DataSerialError) -> Self {
         Self::Data(error)
     }
+}
+
+impl From<Hp67SerialRamError> for StructuralWordError {
+    fn from(error: Hp67SerialRamError) -> Self { Self::Ram(error) }
+}
+
+// RAM proposes its own read bits; the DATA path supplies ACT output and frame
+// metadata only. No architectural read value reaches the RAM contribution.
+fn propose_data_with_ram(
+    data: &Hp67DataSerialWordPath,
+    ram: Option<&Hp67SerialRam>,
+    bit: u8,
+    bus: &Hp67ElectricalBackplane,
+) -> Result<Option<(Drive, Drive)>, StructuralWordError> {
+    let drives = data.propose_transport_word_bit(bit, bus)?;
+    if let Some(ram) = ram {
+        let (act, _) = drives.ok_or(Hp67DataSerialError::ElectricalBridgeRequired)?;
+        Ok(Some((act, ram.propose_data_drive(bus)?)))
+    } else { Ok(drives) }
+}
+
+fn sample_data_with_ram(
+    data: &mut Hp67DataSerialWordPath,
+    ram: Option<&mut Hp67SerialRam>,
+    bit: u8,
+    bus: &Hp67ElectricalBackplane,
+) -> Result<(), StructuralWordError> {
+    if let Some(ram) = ram {
+        let sample = ram.prepare_sample(bus)?;
+        data.sample_transport_word_bit_at_edge(bit, bus)?;
+        let _ = ram.commit_sample(sample);
+    } else { data.sample_transport_word_bit_at_edge(bit, bus)?; }
+    Ok(())
 }
 
 /// Values reconstructed from one shared 56-bit HP-67 structural word.
@@ -961,7 +996,21 @@ pub fn run_structural_data_tail_prefix(
     rom: &RomFetchEndpoint,
     rom0: &mut Rom0DisplayEndpoint,
     data: &mut Hp67DataSerialWordPath,
+    trace: Option<&mut StructuralBusTrace>,
+) -> Result<Option<super::act::ActRegister>, StructuralWordError> {
+    run_structural_data_tail_prefix_with_ram(backplane, state, act, rom, rom0, data, trace, None)
+}
+
+/// Shared transport with an optional autonomous aggregate RAM participant.
+pub fn run_structural_data_tail_prefix_with_ram(
+    backplane: &mut Hp67ElectricalBackplane,
+    state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom: &RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    data: &mut Hp67DataSerialWordPath,
     mut trace: Option<&mut StructuralBusTrace>,
+    mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<Option<super::act::ActRegister>, StructuralWordError> {
     if backplane.word_bit() != 0
         || backplane.tick().get() & 3 != 0
@@ -987,10 +1036,11 @@ pub fn run_structural_data_tail_prefix(
         Err(ActDisplaySerialError::UnsupportedModifier { .. }) => HP67_ROM0_BLANK_CODE,
         Err(error) => return Err(error.into()),
     };
+    if let Some(ram) = ram.as_deref_mut() { ram.begin_cycle(backplane)?; }
     rom0.begin_word();
     for word_bit in 0..2 {
         let act_drive = wired_high_drive(((byte >> word_bit) & 1) != 0);
-        let data_drives = data.propose_transport_word_bit(word_bit, backplane)?;
+        let data_drives = propose_data_with_ram(data, ram.as_deref(), word_bit, backplane)?;
         publish_transport_sources(
             backplane,
             word_bit,
@@ -1016,7 +1066,7 @@ pub fn run_structural_data_tail_prefix(
         let is_level = sample_transport_isa_at_edge(backplane, word_bit)?;
         rom0.sample_for_bit(word_bit, is_level)?;
         rom0.visit_control_bit(word_bit, act.display_scan_slot(), backplane)?;
-        data.sample_transport_word_bit_at_edge(word_bit, backplane)?;
+        sample_data_with_ram(data, ram.as_deref_mut(), word_bit, backplane)?;
         for _ in 0..2 {
             backplane.advance_clock();
             if let Some(trace) = trace.as_deref_mut() {
@@ -1152,8 +1202,12 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     source: &S,
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
     data: &mut Hp67DataSerialWordPath,
+    mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<u16, StructuralWordError> {
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
+    if first_bit == 0 {
+        if let Some(ram) = ram.as_deref_mut() { ram.begin_cycle(backplane)?; }
+    }
     rom.begin_cycle();
     if first_bit == 0 {
         if let Some(endpoint) = rom0.as_deref_mut() {
@@ -1185,6 +1239,9 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
 
     for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
+        if expected_bit == 2 {
+            if let Some(ram) = ram.as_deref_mut() { ram.bind_body(backplane)?; }
+        }
         let display_bit = display_data_serial_bit(expected_bit);
         let act_drive = if let Some(serial_bit) = display_bit {
             match display_byte {
@@ -1194,7 +1251,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         } else {
             act_address_drive(act.address(), expected_bit)
         };
-        let data_drives = data.propose_transport_word_bit(expected_bit, backplane)?;
+        let data_drives = propose_data_with_ram(data, ram.as_deref(), expected_bit, backplane)?;
         let sync_drive = if sync_decision_window(expected_bit) && instruction_qualifier {
             Drive::High
         } else {
@@ -1233,7 +1290,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        data.sample_transport_word_bit_at_edge(expected_bit, backplane)?;
+        sample_data_with_ram(data, ram.as_deref_mut(), expected_bit, backplane)?;
 
         for _ in 0..2 {
             backplane.advance_clock();
@@ -1265,7 +1322,8 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
         Err(StructuralWordError::Display(_))
         | Err(StructuralWordError::ActDisplay(_))
         | Err(StructuralWordError::ActExecution(_))
-        | Err(StructuralWordError::Data(_)) => {
+        | Err(StructuralWordError::Data(_))
+        | Err(StructuralWordError::Ram(_)) => {
             unreachable!("fetch-only structural cycle cannot produce a non-fetch error")
         }
     }
@@ -1338,6 +1396,22 @@ pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
     data: &mut Hp67DataSerialWordPath,
     data_payload: Option<super::act::ActRegister>,
 ) -> Result<StructuralDataWordResult, StructuralWordError> {
+    run_structural_display_fetch_data_phase_cycle_with_ram(backplane, address, act_state, act, rom, rom0, source, data, data_payload, None)
+}
+
+/// Shared transport with an optional autonomous aggregate RAM participant.
+pub fn run_structural_display_fetch_data_phase_cycle_with_ram<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act_state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom: &mut RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    source: &S,
+    data: &mut Hp67DataSerialWordPath,
+    data_payload: Option<super::act::ActRegister>,
+    ram: Option<&mut Hp67SerialRam>,
+) -> Result<StructuralDataWordResult, StructuralWordError> {
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     data.begin_word(data_payload);
@@ -1349,6 +1423,7 @@ pub fn run_structural_display_fetch_data_phase_cycle<S: Hp67RomWordSource>(
         source,
         Some(&mut *rom0),
         data,
+        ram,
     )?;
     let completed_data = data.complete_word();
     let display_byte = rom0.display_byte()?;
@@ -1589,8 +1664,12 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
     mut rom0: Option<&mut Rom0DisplayEndpoint>,
     data: &mut Hp67DataSerialWordPath,
     trace: &mut StructuralBusTrace,
+    mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<u16, StructuralWordError> {
     let (first_bit, prefix_byte) = act.take_clocked_prefix(backplane, rom0.is_some())?;
+    if first_bit == 0 {
+        if let Some(ram) = ram.as_deref_mut() { ram.begin_cycle(backplane)?; }
+    }
     rom.begin_cycle();
     if first_bit == 0 {
         if let Some(endpoint) = rom0.as_deref_mut() {
@@ -1622,6 +1701,9 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
 
     for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
+        if expected_bit == 2 {
+            if let Some(ram) = ram.as_deref_mut() { ram.bind_body(backplane)?; }
+        }
         let display_bit = display_data_serial_bit(expected_bit);
         let act_drive = if let Some(serial_bit) = display_bit {
             match display_byte {
@@ -1632,7 +1714,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             act_address_drive(act.address(), expected_bit)
         };
         let rom_drive = rom.drive_for_bit(expected_bit);
-        let data_drives = data.propose_transport_word_bit(expected_bit, backplane)?;
+        let data_drives = propose_data_with_ram(data, ram.as_deref(), expected_bit, backplane)?;
         let sync_drive = if sync_decision_window(expected_bit) && instruction_qualifier {
             Drive::High
         } else {
@@ -1682,7 +1764,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
             IsaWindow::Other => {}
         }
 
-        data.sample_transport_word_bit_at_edge(expected_bit, backplane)?;
+        sample_data_with_ram(data, ram.as_deref_mut(), expected_bit, backplane)?;
 
         for _ in 0..2 {
             backplane.advance_clock();
@@ -1717,6 +1799,23 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
     data_payload: Option<super::act::ActRegister>,
     trace: &mut StructuralBusTrace,
 ) -> Result<StructuralDataWordResult, StructuralWordError> {
+    run_structural_display_fetch_data_phase_cycle_traced_with_ram(backplane, address, act_state, act, rom, rom0, source, data, data_payload, trace, None)
+}
+
+/// Shared transport with an optional autonomous aggregate RAM participant.
+pub fn run_structural_display_fetch_data_phase_cycle_traced_with_ram<S: Hp67RomWordSource>(
+    backplane: &mut Hp67ElectricalBackplane,
+    address: u16,
+    act_state: &ActArchitecturalState,
+    act: &mut ActSerialEndpoint,
+    rom: &mut RomFetchEndpoint,
+    rom0: &mut Rom0DisplayEndpoint,
+    source: &S,
+    data: &mut Hp67DataSerialWordPath,
+    data_payload: Option<super::act::ActRegister>,
+    trace: &mut StructuralBusTrace,
+    ram: Option<&mut Hp67SerialRam>,
+) -> Result<StructuralDataWordResult, StructuralWordError> {
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     data.begin_word(data_payload);
@@ -1729,6 +1828,7 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
         Some(&mut *rom0),
         data,
         trace,
+        ram,
     )?;
     let completed_data = data.complete_word();
     let display_byte = rom0.display_byte()?;
@@ -1750,6 +1850,35 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced<S: Hp67RomWordSource
 mod tests {
     use super::*;
     use crate::machines::hp67::{ActSerialWordClass, Hp67SegmentMask};
+
+    #[test]
+    fn m15q_shared_ram_data_receive_rejects_faults_before_either_commit() {
+        let mut bus = Hp67ElectricalBackplane::default();
+        let mut data = Hp67DataSerialWordPath::default();
+        data.enable_electrical_level_bridge(None);
+        data.begin_word(None);
+        let mut ram = Hp67SerialRam::default();
+        bus.advance_clock();
+        bus.advance_clock();
+        let before_data = data;
+        let before_ram = ram.clone();
+        assert!(sample_data_with_ram(&mut data, Some(&mut ram), 0, &bus).is_err());
+        assert_eq!(data, before_data);
+        assert_eq!(ram, before_ram);
+        // Return to the b0 launch checkpoint with a separate deterministic bus.
+        let mut bus = Hp67ElectricalBackplane::default();
+        ram.begin_cycle(&bus).unwrap();
+        bus.advance_clock();
+        bus.advance_clock();
+        let before_ram = ram.clone();
+        bus.drive(Hp67Net::Data, Hp67Driver::External, Drive::High);
+        assert!(sample_data_with_ram(&mut data, Some(&mut ram), 0, &bus).is_err());
+        assert_eq!(data, before_data);
+        assert_eq!(ram, before_ram);
+        bus.drive(Hp67Net::Data, Hp67Driver::External, Drive::HighZ);
+        sample_data_with_ram(&mut data, Some(&mut ram), 0, &bus).unwrap();
+        assert_eq!(bus.tick().get(), 2);
+    }
 
     #[test]
     fn m15k_all_transports_follow_captured_bank_roundtrip_without_provider_selection() {

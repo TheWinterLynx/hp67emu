@@ -21,8 +21,8 @@ impl Workload {
     fn name(self) -> &'static str {
         match self {
             Self::FirmwareIdle => "live firmware idle / full authority",
-            Self::RamPorts => "synthetic RAM ports / full live bridge",
-            Self::CrcPorts => "synthetic CRC ports / full live bridge",
+            Self::RamPorts => "synthetic RAM ports / reference bridge",
+            Self::CrcPorts => "synthetic CRC ports / reference bridge",
         }
     }
 }
@@ -35,7 +35,9 @@ struct LiveBenchmark {
 
 impl LiveBenchmark {
     fn new(workload: Workload) -> Self {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = if workload == Workload::FirmwareIdle {
+            Hp67LiveMachine::power_on_default()
+        } else { Hp67LiveMachine::power_on_reference_fixture() }.unwrap();
         for _ in 0..BOOT_CYCLE_LIMIT {
             live.step_firmware_cycle()
                 .expect("live benchmark boot must succeed");
@@ -308,7 +310,7 @@ fn m14o_live_authority_realtime_benchmark() {
             us(samples[index][rounds - 1])
         );
     }
-    println!("Live firmware row uses the actual desktop live cycle, frozen inputs, restore guard, five-ROM serial fetch/display with autonomous IS/SYNC bank latches, independent RAM IS/SYNC command reception, oracle comparisons and authority commits. All rows require 56 bit-cells and 224 PHI transitions per word.");
-    println!("RAM/CRC rows inject synthetic port opcodes with fixture PC pinned to 000 (concurrent real ROM fetch 001); PC setup and CRC fixture refill/drain overhead are timed. The RAM command observer sees the concurrent real ROM fetch, not those injected opcodes. They are stress loads, not firmware card throughput or magnetic/electrical timing evidence.");
-    println!("Boot excluded; live resolved DATA logical-level bridge and CRC buffers included; DATA physical output stage/chip mapping, exact PHI edges, STR/RCD propagation and magnetic sense/serialization remain source-blocked. No speed threshold is a correctness assertion.");
+    println!("Live firmware row uses the actual desktop live cycle, frozen inputs, restore guard, five-ROM serial fetch/display with autonomous IS/SYNC bank latches, autonomous serial RAM command/address/storage/read drive, oracle comparisons and authority commits. All rows require 56 bit-cells and 224 PHI transitions per word.");
+    println!("RAM/CRC rows inject synthetic port opcodes with fixture PC pinned to 000 (concurrent real ROM fetch 001); PC setup and CRC fixture refill/drain overhead are timed. The RAM command observer sees the concurrent real ROM fetch, not those injected opcodes. These two rows explicitly use the reference bridge without autonomous RAM because their injected execution differs from the real ROM command stream. They are stress loads, not production RAM/card throughput or magnetic/electrical timing evidence.");
+    println!("Boot excluded; production idle includes autonomous RAM and resolved DATA, synthetic rows use the reference bridge; CRC buffers included; DATA physical output stage/chip mapping, exact PHI edges, STR/RCD propagation and magnetic sense/serialization remain source-blocked. No speed threshold is a correctness assertion.");
 }

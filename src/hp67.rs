@@ -4,17 +4,17 @@ use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
 
 use hp67emu::machines::hp67::{
     act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
-    display_register_index_for_scan_slot, restore_ram_block, run_structural_data_tail_prefix,
+    display_register_index_for_scan_slot, restore_ram_block, run_structural_data_tail_prefix_with_ram,
     run_structural_display_fetch_cycle, run_structural_display_fetch_cycle_traced,
-    run_structural_display_fetch_data_phase_cycle,
-    run_structural_display_fetch_data_phase_cycle_traced, ActInstructionState, ActOperation,
+    run_structural_display_fetch_data_phase_cycle_with_ram,
+    run_structural_display_fetch_data_phase_cycle_traced_with_ram, ActInstructionState, ActOperation,
     ActRegister, ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint,
     ActSerialFlowState, ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
     ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd,
     CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
     Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Rom0DisplayEndpoint,
+    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Hp67SerialRam, Rom0DisplayEndpoint,
     RomFetchEndpoint, StructuralBusTrace, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY,
     CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
     HP67_OBSERVED_WORD_TIME_US,
@@ -341,6 +341,7 @@ pub struct Hp67LiveMachine {
     optical_scan_floor: u64,
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
+    serial_ram: Option<Hp67SerialRam>,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
     pending_address_data_frame: Option<ActRegister>,
     machine: Hp67ArchitecturalMachine,
@@ -370,6 +371,7 @@ impl Hp67LiveMachine {
             optical_scan_floor: 0,
             pipeline: FetchPipelineLatch::default(),
             data_serial: Hp67DataSerialWordPath::default().with_ram_command_receiver(),
+            serial_ram: Some(Hp67SerialRam::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
             machine: Hp67ArchitecturalMachine::default(),
@@ -424,6 +426,7 @@ impl Hp67LiveMachine {
         self.optical_scan_floor = 0;
         self.pipeline = FetchPipelineLatch::default();
         self.data_serial = Hp67DataSerialWordPath::default().with_ram_command_receiver();
+        if let Some(ram) = self.serial_ram.as_mut() { ram.reset(); }
         self.pending_ram_data_transfer = None;
         self.pending_address_data_frame = None;
         self.machine = Hp67ArchitecturalMachine::default();
@@ -838,6 +841,21 @@ impl Hp67LiveMachine {
             image
                 .commit(&mut self.machine.act.state, &mut self.machine.ram)
                 .map_err(|error| format!("live cycle {cycle} M14K commit failed: {error}"))?;
+        }
+        if let Some(ram) = self.serial_ram.as_ref() {
+            // C-to-address completes on the next word's b1. All other selector
+            // effects have completed at this checkpoint in the logical model.
+            if self.pending_address_data_frame.is_none() && ram.address() != self.machine.act.state.ram_address {
+                return Err(format!("live cycle {cycle} autonomous RAM selector mismatch: device={:02x} ACT={:02x}", ram.address(), self.machine.act.state.ram_address));
+            }
+            if let Some(base) = self.act_serial.serial_ram_result_image().and_then(|image| image.clear_base()) {
+                for low in 0..16 {
+                    let address = base | low;
+                    if ram.register(address).copied() != self.machine.ram.read(address) {
+                        return Err(format!("live cycle {cycle} autonomous RAM clear mismatch at {address:02x}"));
+                    }
+                }
+            }
         }
         if let Some(expected) = boundary_expected {
             let image = self
@@ -1373,6 +1391,13 @@ impl Hp67LiveMachine {
         self.complete_pending_ram_data_with_prefix(cycle, None)
     }
 
+    #[cfg(test)]
+    fn power_on_reference_fixture() -> Result<Self, String> {
+        let mut live = Self::power_on_default()?;
+        live.serial_ram = None;
+        Ok(live)
+    }
+
     fn complete_pending_ram_data_with_prefix(
         &mut self,
         cycle: u64,
@@ -1383,7 +1408,7 @@ impl Hp67LiveMachine {
             if !self.display_control_seen {
                 display_state.display_enable = true;
             }
-            run_structural_data_tail_prefix(
+            run_structural_data_tail_prefix_with_ram(
                 &mut self.backplane,
                 &display_state,
                 &mut self.act_serial,
@@ -1391,6 +1416,7 @@ impl Hp67LiveMachine {
                 &mut self.display_rom0,
                 &mut self.data_serial,
                 trace,
+                self.serial_ram.as_mut(),
             )
             .map_err(|error| {
                 format!("live cycle {cycle} clocked RAM DATA prefix failed: {error:?}")
@@ -1411,6 +1437,12 @@ impl Hp67LiveMachine {
             if completed != Some(expected) {
                 return Err(format!("live cycle {cycle} address DATA authority mismatch: expected={expected:?} actual={completed:?}"));
             }
+            if let Some(ram) = self.serial_ram.as_ref() {
+                let address = (expected[1] << 4) | expected[0];
+                if ram.address() != address {
+                    return Err(format!("live cycle {cycle} autonomous RAM address tail mismatch: pins={:02x} expected={address:02x}", ram.address()));
+                }
+            }
             self.pending_address_data_frame = None;
             return Ok(());
         }
@@ -1419,7 +1451,14 @@ impl Hp67LiveMachine {
             (Some(pending), Some(actual)) if actual == pending.expected => {
                 match pending.direction {
                     Hp67DataTransferDirection::ActToPeripheral => {
-                        if !self.machine.ram.write(pending.address, actual) {
+                        let value = if let Some(ram) = self.serial_ram.as_ref() {
+                            let stored = ram.register(pending.address).copied();
+                            if stored != Some(actual) {
+                                return Err(format!("live cycle {cycle} autonomous RAM write mismatch at {:02x}: device={stored:?} DATA={actual:?}", pending.address));
+                            }
+                            stored.expect("validated installed autonomous RAM")
+                        } else { actual };
+                        if !self.machine.ram.write(pending.address, value) {
                             return Err(format!(
                                 "live cycle {cycle} reconstructed RAM DATA write targeted uninstalled address 0x{:02x}",
                                 pending.address
@@ -1475,8 +1514,13 @@ impl Hp67LiveMachine {
                 "live cycle {cycle} overlapping address/RAM DATA sources"
             ));
         }
-        let data_payload =
-            address_data_frame.or(ram_data_transfer.map(|transfer| transfer.expected));
+        let data_payload = address_data_frame.or(ram_data_transfer.map(|transfer| {
+            if self.serial_ram.is_some() && transfer.direction == Hp67DataTransferDirection::PeripheralToAct {
+                // A frame mask only. Read bits are proposed exclusively by the
+                // autonomous RAM's own storage, never by this oracle expectation.
+                [0; 14]
+            } else { transfer.expected }
+        }));
         let data_direction = if address_data_frame.is_some() {
             Some(Hp67DataTransferDirection::ActToPeripheral)
         } else {
@@ -1510,7 +1554,7 @@ impl Hp67LiveMachine {
             self.data_serial
                 .enable_electrical_level_bridge(data_direction);
             let fused = if let Some(trace) = trace {
-                run_structural_display_fetch_data_phase_cycle_traced(
+                run_structural_display_fetch_data_phase_cycle_traced_with_ram(
                     &mut self.backplane,
                     address,
                     display_state,
@@ -1521,10 +1565,11 @@ impl Hp67LiveMachine {
                     &mut self.data_serial,
                     data_payload,
                     trace,
+                    self.serial_ram.as_mut(),
                 )
                 .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
             } else {
-                run_structural_display_fetch_data_phase_cycle(
+                run_structural_display_fetch_data_phase_cycle_with_ram(
                     &mut self.backplane,
                     address,
                     display_state,
@@ -1534,6 +1579,7 @@ impl Hp67LiveMachine {
                     &self.source,
                     &mut self.data_serial,
                     data_payload,
+                    self.serial_ram.as_mut(),
                 )
                 .map_err(|error| format!("live cycle {cycle} shared DATA word failed: {error:?}"))?
             };
@@ -1581,6 +1627,11 @@ impl Hp67LiveMachine {
                 .data_serial
                 .received_ram_command()
                 .ok_or_else(|| format!("live cycle {cycle} RAM command window incomplete"))?;
+            if let Some(ram) = self.serial_ram.as_ref() {
+                if ram.received_command() != Some(frame) {
+                    return Err(format!("live cycle {cycle} autonomous RAM command mismatch: device={:?} observer={frame:?}", ram.received_command()));
+                }
+            }
             let state = self
                 .act_serial
                 .fetched_instruction_state()
@@ -1655,6 +1706,9 @@ impl Hp67LiveMachine {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod autonomous_ram_tests;
 
 #[cfg(test)]
 mod ram_command_tests;
@@ -1786,7 +1840,7 @@ mod tests {
         use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
         for seed in [0, 15] {
             for traced in [false, true] {
-                let mut live = Hp67LiveMachine::power_on_default().unwrap();
+                let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
                 let mut trace = StructuralBusTrace::default();
                 let initial_ram = live.machine.ram.read(0x20).unwrap();
                 live.machine.act.state.c = [seed; 14];
@@ -1852,7 +1906,7 @@ mod tests {
     #[test]
     fn m15f_live_write_read_dependency_uses_clocked_tail_with_224_transitions() {
         use hp67emu::machines::hp67::Hp67Net;
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         let mut trace = StructuralBusTrace::default();
         let before = live.machine.ram.read(0x20).unwrap();
         live.machine.act.state.c = [7; 14];
@@ -1889,7 +1943,7 @@ mod tests {
     #[test]
     fn m15e_live_ram_destination_is_not_committed_when_data_tail_is_contended() {
         use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         let before = [4; 14];
         let expected = [7; 14];
         assert!(live.machine.ram.write(0x20, before));
@@ -1959,8 +2013,8 @@ mod tests {
 
     #[test]
     fn m14x_live_ram_trace_preserves_cross_word_data_authority() {
-        let mut fast = Hp67LiveMachine::power_on_default().unwrap();
-        let mut captured = Hp67LiveMachine::power_on_default().unwrap();
+        let mut fast = Hp67LiveMachine::power_on_reference_fixture().unwrap();
+        let mut captured = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         for _ in 0..1200 {
             fast.step_firmware_cycle_with_execution().unwrap();
             captured.step_firmware_cycle_with_execution().unwrap();
@@ -2058,7 +2112,7 @@ mod tests {
             for instruction_state in [ActInstructionState::Normal, ActInstructionState::ThenGoto] {
                 for carry in [false, true] {
                     for word in 0..=0x3ff {
-                        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+                        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
                         live.machine.act.state.pc = 0x0068;
                         live.machine.act.state.a[1] = 4;
                         live.machine.act.state.a[2] = 2;
@@ -2123,7 +2177,7 @@ mod tests {
 
     #[test]
     fn m14n_pre_transport_guard_rejects_unowned_act_mutation() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.act_serial
             .begin_execution(0, &live.machine.act.state)
             .unwrap();
@@ -2150,7 +2204,7 @@ mod tests {
 
     #[test]
     fn m14m_live_crc_read_and_write_preserve_fifo_order() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.machine.crc.present_read_word(0x7654321).unwrap();
         live.machine.crc.present_read_word(0xabcdef0).unwrap();
         // A selected read must keep M14K address authority separate from C/FIFO.
@@ -2202,7 +2256,7 @@ mod tests {
 
     #[test]
     fn m14l_live_crc_test_sets_s3_and_clears_only_internal_flag() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.machine.crc.commit_control_flag(0, true).unwrap();
         live.machine.crc.set_external_flag(0, true).unwrap();
         live.pipeline.complete_cycle(0o100);
@@ -2219,7 +2273,7 @@ mod tests {
 
     #[test]
     fn m14k_live_clear_block_preserves_neighbouring_ram() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         for address in 0u8..64 {
             live.machine.ram.write(address, [9; 14]);
         }
@@ -2246,7 +2300,7 @@ mod tests {
 
     #[test]
     fn m14k_live_selected_read_keeps_cross_word_data_authority() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.machine.act.state.ram_address = 0x23;
         live.machine.act.state.c = [3; 14];
         live.machine.ram.write(0x25, [8; 14]);
@@ -2361,7 +2415,7 @@ mod tests {
 
     #[test]
     fn m14u_live_panel_uses_complete_scans_and_blanks_on_disable_and_reset() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         for _ in 0..600 {
             live.step_firmware_cycle_with_execution().unwrap();
         }
@@ -2388,7 +2442,7 @@ mod tests {
 
     #[test]
     fn m14t_live_rom0_scan_dwell_matches_transport_and_resets_with_power() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         let mut expected = [[0u64; 8]; 15];
         for cycle in 0..150 {
             let slot = live.act_serial.display_scan_slot();
@@ -2454,7 +2508,7 @@ mod tests {
 
     #[test]
     fn m14i_successor_fetch_ignores_mutated_live_pc_and_bank() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.machine.act.state.pc = 0x0068;
         live.machine.act.state.delayed_rom = Some(15);
         live.act_serial
@@ -2493,7 +2547,7 @@ mod tests {
 
     #[test]
     fn serial_add_result_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.a[0] = 9;
         live.machine.act.state.b[0] = 1;
         live.machine.act.state.p = 0;
@@ -2536,7 +2590,7 @@ mod tests {
 
     #[test]
     fn serial_compare_commits_carry_but_preserves_registers_and_then_goto_state() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.a[0] = 2;
         live.machine.act.state.c[0] = 3;
         live.machine.act.state.p = 0;
@@ -2606,7 +2660,7 @@ mod tests {
 
         for (operation, a, b, c) in cases {
             let mut live =
-                Hp67LiveMachine::power_on_default().expect("live machine must construct");
+                Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
             live.machine.act.state.a = a;
             live.machine.act.state.b = b;
             live.machine.act.state.c = c;
@@ -2647,7 +2701,7 @@ mod tests {
 
     #[test]
     fn serial_p_increment_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.p = 13;
         live.machine.act.state.p_change = [0, -1, 1];
         live.machine.act.state.carry = true;
@@ -2687,7 +2741,7 @@ mod tests {
 
     #[test]
     fn serial_status_test_commits_then_goto_and_condition_from_structural_image() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.status[7] = true;
         live.machine.act.state.carry = false;
         let before = live.machine.act.state.clone();
@@ -2731,7 +2785,7 @@ mod tests {
 
     #[test]
     fn serial_special_register_transfer_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.c = patterned_act_register(3);
         live.machine.act.state.m1 = patterned_act_register(9);
         let before = live.machine.act.state.clone();
@@ -2765,7 +2819,7 @@ mod tests {
 
     #[test]
     fn load_constant_splits_p_and_c_authority_without_overlap() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.p = 4;
         live.machine.act.state.c = patterned_act_register(2);
         let before = live.machine.act.state.clone();
@@ -2799,7 +2853,7 @@ mod tests {
 
     #[test]
     fn serial_hex_mode_is_deferred_until_structural_word_completion() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.decimal = true;
         let before = live.machine.act.state.clone();
         let word = 0o0420;
@@ -2829,7 +2883,7 @@ mod tests {
 
     #[test]
     fn serial_ram_address_select_uses_pre_instruction_c_and_commits_at_b55() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.ram_address = 0x11;
         live.machine.act.state.c[0] = 0x0d;
         live.machine.act.state.c[1] = 0x06;
@@ -2862,7 +2916,7 @@ mod tests {
 
     #[test]
     fn serial_display_toggle_keeps_same_word_display_source_pre_instruction() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.display_enable = false;
         let before = live.machine.act.state.clone();
         let word = 0o0210;
@@ -2898,7 +2952,7 @@ mod tests {
 
     #[test]
     fn installed_ram_write_commits_only_from_reconstructed_data_frame() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         live.machine.act.state.ram_address = 0x12;
         live.machine.act.state.c = patterned_act_register(3);
         let before = live
@@ -2926,7 +2980,7 @@ mod tests {
 
     #[test]
     fn installed_ram_read_commits_c_only_from_reconstructed_data_frame() {
-        let mut live = Hp67LiveMachine::power_on_default().expect("live machine must construct");
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().expect("live machine must construct");
         let payload = patterned_act_register(9);
         let original_c = patterned_act_register(1);
         live.machine.act.state.ram_address = 0x21;
@@ -3073,7 +3127,7 @@ mod tests {
 
     #[test]
     fn live_power_on_reset_rebuilds_electronic_state() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.phase = LiveBootPhase::Firmware;
         while !matches!(live.phase, LiveBootPhase::Idle) {
             live.step_firmware_cycle().unwrap();
@@ -3516,7 +3570,7 @@ mod tests {
 
     #[test]
     fn live_two_track_program_write_and_read_reinsert_same_card_through_crd() {
-        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         live.phase = LiveBootPhase::Firmware;
         while !matches!(live.phase, LiveBootPhase::Idle) {
             live.step_firmware_cycle().unwrap();
@@ -3587,7 +3641,7 @@ mod tests {
             Some(4)
         );
 
-        let mut reader = Hp67LiveMachine::power_on_default().unwrap();
+        let mut reader = Hp67LiveMachine::power_on_reference_fixture().unwrap();
         reader.phase = LiveBootPhase::Firmware;
         while !matches!(reader.phase, LiveBootPhase::Idle) {
             reader.step_firmware_cycle().unwrap();

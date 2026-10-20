@@ -57,6 +57,14 @@ struct IncomingFrame {
     received: u8,
 }
 
+/// Validated receive inputs only; no RAM array is copied for a shared sample.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Hp67SerialRamSample {
+    bit: u8,
+    command_receiver: Hp67RamCommandReceiver,
+    data: Option<bool>,
+}
+
 /// Sixty-four logical registers with independent serial command/address/data
 /// state. There is no ACT state, architectural RAM image or host payload input.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +101,10 @@ impl Default for Hp67SerialRam {
 }
 
 impl Hp67SerialRam {
+    pub fn received_command(&self) -> Option<super::ram_command::Hp67RamCommandFrame> {
+        self.command_receiver.received_frame()
+    }
+
     pub const fn address(&self) -> u8 {
         self.address
     }
@@ -218,6 +230,14 @@ impl Hp67SerialRam {
         &mut self,
         bus: &Hp67ElectricalBackplane,
     ) -> Result<Option<Hp67SerialRamEvent>, Hp67SerialRamError> {
+        let sample = self.prepare_sample(bus)?;
+        Ok(self.commit_sample(sample))
+    }
+
+    pub(crate) fn prepare_sample(
+        &self,
+        bus: &Hp67ElectricalBackplane,
+    ) -> Result<Hp67SerialRamSample, Hp67SerialRamError> {
         self.check_coordinate(bus)?;
         let bit = bus.word_bit();
         if !bus.at_transport_sample_edge() {
@@ -260,7 +280,11 @@ impl Hp67SerialRam {
         } else {
             None
         };
-        // All fallible observation is above this line.
+        Ok(Hp67SerialRamSample { bit, command_receiver, data: data_sample })
+    }
+
+    pub(crate) fn commit_sample(&mut self, sample: Hp67SerialRamSample) -> Option<Hp67SerialRamEvent> {
+        let Hp67SerialRamSample { bit, command_receiver, data: data_sample } = sample;
         self.command_receiver = command_receiver;
         let mut event = None;
         if let Some(value) = data_sample {
@@ -314,7 +338,7 @@ impl Hp67SerialRam {
         } else {
             self.expected_bit += 1;
         }
-        Ok(event)
+        event
     }
 }
 

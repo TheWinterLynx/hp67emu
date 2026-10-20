@@ -8,7 +8,7 @@ use hp67emu::{
 fn m15o_address_write_read_use_frozen_data_and_clocked_tails() {
     for traced in [false, true] {
         for address in [0x00, 0x20, 0x3f] {
-            let mut live = Hp67LiveMachine::power_on_default().unwrap();
+            let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
             let mut trace = StructuralBusTrace::default();
             let mut address_c = [15; 14];
             address_c[0] = address & 15;
@@ -64,7 +64,7 @@ fn m15o_address_write_read_use_frozen_data_and_clocked_tails() {
 
 #[test]
 fn m15o_peripheral_address_transmits_without_ram_write_and_reset_clears_pending() {
-    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
     let ram = live.machine.ram.clone();
     let mut payload = [15; 14];
     payload[0] = 11;
@@ -88,7 +88,7 @@ fn m15o_peripheral_address_transmits_without_ram_write_and_reset_clears_pending(
 
 #[test]
 fn m15o_implied_goto_address_bits_do_not_start_data_frame() {
-    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
     live.machine.act.state.instruction_state = ActInstructionState::ThenGoto;
     live.machine.act.state.c = [15; 14];
     live.pipeline.complete_cycle(0o1160);
@@ -100,7 +100,7 @@ fn m15o_implied_goto_address_bits_do_not_start_data_frame() {
 
 #[test]
 fn m15o_address_tail_fault_blocks_next_instruction_and_preserves_destination() {
-    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
     live.machine.act.state.c = [15; 14];
     live.pipeline.complete_cycle(0o1160);
     live.step_firmware_cycle_with_execution().unwrap();

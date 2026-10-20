@@ -393,4 +393,15 @@ execution injection cannot feed this observer. Default live words use the
 DATA-capable shared loop even with idle DATA. Autonomous RAM storage/read driving
 is still separate; next is its joint read proposal and oracle comparison. Exact
 physical edges/output stage/mapping remain blocked. See
-`docs/research/M15P_LIVE_RAM_COMMANDS_2026-10-20.md`. Owner gate pending.
+`docs/research/M15P_LIVE_RAM_COMMANDS_2026-10-20.md`. Owner M15P FULL GATE GREEN; exact 627abbc3 head integrated.
+
+
+## M15Q autonomous live aggregate RAM
+
+Default live now uses device-owned 64-word storage, resolved command/address/write
+reception and device-owned DATA read proposals. Oracle read bits are replaced by
+a frame mask; reference RAM remains comparison only. Clocked tails and 224 PHI
+transitions remain. Host-injected tests use an explicit test-only reference
+composition, while real firmware/key/program/card/diagnostic paths keep autonomous
+RAM. Physical per-IC mapping/output circuitry and exact PHI/propagation remain
+blocked. See `docs/research/M15Q_LIVE_AUTONOMOUS_RAM_2026-10-20.md`. Owner gate pending.

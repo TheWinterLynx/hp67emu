@@ -114,6 +114,9 @@ pub use fetch::{
     StructuralBusSample, StructuralBusTrace, StructuralDataWordResult, StructuralWordError,
     StructuralWordResult,
 };
+pub use fetch::{run_structural_data_tail_prefix_with_ram,
+    run_structural_display_fetch_data_phase_cycle_with_ram,
+    run_structural_display_fetch_data_phase_cycle_traced_with_ram};
 pub use hp67firmware::Hp67Firmware;
 pub use isa::{
     act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
@@ -147,3 +150,6 @@ pub use wiring::{Hp67Chip, Hp67Driver, Hp67Net, CHIPSET};
 pub use ram_command::{
     Hp67RamCommand, Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver,
 };
+
+#[cfg(test)]
+mod ram_transport_tests;

@@ -44,7 +44,7 @@ fn m15p_live_ram_command_observer_matches_real_firmware_in_both_transports() {
 
 #[test]
 fn m15p_synthetic_execution_cannot_feed_the_ram_command_observer() {
-    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    let mut live = Hp67LiveMachine::power_on_reference_fixture().unwrap();
     live.machine.act.state.c = [15; 14];
     live.pipeline.complete_cycle(0o1160);
     live.step_firmware_cycle_with_execution().unwrap();
