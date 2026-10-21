@@ -1530,9 +1530,13 @@ impl Hp67LiveMachine {
             ));
         }
         let data_payload = address_data_frame.or(ram_data_transfer.and_then(|transfer| {
-            if self.serial_ram.is_some() && transfer.direction == Hp67DataTransferDirection::PeripheralToAct {
+            if self.serial_ram.is_some()
+                && transfer.direction == Hp67DataTransferDirection::PeripheralToAct
+            {
                 None
-            } else { Some(transfer.expected) }
+            } else {
+                Some(transfer.expected)
+            }
         }));
         let data_direction = if address_data_frame.is_some() {
             Some(Hp67DataTransferDirection::ActToPeripheral)

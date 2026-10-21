@@ -351,7 +351,11 @@ impl Hp67DataSerialWordPath {
         word_bit: u8,
         backplane: &Hp67ElectricalBackplane,
     ) -> Result<Option<bool>, Hp67DataSerialError> {
-        let receiving = if word_bit < DATA_TAIL_BITS { self.previous_receive_only } else { self.receive_only };
+        let receiving = if word_bit < DATA_TAIL_BITS {
+            self.previous_receive_only
+        } else {
+            self.receive_only
+        };
         let frame_bit = receiving || self.source.logical_bit_for_word_bit(word_bit).is_some();
         let level = backplane.level(Hp67Net::Data);
         let active_drivers = backplane.active_data_driver_count();
@@ -634,7 +638,11 @@ impl Hp67DataSerialWordPath {
     }
 
     pub fn complete_word(&mut self) -> Option<ActRegister> {
-        self.previous_direction = if self.receive_only { self.current_direction } else { self.current_payload.and(self.current_direction) };
+        self.previous_direction = if self.receive_only {
+            self.current_direction
+        } else {
+            self.current_payload.and(self.current_direction)
+        };
         self.previous_receive_only = self.receive_only;
         self.receive_only = false;
         self.current_direction = None;
@@ -663,35 +671,62 @@ mod tests {
         for word in 0..3 {
             path.enable_electrical_level_bridge(match word {
                 0 => Some(Hp67DataTransferDirection::PeripheralToAct),
-                1 => Some(Hp67DataTransferDirection::ActToPeripheral), _ => None });
+                1 => Some(Hp67DataTransferDirection::ActToPeripheral),
+                _ => None,
+            });
             path.begin_autonomous_word(if word == 1 { Some(write) } else { None });
             if word == 0 {
                 assert!(path.current_payload.is_none());
                 assert!(path.source.current.is_none());
             }
             for bit in 0..BITS_PER_WORD {
-                let (act, proposed_ram) = path.propose_transport_word_bit(bit, &bus).unwrap().unwrap();
+                let (act, proposed_ram) =
+                    path.propose_transport_word_bit(bit, &bus).unwrap().unwrap();
                 let receiving = (word == 0 && bit >= 2) || (word == 1 && bit < 2);
                 let ram = if receiving {
                     assert_eq!((act, proposed_ram), (Drive::HighZ, Drive::HighZ));
                     assert!(path.source.logical_bit_for_word_bit(bit).is_none());
                     let serial = if bit < 2 { bit + 54 } else { bit - 2 };
-                    if data_register_serial_bit(&read, serial) { Drive::High } else { Drive::Low }
-                } else { Drive::HighZ };
-                bus.commit_autonomous_ram_launch(Drive::HighZ, RomIsDrives::Aggregate(Drive::HighZ), Drive::Low, Some((act, ram)));
-                bus.advance_clock(); bus.advance_clock();
+                    if data_register_serial_bit(&read, serial) {
+                        Drive::High
+                    } else {
+                        Drive::Low
+                    }
+                } else {
+                    Drive::HighZ
+                };
+                bus.commit_autonomous_ram_launch(
+                    Drive::HighZ,
+                    RomIsDrives::Aggregate(Drive::HighZ),
+                    Drive::Low,
+                    Some((act, ram)),
+                );
+                bus.advance_clock();
+                bus.advance_clock();
                 if receiving {
                     let before = path;
                     let mut missing = bus.clone();
                     missing.drive(Hp67Net::Data, Hp67Driver::RamAggregate, Drive::HighZ);
-                    assert!(path.sample_transport_word_bit_at_edge(bit, &missing).is_err());
+                    assert!(path
+                        .sample_transport_word_bit_at_edge(bit, &missing)
+                        .is_err());
                     assert_eq!(path, before);
                 }
                 path.sample_transport_word_bit_at_edge(bit, &bus).unwrap();
-                bus.advance_clock(); bus.advance_clock();
+                bus.advance_clock();
+                bus.advance_clock();
             }
-            assert_eq!(path.complete_word(), match word { 0 => None, 1 => Some(read), _ => Some(write) });
-            if word == 0 { assert!(path.source.previous_tail.is_none()); }
+            assert_eq!(
+                path.complete_word(),
+                match word {
+                    0 => None,
+                    1 => Some(read),
+                    _ => Some(write),
+                }
+            );
+            if word == 0 {
+                assert!(path.source.previous_tail.is_none());
+            }
         }
         assert_eq!(bus.tick().get(), 672);
         assert_eq!(bus.level(Hp67Net::Data), LogicLevel::Floating);

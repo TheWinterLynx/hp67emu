@@ -144,20 +144,34 @@ fn m15r_live_reads_use_ram_driver_and_release_reference_rom_driver() {
 
 #[test]
 fn m15s_receive_only_read_tail_fault_preserves_act_and_ram() {
-    use hp67emu::{emulation::Drive, machines::hp67::{Hp67Driver, Hp67Net}};
+    use hp67emu::{
+        emulation::Drive,
+        machines::hp67::{Hp67Driver, Hp67Net},
+    };
     let mut live = Hp67LiveMachine::power_on_default().unwrap();
     for cycle in 0..2000 {
-        if cycle == 500 { live.set_key_contact(Some(Hp67Key::Rcl)); }
-        if cycle == 700 { live.set_key_contact(None); }
-        if cycle == 1200 { live.set_key_contact(Some(Hp67Key::Digit0)); }
-        if cycle == 1400 { live.set_key_contact(None); }
+        if cycle == 500 {
+            live.set_key_contact(Some(Hp67Key::Rcl));
+        }
+        if cycle == 700 {
+            live.set_key_contact(None);
+        }
+        if cycle == 1200 {
+            live.set_key_contact(Some(Hp67Key::Digit0));
+        }
+        if cycle == 1400 {
+            live.set_key_contact(None);
+        }
         live.step_firmware_cycle_with_execution().unwrap();
-        if live.pending_ram_data_transfer.is_some_and(|transfer| transfer.direction == Hp67DataTransferDirection::PeripheralToAct) {
+        if live.pending_ram_data_transfer.is_some_and(|transfer| {
+            transfer.direction == Hp67DataTransferDirection::PeripheralToAct
+        }) {
             let before = live.machine.act.state.c;
             let ram = live.machine.ram.clone();
             let cycle = live.boot_cycle;
             let executed = live.machine.executed_words();
-            live.backplane.drive(Hp67Net::Data, Hp67Driver::External, Drive::High);
+            live.backplane
+                .drive(Hp67Net::Data, Hp67Driver::External, Drive::High);
             let error = live.step_firmware_cycle_with_execution().unwrap_err();
             assert!(error.contains("clocked RAM DATA prefix failed"), "{error}");
             assert_eq!(live.machine.act.state.c, before);
@@ -167,7 +181,10 @@ fn m15s_receive_only_read_tail_fault_preserves_act_and_ram() {
             assert!(live.pending_ram_data_transfer.is_some());
             assert!(live.data_serial.frame_in_progress());
             for address in 0..64 {
-                assert_eq!(live.serial_ram.as_ref().unwrap().register(address).copied(), ram.read(address));
+                assert_eq!(
+                    live.serial_ram.as_ref().unwrap().register(address).copied(),
+                    ram.read(address)
+                );
             }
             return;
         }
