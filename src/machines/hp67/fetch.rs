@@ -1461,7 +1461,8 @@ pub fn run_structural_display_fetch_data_phase_cycle_with_ram<S: Hp67RomWordSour
 ) -> Result<StructuralDataWordResult, StructuralWordError> {
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
-    data.begin_word(data_payload);
+    if ram.is_some() { data.begin_autonomous_word(data_payload); }
+    else { data.begin_word(data_payload); }
     let fetched_word = run_structural_word_transport_with_data(
         backplane,
         act,
@@ -1885,7 +1886,8 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced_with_ram<S: Hp67RomW
 ) -> Result<StructuralDataWordResult, StructuralWordError> {
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
-    data.begin_word(data_payload);
+    if ram.is_some() { data.begin_autonomous_word(data_payload); }
+    else { data.begin_word(data_payload); }
     let fetched_word = run_traced_structural_word_transport_with_data(
         backplane,
         act,

@@ -558,4 +558,14 @@ Autonomous RAM now drives a named RamAggregate contribution instead of the
 reference ROM responder. Joint publication, foreign-source contention and strict
 read body/tail ownership checks remain. This is logical aggregate identity;
 physical chip mapping/output stage and exact PHI edges remain open. See
-`docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`. Owner gate pending.
+`docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`. Owner M15R FULL GATE GREEN; exact 761a8583 head integrated.
+
+
+## M15S ACT DATA receive-only path
+
+Production RAM reads now bind only the ACT receiver; the dummy payload/source
+and local read tail are removed. Required frame/owner/count metadata persists
+through next b1 and then hands off to the next ACT source. Oracle expected data
+remains comparison-only. 224 transitions/word and physical evidence boundaries
+are unchanged. See `docs/research/M15S_ACT_DATA_RECEIVE_ONLY_2026-10-21.md`.
+Owner gate pending.

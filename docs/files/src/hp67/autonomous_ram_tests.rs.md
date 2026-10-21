@@ -37,3 +37,17 @@ changes. Reset reconstructs the path and the RAM-capable transport binds its
 owner again. The standalone RAM fixture also uses this identity. Exact physical
 DATA output stage/polarity, per-IC mapping and PHI edges remain unresolved.
 See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
+
+
+## M15S ACT receive-only RAM frames
+
+Autonomous reads now open the ACT sink without any local payload or serial
+source. No dummy register or locally generated read tail remains. Receive-only
+body/tail metadata preserves required driver counts, RamAggregate identity and
+actual resolved-net sampling. Writes/address frames keep ACT's real source.
+
+The RAM-capable transport chooses this binding from the ACT transfer direction.
+Reference no-RAM APIs retain their old payload-driven behavior. Production live
+passes None for autonomous read payload; the frozen expected result remains only
+in the post-tail oracle guard. No new clocks, allocations or device timings.
+See `docs/research/M15S_ACT_DATA_RECEIVE_ONLY_2026-10-21.md`.

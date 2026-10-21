@@ -267,6 +267,8 @@ pub struct Hp67DataSerialWordPath {
     previous_direction: Option<Hp67DataTransferDirection>,
     ram_command_receiver: Option<Hp67RamCommandReceiver>,
     autonomous_ram_owner: bool,
+    receive_only: bool,
+    previous_receive_only: bool,
 }
 
 impl Hp67DataSerialWordPath {
@@ -300,6 +302,7 @@ impl Hp67DataSerialWordPath {
     /// Aggregate RAM ownership is an explicit bridge, not physical chip mapping.
     pub fn enable_electrical_level_bridge(&mut self, direction: Option<Hp67DataTransferDirection>) {
         debug_assert!(self.current_payload.is_none());
+        debug_assert!(!self.receive_only);
         self.electrical_level_bridge = true;
         self.current_direction = direction;
     }
@@ -348,10 +351,11 @@ impl Hp67DataSerialWordPath {
         word_bit: u8,
         backplane: &Hp67ElectricalBackplane,
     ) -> Result<Option<bool>, Hp67DataSerialError> {
-        let source_bit = self.source.logical_bit_for_word_bit(word_bit);
+        let receiving = if word_bit < DATA_TAIL_BITS { self.previous_receive_only } else { self.receive_only };
+        let frame_bit = receiving || self.source.logical_bit_for_word_bit(word_bit).is_some();
         let level = backplane.level(Hp67Net::Data);
         let active_drivers = backplane.active_data_driver_count();
-        let expected_drivers = u8::from(source_bit.is_some());
+        let expected_drivers = u8::from(frame_bit);
         if active_drivers != expected_drivers {
             return Err(Hp67DataSerialError::InvalidElectricalSample {
                 word_bit,
@@ -359,7 +363,7 @@ impl Hp67DataSerialWordPath {
                 active_drivers,
             });
         }
-        if source_bit.is_some() {
+        if frame_bit {
             let expected = match self.direction_for_word_bit(word_bit) {
                 Some(Hp67DataTransferDirection::ActToPeripheral) => Hp67Driver::Act1820_2530,
                 Some(Hp67DataTransferDirection::PeripheralToAct) => {
@@ -382,7 +386,7 @@ impl Hp67DataSerialWordPath {
                 });
             }
         }
-        match (source_bit.is_some(), level) {
+        match (frame_bit, level) {
             (true, LogicLevel::High) => Ok(Some(true)),
             (true, LogicLevel::Low) => Ok(Some(false)),
             (false, LogicLevel::Floating) => Ok(None),
@@ -593,9 +597,22 @@ impl Hp67DataSerialWordPath {
         debug_assert!(self.completed_payload.is_none());
         debug_assert!(self.current_payload.is_none());
         debug_assert!(matches!(self.sink.expected_word_bit(), 0 | DATA_TAIL_BITS));
+        self.receive_only = false;
         self.current_payload = payload;
         self.source.begin_word(payload);
         self.sink.begin_word(payload.is_some());
+    }
+
+    /// Autonomous reads bind a sink, with no local payload/source or tail bits.
+    /// The selected RAM participant is the sole source at joint publication.
+    pub(crate) fn begin_autonomous_word(&mut self, payload: Option<ActRegister>) {
+        self.use_autonomous_ram_owner();
+        let receiving = self.current_direction == Some(Hp67DataTransferDirection::PeripheralToAct);
+        self.begin_word(if receiving { None } else { payload });
+        if receiving {
+            self.receive_only = true;
+            self.sink.begin_word(true);
+        }
     }
 
     pub fn visit_word_bit(&mut self, word_bit: u8) -> Result<(), Hp67DataSerialError> {
@@ -617,7 +634,9 @@ impl Hp67DataSerialWordPath {
     }
 
     pub fn complete_word(&mut self) -> Option<ActRegister> {
-        self.previous_direction = self.current_payload.and(self.current_direction);
+        self.previous_direction = if self.receive_only { self.current_direction } else { self.current_payload.and(self.current_direction) };
+        self.previous_receive_only = self.receive_only;
+        self.receive_only = false;
         self.current_direction = None;
         self.source.complete_word();
         self.current_payload = None;
@@ -632,6 +651,50 @@ mod tests {
 
     fn patterned_register(seed: u8) -> ActRegister {
         std::array::from_fn(|digit| (seed.wrapping_add(digit as u8 * 3)) & 0x0f)
+    }
+
+    #[test]
+    fn m15s_receive_only_data_has_no_source_and_hands_off_to_act_write() {
+        use super::super::rom_devices::RomIsDrives;
+        let read: ActRegister = std::array::from_fn(|digit| (digit as u8 * 3 + 1) & 15);
+        let write = [7; 14];
+        let mut path = Hp67DataSerialWordPath::default();
+        let mut bus = Hp67ElectricalBackplane::default();
+        for word in 0..3 {
+            path.enable_electrical_level_bridge(match word {
+                0 => Some(Hp67DataTransferDirection::PeripheralToAct),
+                1 => Some(Hp67DataTransferDirection::ActToPeripheral), _ => None });
+            path.begin_autonomous_word(if word == 1 { Some(write) } else { None });
+            if word == 0 {
+                assert!(path.current_payload.is_none());
+                assert!(path.source.current.is_none());
+            }
+            for bit in 0..BITS_PER_WORD {
+                let (act, proposed_ram) = path.propose_transport_word_bit(bit, &bus).unwrap().unwrap();
+                let receiving = (word == 0 && bit >= 2) || (word == 1 && bit < 2);
+                let ram = if receiving {
+                    assert_eq!((act, proposed_ram), (Drive::HighZ, Drive::HighZ));
+                    assert!(path.source.logical_bit_for_word_bit(bit).is_none());
+                    let serial = if bit < 2 { bit + 54 } else { bit - 2 };
+                    if data_register_serial_bit(&read, serial) { Drive::High } else { Drive::Low }
+                } else { Drive::HighZ };
+                bus.commit_autonomous_ram_launch(Drive::HighZ, RomIsDrives::Aggregate(Drive::HighZ), Drive::Low, Some((act, ram)));
+                bus.advance_clock(); bus.advance_clock();
+                if receiving {
+                    let before = path;
+                    let mut missing = bus.clone();
+                    missing.drive(Hp67Net::Data, Hp67Driver::RamAggregate, Drive::HighZ);
+                    assert!(path.sample_transport_word_bit_at_edge(bit, &missing).is_err());
+                    assert_eq!(path, before);
+                }
+                path.sample_transport_word_bit_at_edge(bit, &bus).unwrap();
+                bus.advance_clock(); bus.advance_clock();
+            }
+            assert_eq!(path.complete_word(), match word { 0 => None, 1 => Some(read), _ => Some(write) });
+            if word == 0 { assert!(path.source.previous_tail.is_none()); }
+        }
+        assert_eq!(bus.tick().get(), 672);
+        assert_eq!(bus.level(Hp67Net::Data), LogicLevel::Floating);
     }
 
     #[test]

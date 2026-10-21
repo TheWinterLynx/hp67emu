@@ -1529,16 +1529,10 @@ impl Hp67LiveMachine {
                 "live cycle {cycle} overlapping address/RAM DATA sources"
             ));
         }
-        let data_payload = address_data_frame.or(ram_data_transfer.map(|transfer| {
-            if self.serial_ram.is_some()
-                && transfer.direction == Hp67DataTransferDirection::PeripheralToAct
-            {
-                // A frame mask only. Read bits are proposed exclusively by the
-                // autonomous RAM's own storage, never by this oracle expectation.
-                [0; 14]
-            } else {
-                transfer.expected
-            }
+        let data_payload = address_data_frame.or(ram_data_transfer.and_then(|transfer| {
+            if self.serial_ram.is_some() && transfer.direction == Hp67DataTransferDirection::PeripheralToAct {
+                None
+            } else { Some(transfer.expected) }
         }));
         let data_direction = if address_data_frame.is_some() {
             Some(Hp67DataTransferDirection::ActToPeripheral)
