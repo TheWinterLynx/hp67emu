@@ -112,7 +112,10 @@ pub enum SerialFetchError {
         word_bit: u8,
     },
     MissingSyncQualifier,
-    UnexpectedActReturnBit { word_bit: u8, received_bits: u8 },
+    UnexpectedActReturnBit {
+        word_bit: u8,
+        received_bits: u8,
+    },
     UnconsumedActInstruction,
 
     InvalidTransportStart {
@@ -401,7 +404,10 @@ impl ActSerialEndpoint {
         self.pending_instruction = None;
     }
 
-    pub fn begin_received_execution(&mut self, state: &ActArchitecturalState) -> Result<Option<u16>, String> {
+    pub fn begin_received_execution(
+        &mut self,
+        state: &ActArchitecturalState,
+    ) -> Result<Option<u16>, String> {
         if !self.received_execution_enabled {
             return Err("ACT received execution is disabled".into());
         }
@@ -414,7 +420,10 @@ impl ActSerialEndpoint {
             super::act::ActInstructionState::ThenGoto
         };
         if state.instruction_state != qualified_state {
-            return Err(format!("ACT received SYNC/mirror mismatch: pins={qualified_state:?} mirror={:?}", state.instruction_state));
+            return Err(format!(
+                "ACT received SYNC/mirror mismatch: pins={qualified_state:?} mirror={:?}",
+                state.instruction_state
+            ));
         }
         self.bind_execution(frame.word, state)
             .map_err(|error| format!("ACT received execution binding: {error:?}"))?;
@@ -443,7 +452,11 @@ impl ActSerialEndpoint {
         self.bind_execution(word, state)
     }
 
-    fn bind_execution(&mut self, word: u16, state: &ActArchitecturalState) -> Result<(), ActSerialExecutionError> {
+    fn bind_execution(
+        &mut self,
+        word: u16,
+        state: &ActArchitecturalState,
+    ) -> Result<(), ActSerialExecutionError> {
         if let Some(execution) = self.execution {
             if let Some(next_word_bit) = execution.next_word_bit() {
                 return Err(ActSerialExecutionError::ExecutionAlreadyActive {
@@ -800,9 +813,14 @@ impl ActSerialEndpoint {
 
     /// Consume IS and SYNC together, once per ordered return coordinate.
     /// All electrical/order/overwrite checks precede either latch mutation.
-    pub fn sample_instruction_at_edge(&mut self, bus: &Hp67ElectricalBackplane) -> Result<(), SerialFetchError> {
+    pub fn sample_instruction_at_edge(
+        &mut self,
+        bus: &Hp67ElectricalBackplane,
+    ) -> Result<(), SerialFetchError> {
         if !bus.at_transport_sample_edge() {
-            return Err(SerialFetchError::InvalidSamplePhase { tick: bus.tick().get() });
+            return Err(SerialFetchError::InvalidSamplePhase {
+                tick: bus.tick().get(),
+            });
         }
         let bit = bus.word_bit();
         let IsaWindow::RomWord { serial_bit } = isa_window_for_bit(bit) else {
@@ -816,15 +834,28 @@ impl ActSerialEndpoint {
         let qualifier = match bus.level(Hp67Net::Sync) {
             LogicLevel::High => true,
             LogicLevel::Low => false,
-            level => return Err(SerialFetchError::UnresolvedSync { word_bit: bit, level }),
+            level => {
+                return Err(SerialFetchError::UnresolvedSync {
+                    word_bit: bit,
+                    level,
+                })
+            }
         };
-        if self.received_sync.is_some_and(|previous| previous != qualifier) {
+        if self
+            .received_sync
+            .is_some_and(|previous| previous != qualifier)
+        {
             return Err(SerialFetchError::ChangedSyncQualifier { word_bit: bit });
         }
-        if serial_bit == ROM_WORD_BITS - 1 && self.received_execution_enabled && self.pending_instruction.is_some() {
+        if serial_bit == ROM_WORD_BITS - 1
+            && self.received_execution_enabled
+            && self.pending_instruction.is_some()
+        {
             return Err(SerialFetchError::UnconsumedActInstruction);
         }
-        if value { self.received_word |= 1 << serial_bit; }
+        if value {
+            self.received_word |= 1 << serial_bit;
+        }
         self.received_mask |= 1 << serial_bit;
         self.received_sync = Some(qualifier);
         self.received_sync_mask |= 1 << serial_bit;
@@ -840,7 +871,10 @@ impl ActSerialEndpoint {
     fn check_return_order(&self, word_bit: u8) -> Result<(), SerialFetchError> {
         let received_bits = self.received_mask.count_ones() as u8;
         if word_bit != super::timing::ROM_WORD_FIRST_BIT + received_bits {
-            return Err(SerialFetchError::UnexpectedActReturnBit { word_bit, received_bits });
+            return Err(SerialFetchError::UnexpectedActReturnBit {
+                word_bit,
+                received_bits,
+            });
         }
         Ok(())
     }

@@ -616,10 +616,17 @@ impl Hp67LiveMachine {
             let frame = self.act_serial.pending_instruction();
             let word = frame.map(|frame| frame.word);
             if word != self.pipeline.prefetched_word() {
-                return Err(format!("live cycle {cycle} ACT received/pipeline mismatch: pins={word:?} mirror={:?}", self.pipeline.prefetched_word()));
+                return Err(format!(
+                    "live cycle {cycle} ACT received/pipeline mismatch: pins={word:?} mirror={:?}",
+                    self.pipeline.prefetched_word()
+                ));
             }
             if let Some(frame) = frame {
-                let qualifier = if frame.instruction { ActInstructionState::Normal } else { ActInstructionState::ThenGoto };
+                let qualifier = if frame.instruction {
+                    ActInstructionState::Normal
+                } else {
+                    ActInstructionState::ThenGoto
+                };
                 if qualifier != self.machine.act.state.instruction_state {
                     return Err(format!("live cycle {cycle} ACT received SYNC/mirror mismatch: pins={qualifier:?} mirror={:?}", self.machine.act.state.instruction_state));
                 }
@@ -634,14 +641,21 @@ impl Hp67LiveMachine {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
             if self.act_serial.received_execution_enabled() {
-                let actual = self.act_serial.begin_received_execution(&self.machine.act.state)
+                let actual = self
+                    .act_serial
+                    .begin_received_execution(&self.machine.act.state)
                     .map_err(|error| format!("live cycle {cycle} {error}"))?;
                 if actual != Some(word) {
-                    return Err(format!("live cycle {cycle} ACT received instruction disappeared"));
+                    return Err(format!(
+                        "live cycle {cycle} ACT received instruction disappeared"
+                    ));
                 }
             } else {
-                self.act_serial.begin_execution(word, &self.machine.act.state)
-                    .map_err(|error| format!("live cycle {cycle} serial execution start failed: {error:?}"))?;
+                self.act_serial
+                    .begin_execution(word, &self.machine.act.state)
+                    .map_err(|error| {
+                        format!("live cycle {cycle} serial execution start failed: {error:?}")
+                    })?;
             }
             self.act_serial
                 .bind_ram_topology(&self.machine.ram)
@@ -1840,9 +1854,9 @@ mod autonomous_ram_tests;
 #[cfg(test)]
 mod autonomous_crc_tests;
 #[cfg(test)]
-mod received_execution_tests;
-#[cfg(test)]
 mod ram_command_tests;
+#[cfg(test)]
+mod received_execution_tests;
 
 #[cfg(test)]
 mod address_data_tests;
