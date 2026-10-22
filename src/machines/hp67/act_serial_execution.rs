@@ -20,6 +20,7 @@ pub enum ActSerialWordClass {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActSerialExecutionError {
+    ReceivedInstructionRequired,
     OpcodeOutOfRange(u16),
     UnexpectedWordBit { expected: u8, actual: u8 },
     ExecutionAlreadyComplete,

@@ -319,3 +319,22 @@ Reference no-RAM APIs retain their old payload-driven behavior. Production live
 passes None for autonomous read payload; the frozen expected result remains only
 in the post-tail oracle guard. No new clocks, allocations or device timings.
 See `docs/research/M15S_ACT_DATA_RECEIVE_ONLY_2026-10-21.md`.
+
+
+### M15U ACT received instruction authority
+
+Production ACT endpoints retain the complete qualified IS/SYNC frame at b55 and
+consume it at the following execution boundary. The live pipeline stores only a
+comparison mirror; it cannot supply a production opcode or override the received
+qualifier. Mirror checks precede DATA-prefix clock advancement. Reset clears the
+pending frame and preserves the production/reference choice. Synthetic injected
+fixtures explicitly disable received execution, autonomous RAM and CRC control.
+
+All four shared transports use the same atomic, ordered ACT return sampler.
+Wrong phase/order, unresolved IS/SYNC, changed qualifier and unconsumed-frame
+overwrite fail before either receive latch changes. No full ACT copy is made
+per bit. Standalone IS-only reception remains an ordered reference adapter.
+The command frame reuses the existing raw word/qualifier carrier; its RAM decoder
+is not part of ACT execution. This preserves the existing 56-cell/224-transition
+schedule and provisional PHI checkpoint, without claiming internal physical
+ACT write edges or propagation. See the M15U research note.

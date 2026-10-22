@@ -112,6 +112,9 @@ pub enum SerialFetchError {
         word_bit: u8,
     },
     MissingSyncQualifier,
+    UnexpectedActReturnBit { word_bit: u8, received_bits: u8 },
+    UnconsumedActInstruction,
+
     InvalidTransportStart {
         tick: u64,
     },
@@ -340,6 +343,8 @@ pub struct ActSerialEndpoint {
     received_sync: Option<bool>,
     received_sync_mask: u16,
     clocked_prefix_display: Option<u8>,
+    received_execution_enabled: bool,
+    pending_instruction: Option<super::ram_command::Hp67RamCommandFrame>,
 }
 
 impl ActSerialEndpoint {
@@ -370,7 +375,51 @@ impl ActSerialEndpoint {
             received_sync: None,
             received_sync_mask: 0,
             clocked_prefix_display: None,
+            received_execution_enabled: false,
+            pending_instruction: None,
         }
+    }
+
+    /// Production executes only qualified instructions retained by its own receiver.
+    /// Explicit word binding remains available for isolated reference fixtures.
+    pub fn with_received_execution(mut self) -> Self {
+        self.received_execution_enabled = true;
+        self
+    }
+
+    pub const fn received_execution_enabled(&self) -> bool {
+        self.received_execution_enabled
+    }
+
+    pub const fn pending_instruction(&self) -> Option<super::ram_command::Hp67RamCommandFrame> {
+        self.pending_instruction
+    }
+
+    /// Test/semantic composition boundary; production never selects this mode.
+    pub fn disable_received_execution(&mut self) {
+        self.received_execution_enabled = false;
+        self.pending_instruction = None;
+    }
+
+    pub fn begin_received_execution(&mut self, state: &ActArchitecturalState) -> Result<Option<u16>, String> {
+        if !self.received_execution_enabled {
+            return Err("ACT received execution is disabled".into());
+        }
+        let Some(frame) = self.pending_instruction else {
+            return Ok(None);
+        };
+        let qualified_state = if frame.instruction {
+            super::act::ActInstructionState::Normal
+        } else {
+            super::act::ActInstructionState::ThenGoto
+        };
+        if state.instruction_state != qualified_state {
+            return Err(format!("ACT received SYNC/mirror mismatch: pins={qualified_state:?} mirror={:?}", state.instruction_state));
+        }
+        self.bind_execution(frame.word, state)
+            .map_err(|error| format!("ACT received execution binding: {error:?}"))?;
+        self.pending_instruction = None;
+        Ok(Some(frame.word))
     }
 
     /// Bind one already-fetched word and its pre-instruction ACT state to the
@@ -388,6 +437,13 @@ impl ActSerialEndpoint {
         word: u16,
         state: &ActArchitecturalState,
     ) -> Result<(), ActSerialExecutionError> {
+        if self.received_execution_enabled {
+            return Err(ActSerialExecutionError::ReceivedInstructionRequired);
+        }
+        self.bind_execution(word, state)
+    }
+
+    fn bind_execution(&mut self, word: u16, state: &ActArchitecturalState) -> Result<(), ActSerialExecutionError> {
         if let Some(execution) = self.execution {
             if let Some(next_word_bit) = execution.next_word_bit() {
                 return Err(ActSerialExecutionError::ExecutionAlreadyActive {
@@ -701,6 +757,7 @@ impl ActSerialEndpoint {
         }
     }
 
+    #[cfg(test)]
     fn sample_sync_for_bit(
         &mut self,
         word_bit: u8,
@@ -741,6 +798,53 @@ impl ActSerialEndpoint {
         }
     }
 
+    /// Consume IS and SYNC together, once per ordered return coordinate.
+    /// All electrical/order/overwrite checks precede either latch mutation.
+    pub fn sample_instruction_at_edge(&mut self, bus: &Hp67ElectricalBackplane) -> Result<(), SerialFetchError> {
+        if !bus.at_transport_sample_edge() {
+            return Err(SerialFetchError::InvalidSamplePhase { tick: bus.tick().get() });
+        }
+        let bit = bus.word_bit();
+        let IsaWindow::RomWord { serial_bit } = isa_window_for_bit(bit) else {
+            return Ok(());
+        };
+        self.check_return_order(bit)?;
+        if self.received_sync_mask != self.received_mask {
+            return Err(SerialFetchError::MissingSyncQualifier);
+        }
+        let value = sample_isa(bus.level(Hp67Net::Isa), bit)?;
+        let qualifier = match bus.level(Hp67Net::Sync) {
+            LogicLevel::High => true,
+            LogicLevel::Low => false,
+            level => return Err(SerialFetchError::UnresolvedSync { word_bit: bit, level }),
+        };
+        if self.received_sync.is_some_and(|previous| previous != qualifier) {
+            return Err(SerialFetchError::ChangedSyncQualifier { word_bit: bit });
+        }
+        if serial_bit == ROM_WORD_BITS - 1 && self.received_execution_enabled && self.pending_instruction.is_some() {
+            return Err(SerialFetchError::UnconsumedActInstruction);
+        }
+        if value { self.received_word |= 1 << serial_bit; }
+        self.received_mask |= 1 << serial_bit;
+        self.received_sync = Some(qualifier);
+        self.received_sync_mask |= 1 << serial_bit;
+        if serial_bit == ROM_WORD_BITS - 1 && self.received_execution_enabled {
+            self.pending_instruction = Some(super::ram_command::Hp67RamCommandFrame {
+                word: self.received_word & ROM_WORD_MASK,
+                instruction: qualifier,
+            });
+        }
+        Ok(())
+    }
+
+    fn check_return_order(&self, word_bit: u8) -> Result<(), SerialFetchError> {
+        let received_bits = self.received_mask.count_ones() as u8;
+        if word_bit != super::timing::ROM_WORD_FIRST_BIT + received_bits {
+            return Err(SerialFetchError::UnexpectedActReturnBit { word_bit, received_bits });
+        }
+        Ok(())
+    }
+
     /// Sample a resolved IS/ISA level during the ROM return window.
     pub fn sample_for_bit(
         &mut self,
@@ -751,6 +855,7 @@ impl ActSerialEndpoint {
             return Ok(());
         };
 
+        self.check_return_order(word_bit)?;
         if sample_isa(level, word_bit)? {
             self.received_word |= 1u16 << serial_bit;
         } else {
@@ -1191,8 +1296,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
-                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
-                act.sample_for_bit(expected_bit, is_level)?;
+                act.sample_instruction_at_edge(backplane)?;
                 rom.sample_instruction_for_bit(
                     expected_bit,
                     is_level,
@@ -1315,8 +1419,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
-                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
-                act.sample_for_bit(expected_bit, is_level)?;
+                act.sample_instruction_at_edge(backplane)?;
                 rom.sample_instruction_for_bit(
                     expected_bit,
                     is_level,
@@ -1635,8 +1738,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
-                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
-                act.sample_for_bit(expected_bit, is_level)?;
+                act.sample_instruction_at_edge(backplane)?;
                 rom.sample_instruction_for_bit(
                     expected_bit,
                     is_level,
@@ -1812,8 +1914,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
                 rom.sample_for_bit(expected_bit, is_level, source)?;
             }
             IsaWindow::RomWord { .. } => {
-                act.sample_sync_for_bit(expected_bit, backplane.level(Hp67Net::Sync))?;
-                act.sample_for_bit(expected_bit, is_level)?;
+                act.sample_instruction_at_edge(backplane)?;
                 rom.sample_instruction_for_bit(
                     expected_bit,
                     is_level,
@@ -3675,3 +3776,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "act_received_tests.rs"]
+mod act_received_tests;

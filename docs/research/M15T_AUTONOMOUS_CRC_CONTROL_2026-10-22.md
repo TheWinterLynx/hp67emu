@@ -2,7 +2,7 @@
 
 Date: 2026-10-22
 Branch: `agent/m15t-autonomous-crc-control`
-Status: implemented; owner local gate pending.
+Status: owner M15T FULL GATE GREEN; exact f635ea8732baad5eb38fdc88dba59a76ecab403f integrated into main. Diagnostic 12/12, unchanged cycles; production live median 2.544 us/word (125.77x).
 
 ## Completed functional scope
 

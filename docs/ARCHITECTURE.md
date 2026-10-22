@@ -385,4 +385,15 @@ synthetic reference composition are preserved. Exhaustive command/qualifier/
 contact tests and real firmware/card regressions accompany the complete lane.
 CRC DATA serialization and exact F2/PHI/propagation remain open; no new physical
 timing claim. See `docs/research/M15T_AUTONOMOUS_CRC_CONTROL_2026-10-22.md`.
+Owner M15T FULL GATE GREEN; exact f635ea87 head integrated.
+
+
+## M15U ACT received instruction pipeline
+
+Production ACT now retains its own complete IS/SYNC frame and starts the next
+word's execution from it. Ordered atomic reception rejects replay, qualification
+faults and unconsumed overwrite. Live host word/qualifier mirrors are checked
+before clocks or DATA tail consumption. Reset and explicit synthetic reference
+composition are preserved. No new PHI edge or internal ACT write timing claim.
+See `docs/research/M15U_ACT_RECEIVED_EXECUTION_2026-10-22.md`.
 Owner local gate pending.

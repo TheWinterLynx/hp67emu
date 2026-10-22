@@ -364,7 +364,7 @@ impl Hp67LiveMachine {
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane: Hp67ElectricalBackplane::default(),
-            act_serial: ActSerialEndpoint::new(0),
+            act_serial: ActSerialEndpoint::new(0).with_received_execution(),
             fetch_rom: RomFetchEndpoint::autonomous_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
@@ -421,7 +421,11 @@ impl Hp67LiveMachine {
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
+        let received_execution = self.act_serial.received_execution_enabled();
         self.act_serial = ActSerialEndpoint::new(0);
+        if received_execution {
+            self.act_serial = self.act_serial.with_received_execution();
+        }
         self.fetch_rom = RomFetchEndpoint::autonomous_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
@@ -608,16 +612,37 @@ impl Hp67LiveMachine {
         let mut crc_control_expected = None;
         let mut crc_data_expected = None;
         let mut absent_ram_expected = None;
+        let executing_word = if self.act_serial.received_execution_enabled() {
+            let frame = self.act_serial.pending_instruction();
+            let word = frame.map(|frame| frame.word);
+            if word != self.pipeline.prefetched_word() {
+                return Err(format!("live cycle {cycle} ACT received/pipeline mismatch: pins={word:?} mirror={:?}", self.pipeline.prefetched_word()));
+            }
+            if let Some(frame) = frame {
+                let qualifier = if frame.instruction { ActInstructionState::Normal } else { ActInstructionState::ThenGoto };
+                if qualifier != self.machine.act.state.instruction_state {
+                    return Err(format!("live cycle {cycle} ACT received SYNC/mirror mismatch: pins={qualifier:?} mirror={:?}", self.machine.act.state.instruction_state));
+                }
+            }
+            word
+        } else {
+            self.pipeline.prefetched_word()
+        };
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_with_prefix(cycle, trace.as_deref_mut())?;
-        if let Some(word) = self.pipeline.executing_word() {
+        if let Some(word) = executing_word {
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
-            self.act_serial
-                .begin_execution(word, &self.machine.act.state)
-                .map_err(|error| {
-                    format!("live cycle {cycle} serial execution start failed: {error:?}")
-                })?;
+            if self.act_serial.received_execution_enabled() {
+                let actual = self.act_serial.begin_received_execution(&self.machine.act.state)
+                    .map_err(|error| format!("live cycle {cycle} {error}"))?;
+                if actual != Some(word) {
+                    return Err(format!("live cycle {cycle} ACT received instruction disappeared"));
+                }
+            } else {
+                self.act_serial.begin_execution(word, &self.machine.act.state)
+                    .map_err(|error| format!("live cycle {cycle} serial execution start failed: {error:?}"))?;
+            }
             self.act_serial
                 .bind_ram_topology(&self.machine.ram)
                 .map_err(|error| format!("live cycle {cycle} M14N RAM binding failed: {error}"))?;
@@ -1493,6 +1518,7 @@ impl Hp67LiveMachine {
     fn power_on_reference_fixture() -> Result<Self, String> {
         let mut live = Self::power_on_default()?;
         live.serial_ram = None;
+        live.act_serial.disable_received_execution();
         live.data_serial.disable_crc_control();
         Ok(live)
     }
@@ -1813,6 +1839,8 @@ mod autonomous_ram_tests;
 
 #[cfg(test)]
 mod autonomous_crc_tests;
+#[cfg(test)]
+mod received_execution_tests;
 #[cfg(test)]
 mod ram_command_tests;
 
