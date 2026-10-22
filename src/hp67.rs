@@ -364,7 +364,7 @@ impl Hp67LiveMachine {
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane: Hp67ElectricalBackplane::default(),
-            act_serial: ActSerialEndpoint::new(0).with_received_execution(),
+            act_serial: ActSerialEndpoint::new(0).with_received_execution().with_owned_flow(),
             fetch_rom: RomFetchEndpoint::autonomous_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
@@ -422,9 +422,13 @@ impl Hp67LiveMachine {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
         let received_execution = self.act_serial.received_execution_enabled();
+        let owned_flow = self.act_serial.owned_flow_state().is_some();
         self.act_serial = ActSerialEndpoint::new(0);
         if received_execution {
             self.act_serial = self.act_serial.with_received_execution();
+        }
+        if owned_flow {
+            self.act_serial = self.act_serial.with_owned_flow();
         }
         self.fetch_rom = RomFetchEndpoint::autonomous_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
@@ -588,6 +592,8 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        self.act_serial.check_owned_flow_mirror(&self.machine.act.state)
+            .map_err(|error| format!("live cycle {cycle} {error}"))?;
         if let Some(crc) = self.data_serial.crc_control_mut() {
             crc.freeze_inputs(&self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} CRC inputs: {error}"))?;
@@ -982,6 +988,8 @@ impl Hp67LiveMachine {
             }
             image.commit(&mut self.machine.act.state);
         }
+        self.act_serial.check_owned_flow_mirror(&self.machine.act.state)
+            .map_err(|error| format!("live cycle {cycle} completed {error}"))?;
 
         let qualified_state = self
             .act_serial
@@ -1670,7 +1678,9 @@ impl Hp67LiveMachine {
         // M14I supplies successor fetch from immutable structural inputs,
         // never the oracle-mutated PC. Fetch-only startup retains its old path.
         let flow = self.act_serial.serial_flow_result_image();
-        let (address, requested_bank) = if let Some(image) = flow {
+        let (address, requested_bank) = if let Some(request) = self.act_serial.owned_fetch_request() {
+            request
+        } else if let Some(image) = flow {
             (image.result().pc, image.fetch_bank())
         } else {
             let bank = self.machine.prepare_hp67_fetch();
@@ -1857,6 +1867,8 @@ mod autonomous_crc_tests;
 mod ram_command_tests;
 #[cfg(test)]
 mod received_execution_tests;
+#[cfg(test)]
+mod owned_flow_tests;
 
 #[cfg(test)]
 mod address_data_tests;

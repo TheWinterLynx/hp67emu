@@ -3,7 +3,7 @@
 Date: 2026-10-22
 Base: owner-validated M15T `f635ea8732baad5eb38fdc88dba59a76ecab403f`, integrated into main.
 Branch: `agent/m15u-act-received-execution`
-Status: implemented; owner local gate pending.
+Status: owner M15U FULL GATE GREEN; exact 8fe8b797ad449c6a303b9c3c2fc4fb469c76ceaf integrated into main. Diagnostic 12/12, unchanged cycles; live median 2.374 us/word (134.78x).
 
 ## Problem and complete lane
 

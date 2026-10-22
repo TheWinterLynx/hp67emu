@@ -46,7 +46,13 @@ impl ActSerialFlowResultImage {
     /// Preview only the fetch-visible successor and flow state. No live ACT
     /// state is mutated, and no architectural executor is invoked.
     pub fn begin(state: &ActArchitecturalState, word: u16) -> Self {
-        let mut result = ActSerialFlowState::capture(state);
+        Self::begin_with_flow(state, word, ActSerialFlowState::capture(state))
+    }
+
+    /// Non-flow ACT inputs still come from the frozen register snapshot; PC,
+    /// bank, delayed selection and return storage come from device-owned latches.
+    pub fn begin_with_flow(state: &ActArchitecturalState, word: u16, flow: ActSerialFlowState) -> Self {
+        let mut result = flow;
         result.pc = result.pc.wrapping_add(1) & 0x0fff;
         result.delayed_rom = None;
         let then_goto = state.instruction_state == ActInstructionState::ThenGoto;
@@ -98,7 +104,7 @@ impl ActSerialFlowResultImage {
         }
         // A previously selected delayed ROM overrides the page after this
         // operation, including a call/return; a newly armed selection survives.
-        if let Some(rom) = state.delayed_rom {
+        if let Some(rom) = flow.delayed_rom {
             result.pc = (u16::from(rom & 0x0f) << 8) | (result.pc & 0x00ff);
         }
         Self {

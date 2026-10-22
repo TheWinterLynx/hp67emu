@@ -23,7 +23,7 @@ use super::{
     act_serial_execution::{
         ActSerialExecution, ActSerialExecutionError, ActSerialRegister, ActSerialWordClass,
     },
-    act_serial_flow::ActSerialFlowResultImage,
+    act_serial_flow::{ActSerialFlowResultImage, ActSerialFlowState},
     act_serial_mode_latch::ActSerialModeLatchResultImage,
     act_serial_ram::{ActSerialAbsentRamReadImage, ActSerialRamResultImage},
     act_serial_result::ActSerialArithmeticResultImage,
@@ -347,6 +347,7 @@ pub struct ActSerialEndpoint {
     received_sync_mask: u16,
     clocked_prefix_display: Option<u8>,
     received_execution_enabled: bool,
+    owned_flow: Option<ActSerialFlowState>,
     pending_instruction: Option<super::ram_command::Hp67RamCommandFrame>,
 }
 
@@ -379,6 +380,7 @@ impl ActSerialEndpoint {
             received_sync_mask: 0,
             clocked_prefix_display: None,
             received_execution_enabled: false,
+            owned_flow: None,
             pending_instruction: None,
         }
     }
@@ -388,6 +390,42 @@ impl ActSerialEndpoint {
     pub fn with_received_execution(mut self) -> Self {
         self.received_execution_enabled = true;
         self
+    }
+
+    /// Power-on flow latches, separate from the architectural comparison mirror.
+    pub fn with_owned_flow(mut self) -> Self {
+        assert!(self.received_execution_enabled, "owned ACT flow requires received execution");
+        self.owned_flow = Some(ActSerialFlowState {
+            pc: self.address,
+            bank: 0,
+            delayed_rom: None,
+            return_stack: [0; super::act::ACT_RETURN_STACK_DEPTH],
+            stack_pointer: 0,
+        });
+        self
+    }
+
+    pub const fn owned_flow_state(&self) -> Option<ActSerialFlowState> {
+        self.owned_flow
+    }
+
+    pub fn check_owned_flow_mirror(&self, state: &ActArchitecturalState) -> Result<(), String> {
+        if let Some(owned) = self.owned_flow {
+            let mirror = ActSerialFlowState::capture(state);
+            if owned != mirror {
+                return Err(format!("ACT owned flow/mirror mismatch: device={owned:?} mirror={mirror:?}"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Own successor preview feeds the address serializer before b16. This is
+    /// the established scheduling bridge, not a physical PC write-edge claim.
+    pub fn owned_fetch_request(&self) -> Option<(u16, u8)> {
+        self.owned_flow.map(|flow| match self.flow_result_image {
+            Some(image) => (image.result().pc, image.fetch_bank()),
+            None => (flow.pc, if flow.pc < 0x400 { 0 } else { flow.bank & 1 }),
+        })
     }
 
     pub const fn received_execution_enabled(&self) -> bool {
@@ -401,6 +439,7 @@ impl ActSerialEndpoint {
     /// Test/semantic composition boundary; production never selects this mode.
     pub fn disable_received_execution(&mut self) {
         self.received_execution_enabled = false;
+        self.owned_flow = None;
         self.pending_instruction = None;
     }
 
@@ -411,6 +450,7 @@ impl ActSerialEndpoint {
         if !self.received_execution_enabled {
             return Err("ACT received execution is disabled".into());
         }
+        self.check_owned_flow_mirror(state)?;
         let Some(frame) = self.pending_instruction else {
             return Ok(None);
         };
@@ -473,7 +513,9 @@ impl ActSerialEndpoint {
         self.special_register_result_image =
             ActSerialSpecialRegisterResultImage::begin(&snapshot, &execution);
         self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
-        self.flow_result_image = Some(ActSerialFlowResultImage::begin(state, word));
+        self.flow_result_image = Some(ActSerialFlowResultImage::begin_with_flow(
+            state, word, self.owned_flow.unwrap_or_else(|| ActSerialFlowState::capture(state)),
+        ));
         self.boundary_result_image = ActSerialBoundaryResultImage::begin(&snapshot, &execution);
         self.ram_result_image = ActSerialRamResultImage::begin(&snapshot, &execution);
         self.crc_control_result_image = None;
@@ -961,6 +1003,11 @@ impl ActSerialEndpoint {
                 }
                 if let Some(image) = &mut self.flow_result_image {
                     image.complete_word();
+                    if self.owned_flow.is_some() {
+                        let mut result = image.result();
+                        result.bank = image.fetch_bank();
+                        self.owned_flow = Some(result);
+                    }
                 }
                 if let Some(image) = &mut self.control_result_image {
                     image.complete_word();
@@ -3814,3 +3861,7 @@ mod tests {
 #[cfg(test)]
 #[path = "act_received_tests.rs"]
 mod act_received_tests;
+
+#[cfg(test)]
+#[path = "act_owned_flow_tests.rs"]
+mod act_owned_flow_tests;

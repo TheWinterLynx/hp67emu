@@ -338,3 +338,19 @@ The command frame reuses the existing raw word/qualifier carrier; its RAM decode
 is not part of ACT execution. This preserves the existing 56-cell/224-transition
 schedule and provisional PHI checkpoint, without claiming internal physical
 ACT write edges or propagation. See the M15U research note.
+
+
+### M15V retained ACT flow latches
+
+Production ACT endpoints now retain PC, bank, delayed-ROM selection, the two
+return addresses and stack pointer independently of the architectural mirror.
+The flow image receives those latches explicitly; carry, dispatch A/key inputs
+and instruction classification keep their existing frozen ACT input contract.
+The own successor preview feeds the ROM address serializer, including startup.
+Owned latches advance only when the current execution completes b55, with the
+existing low-page bank-zero normalization. Live compares every flow field before
+clocks or DATA tails and after the checked result reaches the mirror. Reset
+clears latches and preserves the selected production/reference composition.
+No full ACT copy or heap allocation is added per bit. This retains M14I's logical
+preview/completion scheduling; exact PC/stack write edges remain SOURCE-BLOCKED.
+See `docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`.

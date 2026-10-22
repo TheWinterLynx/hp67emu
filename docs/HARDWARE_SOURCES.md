@@ -302,4 +302,15 @@ faults and unconsumed overwrite. Live host word/qualifier mirrors are checked
 before clocks or DATA tail consumption. Reset and explicit synthetic reference
 composition are preserved. No new PHI edge or internal ACT write timing claim.
 See `docs/research/M15U_ACT_RECEIVED_EXECUTION_2026-10-22.md`.
-Owner local gate pending.
+Owner M15U FULL GATE GREEN; exact 8fe8b797 head integrated.
+
+
+## M15V owned ACT flow registers
+
+PC, bank, delayed ROM and return stack now persist in the ACT endpoint. The
+successor preview uses those latches and supplies the actual address serializer;
+completed b55 execution commits own flow and low-page bank normalization.
+Live validates all mirror fields before clocks/DATA tails and after commit.
+Reset/reference composition and the 224-transition schedule remain unchanged.
+Exact internal write edges remain unproven. See
+`docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`. Owner local gate pending.
