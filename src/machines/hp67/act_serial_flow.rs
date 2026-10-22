@@ -51,7 +51,11 @@ impl ActSerialFlowResultImage {
 
     /// Non-flow ACT inputs still come from the frozen register snapshot; PC,
     /// bank, delayed selection and return storage come from device-owned latches.
-    pub fn begin_with_flow(state: &ActArchitecturalState, word: u16, flow: ActSerialFlowState) -> Self {
+    pub fn begin_with_flow(
+        state: &ActArchitecturalState,
+        word: u16,
+        flow: ActSerialFlowState,
+    ) -> Self {
         let mut result = flow;
         result.pc = result.pc.wrapping_add(1) & 0x0fff;
         result.delayed_rom = None;

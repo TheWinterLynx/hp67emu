@@ -394,7 +394,10 @@ impl ActSerialEndpoint {
 
     /// Power-on flow latches, separate from the architectural comparison mirror.
     pub fn with_owned_flow(mut self) -> Self {
-        assert!(self.received_execution_enabled, "owned ACT flow requires received execution");
+        assert!(
+            self.received_execution_enabled,
+            "owned ACT flow requires received execution"
+        );
         self.owned_flow = Some(ActSerialFlowState {
             pc: self.address,
             bank: 0,
@@ -413,7 +416,9 @@ impl ActSerialEndpoint {
         if let Some(owned) = self.owned_flow {
             let mirror = ActSerialFlowState::capture(state);
             if owned != mirror {
-                return Err(format!("ACT owned flow/mirror mismatch: device={owned:?} mirror={mirror:?}"));
+                return Err(format!(
+                    "ACT owned flow/mirror mismatch: device={owned:?} mirror={mirror:?}"
+                ));
             }
         }
         Ok(())
@@ -514,7 +519,10 @@ impl ActSerialEndpoint {
             ActSerialSpecialRegisterResultImage::begin(&snapshot, &execution);
         self.mode_latch_result_image = ActSerialModeLatchResultImage::begin(&snapshot, &execution);
         self.flow_result_image = Some(ActSerialFlowResultImage::begin_with_flow(
-            state, word, self.owned_flow.unwrap_or_else(|| ActSerialFlowState::capture(state)),
+            state,
+            word,
+            self.owned_flow
+                .unwrap_or_else(|| ActSerialFlowState::capture(state)),
         ));
         self.boundary_result_image = ActSerialBoundaryResultImage::begin(&snapshot, &execution);
         self.ram_result_image = ActSerialRamResultImage::begin(&snapshot, &execution);

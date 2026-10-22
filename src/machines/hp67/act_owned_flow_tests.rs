@@ -1,5 +1,5 @@
-use super::*;
 use super::super::{ActInstructionState, Hp67ArchitecturalMachine};
+use super::*;
 
 fn prime(act: &mut ActSerialEndpoint, word: u16, instruction: bool) {
     let mut bus = Hp67ElectricalBackplane::default();
@@ -8,11 +8,18 @@ fn prime(act: &mut ActSerialEndpoint, word: u16, instruction: bool) {
         bus.commit_serial_launch(
             act_address_drive(act.address(), bit),
             RomIsDrives::Aggregate(rom_word_drive(word, bit)),
-            if bit >= 46 && instruction { Drive::High } else { Drive::Low }, None,
+            if bit >= 46 && instruction {
+                Drive::High
+            } else {
+                Drive::Low
+            },
+            None,
         );
         bus.advance_clock();
         bus.advance_clock();
-        if bit >= 46 { act.sample_instruction_at_edge(&bus).unwrap(); }
+        if bit >= 46 {
+            act.sample_instruction_at_edge(&bus).unwrap();
+        }
         bus.advance_clock();
         bus.advance_clock();
     }
@@ -45,10 +52,17 @@ fn m15v_flow_uses_owned_latches_when_all_mirror_flow_fields_are_poisoned() {
                         poisoned.delayed_rom = Some(7);
                         poisoned.return_stack = [0x111, 0x222];
                         poisoned.stack_pointer = 255;
-                        let image = ActSerialFlowResultImage::begin_with_flow(&poisoned, word, owned);
-                        if machine.execute_word(word).is_err() { continue; }
-                        assert_eq!(image.result(), ActSerialFlowState::capture(&machine.act.state));
-                        accepted[usize::from(instruction_state == ActInstructionState::Normal)] += 1;
+                        let image =
+                            ActSerialFlowResultImage::begin_with_flow(&poisoned, word, owned);
+                        if machine.execute_word(word).is_err() {
+                            continue;
+                        }
+                        assert_eq!(
+                            image.result(),
+                            ActSerialFlowState::capture(&machine.act.state)
+                        );
+                        accepted[usize::from(instruction_state == ActInstructionState::Normal)] +=
+                            1;
                     }
                 }
             }
@@ -70,7 +84,11 @@ fn m15v_owned_flow_covers_calls_returns_dispatch_pages_bank_and_implied_goto() {
                             machine.act.state.bank = bank;
                             machine.act.state.delayed_rom = delayed_rom;
                             machine.act.state.carry = carry;
-                            machine.act.state.instruction_state = if instruction { ActInstructionState::Normal } else { ActInstructionState::ThenGoto };
+                            machine.act.state.instruction_state = if instruction {
+                                ActInstructionState::Normal
+                            } else {
+                                ActInstructionState::ThenGoto
+                            };
                             machine.act.state.return_stack = [0xabc, 0x321];
                             machine.act.state.stack_pointer = u8::from(carry);
                             machine.act.state.key_buffer = Some(0o244);
@@ -78,7 +96,9 @@ fn m15v_owned_flow_covers_calls_returns_dispatch_pages_bank_and_implied_goto() {
                             machine.act.state.a[2] = 10;
                             let before = machine.act.state.clone();
                             let initial = ActSerialFlowState::capture(&before);
-                            let mut act = ActSerialEndpoint::new(pc).with_received_execution().with_owned_flow();
+                            let mut act = ActSerialEndpoint::new(pc)
+                                .with_received_execution()
+                                .with_owned_flow();
                             // Fixture seed only: production has fixed power-on latches.
                             act.owned_flow = Some(initial);
                             prime(&mut act, word, instruction);
@@ -86,7 +106,10 @@ fn m15v_owned_flow_covers_calls_returns_dispatch_pages_bank_and_implied_goto() {
                             machine.execute_word(word).unwrap();
                             machine.prepare_hp67_fetch();
                             let expected = ActSerialFlowState::capture(&machine.act.state);
-                            assert_eq!(act.owned_fetch_request(), Some((expected.pc, expected.bank)));
+                            assert_eq!(
+                                act.owned_fetch_request(),
+                                Some((expected.pc, expected.bank))
+                            );
                             for bit in 0..55 {
                                 act.advance_execution_for_bit(bit).unwrap();
                                 assert_eq!(act.owned_flow_state(), Some(initial));
@@ -104,11 +127,16 @@ fn m15v_owned_flow_covers_calls_returns_dispatch_pages_bank_and_implied_goto() {
 
 #[test]
 fn m15v_failed_execution_coordinate_cannot_commit_owned_flow_early() {
-    let mut act = ActSerialEndpoint::new(0).with_received_execution().with_owned_flow();
+    let mut act = ActSerialEndpoint::new(0)
+        .with_received_execution()
+        .with_owned_flow();
     prime(&mut act, 0, true);
-    act.begin_received_execution(&ActArchitecturalState::default()).unwrap();
+    act.begin_received_execution(&ActArchitecturalState::default())
+        .unwrap();
     let initial = act.owned_flow_state();
-    for bit in 0..55 { act.advance_execution_for_bit(bit).unwrap(); }
+    for bit in 0..55 {
+        act.advance_execution_for_bit(bit).unwrap();
+    }
     assert!(act.advance_execution_for_bit(54).is_err());
     assert_eq!(act.owned_flow_state(), initial);
     assert_eq!(act.owned_fetch_request(), Some((1, 0)));

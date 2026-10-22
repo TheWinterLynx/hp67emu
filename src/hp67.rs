@@ -364,7 +364,9 @@ impl Hp67LiveMachine {
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane: Hp67ElectricalBackplane::default(),
-            act_serial: ActSerialEndpoint::new(0).with_received_execution().with_owned_flow(),
+            act_serial: ActSerialEndpoint::new(0)
+                .with_received_execution()
+                .with_owned_flow(),
             fetch_rom: RomFetchEndpoint::autonomous_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
@@ -592,7 +594,8 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
-        self.act_serial.check_owned_flow_mirror(&self.machine.act.state)
+        self.act_serial
+            .check_owned_flow_mirror(&self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
         if let Some(crc) = self.data_serial.crc_control_mut() {
             crc.freeze_inputs(&self.machine.crc)
@@ -988,7 +991,8 @@ impl Hp67LiveMachine {
             }
             image.commit(&mut self.machine.act.state);
         }
-        self.act_serial.check_owned_flow_mirror(&self.machine.act.state)
+        self.act_serial
+            .check_owned_flow_mirror(&self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} completed {error}"))?;
 
         let qualified_state = self
@@ -1678,7 +1682,8 @@ impl Hp67LiveMachine {
         // M14I supplies successor fetch from immutable structural inputs,
         // never the oracle-mutated PC. Fetch-only startup retains its old path.
         let flow = self.act_serial.serial_flow_result_image();
-        let (address, requested_bank) = if let Some(request) = self.act_serial.owned_fetch_request() {
+        let (address, requested_bank) = if let Some(request) = self.act_serial.owned_fetch_request()
+        {
             request
         } else if let Some(image) = flow {
             (image.result().pc, image.fetch_bank())
@@ -1864,11 +1869,11 @@ mod autonomous_ram_tests;
 #[cfg(test)]
 mod autonomous_crc_tests;
 #[cfg(test)]
+mod owned_flow_tests;
+#[cfg(test)]
 mod ram_command_tests;
 #[cfg(test)]
 mod received_execution_tests;
-#[cfg(test)]
-mod owned_flow_tests;
 
 #[cfg(test)]
 mod address_data_tests;
