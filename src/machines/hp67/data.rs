@@ -492,7 +492,8 @@ impl Hp67DataSerialWordPath {
         }
         let mut crc_control = self.crc_control;
         if let Some(crc) = crc_control.as_mut() {
-            crc.sample_at_edge(backplane).map_err(Hp67DataSerialError::CrcControl)?;
+            crc.sample_at_edge(backplane)
+                .map_err(Hp67DataSerialError::CrcControl)?;
         }
         let mut command_receiver = self.ram_command_receiver;
         if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT)

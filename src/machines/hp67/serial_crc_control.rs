@@ -5,8 +5,8 @@
 
 use super::{
     decode_crc_opcode, CrcArchitecturalCore, CrcInstruction, Hp67ElectricalBackplane,
-    Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver, CRC_FLAG_BUFFER_READY, CRC_FLAG_COUNT,
-    CRC_FLAG_F7_STATUS,
+    Hp67RamCommandError, Hp67RamCommandFrame, Hp67RamCommandReceiver, CRC_FLAG_BUFFER_READY,
+    CRC_FLAG_COUNT, CRC_FLAG_F7_STATUS,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,7 +62,10 @@ impl Hp67SerialCrcControl {
     pub fn check_mirror(&self, mirror: &CrcArchitecturalCore) -> Result<(), String> {
         for (index, value) in self.flags.iter().enumerate() {
             if mirror.flag(index) != Some(*value) {
-                return Err(format!("autonomous CRC latch {index} mismatch: device={value} mirror={:?}", mirror.flag(index)));
+                return Err(format!(
+                    "autonomous CRC latch {index} mismatch: device={value} mirror={:?}",
+                    mirror.flag(index)
+                ));
             }
         }
         Ok(())
@@ -75,10 +78,17 @@ impl Hp67SerialCrcControl {
         self.flags[CRC_FLAG_F7_STATUS] = error;
     }
 
-    pub fn sample_at_edge(&mut self, bus: &Hp67ElectricalBackplane) -> Result<(), Hp67CrcControlError> {
+    pub fn sample_at_edge(
+        &mut self,
+        bus: &Hp67ElectricalBackplane,
+    ) -> Result<(), Hp67CrcControlError> {
         let bit = bus.word_bit();
         if !bus.at_transport_sample_edge() || bit != self.expected_bit {
-            return Err(Hp67CrcControlError::Phase { expected: self.expected_bit, actual: bit, tick: bus.tick().get() });
+            return Err(Hp67CrcControlError::Phase {
+                expected: self.expected_bit,
+                actual: bit,
+                tick: bus.tick().get(),
+            });
         }
         // Prepare the small control image: a failed command sample cannot change
         // latches, pending instruction, contacts or the partial receive window.
@@ -92,21 +102,30 @@ impl Hp67SerialCrcControl {
             next.result = None;
         }
         if bit >= 46 {
-            next.receiver.sample_at_edge(bus)
+            next.receiver
+                .sample_at_edge(bus)
                 .map_err(Hp67CrcControlError::Command)?;
         }
         if bit == 55 {
             if let Some(instruction) = next.executing {
                 let flag = match instruction {
-                    CrcInstruction::SetFlag { flag } | CrcInstruction::TestFlagAndClear { flag } => flag,
+                    CrcInstruction::SetFlag { flag }
+                    | CrcInstruction::TestFlagAndClear { flag } => flag,
                 };
                 let index = usize::from(flag);
                 let (value, condition) = match instruction {
                     CrcInstruction::SetFlag { .. } => (true, None),
-                    CrcInstruction::TestFlagAndClear { .. } => (false, Some(next.flags[index] || next.external[index])),
+                    CrcInstruction::TestFlagAndClear { .. } => {
+                        (false, Some(next.flags[index] || next.external[index]))
+                    }
                 };
                 next.flags[index] = value;
-                next.result = Some(Hp67CrcControlResult { instruction, flag, value, condition });
+                next.result = Some(Hp67CrcControlResult {
+                    instruction,
+                    flag,
+                    value,
+                    condition,
+                });
             }
         }
         next.expected_bit = if bit == 55 { 0 } else { bit + 1 };
@@ -121,7 +140,8 @@ mod tests {
     use crate::{
         emulation::Drive,
         machines::hp67::{
-            isa::{act_address_drive, rom_word_drive}, rom_devices::RomIsDrives,
+            isa::{act_address_drive, rom_word_drive},
+            rom_devices::RomIsDrives,
             wiring::{Hp67Driver, Hp67Net},
         },
     };
@@ -131,11 +151,21 @@ mod tests {
         bus.commit_serial_launch(
             act_address_drive(0x123, bit),
             RomIsDrives::Aggregate(rom_word_drive(word, bit)),
-            if bit >= 46 && instruction { Drive::High } else { Drive::Low }, None,
+            if bit >= 46 && instruction {
+                Drive::High
+            } else {
+                Drive::Low
+            },
+            None,
         );
     }
 
-    fn word(crc: &mut Hp67SerialCrcControl, bus: &mut Hp67ElectricalBackplane, opcode: u16, instruction: bool) {
+    fn word(
+        crc: &mut Hp67SerialCrcControl,
+        bus: &mut Hp67ElectricalBackplane,
+        opcode: u16,
+        instruction: bool,
+    ) {
         let tick = bus.tick().get();
         for _ in 0..56 {
             launch(bus, opcode, instruction);
@@ -166,8 +196,16 @@ mod tests {
                         word(&mut crc, &mut bus, opcode, instruction);
                         assert_eq!(crc.result(), None, "fetch must not execute immediately");
                         crc.check_mirror(&mirror).unwrap();
-                        let decoded = if instruction { decode_crc_opcode(opcode).unwrap() } else { None };
-                        let condition = if decoded.is_some() { mirror.execute_opcode(opcode).unwrap() } else { None };
+                        let decoded = if instruction {
+                            decode_crc_opcode(opcode).unwrap()
+                        } else {
+                            None
+                        };
+                        let condition = if decoded.is_some() {
+                            mirror.execute_opcode(opcode).unwrap()
+                        } else {
+                            None
+                        };
                         word(&mut crc, &mut bus, 0, true);
                         assert_eq!(crc.result().map(|result| result.instruction), decoded);
                         assert_eq!(crc.result().and_then(|result| result.condition), condition);
@@ -192,13 +230,25 @@ mod tests {
             bus.advance_clock();
             if bit == 46 {
                 // Replace observed bit zero: a non-control word must be received.
-                bus.drive(Hp67Net::Isa, Hp67Driver::StructuralRomResponder, Drive::High);
+                bus.drive(
+                    Hp67Net::Isa,
+                    Hp67Driver::StructuralRomResponder,
+                    Drive::High,
+                );
             }
             if bit == 47 {
-                bus.drive(Hp67Net::Sync, Hp67Driver::StructuralRomResponder, Drive::Low);
+                bus.drive(
+                    Hp67Net::Sync,
+                    Hp67Driver::StructuralRomResponder,
+                    Drive::Low,
+                );
                 assert!(crc.sample_at_edge(&bus).is_err());
                 assert_eq!(crc, before);
-                bus.drive(Hp67Net::Sync, Hp67Driver::StructuralRomResponder, Drive::HighZ);
+                bus.drive(
+                    Hp67Net::Sync,
+                    Hp67Driver::StructuralRomResponder,
+                    Drive::HighZ,
+                );
             }
             crc.sample_at_edge(&bus).unwrap();
             let after = crc;
@@ -229,7 +279,8 @@ mod tests {
     #[test]
     fn m15t_crc_shared_sample_is_not_committed_on_data_fault() {
         let mut path = super::super::Hp67DataSerialWordPath::default()
-            .with_ram_command_receiver().with_crc_control();
+            .with_ram_command_receiver()
+            .with_crc_control();
         path.enable_electrical_level_bridge(None);
         path.begin_word(None);
         let mut bus = Hp67ElectricalBackplane::default();
@@ -248,7 +299,10 @@ mod tests {
             bus.advance_clock();
             bus.advance_clock();
         }
-        assert_eq!(path.crc_control().unwrap().received_frame().unwrap().word, 0o1000);
+        assert_eq!(
+            path.crc_control().unwrap().received_frame().unwrap().word,
+            0o1000
+        );
     }
 
     #[test]
@@ -272,5 +326,4 @@ mod tests {
         assert_eq!(crc.result().unwrap().condition, Some(true));
         assert!(!crc.flags[4] && crc.external[4]);
     }
-
 }

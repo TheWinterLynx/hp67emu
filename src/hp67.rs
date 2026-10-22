@@ -371,7 +371,9 @@ impl Hp67LiveMachine {
             display_exposure: Hp67DisplayExposure::default(),
             optical_scan_floor: 0,
             pipeline: FetchPipelineLatch::default(),
-            data_serial: Hp67DataSerialWordPath::default().with_ram_command_receiver().with_crc_control(),
+            data_serial: Hp67DataSerialWordPath::default()
+                .with_ram_command_receiver()
+                .with_crc_control(),
             serial_ram: Some(Hp67SerialRam::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
@@ -830,26 +832,47 @@ impl Hp67LiveMachine {
                 return Err(format!("live cycle {cycle} M14L CRC mismatch: expected=({instruction:?}, {condition:?}, {flag}, {status3}) structural={image:?}"));
             }
             if let Some(crc) = self.data_serial.crc_control() {
-                let result = crc.result().ok_or_else(|| format!("live cycle {cycle} autonomous CRC missing command"))?;
-                let actual_status3 = self.machine.act.state.status[3] || result.condition == Some(true);
-                if result.instruction != instruction || result.condition != condition || result.value != flag || actual_status3 != status3 {
-                    return Err(format!("live cycle {cycle} autonomous CRC result mismatch: {result:?}"));
+                let result = crc
+                    .result()
+                    .ok_or_else(|| format!("live cycle {cycle} autonomous CRC missing command"))?;
+                let actual_status3 =
+                    self.machine.act.state.status[3] || result.condition == Some(true);
+                if result.instruction != instruction
+                    || result.condition != condition
+                    || result.value != flag
+                    || actual_status3 != status3
+                {
+                    return Err(format!(
+                        "live cycle {cycle} autonomous CRC result mismatch: {result:?}"
+                    ));
                 }
-                self.machine.crc.commit_control_flag(result.flag, result.value)
+                self.machine
+                    .crc
+                    .commit_control_flag(result.flag, result.value)
                     .map_err(|error| format!("live cycle {cycle} CRC mirror commit: {error:?}"))?;
                 self.machine.act.state.status[3] = actual_status3;
             } else {
-                image.commit(&mut self.machine.act.state, &mut self.machine.crc)
+                image
+                    .commit(&mut self.machine.act.state, &mut self.machine.crc)
                     .map_err(|error| format!("live cycle {cycle} M14L commit failed: {error}"))?;
             }
-        } else if self.data_serial.crc_control().and_then(|crc| crc.result()).is_some() {
-            return Err(format!("live cycle {cycle} autonomous CRC decoded an unowned command"));
+        } else if self
+            .data_serial
+            .crc_control()
+            .and_then(|crc| crc.result())
+            .is_some()
+        {
+            return Err(format!(
+                "live cycle {cycle} autonomous CRC decoded an unowned command"
+            ));
         }
         if let Some(crc) = self.data_serial.crc_control() {
             crc.check_mirror(&self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} CRC commit: {error}"))?;
             if crc.received_frame() != self.data_serial.received_ram_command() {
-                return Err(format!("live cycle {cycle} CRC/RAM raw IS/SYNC reception mismatch"));
+                return Err(format!(
+                    "live cycle {cycle} CRC/RAM raw IS/SYNC reception mismatch"
+                ));
             }
         }
         if let Some((expected_address, expected_block, before_block)) = ram_control_expected {
@@ -937,7 +960,9 @@ impl Hp67LiveMachine {
 
         let buffer_status_before_transport = (
             self.machine.crc.flag(CRC_FLAG_BUFFER_READY),
-            self.machine.crc.flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
+            self.machine
+                .crc
+                .flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
         );
         self.card_transport
             .advance_us(
@@ -948,10 +973,14 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
 
         // Only a changed logical transport handshake enters the device.
-        if buffer_status_before_transport != (
-            self.machine.crc.flag(CRC_FLAG_BUFFER_READY),
-            self.machine.crc.flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
-        ) {
+        if buffer_status_before_transport
+            != (
+                self.machine.crc.flag(CRC_FLAG_BUFFER_READY),
+                self.machine
+                    .crc
+                    .flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
+            )
+        {
             self.sync_crc_buffer_status();
         }
         if self.card_transport.is_complete() {
@@ -971,8 +1000,14 @@ impl Hp67LiveMachine {
     fn sync_crc_buffer_status(&mut self) {
         if let Some(crc) = self.data_serial.crc_control_mut() {
             crc.apply_buffer_status(
-                self.machine.crc.flag(CRC_FLAG_BUFFER_READY).expect("CRC READY"),
-                self.machine.crc.flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS).expect("CRC F7"),
+                self.machine
+                    .crc
+                    .flag(CRC_FLAG_BUFFER_READY)
+                    .expect("CRC READY"),
+                self.machine
+                    .crc
+                    .flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS)
+                    .expect("CRC F7"),
             );
         }
     }
@@ -1777,9 +1812,9 @@ impl Hp67LiveMachine {
 mod autonomous_ram_tests;
 
 #[cfg(test)]
-mod ram_command_tests;
-#[cfg(test)]
 mod autonomous_crc_tests;
+#[cfg(test)]
+mod ram_command_tests;
 
 #[cfg(test)]
 mod address_data_tests;

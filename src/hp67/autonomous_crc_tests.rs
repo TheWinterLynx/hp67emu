@@ -17,13 +17,18 @@ fn m15t_crc_live_matches_reference_and_traced_firmware_with_real_contacts() {
         }
         let tick = live.backplane.tick().get();
         live.step_firmware_cycle_with_execution().unwrap();
-        traced.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap();
+        traced
+            .step_firmware_cycle_with_trace(Some(&mut trace))
+            .unwrap();
         reference.step_firmware_cycle_with_execution().unwrap();
         assert_eq!(live.machine.act.state, reference.machine.act.state);
         assert_eq!(live.machine.crc, reference.machine.crc);
         assert_eq!(live.machine.crc, traced.machine.crc);
         assert_eq!(live.machine.act.state, traced.machine.act.state);
-        assert_eq!(live.data_serial.crc_control(), traced.data_serial.crc_control());
+        assert_eq!(
+            live.data_serial.crc_control(),
+            traced.data_serial.crc_control()
+        );
         let crc = live.data_serial.crc_control().unwrap();
         crc.check_mirror(&live.machine.crc).unwrap();
         controls += usize::from(crc.result().is_some());
@@ -32,9 +37,15 @@ fn m15t_crc_live_matches_reference_and_traced_firmware_with_real_contacts() {
     }
     assert!(controls > 0 && motor);
     assert_eq!(trace.samples.len(), 2400 * 224);
-    assert_eq!(live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
+    assert_eq!(
+        live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+        Some(true)
+    );
     live.reset_power_on().unwrap();
-    assert_eq!(live.data_serial.crc_control(), Some(&Hp67SerialCrcControl::default()));
+    assert_eq!(
+        live.data_serial.crc_control(),
+        Some(&Hp67SerialCrcControl::default())
+    );
     reference.reset_power_on().unwrap();
     assert!(reference.data_serial.crc_control().is_none());
 }
@@ -42,7 +53,10 @@ fn m15t_crc_live_matches_reference_and_traced_firmware_with_real_contacts() {
 #[test]
 fn m15t_crc_corrupted_mirror_is_rejected_before_clock_or_instruction() {
     let mut live = Hp67LiveMachine::power_on_default().unwrap();
-    live.machine.crc.commit_control_flag(CRC_FLAG_MOTOR_ON as u8, true).unwrap();
+    live.machine
+        .crc
+        .commit_control_flag(CRC_FLAG_MOTOR_ON as u8, true)
+        .unwrap();
     let tick = live.backplane.tick();
     let cycle = live.boot_cycle;
     let device = *live.data_serial.crc_control().unwrap();
@@ -62,7 +76,8 @@ fn m15t_crc_real_card_transport_hands_ready_to_independent_control() {
     }
     let track = Hp67MagneticTrack::from_words([0x0300_0000; HP67_CARD_RECORDS_PER_TRACK]).unwrap();
     let card = Hp67MagneticCard::default().with_track(Hp67CardTrack::Track1, track);
-    live.insert_magnetic_card(card, CardInsertionEnd::End1).unwrap();
+    live.insert_magnetic_card(card, CardInsertionEnd::End1)
+        .unwrap();
     let mut ready = false;
     let mut consumed = false;
     for _ in 0..4096 {
@@ -70,7 +85,10 @@ fn m15t_crc_real_card_transport_hands_ready_to_independent_control() {
         let crc = live.data_serial.crc_control().unwrap();
         crc.check_mirror(&live.machine.crc).unwrap();
         ready |= crc.flags()[CRC_FLAG_BUFFER_READY];
-        if matches!(execution.map(|word| word.operation), Some(Hp67ArchitecturalOperation::CrcDataRead { .. })) {
+        if matches!(
+            execution.map(|word| word.operation),
+            Some(Hp67ArchitecturalOperation::CrcDataRead { .. })
+        ) {
             consumed = true;
             break;
         }
