@@ -568,4 +568,16 @@ and local read tail are removed. Required frame/owner/count metadata persists
 through next b1 and then hands off to the next ACT source. Oracle expected data
 remains comparison-only. 224 transitions/word and physical evidence boundaries
 are unchanged. See `docs/research/M15S_ACT_DATA_RECEIVE_ONLY_2026-10-21.md`.
-Owner gate pending.
+Owner M15S FULL GATE GREEN; exact 8ce3363b head integrated.
+
+
+## M15T autonomous CRC control
+
+Independent IS/SYNC reception now drives twelve retained CRC latches, the
+one-word control pipeline and validated live result/S3 authority. Logical FIFO
+and transport retain only an explicit READY/F7 handoff; production reset and
+synthetic reference composition are preserved. Exhaustive command/qualifier/
+contact tests and real firmware/card regressions accompany the complete lane.
+CRC DATA serialization and exact F2/PHI/propagation remain open; no new physical
+timing claim. See `docs/research/M15T_AUTONOMOUS_CRC_CONTROL_2026-10-22.md`.
+Owner local gate pending.

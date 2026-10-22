@@ -280,3 +280,15 @@ bridge until C-to-address DATA and consistent command forwarding are integrated.
 Physical RAM-chip mapping, output circuitry and exact latch timing remain open.
 See `docs/research/M15N_AUTONOMOUS_SERIAL_RAM_2026-10-18.md`.
 Owner local M15N gate pending.
+
+
+## M15T autonomous CRC control
+
+Independent IS/SYNC reception now drives twelve retained CRC latches, the
+one-word control pipeline and validated live result/S3 authority. Logical FIFO
+and transport retain only an explicit READY/F7 handoff; production reset and
+synthetic reference composition are preserved. Exhaustive command/qualifier/
+contact tests and real firmware/card regressions accompany the complete lane.
+CRC DATA serialization and exact F2/PHI/propagation remain open; no new physical
+timing claim. See `docs/research/M15T_AUTONOMOUS_CRC_CONTROL_2026-10-22.md`.
+Owner local gate pending.

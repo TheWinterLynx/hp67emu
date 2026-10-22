@@ -37,6 +37,7 @@ pub struct Hp67DataTransferPlan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hp67DataSerialError {
     RamCommand(Hp67RamCommandError),
+    CrcControl(super::serial_crc_control::Hp67CrcControlError),
     UnexpectedWordBit {
         expected: u8,
         actual: u8,
@@ -266,12 +267,30 @@ pub struct Hp67DataSerialWordPath {
     current_direction: Option<Hp67DataTransferDirection>,
     previous_direction: Option<Hp67DataTransferDirection>,
     ram_command_receiver: Option<Hp67RamCommandReceiver>,
+    crc_control: Option<super::Hp67SerialCrcControl>,
     autonomous_ram_owner: bool,
     receive_only: bool,
     previous_receive_only: bool,
 }
 
 impl Hp67DataSerialWordPath {
+    pub fn with_crc_control(mut self) -> Self {
+        self.crc_control = Some(super::Hp67SerialCrcControl::default());
+        self
+    }
+
+    pub fn crc_control(&self) -> Option<&super::Hp67SerialCrcControl> {
+        self.crc_control.as_ref()
+    }
+
+    pub fn crc_control_mut(&mut self) -> Option<&mut super::Hp67SerialCrcControl> {
+        self.crc_control.as_mut()
+    }
+
+    pub fn disable_crc_control(&mut self) {
+        self.crc_control = None;
+    }
+
     /// Attach the RAM control receiver to the same resolved sampling schedule.
     /// This observes commands only; read sources/storage retain their owners.
     pub fn with_ram_command_receiver(mut self) -> Self {
@@ -471,6 +490,10 @@ impl Hp67DataSerialWordPath {
                 tick: backplane.tick().get(),
             });
         }
+        let mut crc_control = self.crc_control;
+        if let Some(crc) = crc_control.as_mut() {
+            crc.sample_at_edge(backplane).map_err(Hp67DataSerialError::CrcControl)?;
+        }
         let mut command_receiver = self.ram_command_receiver;
         if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT)
             .contains(&word_bit)
@@ -484,6 +507,7 @@ impl Hp67DataSerialWordPath {
         if !self.electrical_level_bridge {
             self.visit_transport_word_bit(word_bit)?;
             self.ram_command_receiver = command_receiver;
+            self.crc_control = crc_control;
             return Ok(());
         }
         let bit = self.sample_level_bridge(word_bit, backplane)?;
@@ -496,6 +520,7 @@ impl Hp67DataSerialWordPath {
             self.completed_payload = completed;
         }
         self.ram_command_receiver = command_receiver;
+        self.crc_control = crc_control;
         Ok(())
     }
 

@@ -101,3 +101,20 @@ instruction-boundary comparison mirror; ACT read commits still come from resolve
 DATA after next b1. Physical per-IC mapping/output stage, precise internal latch
 edges and PHI propagation remain unproven. See
 `docs/research/M15Q_LIVE_AUTONOMOUS_RAM_2026-10-20.md`.
+
+
+### M15T autonomous CRC control
+
+The shared resolved sampling path now carries an independent CRC IS/SYNC
+receiver and twelve control latches. Production constructors install it; the
+explicit injected-opcode reference fixture disables it. Each command executes
+one word after qualified reception and publishes a completed b55 result. The
+live adapter checks the old mirror before freezing external contacts, compares
+against both the oracle and M14L image, and commits the endpoint's result/S3.
+Only explicit logical FIFO/transport handshake changes enter READY/F7; motor,
+write mode and all other latches retain the endpoint's own state. Reset clears
+the endpoint and preserves the selected production/reference composition.
+Per-sample CRC/RAM command images commit only after DATA validation succeeds.
+No CRC DATA serialization or physical F2/PHI latch timing is asserted. The live
+benchmark includes the endpoint only in its production firmware row; injected
+RAM/CRC workloads retain the explicit reference bridge.

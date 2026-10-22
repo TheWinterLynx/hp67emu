@@ -35,6 +35,7 @@ pub mod machine;
 pub mod magnetic_card;
 pub mod ram_command;
 pub mod rom_devices;
+pub mod serial_crc_control;
 pub mod serial_ram;
 pub mod timing;
 pub mod wiring;
@@ -155,3 +156,5 @@ pub use ram_command::{
 
 #[cfg(test)]
 mod ram_transport_tests;
+
+pub use serial_crc_control::{Hp67CrcControlResult, Hp67SerialCrcControl};

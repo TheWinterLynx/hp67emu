@@ -371,7 +371,7 @@ impl Hp67LiveMachine {
             display_exposure: Hp67DisplayExposure::default(),
             optical_scan_floor: 0,
             pipeline: FetchPipelineLatch::default(),
-            data_serial: Hp67DataSerialWordPath::default().with_ram_command_receiver(),
+            data_serial: Hp67DataSerialWordPath::default().with_ram_command_receiver().with_crc_control(),
             serial_ram: Some(Hp67SerialRam::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
@@ -426,7 +426,11 @@ impl Hp67LiveMachine {
         self.display_exposure = Hp67DisplayExposure::default();
         self.optical_scan_floor = 0;
         self.pipeline = FetchPipelineLatch::default();
+        let autonomous_crc = self.data_serial.crc_control().is_some();
         self.data_serial = Hp67DataSerialWordPath::default().with_ram_command_receiver();
+        if autonomous_crc {
+            self.data_serial = self.data_serial.with_crc_control();
+        }
         if let Some(ram) = self.serial_ram.as_mut() {
             ram.reset();
         }
@@ -578,6 +582,10 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        if let Some(crc) = self.data_serial.crc_control_mut() {
+            crc.freeze_inputs(&self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} CRC inputs: {error}"))?;
+        }
         let card_motor_was_on = self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true);
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
@@ -806,6 +814,7 @@ impl Hp67LiveMachine {
             image
                 .commit(&mut self.machine.act.state, &mut self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} M14M commit failed: {error}"))?;
+            self.sync_crc_buffer_status();
         }
         if let Some((instruction, condition, flag, status3)) = crc_control_expected {
             let image = self
@@ -820,9 +829,28 @@ impl Hp67LiveMachine {
             {
                 return Err(format!("live cycle {cycle} M14L CRC mismatch: expected=({instruction:?}, {condition:?}, {flag}, {status3}) structural={image:?}"));
             }
-            image
-                .commit(&mut self.machine.act.state, &mut self.machine.crc)
-                .map_err(|error| format!("live cycle {cycle} M14L commit failed: {error}"))?;
+            if let Some(crc) = self.data_serial.crc_control() {
+                let result = crc.result().ok_or_else(|| format!("live cycle {cycle} autonomous CRC missing command"))?;
+                let actual_status3 = self.machine.act.state.status[3] || result.condition == Some(true);
+                if result.instruction != instruction || result.condition != condition || result.value != flag || actual_status3 != status3 {
+                    return Err(format!("live cycle {cycle} autonomous CRC result mismatch: {result:?}"));
+                }
+                self.machine.crc.commit_control_flag(result.flag, result.value)
+                    .map_err(|error| format!("live cycle {cycle} CRC mirror commit: {error:?}"))?;
+                self.machine.act.state.status[3] = actual_status3;
+            } else {
+                image.commit(&mut self.machine.act.state, &mut self.machine.crc)
+                    .map_err(|error| format!("live cycle {cycle} M14L commit failed: {error}"))?;
+            }
+        } else if self.data_serial.crc_control().and_then(|crc| crc.result()).is_some() {
+            return Err(format!("live cycle {cycle} autonomous CRC decoded an unowned command"));
+        }
+        if let Some(crc) = self.data_serial.crc_control() {
+            crc.check_mirror(&self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} CRC commit: {error}"))?;
+            if crc.received_frame() != self.data_serial.received_ram_command() {
+                return Err(format!("live cycle {cycle} CRC/RAM raw IS/SYNC reception mismatch"));
+            }
         }
         if let Some((expected_address, expected_block, before_block)) = ram_control_expected {
             let image = self
@@ -907,6 +935,10 @@ impl Hp67LiveMachine {
         // existing completed-word authority/oracle comparison succeeds.
         self.machine.act.state.instruction_state = qualified_state;
 
+        let buffer_status_before_transport = (
+            self.machine.crc.flag(CRC_FLAG_BUFFER_READY),
+            self.machine.crc.flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
+        );
         self.card_transport
             .advance_us(
                 HP67_OBSERVED_WORD_TIME_US,
@@ -915,6 +947,13 @@ impl Hp67LiveMachine {
             )
             .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
 
+        // Only a changed logical transport handshake enters the device.
+        if buffer_status_before_transport != (
+            self.machine.crc.flag(CRC_FLAG_BUFFER_READY),
+            self.machine.crc.flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
+        ) {
+            self.sync_crc_buffer_status();
+        }
         if self.card_transport.is_complete() {
             self.machine.set_card_present(false).map_err(|error| {
                 format!("live cycle {cycle} card exit contact failed: {error:?}")
@@ -927,6 +966,15 @@ impl Hp67LiveMachine {
             self.phase = LiveBootPhase::Idle;
         }
         Ok(executed)
+    }
+
+    fn sync_crc_buffer_status(&mut self) {
+        if let Some(crc) = self.data_serial.crc_control_mut() {
+            crc.apply_buffer_status(
+                self.machine.crc.flag(CRC_FLAG_BUFFER_READY).expect("CRC READY"),
+                self.machine.crc.flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS).expect("CRC F7"),
+            );
+        }
     }
 
     /// Every semantic ACT field represented by the immutable snapshot must be
@@ -1410,6 +1458,7 @@ impl Hp67LiveMachine {
     fn power_on_reference_fixture() -> Result<Self, String> {
         let mut live = Self::power_on_default()?;
         live.serial_ram = None;
+        live.data_serial.disable_crc_control();
         Ok(live)
     }
 
@@ -1729,6 +1778,8 @@ mod autonomous_ram_tests;
 
 #[cfg(test)]
 mod ram_command_tests;
+#[cfg(test)]
+mod autonomous_crc_tests;
 
 #[cfg(test)]
 mod address_data_tests;
