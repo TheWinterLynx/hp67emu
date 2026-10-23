@@ -72,7 +72,9 @@ impl ActSerialCrcDataResultImage {
     }
 
     /// Frozen logical-port C result; authority still requires completed b55.
-    pub const fn result_c(&self) -> ActRegister { self.result_c }
+    pub const fn result_c(&self) -> ActRegister {
+        self.result_c
+    }
 
     pub const fn is_complete(&self) -> bool {
         self.complete

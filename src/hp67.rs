@@ -434,7 +434,9 @@ impl Hp67LiveMachine {
         if owned_flow {
             self.act_serial = self.act_serial.with_owned_flow();
         }
-        if owned_registers { self.act_serial = self.act_serial.with_owned_registers(); }
+        if owned_registers {
+            self.act_serial = self.act_serial.with_owned_registers();
+        }
         self.fetch_rom = RomFetchEndpoint::autonomous_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
@@ -647,12 +649,14 @@ impl Hp67LiveMachine {
         } else {
             self.pipeline.prefetched_word()
         };
-        self.act_serial.check_owned_register_mirror(&self.machine.act.state)
+        self.act_serial
+            .check_owned_register_mirror(&self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_with_prefix(cycle, trace.as_deref_mut())?;
         if let Some(word) = executing_word {
-            self.act_serial.sample_owned_keyboard(&self.keyboard)
+            self.act_serial
+                .sample_owned_keyboard(&self.keyboard)
                 .map_err(|error| format!("live cycle {cycle} {error}"))?;
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
@@ -905,7 +909,8 @@ impl Hp67LiveMachine {
                     .crc
                     .commit_control_flag(result.flag, result.value)
                     .map_err(|error| format!("live cycle {cycle} CRC mirror commit: {error:?}"))?;
-                self.act_serial.receive_owned_crc_condition(result.condition)
+                self.act_serial
+                    .receive_owned_crc_condition(result.condition)
                     .map_err(|error| format!("live cycle {cycle} {error}"))?;
                 self.machine.act.state.status[3] = actual_status3;
             } else {
@@ -1017,9 +1022,11 @@ impl Hp67LiveMachine {
         // Resolved SYNC owns the next-word instruction/data latch after the
         // existing completed-word authority/oracle comparison succeeds.
         self.machine.act.state.instruction_state = qualified_state;
-        self.act_serial.qualify_owned_registers_from_received()
+        self.act_serial
+            .qualify_owned_registers_from_received()
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
-        self.act_serial.commit_owned_register_mirror(&mut self.machine.act.state)
+        self.act_serial
+            .commit_owned_register_mirror(&mut self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
 
         let buffer_status_before_transport = (
@@ -1568,7 +1575,9 @@ impl Hp67LiveMachine {
         trace: Option<&mut StructuralBusTrace>,
     ) -> Result<(), String> {
         let completed = if self.data_serial.frame_in_progress() {
-            let mut display_state = self.act_serial.owned_register_state()
+            let mut display_state = self
+                .act_serial
+                .owned_register_state()
                 .unwrap_or_else(|| self.machine.act.state.clone());
             if !self.display_control_seen {
                 display_state.display_enable = true;
@@ -1711,9 +1720,13 @@ impl Hp67LiveMachine {
         // below is only an independent comparison, never a source selection.
         let mut owned_display_state = self.act_serial.owned_register_state();
         if !self.display_control_seen {
-            owned_display_state.get_or_insert_with(|| self.machine.act.state.clone()).display_enable = true;
+            owned_display_state
+                .get_or_insert_with(|| self.machine.act.state.clone())
+                .display_enable = true;
         }
-        let display_state = owned_display_state.as_ref().unwrap_or(&self.machine.act.state);
+        let display_state = owned_display_state
+            .as_ref()
+            .unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.ram_command_receiver_enabled()
             || self.data_serial.prefix_preconsumed()
             || data_payload.is_some()
