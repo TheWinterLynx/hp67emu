@@ -453,7 +453,9 @@ impl Hp67LiveMachine {
         if let Some(ram) = self.serial_ram.as_mut() {
             ram.reset();
         }
-        if let Some(data) = self.owned_crc_data.as_mut() { *data = Default::default(); }
+        if let Some(data) = self.owned_crc_data.as_mut() {
+            *data = Default::default();
+        }
         self.pending_ram_data_transfer = None;
         self.pending_address_data_frame = None;
         self.machine = Hp67ArchitecturalMachine::default();
@@ -610,7 +612,8 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} CRC inputs: {error}"))?;
         }
         if let Some(data) = self.owned_crc_data.as_ref() {
-            data.check_mirror(&self.machine.crc).map_err(|error| format!("live cycle {cycle} {error}"))?;
+            data.check_mirror(&self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} {error}"))?;
         }
         let card_motor_was_on = self.data_serial.crc_control().map_or_else(
             || self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true),
@@ -690,11 +693,20 @@ impl Hp67LiveMachine {
                 .bind_ram_topology(&self.machine.ram)
                 .map_err(|error| format!("live cycle {cycle} M14N RAM binding failed: {error}"))?;
             if let Some(data) = self.owned_crc_data.as_ref() {
-                let write_mode = self.data_serial.crc_control().expect("owned CRC control").flags()[CRC_FLAG_WRITE_MODE];
-                self.act_serial.bind_crc_control_with_owned_data(&self.machine.crc, data, write_mode)
+                let write_mode = self
+                    .data_serial
+                    .crc_control()
+                    .expect("owned CRC control")
+                    .flags()[CRC_FLAG_WRITE_MODE];
+                self.act_serial.bind_crc_control_with_owned_data(
+                    &self.machine.crc,
+                    data,
+                    write_mode,
+                )
             } else {
                 self.act_serial.bind_crc_control(&self.machine.crc)
-            }.map_err(|error| format!("live cycle {cycle} CRC input binding failed: {error}"))?;
+            }
+            .map_err(|error| format!("live cycle {cycle} CRC input binding failed: {error}"))?;
             if !self.display_control_seen {
                 // Direct power-on capture shows display traffic before firmware
                 // executes its first explicit DISPLAY control instruction. Keep
@@ -885,7 +897,9 @@ impl Hp67LiveMachine {
                 ));
             }
             if let Some(data) = self.owned_crc_data.as_mut() {
-                image.commit_owned(data).map_err(|error| format!("live cycle {cycle} {error}"))?;
+                image
+                    .commit_owned(data)
+                    .map_err(|error| format!("live cycle {cycle} {error}"))?;
             }
             image
                 .commit(&mut self.machine.act.state, &mut self.machine.crc)
@@ -947,8 +961,12 @@ impl Hp67LiveMachine {
             crc.check_mirror(&self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} CRC commit: {error}"))?;
             if let Some(data) = self.owned_crc_data.as_mut() {
-                data.sync_control(crc.flags()[CRC_FLAG_BUFFER_READY], crc.flags()[hp67emu::machines::hp67::CRC_FLAG_F7_STATUS]);
-                data.check_mirror(&self.machine.crc).map_err(|error| format!("live cycle {cycle} {error}"))?;
+                data.sync_control(
+                    crc.flags()[CRC_FLAG_BUFFER_READY],
+                    crc.flags()[hp67emu::machines::hp67::CRC_FLAG_F7_STATUS],
+                );
+                data.check_mirror(&self.machine.crc)
+                    .map_err(|error| format!("live cycle {cycle} {error}"))?;
             }
             if crc.received_frame() != self.data_serial.received_ram_command() {
                 return Err(format!(
@@ -1085,22 +1103,37 @@ impl Hp67LiveMachine {
         if let Some(data) = self.owned_crc_data.as_mut() {
             // Compare the observer only while actual transport can change media.
             // Inactive firmware idle never clones a physical card.
-            let active = motor_on && self.card_transport.head_active() && self.card_transport.card().is_some() && !self.card_transport.is_complete();
+            let active = motor_on
+                && self.card_transport.head_active()
+                && self.card_transport.card().is_some()
+                && !self.card_transport.is_complete();
             let observer = active.then(|| (self.card_transport.clone(), self.machine.crc.clone()));
-            let control = self.data_serial.crc_control_mut().expect("owned CRC control");
-            let result = self.card_transport.advance_us_owned(HP67_OBSERVED_WORD_TIME_US, motor_on, data, control);
+            let control = self
+                .data_serial
+                .crc_control_mut()
+                .expect("owned CRC control");
+            let result = self.card_transport.advance_us_owned(
+                HP67_OBSERVED_WORD_TIME_US,
+                motor_on,
+                data,
+                control,
+            );
             if let Some((mut transport, mut crc)) = observer {
                 let expected = transport.advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut crc);
                 if result != expected || self.card_transport != transport {
                     return Err(format!("live cycle {cycle} owned CRC transport mismatch: actual={result:?} expected={expected:?}"));
                 }
                 // The observer is comparison-only; the retained device publishes.
-                data.commit_mirror(&crc, &mut self.machine.crc).map_err(|error| format!("live cycle {cycle} transport {error}"))?;
+                data.commit_mirror(&crc, &mut self.machine.crc)
+                    .map_err(|error| format!("live cycle {cycle} transport {error}"))?;
             }
-            result.map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
-            data.check_mirror(&self.machine.crc).map_err(|error| format!("live cycle {cycle} {error}"))?;
+            result
+                .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
+            data.check_mirror(&self.machine.crc)
+                .map_err(|error| format!("live cycle {cycle} {error}"))?;
         } else {
-            self.card_transport.advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut self.machine.crc)
+            self.card_transport
+                .advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
         }
         Ok(())
@@ -1109,7 +1142,10 @@ impl Hp67LiveMachine {
     fn sync_crc_buffer_status(&mut self) {
         if let Some(data) = self.owned_crc_data.as_ref() {
             let (ready, error) = data.buffer_status();
-            self.data_serial.crc_control_mut().expect("owned CRC control").apply_buffer_status(ready, error);
+            self.data_serial
+                .crc_control_mut()
+                .expect("owned CRC control")
+                .apply_buffer_status(ready, error);
             return;
         }
         if let Some(crc) = self.data_serial.crc_control_mut() {
@@ -1937,11 +1973,11 @@ mod autonomous_ram_tests;
 #[cfg(test)]
 mod autonomous_crc_tests;
 #[cfg(test)]
+mod owned_crc_data_tests;
+#[cfg(test)]
 mod owned_flow_tests;
 #[cfg(test)]
 mod owned_register_tests;
-#[cfg(test)]
-mod owned_crc_data_tests;
 #[cfg(test)]
 mod ram_command_tests;
 #[cfg(test)]

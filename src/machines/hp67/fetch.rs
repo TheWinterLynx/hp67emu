@@ -573,11 +573,20 @@ impl ActSerialEndpoint {
         self.bind_crc_sources(crc, None)
     }
 
-    pub fn bind_crc_control_with_owned_data(&mut self, crc: &CrcArchitecturalCore, data: &super::crc_owned_data::Hp67CrcOwnedData, write_mode: bool) -> Result<(), String> {
+    pub fn bind_crc_control_with_owned_data(
+        &mut self,
+        crc: &CrcArchitecturalCore,
+        data: &super::crc_owned_data::Hp67CrcOwnedData,
+        write_mode: bool,
+    ) -> Result<(), String> {
         self.bind_crc_sources(crc, Some((data, write_mode)))
     }
 
-    fn bind_crc_sources(&mut self, crc: &CrcArchitecturalCore, owned: Option<(&super::crc_owned_data::Hp67CrcOwnedData, bool)>) -> Result<(), String> {
+    fn bind_crc_sources(
+        &mut self,
+        crc: &CrcArchitecturalCore,
+        owned: Option<(&super::crc_owned_data::Hp67CrcOwnedData, bool)>,
+    ) -> Result<(), String> {
         if self.crc_control_bound {
             return Err("CRC pre-instruction inputs are already bound".into());
         }
@@ -594,7 +603,9 @@ impl ActSerialEndpoint {
             .ok_or("CRC binding requires pre-instruction ACT state")?;
         let control = ActSerialCrcControlResultImage::begin(snapshot, execution, crc)?;
         let data = match owned {
-            Some((data, write_mode)) => ActSerialCrcDataResultImage::begin_owned(snapshot, execution, data, write_mode)?,
+            Some((data, write_mode)) => {
+                ActSerialCrcDataResultImage::begin_owned(snapshot, execution, data, write_mode)?
+            }
             None => ActSerialCrcDataResultImage::begin(snapshot, execution, crc)?,
         };
         self.crc_control_result_image = control;
