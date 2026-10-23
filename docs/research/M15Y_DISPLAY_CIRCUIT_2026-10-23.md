@@ -3,7 +3,8 @@
 Date: 2026-10-23
 Base: owner-validated M15X `29b99098e517963d43f2bc08374cfc4505c88e65`, integrated into main.
 Branch: `agent/m15y-display-owned-scan`
-Status: implemented; owner local gate pending.
+Status: owner FULL GATE GREEN; exact `ae0865b0e33a1eead2ed0798ae178ae0deb06c33` integrated into main. Delivery 2/15 complete.
+Diagnostic 12/12 unchanged cycles; live median 2.955 us/word (108.27x hardware).
 
 ## Completed scope
 

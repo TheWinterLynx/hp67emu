@@ -97,3 +97,9 @@ See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
 
 Exposes the crate-internal joint display-control commit to structural composition. It delegates to the fixed-topology fabric and does not change time or erase external drivers.
 The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.
+
+
+### M15Z full-pin capture and physical observation audit — delivery 3/15
+
+Opt-in pin recording observes committed immediate drives, joint IS/SYNC/DATA and display bundles, staged commit success and all PHI transitions. Each saved row preserves every declared net level and named high/low ownership mask. Delta order distinguishes multiple publications at one ordinal tick; a bundle has one snapshot. Disabled capture performs no pin enumeration/allocation. Overflow is explicit and cannot export truncated success. Power reset replaces the backplane and clears the recorder.
+Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.

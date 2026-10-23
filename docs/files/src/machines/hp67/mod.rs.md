@@ -162,3 +162,9 @@ This closes logical storage ownership, not physical CRC DATA serialization or PH
 
 Exports display_circuit as the GUI-free retained cathode/anode/exposure composition.
 The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.
+
+
+### M15Z full-pin capture and physical observation audit — delivery 3/15
+
+Exports pin_trace as the GUI-free bounded recorder, strict normalized capture importer and offline topology/interval/word-comparison interface.
+Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.

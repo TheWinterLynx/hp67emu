@@ -34,6 +34,7 @@ pub mod hp67firmware;
 pub mod isa;
 pub mod keyboard;
 pub mod machine;
+pub mod pin_trace;
 pub mod magnetic_card;
 pub mod ram_command;
 pub mod rom_devices;

@@ -22,9 +22,26 @@ use super::{
 #[derive(Debug, Clone, Default)]
 pub struct Hp67ElectricalBackplane {
     fabric: Hp67ElectricalFabric,
+    pin_trace: Option<super::pin_trace::Hp67PinTrace>,
 }
 
 impl Hp67ElectricalBackplane {
+    /// Opt-in diagnostic recording; never calibrates ordinal ticks as time.
+    pub fn start_pin_capture(&mut self, provenance: String) -> Result<(), String> {
+        if self.pin_trace.is_some() { return Err("pin capture already active".into()); }
+        if !self.at_transport_launch_boundary() { return Err("pin capture must start before PHI1 falling".into()); }
+        self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(self.word_bit(), provenance)?);
+        self.record_pins(); Ok(())
+    }
+    pub fn take_pin_capture(&mut self) -> Option<super::pin_trace::Hp67PinTrace> { self.pin_trace.take() }
+    #[inline]
+    fn record_pins(&mut self) {
+        if self.pin_trace.is_some() {
+            let row = super::pin_trace::snapshot(self);
+            self.pin_trace.as_mut().expect("active capture").record(row);
+        }
+    }
+
     pub const fn tick(&self) -> Tick {
         self.fabric.tick()
     }
@@ -87,6 +104,7 @@ impl Hp67ElectricalBackplane {
     ) {
         self.fabric
             .commit_serial_launch_with_roms(act_is, rom_is, sync, data);
+        self.record_pins();
     }
 
     /// The independent RAM owns a distinct aggregate DATA contribution.
@@ -104,15 +122,18 @@ impl Hp67ElectricalBackplane {
             data,
             Hp67Driver::RamAggregate,
         );
+        self.record_pins();
     }
 
     /// Structural DATA bridge commit; no device sees an intermediate handoff.
     pub fn commit_data_level_bridge(&mut self, act: Drive, ram: Drive) {
         self.fabric.commit_data_level_bridge(act, ram);
+        self.record_pins();
     }
 
     pub(crate) fn commit_display_controls(&mut self, str_drive: Drive, rcd_drive: Drive) {
         self.fabric.commit_display_controls(str_drive, rcd_drive);
+        self.record_pins();
     }
 
     pub fn active_driver_count(&self, net: Hp67Net) -> u8 {
@@ -135,6 +156,7 @@ impl Hp67ElectricalBackplane {
 
     pub fn drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         self.fabric.set_drive_immediate(net, driver, drive);
+        self.record_pins();
     }
 
     pub fn begin_evaluation(
@@ -155,7 +177,9 @@ impl Hp67ElectricalBackplane {
     }
 
     pub fn commit_staged(&mut self) -> Result<(), Hp67ElectricalError> {
-        self.fabric.commit_staged()
+        let result = self.fabric.commit_staged();
+        if result.is_ok() { self.record_pins(); }
+        result
     }
 
     /// Advance the temporary timing scaffold by one non-overlapping clock

@@ -5,6 +5,8 @@
 
 mod app;
 mod hp67;
+#[cfg(not(target_arch = "wasm32"))]
+mod pin_trace_cli;
 mod panel;
 mod program_library;
 mod ui;
@@ -123,6 +125,13 @@ fn decode_trace_file(args: &[String]) -> Result<(), String> {
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if pin_trace_cli::handles(args.first().map(String::as_str)) {
+        match pin_trace_cli::run(&args) {
+            Ok(0) => return Ok(()),
+            Ok(code) => std::process::exit(code),
+            Err(error) => { eprintln!("{error}"); std::process::exit(1); }
+        }
+    }
     if args.first().map(String::as_str) == Some("--trace-is") {
         let result = (|| -> Result<(), String> {
             if args.len() != 3 {

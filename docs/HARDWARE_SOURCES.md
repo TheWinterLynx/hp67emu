@@ -344,4 +344,15 @@ receiver; cathode selection, anode decode and nominal exposure live in the
 library circuit. ACT slot annotations are comparison-only. Phase corruption
 fails before clocks/tails; reset and optics retain existing policies. Nine new
 regressions cover the complete lane. Physical pulse widths/PHI/propagation stay
-open. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`. Owner local gate pending.
+open. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`. Owner M15Y FULL GATE GREEN; exact ae0865b0 head integrated (delivery 2/15).
+
+
+## M15Z full-pin capture and physical-time audit — delivery 3/15
+
+Opt-in capture covers all named pins and driver masks, atomic source bundles
+and ordinal sub-events. Strict normalized physical-time import, PHI interval
+audit, IS/SYNC/wrapped DATA decoding and explicit-word selected-pin comparison
+are available through native CLI. Eleven regressions cover the complete lane.
+This supplies validation tooling; no measured hardware fixture or new physical
+timing claim is introduced. See `docs/PIN_CAPTURE_v1.0.md` and
+`docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`. Owner local gate pending.

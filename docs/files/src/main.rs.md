@@ -33,3 +33,9 @@ Adds GUI-free bus_trace module and native `--compare-is expected.tsv actual.tsv 
 ## M14Z structural word decoding
 
 Native `--decode-is input.tsv report.txt [start_row words]` decodes an explicit range of complete 224-observation words. Default requires the entire trace to contain whole words. Every bit must carry four consecutive ordinal ticks, the native PHI scaffold shape, matching b0..b55 coordinate and stable binary IS. Malformed/partial/unresolved/shifted observations fail rather than fabricate fields. The decoder uses existing source-locked timing windows to recover display byte, 12-bit ROM address and 10-bit fetched instruction LSB-first. Reports retain provenance, tick/row origins and explicitly excluded samples; ROM bank and concurrently executing instruction are not inferred. No production execution changes. See research/M14Z_IS_WORD_DECODE_2026-10-12.md.
+
+
+### M15Z full-pin capture and physical observation audit — delivery 3/15
+
+Dispatches --trace-pins, --audit-pins and --compare-pins to a native-only CLI module before GUI startup. Exit 0 is resolved scoped equality/success, 2 differences, 3 unresolved selected observations and 1 input/argument/output failure. Legacy IS commands and WASM startup are unchanged.
+Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.
