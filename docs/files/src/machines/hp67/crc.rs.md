@@ -27,3 +27,9 @@ The endpoint binds `ActSerialCrcControlResultImage` once from pre-instruction AC
 ## M14M CRC logical data authority
 
 CRC data-port reads/writes bind an independent `ActSerialCrcDataResultImage` before b0. The live bridge restores oracle C/FIFO/READY/F7 effects before transport and compares the frozen payload/storage result before commit after b55. FIFO wrap, capacity, read duplication into both C halves and upper-C write packing preserve the existing semantic contract. Only FIFO storage and READY/F7 are applied; other control flags and external inputs retain their owners. A changed pre-state rejects commit. This is a WORKING APPROXIMATION for logical completed-word authority; it does not transport CRC bits on DATA, infer a 28-bit flux order, or extend installed-RAM phase evidence to CRC ports. CRC electrical DATA ownership/edges and sense timing remain SOURCE-BLOCKED.
+
+
+### M15X retained CRC DATA storage
+
+CrcDataState fields are crate-visible for the separate retained device implementation and comparison carrier. The architectural FIFO algorithm and public API remain unchanged; production does not seed device buffers from this mirror.
+This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.

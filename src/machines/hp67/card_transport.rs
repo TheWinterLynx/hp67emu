@@ -16,6 +16,44 @@ use super::{
     },
 };
 
+// The same transport operates on two actual storage owners: the oracle and
+// the retained CRC. This port does not encode calculator or media semantics.
+trait CardCrcPort {
+    fn flag(&self, flag: usize) -> Option<bool>;
+    fn signal_transport_ready(&mut self, error: bool);
+    fn signal_write_capacity(&mut self, error: bool) { self.signal_transport_ready(error); }
+    fn present_read_word(&mut self, word: u32) -> Result<(), CrcArchitecturalError>;
+    fn write_buffer_can_accept(&self) -> bool;
+    fn queued_write_words(&self) -> usize;
+    fn take_queued_write_word(&mut self) -> Option<u32>;
+}
+impl CardCrcPort for CrcArchitecturalCore {
+    fn flag(&self, flag: usize) -> Option<bool> { CrcArchitecturalCore::flag(self, flag) }
+    fn signal_transport_ready(&mut self, error: bool) { CrcArchitecturalCore::signal_transport_ready(self, error); }
+    fn present_read_word(&mut self, word: u32) -> Result<(), CrcArchitecturalError> { CrcArchitecturalCore::present_read_word(self, word) }
+    fn write_buffer_can_accept(&self) -> bool { CrcArchitecturalCore::write_buffer_can_accept(self) }
+    fn queued_write_words(&self) -> usize { CrcArchitecturalCore::queued_write_words(self) }
+    fn take_queued_write_word(&mut self) -> Option<u32> { CrcArchitecturalCore::take_queued_write_word(self) }
+}
+struct OwnedCrcPort<'a> {
+    data: &'a mut super::crc_owned_data::Hp67CrcOwnedData,
+    control: &'a super::Hp67SerialCrcControl,
+}
+impl CardCrcPort for OwnedCrcPort<'_> {
+    fn flag(&self, flag: usize) -> Option<bool> {
+        match flag {
+            super::CRC_FLAG_BUFFER_READY => Some(self.data.buffer_status().0),
+            super::CRC_FLAG_F7_STATUS => Some(self.data.buffer_status().1),
+            _ => self.control.flags().get(flag).copied(),
+        }
+    }
+    fn signal_transport_ready(&mut self, error: bool) { self.data.sync_control(true, error); }
+    fn present_read_word(&mut self, word: u32) -> Result<(), CrcArchitecturalError> { self.data.present_read_word(word) }
+    fn write_buffer_can_accept(&self) -> bool { self.data.write_buffer_can_accept() }
+    fn queued_write_words(&self) -> usize { self.data.queued_write_words() }
+    fn take_queued_write_word(&mut self) -> Option<u32> { self.data.take_queued_write_word() }
+}
+
 pub const HP67_NOMINAL_CARD_RECORD_US: u64 = 28_000;
 pub const HP67_MIN_CARD_SPEED_PERCENT: u8 = 95;
 pub const HP67_MAX_CARD_SPEED_PERCENT: u8 = 105;
@@ -224,6 +262,18 @@ impl Hp67CardTransport {
         motor_on: bool,
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
+        self.advance_crc_port(elapsed_us, motor_on, crc)
+    }
+
+    pub fn advance_us_owned(&mut self, elapsed_us: u64, motor_on: bool, data: &mut super::crc_owned_data::Hp67CrcOwnedData, control: &mut super::Hp67SerialCrcControl) -> Result<usize, Hp67CardTransportError> {
+        data.sync_control(control.flags()[super::CRC_FLAG_BUFFER_READY], control.flags()[super::CRC_FLAG_F7_STATUS]);
+        let result = self.advance_crc_port(elapsed_us, motor_on, &mut OwnedCrcPort { data: &mut *data, control: &*control });
+        let (ready, error) = data.buffer_status();
+        control.apply_buffer_status(ready, error);
+        result
+    }
+
+    fn advance_crc_port(&mut self, elapsed_us: u64, motor_on: bool, crc: &mut impl CardCrcPort) -> Result<usize, Hp67CardTransportError> {
         if !motor_on || !self.head_active || self.card.is_none() || self.is_complete() {
             return Ok(0);
         }
@@ -253,7 +303,7 @@ impl Hp67CardTransport {
     fn advance_read_us(
         &mut self,
         elapsed_us: u64,
-        crc: &mut CrcArchitecturalCore,
+        crc: &mut impl CardCrcPort,
     ) -> Result<usize, Hp67CardTransportError> {
         self.record_phase_units = self
             .record_phase_units
@@ -282,7 +332,7 @@ impl Hp67CardTransport {
     fn advance_write_us(
         &mut self,
         elapsed_us: u64,
-        crc: &mut CrcArchitecturalCore,
+        crc: &mut impl CardCrcPort,
     ) -> Result<usize, Hp67CardTransportError> {
         let write_protected = self
             .active_track()

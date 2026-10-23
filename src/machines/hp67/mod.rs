@@ -22,6 +22,7 @@ pub mod bus_trace;
 pub mod card_flux;
 pub mod card_transport;
 pub mod crc;
+pub mod crc_owned_data;
 pub mod data;
 pub mod display;
 pub mod display_exposure;

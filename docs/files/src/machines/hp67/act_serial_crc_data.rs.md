@@ -25,3 +25,9 @@ A Copy image captures pre/result C and scoped FIFO storage plus READY/F7. `stage
 
 The result_c accessor exposes the frozen logical C result for the retained ACT register file. Existing completion, pre-state comparison and FIFO commit guards remain authoritative. This does not introduce magnetic serialization or physical DATA timing.
 Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`.
+
+
+### M15X retained CRC DATA storage
+
+One port classifier can stage from either reference or retained CRC data sources. Production uses begin_owned; no host FIFO is imported. The immutable image validates prior state and b55 completion before committing owned storage. Existing ACT C/FIFO result comparisons remain unchanged.
+This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.

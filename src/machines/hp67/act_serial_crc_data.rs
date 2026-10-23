@@ -23,6 +23,23 @@ impl ActSerialCrcDataResultImage {
         execution: &ActSerialExecution,
         crc: &CrcArchitecturalCore,
     ) -> Result<Option<Self>, String> {
+        Self::begin_from(snapshot, execution, |payload| crc.stage_data_word(payload).map(|(word, next)| (word, crc.data_state(), next)))
+    }
+
+    pub fn begin_owned(
+        snapshot: &ActSerialStateSnapshot,
+        execution: &ActSerialExecution,
+        data: &super::crc_owned_data::Hp67CrcOwnedData,
+        write_mode: bool,
+    ) -> Result<Option<Self>, String> {
+        Self::begin_from(snapshot, execution, |payload| data.stage_data_word(payload, write_mode).map(|(word, next)| (word, data.state(), next)))
+    }
+
+    fn begin_from(
+        snapshot: &ActSerialStateSnapshot,
+        execution: &ActSerialExecution,
+        stage: impl FnOnce(Option<u32>) -> Result<(u32, CrcDataState, CrcDataState), super::CrcArchitecturalError>,
+    ) -> Result<Option<Self>, String> {
         let ActSerialWordClass::SpecialOrPeripheral { opcode } = execution.class() else {
             return Ok(None);
         };
@@ -51,8 +68,7 @@ impl ActSerialCrcDataResultImage {
                     word | (u32::from(nibble & 0xf) << (digit * 4))
                 })
         });
-        let (word, result_crc) = crc
-            .stage_data_word(payload)
+        let (word, previous_crc, result_crc) = stage(payload)
             .map_err(|error| format!("CRC data staging at 0x{address:02x} failed: {error:?}"))?;
         let result_c = if write {
             previous_c
@@ -65,7 +81,7 @@ impl ActSerialCrcDataResultImage {
             word,
             previous_c,
             result_c,
-            previous_crc: crc.data_state(),
+            previous_crc,
             result_crc,
             complete: false,
         }))
@@ -107,6 +123,10 @@ impl ActSerialCrcDataResultImage {
             state.c = self.previous_c;
         }
         crc.apply_data_state(self.previous_crc);
+    }
+    pub fn commit_owned(&self, data: &mut super::crc_owned_data::Hp67CrcOwnedData) -> Result<(), String> {
+        if !self.complete { return Err("CRC owned DATA authority requires completed b0..b55 execution".into()); }
+        data.commit_staged(self.previous_crc, self.result_crc)
     }
     pub fn commit(
         &self,

@@ -33,3 +33,9 @@ Closing the modeled head switch first raises the existing CRC buffer_ready start
 `take_unstarted_card()` models pulling a card back out before the motor/head path has taken it. It succeeds only while record position is still zero and the head switch has not become active, resets the transport's pre-stream handshake state, and returns the same physical card. It cannot withdraw a card that has begun crossing the head.
 
 Power-off card recovery: `take_card_for_power_off()` returns the currently owned physical card regardless of transport position and clears record phase, head, startup-handshake and insertion-end state. Records already committed to the card remain intact. This API is reserved for calculator power removal; normal user withdrawal still uses the stricter pre-head `take_unstarted_card()` rule.
+
+
+### M15X retained CRC DATA storage
+
+A private narrow CardCrcPort serves two concrete storage owners. advance_us retains the reference API; advance_us_owned targets retained buffers with independent CRC control flags. Nominal record cadence, fractional speed accumulation, startup acknowledgement, clipping, unrecorded media and same-card identity are unchanged. READY/F7 is published from owned data back to independent control, including overflow status on error.
+This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.

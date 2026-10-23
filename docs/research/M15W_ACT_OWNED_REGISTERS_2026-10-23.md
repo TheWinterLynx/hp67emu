@@ -3,7 +3,8 @@
 Date: 2026-10-23
 Base: owner-validated M15V `e1f8e22160c671742b419ac2c1b7e5b8eb9164a2`, integrated into main.
 Branch: `agent/m15w-act-owned-registers`
-Status: implemented; owner local gate pending.
+Status: owner FULL GATE GREEN; exact `384c11197c8a30e0482f44aa5658a1bf4d2a058a` integrated into main.
+Diagnostic 12/12 with unchanged cycles; live median 2.688 us/word (119.06x hardware).
 
 ## Completed scope
 

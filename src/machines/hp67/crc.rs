@@ -68,14 +68,14 @@ impl Default for CrcArchitecturalCore {
 /// Control flags other than READY/F7 and external inputs are deliberately absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CrcDataState {
-    read_buffers: [Option<u32>; CRC_READ_BUFFER_COUNT],
-    read_head: usize,
-    read_len: usize,
-    write_buffers: [Option<u32>; CRC_WRITE_BUFFER_COUNT],
-    write_head: usize,
-    write_len: usize,
-    ready: bool,
-    status_error: bool,
+    pub(crate) read_buffers: [Option<u32>; CRC_READ_BUFFER_COUNT],
+    pub(crate) read_head: usize,
+    pub(crate) read_len: usize,
+    pub(crate) write_buffers: [Option<u32>; CRC_WRITE_BUFFER_COUNT],
+    pub(crate) write_head: usize,
+    pub(crate) write_len: usize,
+    pub(crate) ready: bool,
+    pub(crate) status_error: bool,
 }
 
 impl CrcArchitecturalCore {

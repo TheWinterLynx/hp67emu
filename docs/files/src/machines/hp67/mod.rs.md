@@ -150,3 +150,9 @@ Per-sample CRC/RAM command images commit only after DATA validation succeeds.
 No CRC DATA serialization or physical F2/PHI latch timing is asserted. The live
 benchmark includes the endpoint only in its production firmware row; injected
 RAM/CRC workloads retain the explicit reference bridge.
+
+
+### M15X retained CRC DATA storage
+
+Exports the crc_owned_data module containing retained logical read/write buffers. No GUI or host media format dependency is added.
+This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.

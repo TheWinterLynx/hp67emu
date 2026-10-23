@@ -360,3 +360,9 @@ See `docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`.
 
 The optional retained register file supplies every execution snapshot. Completed structural result images update it at b55; installed RAM C arrives at the following b1 tail through the explicit resolved-DATA port. Disabling received execution clears both owned flow and registers. No per-bit whole-ACT clone is added.
 Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`.
+
+
+### M15X retained CRC DATA storage
+
+bind_crc_control_with_owned_data stages logical CRC DATA from retained device storage and independently owned write-mode input. Existing bind_crc_control remains for reference/test compositions. Both paths retain pre-b0 binding and duplicate-binding guards.
+This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.

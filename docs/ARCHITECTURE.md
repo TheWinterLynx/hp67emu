@@ -417,4 +417,15 @@ resolved RAM C and independent CRC condition ports. Full mirror guards precede
 clocks/DATA tails; checked structural completion supplies the mirror. Reset and
 reference composition are preserved. Six regressions accompany this lane.
 No exact PHI/internal-write timing claim. See
-`docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`. Owner local gate pending.
+`docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`. Owner M15W FULL GATE GREEN; exact 384c1119 head integrated.
+
+
+## M15X retained CRC DATA and card transport
+
+Production port staging and transport ingress/draining now use retained CRC
+FIFO storage. Independent control owns mode/handshake commands; strict mirror
+checks precede clocks and observer agreement precedes device publication.
+Reset and injected reference fixtures preserve their composition. Seven new
+regressions include all-speed record transport and full firmware card roundtrip.
+Physical CRC DATA serialization and exact PHI edges remain open. See
+`docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`. Owner local gate pending.

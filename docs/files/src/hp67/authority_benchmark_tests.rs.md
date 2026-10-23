@@ -159,3 +159,9 @@ See `docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`.
 
 Scope labels now identify owned ACT registers in production and their explicit exclusion from injected reference fixtures. Workload and speed assertions are unchanged.
 Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`.
+
+
+### M15X retained CRC DATA storage
+
+Scope labels include retained logical CRC DATA in production and exclude it from injected reference fixtures. The idle row includes its mirror checks; no card transport throughput or magnetic timing is inferred.
+This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.
