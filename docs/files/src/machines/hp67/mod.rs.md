@@ -156,3 +156,9 @@ RAM/CRC workloads retain the explicit reference bridge.
 
 Exports the crc_owned_data module containing retained logical read/write buffers. No GUI or host media format dependency is added.
 This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.
+
+
+### M15Y pin-derived display circuit (delivery 2/15)
+
+Exports display_circuit as the GUI-free retained cathode/anode/exposure composition.
+The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.

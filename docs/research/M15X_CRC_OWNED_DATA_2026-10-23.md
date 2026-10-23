@@ -3,7 +3,8 @@
 Date: 2026-10-23
 Base: owner-validated M15W `384c11197c8a30e0482f44aa5658a1bf4d2a058a`, integrated into main.
 Branch: `agent/m15x-crc-owned-data`
-Status: implemented; owner local gate pending.
+Status: owner FULL GATE GREEN; exact `29b99098e517963d43f2bc08374cfc4505c88e65` integrated into main. Delivery 1/15 complete.
+Diagnostic 12/12 unchanged cycles; live median 2.920 us/word (109.59x hardware).
 
 ## Completed lane
 

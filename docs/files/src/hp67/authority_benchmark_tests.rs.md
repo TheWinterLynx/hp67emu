@@ -165,3 +165,9 @@ Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_
 
 Scope labels include retained logical CRC DATA in production and exclude it from injected reference fixtures. The idle row includes its mirror checks; no card transport throughput or magnetic timing is inferred.
 This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.
+
+
+### M15Y pin-derived display circuit (delivery 2/15)
+
+The live scope now includes the pin-derived cathode/anode/exposure circuit. Workloads and speed assertions are unchanged; the provisional display checkpoint is not calibrated physical timing.
+The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.

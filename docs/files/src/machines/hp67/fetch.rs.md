@@ -366,3 +366,9 @@ Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_
 
 bind_crc_control_with_owned_data stages logical CRC DATA from retained device storage and independently owned write-mode input. Existing bind_crc_control remains for reference/test compositions. Both paths retain pre-b0 binding and duplicate-binding guards.
 This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.
+
+
+### M15Y pin-derived display circuit (delivery 2/15)
+
+All four display transports and the clocked RAM DATA prefix share one staged display checkpoint. ROM0 first evaluates incoming IS, proposes STR from its own completed byte, while ACT independently proposes RCD. Both outputs publish before resolved controls are sampled; data/control latches commit together only on success. Legacy result scan annotations remain comparison-only; production display consumes the raw receiver transaction.
+The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.

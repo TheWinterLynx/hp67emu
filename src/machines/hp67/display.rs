@@ -95,6 +95,9 @@ pub enum Rom0DisplayError {
         active_drivers: u8,
     },
     MissingControlEdge,
+    InvalidReceiverPhase { tick: u64, word_bit: u8 },
+    ReceiverOrder { expected: u8, actual: u8 },
+    InvalidControlOwner { word_bit: u8, net: Hp67Net, driver: Hp67Driver, drive: Drive },
     UnknownDisplayCode {
         scan_slot: u8,
         code: u8,
@@ -109,6 +112,20 @@ pub enum Rom0DisplayError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rom0StrEvent {
     pub scan_slot: u8,
+}
+
+/// Pin-derived display transaction. No ACT scan-slot annotation enters it.
+/// Fields are private: only the ordered resolved receiver can construct it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedDisplayStrobe {
+    tick: u64,
+    code: u8,
+    rcd_falling: bool,
+}
+impl ResolvedDisplayStrobe {
+    pub const fn tick(self) -> u64 { self.tick }
+    pub const fn code(self) -> u8 { self.code }
+    pub const fn rcd_falling(self) -> bool { self.rcd_falling }
 }
 
 /// Structural failures in the downstream 1820-1749 scan state.
@@ -133,21 +150,28 @@ fn sample_isa(level: LogicLevel, word_bit: u8) -> Result<bool, Rom0DisplayError>
 pub struct Rom0DisplayEndpoint {
     received_byte: u8,
     received_mask: u8,
+    #[cfg(test)]
     resolved_control_edges: Option<(Rom0StrEvent, bool)>,
     previous_control_levels: Option<(LogicLevel, LogicLevel)>,
+    resolved_strobe: Option<ResolvedDisplayStrobe>,
+    next_control_bit: u8,
 }
 
 impl Rom0DisplayEndpoint {
     pub fn begin_word(&mut self) {
         self.received_byte = 0;
         self.received_mask = 0;
-        self.resolved_control_edges = None;
+        #[cfg(test)]
+        { self.resolved_control_edges = None; }
         self.previous_control_levels = None;
+        self.resolved_strobe = None;
+        self.next_control_bit = 0;
     }
 
     /// Coarse bit-cell bridge: low during b7, high otherwise. The one-cell
     /// width and caller-selected checkpoint are approximations, not physical edges.
     /// Both outputs are published before the downstream receiver samples either.
+    #[cfg(test)]
     pub(crate) fn visit_control_bit(
         &mut self,
         word_bit: u8,
@@ -205,9 +229,68 @@ impl Rom0DisplayEndpoint {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn resolved_control_edges(&self) -> Result<(Rom0StrEvent, bool), Rom0DisplayError> {
         self.resolved_control_edges
             .ok_or(Rom0DisplayError::MissingControlEdge)
+    }
+
+    pub fn resolved_strobe(&self) -> Result<ResolvedDisplayStrobe, Rom0DisplayError> {
+        self.resolved_strobe.ok_or(Rom0DisplayError::MissingControlEdge)
+    }
+
+    fn check_receiver_edge(&self, bus: &Hp67ElectricalBackplane) -> Result<u8, Rom0DisplayError> {
+        let bit = bus.word_bit();
+        if !bus.at_transport_sample_edge() {
+            return Err(Rom0DisplayError::InvalidReceiverPhase { tick: bus.tick().get(), word_bit: bit });
+        }
+        if bit != self.next_control_bit {
+            return Err(Rom0DisplayError::ReceiverOrder { expected: self.next_control_bit, actual: bit });
+        }
+        Ok(bit)
+    }
+
+    pub(crate) fn sample_data_at_edge(&mut self, bus: &Hp67ElectricalBackplane) -> Result<(), Rom0DisplayError> {
+        let bit = self.check_receiver_edge(bus)?;
+        self.sample_for_bit(bit, bus.level(Hp67Net::Isa))
+    }
+
+    /// ROM0 owns only STR. ACT supplies its RCD proposal independently.
+    pub(crate) fn str_drive(&self, bit: u8) -> Result<Drive, Rom0DisplayError> {
+        if bit == 7 { self.display_byte()?; Ok(Drive::Low) } else { Ok(Drive::High) }
+    }
+
+    pub(crate) fn sample_controls_at_edge(&mut self, bus: &Hp67ElectricalBackplane) -> Result<(), Rom0DisplayError> {
+        let bit = self.check_receiver_edge(bus)?;
+        for net in [Hp67Net::Str, Hp67Net::Rcd] {
+            let driver = if net == Hp67Net::Str { Hp67Driver::RomDisplay1818_0268 } else { Hp67Driver::Act1820_2530 };
+            let drive = bus.driver_drive(net, driver);
+            if drive == Drive::HighZ {
+                return Err(Rom0DisplayError::InvalidControlOwner { word_bit: bit, net, driver, drive });
+            }
+            let level = bus.level(net);
+            let active_drivers = bus.active_driver_count(net);
+            let valid_level = match net {
+                Hp67Net::Str => level == if bit == 7 { LogicLevel::Low } else { LogicLevel::High },
+                _ if bit == 7 => matches!(level, LogicLevel::High | LogicLevel::Low),
+                _ => level == LogicLevel::High,
+            };
+            if active_drivers != 1 || !valid_level {
+                return Err(Rom0DisplayError::InvalidControlSample { word_bit: bit, net, level, active_drivers });
+            }
+        }
+        let levels = (bus.level(Hp67Net::Str), bus.level(Hp67Net::Rcd));
+        let strobe = if bit == 7 {
+            if self.previous_control_levels != Some((LogicLevel::High, LogicLevel::High)) || self.resolved_strobe.is_some() {
+                return Err(Rom0DisplayError::MissingControlEdge);
+            }
+            Some(ResolvedDisplayStrobe { tick: bus.tick().get(), code: self.display_byte()?, rcd_falling: levels.1 == LogicLevel::Low })
+        } else { None };
+        if let Some(strobe) = strobe { self.resolved_strobe = Some(strobe); }
+        self.previous_control_levels = Some(levels);
+        // 56 is a sentinel: replay after b55 cannot look like a new word.
+        self.next_control_bit = bit + 1;
+        Ok(())
     }
 
     pub fn sample_for_bit(
@@ -362,6 +445,10 @@ impl CathodeDriver1820_1749 {
         let role = self.scan_role();
         self.scan_slot = if rcd_falling { 1 } else { self.scan_slot + 1 };
         Ok(role)
+    }
+
+    pub fn apply_resolved_strobe(&mut self, strobe: ResolvedDisplayStrobe) -> Result<Hp67DisplayRole, CathodeScanError> {
+        self.apply_control_edges(Rom0StrEvent { scan_slot: self.scan_slot }, strobe.rcd_falling())
     }
 
     pub fn rcd_falling_edge(&mut self) {

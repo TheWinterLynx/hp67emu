@@ -111,6 +111,10 @@ impl Hp67ElectricalBackplane {
         self.fabric.commit_data_level_bridge(act, ram);
     }
 
+    pub(crate) fn commit_display_controls(&mut self, str_drive: Drive, rcd_drive: Drive) {
+        self.fabric.commit_display_controls(str_drive, rcd_drive);
+    }
+
     pub fn active_driver_count(&self, net: Hp67Net) -> u8 {
         self.fabric.active_driver_count(net)
     }

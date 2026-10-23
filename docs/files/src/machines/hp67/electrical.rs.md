@@ -113,3 +113,9 @@ changes. Reset reconstructs the path and the RAM-capable transport binds its
 owner again. The standalone RAM fixture also uses this identity. Exact physical
 DATA output stage/polarity, per-IC mapping and PHI edges remain unresolved.
 See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
+
+
+### M15Y pin-derived display circuit (delivery 2/15)
+
+Joint display-control publication applies named ROM0 STR and ACT RCD proposals as one observable bundle, without advancing PHI/time. External contributions are preserved for contention and agreeing-extra-owner rejection.
+The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.

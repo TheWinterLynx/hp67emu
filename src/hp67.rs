@@ -1,10 +1,12 @@
 use std::time::Duration;
 
+#[cfg(test)]
 use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
+use hp67emu::machines::hp67::display_circuit::Hp67DisplayCircuit;
 
 use hp67emu::machines::hp67::{
-    act_data_transfer_plan, capture_ram_block, decode_rom0_display_byte,
-    display_register_index_for_scan_slot, restore_ram_block,
+    act_data_transfer_plan, capture_ram_block,
+    restore_ram_block,
     run_structural_data_tail_prefix_with_ram, run_structural_display_fetch_cycle,
     run_structural_display_fetch_cycle_traced,
     run_structural_display_fetch_data_phase_cycle_traced_with_ram,
@@ -12,7 +14,7 @@ use hp67emu::machines::hp67::{
     ActRegister, ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint,
     ActSerialFlowState, ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
     ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd,
-    CathodeDriver1820_1749, CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
+    CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
     Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
     Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
     Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Hp67SerialRam, Rom0DisplayEndpoint,
@@ -337,8 +339,7 @@ pub struct Hp67LiveMachine {
     act_serial: ActSerialEndpoint,
     fetch_rom: RomFetchEndpoint,
     display_rom0: Rom0DisplayEndpoint,
-    cathode: CathodeDriver1820_1749,
-    display_exposure: Hp67DisplayExposure,
+    display_circuit: Hp67DisplayCircuit,
     optical_scan_floor: u64,
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
@@ -371,8 +372,7 @@ impl Hp67LiveMachine {
                 .with_owned_registers(),
             fetch_rom: RomFetchEndpoint::autonomous_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
-            cathode: CathodeDriver1820_1749::default(),
-            display_exposure: Hp67DisplayExposure::default(),
+            display_circuit: Hp67DisplayCircuit::default(),
             optical_scan_floor: 0,
             pipeline: FetchPipelineLatch::default(),
             data_serial: Hp67DataSerialWordPath::default()
@@ -405,22 +405,22 @@ impl Hp67LiveMachine {
     /// Complete-scan optical snapshot; immediate masks remain diagnostic state.
     pub fn optical_display_frame(&self) -> HardwareDisplayFrame {
         if (self.display_control_seen && !self.machine.act.state.display_enable)
-            || self.display_exposure.completed_scans() < self.optical_scan_floor
+            || self.display_circuit.exposure().completed_scans() < self.optical_scan_floor
         {
             return HardwareDisplayFrame::BLANK;
         }
-        HardwareDisplayFrame::from_scan_dwell(self.display_exposure.completed_scan_dwell_us())
+        HardwareDisplayFrame::from_scan_dwell(self.display_circuit.exposure().completed_scan_dwell_us())
     }
 
     /// Drop the interrupted scan and require a following full scan for optics.
     /// This is a conservative snapshot-publication policy, not an ACT latch edge.
     fn invalidate_optical_scan(&mut self) {
-        self.optical_scan_floor = self.display_exposure.completed_scans().saturating_add(2);
+        self.optical_scan_floor = self.display_circuit.exposure().completed_scans().saturating_add(2);
     }
 
     #[cfg(test)]
     pub const fn display_exposure(&self) -> &Hp67DisplayExposure {
-        &self.display_exposure
+        self.display_circuit.exposure()
     }
 
     pub fn reset_power_on(&mut self) -> Result<(), String> {
@@ -441,8 +441,7 @@ impl Hp67LiveMachine {
         }
         self.fetch_rom = RomFetchEndpoint::autonomous_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
-        self.cathode = CathodeDriver1820_1749::default();
-        self.display_exposure = Hp67DisplayExposure::default();
+        self.display_circuit = Hp67DisplayCircuit::default();
         self.optical_scan_floor = 0;
         self.pipeline = FetchPipelineLatch::default();
         let autonomous_crc = self.data_serial.crc_control().is_some();
@@ -604,6 +603,8 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        self.display_circuit.check_phase(self.act_serial.display_scan_slot())
+            .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
         self.act_serial
             .check_owned_flow_mirror(&self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
@@ -1914,55 +1915,16 @@ impl Hp67LiveMachine {
         }
         self.pipeline.complete_cycle(result.fetched_word);
 
-        let scan_slot = result.str_event.scan_slot;
-
-        // Before firmware executes its first display-control instruction, do not
-        // use the architectural `display_enable` default as an electrical inhibit.
-        // A real HP-67 visibly emits during this interval, while the semantic
-        // model's reset value is not hardware evidence. The emitted CONTENT is
-        // still entirely derived from ACT A/B -> IS -> ROM0 for this word.
-        let mut emitted_anodes = Hp67SegmentMask::BLANK;
-        if !self.display_control_seen || self.machine.act.state.display_enable {
-            let anodes =
-                decode_rom0_display_byte(scan_slot, result.display_byte).map_err(|error| {
-                    let register_index = display_register_index_for_scan_slot(scan_slot);
-                    let post = register_index.map(|index| {
-                        (
-                            self.machine.act.state.a[index],
-                            self.machine.act.state.b[index],
-                        )
-                    });
-                    let pre = register_index.and_then(|index| {
-                        self.act_serial.serial_execution_state().and_then(|state| {
-                            Some((
-                                state.register_digit(ActSerialRegister::A, index as u8)?,
-                                state.register_digit(ActSerialRegister::B, index as u8)?,
-                            ))
-                        })
-                    });
-                    format!(
-                        "live cycle {cycle} ROM0 decode failed at slot {scan_slot}: {error:?}; \
-                         executing_word={:?} post_pc={:04o} display_enable={} register_index={register_index:?} \
-                         pre_a_b={pre:?} post_a_b={post:?}",
-                        self.pipeline.executing_word(),
-                        self.machine.pc(),
-                        self.machine.act.state.display_enable,
-                    )
-                })?;
-            self.display.capture_scan_slot(scan_slot, anodes)?;
-            emitted_anodes = anodes;
-        } else {
-            self.display.clear();
+        // The existing startup/inhibit bridge is preserved. Byte contents and
+        // cathode selection come only from the resolved receiver and own counter.
+        let enabled = !self.display_control_seen || self.machine.act.state.display_enable;
+        let emission = self.display_circuit.capture_rom0(&self.display_rom0, enabled)
+            .map_err(|error| format!("live cycle {cycle} display circuit failed: {error:?}"))?;
+        if emission.scan_slot != result.str_event.scan_slot || emission.code != result.display_byte {
+            return Err(format!("live cycle {cycle} display transport observer mismatch: device={emission:?} observer={result:?}"));
         }
-
-        self.cathode
-            .apply_control_edges(result.str_event, result.rcd_falling)
-            .map_err(|error| format!("live cycle {cycle} cathode control failed: {error:?}"))?;
-        self.display_exposure
-            .capture_word(scan_slot, emitted_anodes)
-            .map_err(|error| {
-                format!("live cycle {cycle} display exposure phase failed: {error:?}")
-            })?;
+        if enabled { self.display.capture_scan_slot(emission.scan_slot, emission.anodes)?; }
+        else { self.display.clear(); }
         Ok(())
     }
 }
@@ -1972,6 +1934,8 @@ mod autonomous_ram_tests;
 
 #[cfg(test)]
 mod autonomous_crc_tests;
+#[cfg(test)]
+mod display_circuit_tests;
 #[cfg(test)]
 mod owned_crc_data_tests;
 #[cfg(test)]
@@ -2621,10 +2585,10 @@ mod tests {
         for expected_slot in 1..=15 {
             assert_eq!(live.act_serial.display_scan_slot(), expected_slot);
             let before = live.display_exposure().completed_scans();
-            let cathode_slot = live.cathode.scan_slot();
+            let cathode_slot = live.display_circuit.scan_slot();
             let act_slot = live.act_serial.display_scan_slot();
             live.invalidate_optical_scan();
-            assert_eq!(live.cathode.scan_slot(), cathode_slot);
+            assert_eq!(live.display_circuit.scan_slot(), cathode_slot);
             assert_eq!(live.act_serial.display_scan_slot(), act_slot);
             assert_eq!(live.optical_display_frame(), HardwareDisplayFrame::BLANK);
             // Repeated panel reads cannot publish or advance the emulation.

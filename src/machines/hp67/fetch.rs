@@ -50,6 +50,20 @@ const COMPLETE_ADDRESS_MASK: u16 = (1u16 << ROM_ADDRESS_BITS) - 1;
 const COMPLETE_WORD_MASK: u16 = (1u16 << ROM_WORD_BITS) - 1;
 const ACT_IS_DRIVER: Hp67Driver = Hp67Driver::Act1820_2530;
 
+/// One resolved display checkpoint, with independent ACT/ROM0 output proposals.
+/// Data/control latches commit together only after both resolved pins validate.
+fn sample_display_transport(act: &ActSerialEndpoint, rom0: &mut Rom0DisplayEndpoint, backplane: &mut Hp67ElectricalBackplane) -> Result<(), Rom0DisplayError> {
+    let mut next = *rom0;
+    next.sample_data_at_edge(backplane)?;
+    let bit = backplane.word_bit();
+    let str_drive = next.str_drive(bit)?;
+    let rcd_drive = act.rcd_drive(bit);
+    if matches!(bit, 0 | 7 | 8) { backplane.commit_display_controls(str_drive, rcd_drive); }
+    next.sample_controls_at_edge(backplane)?;
+    *rom0 = next;
+    Ok(())
+}
+
 /// ROM lookup boundary used by the serial fetch responder.
 ///
 /// The physical-ROM composition and aggregate reference fixtures share this
@@ -719,6 +733,12 @@ impl ActSerialEndpoint {
         self.display_scan_slot
     }
 
+    /// Coarse RCD output belongs to ACT, independently of ROM0's STR proposal.
+    /// The b7 interval remains the existing uncalibrated pulse approximation.
+    fn rcd_drive(&self, bit: u8) -> Drive {
+        if bit == 7 && self.display_scan_slot == HP67_DISPLAY_SCAN_SLOTS { Drive::Low } else { Drive::High }
+    }
+
     /// Advance the ACT-owned display phase after one complete shared word.
     ///
     /// Slot 15 is the source-backed duplicate exponent-units word. Completing it
@@ -1316,9 +1336,8 @@ pub fn run_structural_data_tail_prefix_with_ram(
                 });
             }
         }
-        let is_level = sample_transport_isa_at_edge(backplane, word_bit)?;
-        rom0.sample_for_bit(word_bit, is_level)?;
-        rom0.visit_control_bit(word_bit, act.display_scan_slot(), backplane)?;
+        sample_transport_isa_at_edge(backplane, word_bit)?;
+        sample_display_transport(act, rom0, backplane)?;
         sample_data_with_ram(data, ram.as_deref_mut(), word_bit, backplane)?;
         for _ in 0..2 {
             backplane.advance_clock();
@@ -1407,8 +1426,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
-            endpoint.sample_for_bit(expected_bit, is_level)?;
-            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
+            sample_display_transport(act, endpoint, backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1530,8 +1548,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
-            endpoint.sample_for_bit(expected_bit, is_level)?;
-            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
+            sample_display_transport(act, endpoint, backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1628,8 +1645,10 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
         Some(&mut *rom0),
     )?;
     let display_byte = rom0.display_byte()?;
-    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
-    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    let strobe = rom0.resolved_strobe()?;
+    // Compatibility annotation only. Production cathode selection ignores it.
+    let str_event = super::display::Rom0StrEvent { scan_slot: display_scan_slot };
+    let rcd_falling = strobe.rcd_falling();
     act.complete_display_word();
     Ok(StructuralWordResult {
         fetched_word,
@@ -1701,8 +1720,10 @@ pub fn run_structural_display_fetch_data_phase_cycle_with_ram<S: Hp67RomWordSour
     )?;
     let completed_data = data.complete_word();
     let display_byte = rom0.display_byte()?;
-    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
-    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    let strobe = rom0.resolved_strobe()?;
+    // Compatibility annotation only. Production cathode selection ignores it.
+    let str_event = super::display::Rom0StrEvent { scan_slot: display_scan_slot };
+    let rcd_falling = strobe.rcd_falling();
     act.complete_display_word();
     Ok(StructuralDataWordResult {
         word: StructuralWordResult {
@@ -1849,8 +1870,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
         let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
-            endpoint.sample_for_bit(expected_bit, is_level)?;
-            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
+            sample_display_transport(act, endpoint, backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -1916,8 +1936,10 @@ pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
         trace,
     )?;
     let display_byte = rom0.display_byte()?;
-    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
-    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    let strobe = rom0.resolved_strobe()?;
+    // Compatibility annotation only. Production cathode selection ignores it.
+    let str_event = super::display::Rom0StrEvent { scan_slot: display_scan_slot };
+    let rcd_falling = strobe.rcd_falling();
     act.complete_display_word();
     Ok(StructuralWordResult {
         fetched_word,
@@ -2025,8 +2047,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
         let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
-            endpoint.sample_for_bit(expected_bit, is_level)?;
-            endpoint.visit_control_bit(expected_bit, act.display_scan_slot(), backplane)?;
+            sample_display_transport(act, endpoint, backplane)?;
         }
 
         match isa_window_for_bit(expected_bit) {
@@ -2128,8 +2149,10 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced_with_ram<S: Hp67RomW
     )?;
     let completed_data = data.complete_word();
     let display_byte = rom0.display_byte()?;
-    let (str_event, rcd_falling) = rom0.resolved_control_edges()?;
-    debug_assert_eq!(str_event.scan_slot, display_scan_slot);
+    let strobe = rom0.resolved_strobe()?;
+    // Compatibility annotation only. Production cathode selection ignores it.
+    let str_event = super::display::Rom0StrEvent { scan_slot: display_scan_slot };
+    let rcd_falling = strobe.rcd_falling();
     act.complete_display_word();
     Ok(StructuralDataWordResult {
         word: StructuralWordResult {
@@ -3907,3 +3930,34 @@ mod act_owned_flow_tests;
 
 #[path = "act_owned_registers.rs"]
 mod owned_registers;
+
+#[cfg(test)]
+mod display_circuit_transport_tests {
+    use super::*;
+    use crate::machines::hp67::display_circuit::Hp67DisplayCircuit;
+    struct Source;
+    impl Hp67RomWordSource for Source { fn read_word(&self, _: u16) -> Option<u16> { Some(0x3e3) } }
+    #[test]
+    fn m15y_all_four_transports_feed_raw_display_without_slot_annotations() {
+        for path in 0..4 {
+            let mut bus = Hp67ElectricalBackplane::default(); let mut act = ActSerialEndpoint::new(0); let mut rom = RomFetchEndpoint::default(); let mut rom0 = Rom0DisplayEndpoint::default();
+            let mut data = Hp67DataSerialWordPath::default(); data.enable_electrical_level_bridge(None);
+            let mut trace = StructuralBusTrace::default(); let mut circuit = Hp67DisplayCircuit::default();
+            let state = ActArchitecturalState { display_enable: true, a: [8; 14], b: [0; 14], ..Default::default() };
+            for slot in 1..=15 {
+                let mut result = match path {
+                    0 => run_structural_display_fetch_cycle(&mut bus, 0, &state, &mut act, &mut rom, &mut rom0, &Source).unwrap(),
+                    1 => run_structural_display_fetch_data_phase_cycle(&mut bus, 0, &state, &mut act, &mut rom, &mut rom0, &Source, &mut data, None).unwrap().word,
+                    2 => run_structural_display_fetch_cycle_traced(&mut bus, 0, &state, &mut act, &mut rom, &mut rom0, &Source, &mut trace).unwrap(),
+                    _ => run_structural_display_fetch_data_phase_cycle_traced(&mut bus, 0, &state, &mut act, &mut rom, &mut rom0, &Source, &mut data, None, &mut trace).unwrap().word,
+                };
+                result.str_event.scan_slot = if slot == 1 { 15 } else { 1 };
+                let emission = circuit.capture_rom0(&rom0, true).unwrap();
+                assert_eq!(emission.scan_slot, slot); assert_ne!(emission.scan_slot, result.str_event.scan_slot);
+                assert_eq!(emission.code, result.display_byte); assert_eq!(result.rcd_falling, slot == 15); assert_eq!(emission.strobe_tick, u64::from(slot - 1) * 224 + 30);
+            }
+            assert_eq!(circuit.scan_slot(), 1); assert_eq!(circuit.exposure().completed_scans(), 1); assert_eq!(bus.tick().get(), 15 * 224);
+            if path >= 2 { assert_eq!(trace.samples.len(), 15 * 224); }
+        }
+    }
+}

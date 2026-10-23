@@ -53,3 +53,9 @@ exercises control publication at the production receiver checkpoint.
 This is a WORKING APPROXIMATION with a source-backed stable interval, not
 a measured latch-edge/propagation claim. Full words remain 56 cells and 224
 transitions. See `docs/research/M15H_PHI_RECEIVER_SCHEDULING_2026-10-16.md`.
+
+
+### M15Y pin-derived display circuit (delivery 2/15)
+
+Adds a private-field ResolvedDisplayStrobe containing resolved byte, RCD overlap and ordinal STR tick, without ACT scan-slot annotations. Ordered data/control sampling validates PHI checkpoint, all b0..b55 coordinates, sole named STR/RCD ownership and complete b7 data. A 56 sentinel rejects replay until begin_word. The cathode consumes the raw strobe using its own counter. The old annotated pulse visitor is test-only.
+The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.

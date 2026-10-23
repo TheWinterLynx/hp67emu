@@ -91,3 +91,9 @@ changes. Reset reconstructs the path and the RAM-capable transport binds its
 owner again. The standalone RAM fixture also uses this identity. Exact physical
 DATA output stage/polarity, per-IC mapping and PHI edges remain unresolved.
 See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
+
+
+### M15Y pin-derived display circuit (delivery 2/15)
+
+Exposes the crate-internal joint display-control commit to structural composition. It delegates to the fixed-topology fabric and does not change time or erase external drivers.
+The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.

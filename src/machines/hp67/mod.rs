@@ -25,6 +25,7 @@ pub mod crc;
 pub mod crc_owned_data;
 pub mod data;
 pub mod display;
+pub mod display_circuit;
 pub mod display_exposure;
 pub mod display_snapshot;
 pub mod electrical;

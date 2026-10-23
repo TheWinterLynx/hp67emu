@@ -623,4 +623,14 @@ checks precede clocks and observer agreement precedes device publication.
 Reset and injected reference fixtures preserve their composition. Seven new
 regressions include all-speed record transport and full firmware card roundtrip.
 Physical CRC DATA serialization and exact PHI edges remain open. See
-`docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`. Owner local gate pending.
+`docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`. Owner M15X FULL GATE GREEN; exact 29b99098 head integrated (delivery 1/15).
+
+
+## M15Y pin-derived display circuit — delivery 2/15
+
+Independent ACT RCD and ROM0 STR proposals feed a strict ordered resolved
+receiver; cathode selection, anode decode and nominal exposure live in the
+library circuit. ACT slot annotations are comparison-only. Phase corruption
+fails before clocks/tails; reset and optics retain existing policies. Nine new
+regressions cover the complete lane. Physical pulse widths/PHI/propagation stay
+open. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`. Owner local gate pending.
