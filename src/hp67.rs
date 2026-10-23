@@ -1,26 +1,24 @@
 use std::time::Duration;
 
+use hp67emu::machines::hp67::display_circuit::Hp67DisplayCircuit;
 #[cfg(test)]
 use hp67emu::machines::hp67::display_exposure::Hp67DisplayExposure;
-use hp67emu::machines::hp67::display_circuit::Hp67DisplayCircuit;
 
 use hp67emu::machines::hp67::{
-    act_data_transfer_plan, capture_ram_block,
-    restore_ram_block,
+    act_data_transfer_plan, capture_ram_block, restore_ram_block,
     run_structural_data_tail_prefix_with_ram, run_structural_display_fetch_cycle,
     run_structural_display_fetch_cycle_traced,
     run_structural_display_fetch_data_phase_cycle_traced_with_ram,
     run_structural_display_fetch_data_phase_cycle_with_ram, ActInstructionState, ActOperation,
     ActRegister, ActSerialBoundaryState, ActSerialControlAction, ActSerialEndpoint,
     ActSerialFlowState, ActSerialModeLatchAction, ActSerialRamResultImage, ActSerialRegister,
-    ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd,
-    CrcInstruction, FetchPipelineLatch, Hp67ArchitecturalExecution,
-    Hp67ArchitecturalMachine, Hp67ArchitecturalOperation, Hp67CardTransport,
-    Hp67DataSerialWordPath, Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware,
-    Hp67Key, Hp67Keyboard, Hp67MagneticCard, Hp67SegmentMask, Hp67SerialRam, Rom0DisplayEndpoint,
-    RomFetchEndpoint, StructuralBusTrace, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY,
-    CRC_FLAG_MOTOR_ON, CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US,
-    HP67_OBSERVED_WORD_TIME_US,
+    ActSerialSpecialRegisterAction, ActSerialStateSnapshot, CardInsertionEnd, CrcInstruction,
+    FetchPipelineLatch, Hp67ArchitecturalExecution, Hp67ArchitecturalMachine,
+    Hp67ArchitecturalOperation, Hp67CardTransport, Hp67DataSerialWordPath,
+    Hp67DataTransferDirection, Hp67ElectricalBackplane, Hp67Firmware, Hp67Key, Hp67Keyboard,
+    Hp67MagneticCard, Hp67SegmentMask, Hp67SerialRam, Rom0DisplayEndpoint, RomFetchEndpoint,
+    StructuralBusTrace, ACT_STATUS_BITS, CRC_FLAG_BUFFER_READY, CRC_FLAG_MOTOR_ON,
+    CRC_FLAG_WRITE_MODE, HP67_OBSERVED_POWER_ON_SYNC_DELAY_US, HP67_OBSERVED_WORD_TIME_US,
 };
 
 /// Bounded diagnostic capture of actual live power-on firmware words.
@@ -409,13 +407,19 @@ impl Hp67LiveMachine {
         {
             return HardwareDisplayFrame::BLANK;
         }
-        HardwareDisplayFrame::from_scan_dwell(self.display_circuit.exposure().completed_scan_dwell_us())
+        HardwareDisplayFrame::from_scan_dwell(
+            self.display_circuit.exposure().completed_scan_dwell_us(),
+        )
     }
 
     /// Drop the interrupted scan and require a following full scan for optics.
     /// This is a conservative snapshot-publication policy, not an ACT latch edge.
     fn invalidate_optical_scan(&mut self) {
-        self.optical_scan_floor = self.display_circuit.exposure().completed_scans().saturating_add(2);
+        self.optical_scan_floor = self
+            .display_circuit
+            .exposure()
+            .completed_scans()
+            .saturating_add(2);
     }
 
     #[cfg(test)]
@@ -603,7 +607,8 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
-        self.display_circuit.check_phase(self.act_serial.display_scan_slot())
+        self.display_circuit
+            .check_phase(self.act_serial.display_scan_slot())
             .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
         self.act_serial
             .check_owned_flow_mirror(&self.machine.act.state)
@@ -1918,13 +1923,20 @@ impl Hp67LiveMachine {
         // The existing startup/inhibit bridge is preserved. Byte contents and
         // cathode selection come only from the resolved receiver and own counter.
         let enabled = !self.display_control_seen || self.machine.act.state.display_enable;
-        let emission = self.display_circuit.capture_rom0(&self.display_rom0, enabled)
+        let emission = self
+            .display_circuit
+            .capture_rom0(&self.display_rom0, enabled)
             .map_err(|error| format!("live cycle {cycle} display circuit failed: {error:?}"))?;
-        if emission.scan_slot != result.str_event.scan_slot || emission.code != result.display_byte {
+        if emission.scan_slot != result.str_event.scan_slot || emission.code != result.display_byte
+        {
             return Err(format!("live cycle {cycle} display transport observer mismatch: device={emission:?} observer={result:?}"));
         }
-        if enabled { self.display.capture_scan_slot(emission.scan_slot, emission.anodes)?; }
-        else { self.display.clear(); }
+        if enabled {
+            self.display
+                .capture_scan_slot(emission.scan_slot, emission.anodes)?;
+        } else {
+            self.display.clear();
+        }
         Ok(())
     }
 }

@@ -341,7 +341,11 @@ impl Hp67ElectricalFabric {
 
     /// Joint STR/RCD publication: no receiver observes a half-updated bundle.
     pub(crate) fn commit_display_controls(&mut self, str_drive: Drive, rcd_drive: Drive) {
-        self.apply_drive(Hp67Net::Str.index(), Hp67Driver::RomDisplay1818_0268, str_drive);
+        self.apply_drive(
+            Hp67Net::Str.index(),
+            Hp67Driver::RomDisplay1818_0268,
+            str_drive,
+        );
         self.apply_drive(Hp67Net::Rcd.index(), Hp67Driver::Act1820_2530, rcd_drive);
     }
 
