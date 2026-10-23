@@ -348,6 +348,7 @@ pub struct ActSerialEndpoint {
     clocked_prefix_display: Option<u8>,
     received_execution_enabled: bool,
     owned_flow: Option<ActSerialFlowState>,
+    owned_registers: Option<owned_registers::ActOwnedRegisters>,
     pending_instruction: Option<super::ram_command::Hp67RamCommandFrame>,
 }
 
@@ -381,6 +382,7 @@ impl ActSerialEndpoint {
             clocked_prefix_display: None,
             received_execution_enabled: false,
             owned_flow: None,
+            owned_registers: None,
             pending_instruction: None,
         }
     }
@@ -445,6 +447,7 @@ impl ActSerialEndpoint {
     pub fn disable_received_execution(&mut self) {
         self.received_execution_enabled = false;
         self.owned_flow = None;
+        self.owned_registers = None;
         self.pending_instruction = None;
     }
 
@@ -456,6 +459,7 @@ impl ActSerialEndpoint {
             return Err("ACT received execution is disabled".into());
         }
         self.check_owned_flow_mirror(state)?;
+        self.check_owned_register_mirror(state)?;
         let Some(frame) = self.pending_instruction else {
             return Ok(None);
         };
@@ -511,6 +515,8 @@ impl ActSerialEndpoint {
             }
         }
 
+        let owned_source = self.owned_register_state();
+        let state = owned_source.as_ref().unwrap_or(state);
         let execution = ActSerialExecution::new(word, state.instruction_state)?;
         let snapshot = ActSerialStateSnapshot::capture(state);
         self.arithmetic_result_image = ActSerialArithmeticResultImage::begin(&snapshot, &execution);
@@ -1033,6 +1039,9 @@ impl ActSerialEndpoint {
                     image.complete_word(snapshot);
                 }
             }
+        }
+        if word_bit == BITS_PER_WORD - 1 && self.execution.is_some_and(|word| word.is_complete()) {
+            self.complete_owned_register_word();
         }
         Ok(())
     }
@@ -3873,3 +3882,6 @@ mod act_received_tests;
 #[cfg(test)]
 #[path = "act_owned_flow_tests.rs"]
 mod act_owned_flow_tests;
+
+#[path = "act_owned_registers.rs"]
+mod owned_registers;

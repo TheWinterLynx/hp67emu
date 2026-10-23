@@ -366,7 +366,8 @@ impl Hp67LiveMachine {
             backplane: Hp67ElectricalBackplane::default(),
             act_serial: ActSerialEndpoint::new(0)
                 .with_received_execution()
-                .with_owned_flow(),
+                .with_owned_flow()
+                .with_owned_registers(),
             fetch_rom: RomFetchEndpoint::autonomous_roms(),
             display_rom0: Rom0DisplayEndpoint::default(),
             cathode: CathodeDriver1820_1749::default(),
@@ -425,6 +426,7 @@ impl Hp67LiveMachine {
         self.backplane = Hp67ElectricalBackplane::default();
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
+        let owned_registers = self.act_serial.owned_register_state().is_some();
         self.act_serial = ActSerialEndpoint::new(0);
         if received_execution {
             self.act_serial = self.act_serial.with_received_execution();
@@ -432,6 +434,7 @@ impl Hp67LiveMachine {
         if owned_flow {
             self.act_serial = self.act_serial.with_owned_flow();
         }
+        if owned_registers { self.act_serial = self.act_serial.with_owned_registers(); }
         self.fetch_rom = RomFetchEndpoint::autonomous_roms();
         self.display_rom0 = Rom0DisplayEndpoint::default();
         self.cathode = CathodeDriver1820_1749::default();
@@ -644,9 +647,13 @@ impl Hp67LiveMachine {
         } else {
             self.pipeline.prefetched_word()
         };
+        self.act_serial.check_owned_register_mirror(&self.machine.act.state)
+            .map_err(|error| format!("live cycle {cycle} {error}"))?;
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_with_prefix(cycle, trace.as_deref_mut())?;
         if let Some(word) = executing_word {
+            self.act_serial.sample_owned_keyboard(&self.keyboard)
+                .map_err(|error| format!("live cycle {cycle} {error}"))?;
             self.keyboard.sample_into_act(&mut self.machine.act.state);
 
             if self.act_serial.received_execution_enabled() {
@@ -898,6 +905,8 @@ impl Hp67LiveMachine {
                     .crc
                     .commit_control_flag(result.flag, result.value)
                     .map_err(|error| format!("live cycle {cycle} CRC mirror commit: {error:?}"))?;
+                self.act_serial.receive_owned_crc_condition(result.condition)
+                    .map_err(|error| format!("live cycle {cycle} {error}"))?;
                 self.machine.act.state.status[3] = actual_status3;
             } else {
                 image
@@ -1008,6 +1017,10 @@ impl Hp67LiveMachine {
         // Resolved SYNC owns the next-word instruction/data latch after the
         // existing completed-word authority/oracle comparison succeeds.
         self.machine.act.state.instruction_state = qualified_state;
+        self.act_serial.qualify_owned_registers_from_received()
+            .map_err(|error| format!("live cycle {cycle} {error}"))?;
+        self.act_serial.commit_owned_register_mirror(&mut self.machine.act.state)
+            .map_err(|error| format!("live cycle {cycle} {error}"))?;
 
         let buffer_status_before_transport = (
             self.machine.crc.flag(CRC_FLAG_BUFFER_READY),
@@ -1555,7 +1568,8 @@ impl Hp67LiveMachine {
         trace: Option<&mut StructuralBusTrace>,
     ) -> Result<(), String> {
         let completed = if self.data_serial.frame_in_progress() {
-            let mut display_state = self.machine.act.state.clone();
+            let mut display_state = self.act_serial.owned_register_state()
+                .unwrap_or_else(|| self.machine.act.state.clone());
             if !self.display_control_seen {
                 display_state.display_enable = true;
             }
@@ -1617,6 +1631,8 @@ impl Hp67LiveMachine {
                         }
                     }
                     Hp67DataTransferDirection::PeripheralToAct => {
+                        self.act_serial.receive_owned_data_c(actual, &self.backplane)
+                            .map_err(|error| format!("live cycle {cycle} {error}"))?;
                         self.machine.act.state.c = actual;
                     }
                 }
@@ -1693,16 +1709,11 @@ impl Hp67LiveMachine {
         };
         // Bank control belongs to the ROM receivers. The structural ACT bank
         // below is only an independent comparison, never a source selection.
-        let startup_display_state = if self.display_control_seen {
-            None
-        } else {
-            let mut state = self.machine.act.state.clone();
-            state.display_enable = true;
-            Some(state)
-        };
-        let display_state = startup_display_state
-            .as_ref()
-            .unwrap_or(&self.machine.act.state);
+        let mut owned_display_state = self.act_serial.owned_register_state();
+        if !self.display_control_seen {
+            owned_display_state.get_or_insert_with(|| self.machine.act.state.clone()).display_enable = true;
+        }
+        let display_state = owned_display_state.as_ref().unwrap_or(&self.machine.act.state);
         let result = if self.data_serial.ram_command_receiver_enabled()
             || self.data_serial.prefix_preconsumed()
             || data_payload.is_some()
@@ -1870,6 +1881,8 @@ mod autonomous_ram_tests;
 mod autonomous_crc_tests;
 #[cfg(test)]
 mod owned_flow_tests;
+#[cfg(test)]
+mod owned_register_tests;
 #[cfg(test)]
 mod ram_command_tests;
 #[cfg(test)]

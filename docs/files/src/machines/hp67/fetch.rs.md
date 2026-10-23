@@ -354,3 +354,9 @@ clears latches and preserves the selected production/reference composition.
 No full ACT copy or heap allocation is added per bit. This retains M14I's logical
 preview/completion scheduling; exact PC/stack write edges remain SOURCE-BLOCKED.
 See `docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`.
+
+
+### M15W owned ACT registers
+
+The optional retained register file supplies every execution snapshot. Completed structural result images update it at b55; installed RAM C arrives at the following b1 tail through the explicit resolved-DATA port. Disabling received execution clears both owned flow and registers. No per-bit whole-ACT clone is added.
+Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`.

@@ -313,4 +313,14 @@ completed b55 execution commits own flow and low-page bank normalization.
 Live validates all mirror fields before clocks/DATA tails and after commit.
 Reset/reference composition and the 224-transition schedule remain unchanged.
 Exact internal write edges remain unproven. See
-`docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`. Owner local gate pending.
+`docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`. Owner M15V FULL GATE GREEN; exact e1f8e221 head integrated.
+
+
+## M15W owned ACT register file
+
+Retained ACT registers now supply execution/display, with explicit keyboard,
+resolved RAM C and independent CRC condition ports. Full mirror guards precede
+clocks/DATA tails; checked structural completion supplies the mirror. Reset and
+reference composition are preserved. Six regressions accompany this lane.
+No exact PHI/internal-write timing claim. See
+`docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`. Owner local gate pending.

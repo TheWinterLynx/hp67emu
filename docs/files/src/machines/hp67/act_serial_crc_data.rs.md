@@ -19,3 +19,9 @@ Classify fixed and selected CRC read/write ports, exclude implied-GOTO payloads,
 ## Implementation
 
 A Copy image captures pre/result C and scoped FIFO storage plus READY/F7. `stage_data_word` computes a storage transition independently from architectural take/queue methods without mutating the live CRC. Failed staging is transactional; the composition already rolls failed instructions back. Restore reverses only migrated oracle effects; commit requires completed execution and exact unchanged pre-state. Differential tests compare all 256 addresses and 1024 words, including wrapped FIFO heads and unrelated state. Live regression checks selected/fixed reads/writes and both buffers. The logical b55 handoff is WORKING APPROXIMATION, not electrical DATA or magnetic timing evidence. CRC DATA polarity/phase/driver enables, intra-record serialization and sense/PHI edges remain SOURCE-BLOCKED.
+
+
+### M15W owned ACT registers
+
+The result_c accessor exposes the frozen logical C result for the retained ACT register file. Existing completion, pre-state comparison and FIFO commit guards remain authoritative. This does not introduce magnetic serialization or physical DATA timing.
+Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`.

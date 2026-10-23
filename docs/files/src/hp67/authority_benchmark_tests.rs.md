@@ -153,3 +153,9 @@ clears latches and preserves the selected production/reference composition.
 No full ACT copy or heap allocation is added per bit. This retains M14I's logical
 preview/completion scheduling; exact PC/stack write edges remain SOURCE-BLOCKED.
 See `docs/research/M15V_ACT_OWNED_FLOW_2026-10-22.md`.
+
+
+### M15W owned ACT registers
+
+Scope labels now identify owned ACT registers in production and their explicit exclusion from injected reference fixtures. Workload and speed assertions are unchanged.
+Exact silicon register-write edges remain unproven. See `docs/research/M15W_ACT_OWNED_REGISTERS_2026-10-23.md`.
