@@ -49,11 +49,20 @@ pub fn capture_live_bus_tsv(words: usize) -> Result<String, String> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn capture_live_pin_tsv(words: usize) -> Result<String, String> {
     use hp67emu::machines::hp67::pin_trace::MAX_CAPTURE_WORDS;
-    if !(1..=MAX_CAPTURE_WORDS).contains(&words) { return Err("pin capture word count must be 1..=512".into()); }
+    if !(1..=MAX_CAPTURE_WORDS).contains(&words) {
+        return Err("pin capture word count must be 1..=512".into());
+    }
     let mut live = Hp67LiveMachine::power_on_default()?;
-    live.backplane.start_pin_capture("live firmware power-on; frozen no-key contacts; reset hold excluded".into())?;
-    for _ in 0..words { live.step_firmware_cycle_with_execution()?; }
-    live.backplane.take_pin_capture().ok_or("pin capture missing")?.to_tsv()
+    live.backplane.start_pin_capture(
+        "live firmware power-on; frozen no-key contacts; reset hold excluded".into(),
+    )?;
+    for _ in 0..words {
+        live.step_firmware_cycle_with_execution()?;
+    }
+    live.backplane
+        .take_pin_capture()
+        .ok_or("pin capture missing")?
+        .to_tsv()
 }
 
 const DISPLAY_INIT_PC: u16 = 0o0161;

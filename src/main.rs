@@ -5,9 +5,9 @@
 
 mod app;
 mod hp67;
+mod panel;
 #[cfg(not(target_arch = "wasm32"))]
 mod pin_trace_cli;
-mod panel;
 mod program_library;
 mod ui;
 
@@ -129,7 +129,10 @@ fn main() -> eframe::Result<()> {
         match pin_trace_cli::run(&args) {
             Ok(0) => return Ok(()),
             Ok(code) => std::process::exit(code),
-            Err(error) => { eprintln!("{error}"); std::process::exit(1); }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
         }
     }
     if args.first().map(String::as_str) == Some("--trace-is") {

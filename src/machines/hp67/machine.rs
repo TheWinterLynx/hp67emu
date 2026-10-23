@@ -28,12 +28,22 @@ pub struct Hp67ElectricalBackplane {
 impl Hp67ElectricalBackplane {
     /// Opt-in diagnostic recording; never calibrates ordinal ticks as time.
     pub fn start_pin_capture(&mut self, provenance: String) -> Result<(), String> {
-        if self.pin_trace.is_some() { return Err("pin capture already active".into()); }
-        if !self.at_transport_launch_boundary() { return Err("pin capture must start before PHI1 falling".into()); }
-        self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(self.word_bit(), provenance)?);
-        self.record_pins(); Ok(())
+        if self.pin_trace.is_some() {
+            return Err("pin capture already active".into());
+        }
+        if !self.at_transport_launch_boundary() {
+            return Err("pin capture must start before PHI1 falling".into());
+        }
+        self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(
+            self.word_bit(),
+            provenance,
+        )?);
+        self.record_pins();
+        Ok(())
     }
-    pub fn take_pin_capture(&mut self) -> Option<super::pin_trace::Hp67PinTrace> { self.pin_trace.take() }
+    pub fn take_pin_capture(&mut self) -> Option<super::pin_trace::Hp67PinTrace> {
+        self.pin_trace.take()
+    }
     #[inline]
     fn record_pins(&mut self) {
         if self.pin_trace.is_some() {
@@ -178,7 +188,9 @@ impl Hp67ElectricalBackplane {
 
     pub fn commit_staged(&mut self) -> Result<(), Hp67ElectricalError> {
         let result = self.fabric.commit_staged();
-        if result.is_ok() { self.record_pins(); }
+        if result.is_ok() {
+            self.record_pins();
+        }
         result
     }
 

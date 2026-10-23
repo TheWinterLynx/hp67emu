@@ -1,20 +1,51 @@
 //! Native offline pin diagnostics. New outputs use create_new; inputs survive.
-use hp67emu::machines::hp67::{pin_trace::{analyze_pin_trace, compare_pin_traces, import_pin_trace, Hp67PinTrace, MAX_PIN_BYTES, PIN_NAMES}, wiring::{Hp67Net}};
-use std::{fs::{File, OpenOptions}, io::{Read, Write}, path::Path};
+use hp67emu::machines::hp67::{
+    pin_trace::{
+        analyze_pin_trace, compare_pin_traces, import_pin_trace, Hp67PinTrace, MAX_PIN_BYTES,
+        PIN_NAMES,
+    },
+    wiring::Hp67Net,
+};
+use std::{
+    fs::{File, OpenOptions},
+    io::{Read, Write},
+    path::Path,
+};
 fn read(path: &str) -> Result<Hp67PinTrace, String> {
     let file = File::open(path).map_err(|error| format!("{path}: {error}"))?;
-    let mut text = String::new(); file.take(MAX_PIN_BYTES as u64 + 1).read_to_string(&mut text).map_err(|error| format!("{path}: {error}"))?;
+    let mut text = String::new();
+    file.take(MAX_PIN_BYTES as u64 + 1)
+        .read_to_string(&mut text)
+        .map_err(|error| format!("{path}: {error}"))?;
     import_pin_trace(&text).map_err(|error| format!("{path}: {error}"))
 }
 fn write_new(path: &str, content: &str) -> Result<(), String> {
-    let mut file = OpenOptions::new().write(true).create_new(true).open(path).map_err(|error| format!("new output {path}: {error}"))?;
-    if let Err(error) = file.write_all(content.as_bytes()) { drop(file); let _ = std::fs::remove_file(path); return Err(format!("write {path}: {error}")); }
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| format!("new output {path}: {error}"))?;
+    if let Err(error) = file.write_all(content.as_bytes()) {
+        drop(file);
+        let _ = std::fs::remove_file(path);
+        return Err(format!("write {path}: {error}"));
+    }
     Ok(())
 }
 fn report(output: Option<&String>, content: &str) -> Result<(), String> {
-    if let Some(path) = output { write_new(path, content) } else { print!("{content}"); Ok(()) }
+    if let Some(path) = output {
+        write_new(path, content)
+    } else {
+        print!("{content}");
+        Ok(())
+    }
 }
-pub fn handles(command: Option<&str>) -> bool { matches!(command, Some("--trace-pins" | "--audit-pins" | "--compare-pins")) }
+pub fn handles(command: Option<&str>) -> bool {
+    matches!(
+        command,
+        Some("--trace-pins" | "--audit-pins" | "--compare-pins")
+    )
+}
 pub fn run(args: &[String]) -> Result<i32, String> {
     match args.first().map(String::as_str) {
         Some("--trace-pins") if args.len() == 3 => {
