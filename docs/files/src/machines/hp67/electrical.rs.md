@@ -124,3 +124,15 @@ The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nom
 ## M16B clock ownership integrity — delivery 5/15
 
 The fixed dense contributor counts now validate sole ACT ownership on both PHI nets. Agreeing external contributions remain electrically High but cannot authorize transport. The check is constant-size, with no driver scan, heap allocation, new storage or recorder hook. Generic resolution and staged commit semantics are unchanged.
+
+
+## M16B cached ownership follow-up
+
+clock_owner_faults summarizes sole ACT ownership on PHI1/PHI2. The immediate
+and staged committed-drive path refreshes the affected bit only when a source
+enters or leaves HighZ; a Low/High polarity change cannot change the set of
+active contributors. Seeded ACT clocks start with a zero fault mask. Non-clock
+specialized IS/SYNC/DATA bundles cannot invalidate PHI ownership. Queries use
+one mask comparison; normal resolution/counters and cold fault masks remain.
+No validity checks, clock edges or observed net changes are removed. See
+`docs/research/M16B_CLOCK_CACHE_2026-10-24.md`.

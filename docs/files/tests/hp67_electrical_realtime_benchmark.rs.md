@@ -74,3 +74,13 @@ This adds bank-decoder work to the measured current path without changing its
 fixed workload, physical timing claims or diagnostic correctness contract.
 
 See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
+
+
+## M16B rotating measurement order
+
+All eight paths now rotate together per round instead of measuring only the
+three PHI paths interleaved and the remaining paths sequentially. Workload
+functions, word/round counts, scope, checks and output rows remain unchanged.
+This reduces fixed-order bias; it does not calibrate prior host runs or create
+a whole-emulator old/new comparison. The live authority benchmark already
+uses rotating order and is unchanged.

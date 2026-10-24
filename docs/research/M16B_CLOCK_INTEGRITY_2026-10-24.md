@@ -4,7 +4,7 @@ Date: 2026-10-24
 Base: owner-validated M16A 685407cf7739011478bd5eb5f643da27cd83bab9
 Branch: agent/m16b-clock-integrity
 Delivery: 5/15
-Status: implemented; formatting and owner runtime gate pending.
+Status: owner FULL GATE GREEN; exact 692ce6c5d1409e1acd167813630a1c3d5b9ce334 integrated.
 
 ## Problem and resulting behavior
 
@@ -52,3 +52,16 @@ and real firmware pending-tail recovery against an unfaulted machine.
 An additional feature-only test verifies that a rejected checked edge publishes
 no phantom trace row. Both feature configurations, full suites, release, ignored diagnostic and the
 same electrical/DATA/RAM/live benches are required. GitHub Actions formats only.
+
+
+## Owner result
+
+Both diagnostic builds pass 12/12 with unchanged cycles. Owner medians:
+PHI 0.418 us/word; staged commit 0.642; staged scheduler 0.657; no-DATA
+full structural 1.662; autonomous RAM fixture 1.376; production live 3.690.
+M16A medians were respectively 0.362, 0.534, 0.551, 1.351, 1.176, 2.845.
+The raw PHI and stage rows do not call the new ownership predicate and also
+slowed down; these separate runs do not isolate implementation cost. Live's
+29.7% increased median cannot be dismissed as noise or assigned wholly to the
+new checks without a controlled comparison. The cached-query follow-up keeps
+the complete validity policy and adds a same-process isolated kernel comparison.

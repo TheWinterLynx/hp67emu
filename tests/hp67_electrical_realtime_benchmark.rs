@@ -52,30 +52,18 @@ fn summarize(mut samples: Vec<Duration>) -> BenchmarkStats {
     }
 }
 
-fn measure_rounds<F>(rounds: usize, words: usize, mut run: F) -> BenchmarkStats
-where
-    F: FnMut(usize) -> u64,
-{
-    let mut samples = Vec::with_capacity(rounds);
-    let mut checksum = 0u64;
-
-    for _ in 0..rounds {
-        let start = Instant::now();
-        checksum ^= black_box(run(words));
-        samples.push(start.elapsed());
-    }
-
-    black_box(checksum);
-    summarize(samples)
-}
-
-fn measure_phi_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStats; 3] {
-    let paths: [fn(usize) -> u64; 3] = [
+fn measure_all_rounds_interleaved(rounds: usize, words: usize) -> [BenchmarkStats; 8] {
+    let paths: [fn(usize) -> u64; 8] = [
         raw_phi_stream,
         stage_commit_phi_stream,
         staged_phi_scheduler_stream,
+        structural_fetch_stream,
+        full_current_structural_stream,
+        architectural_execution_stream,
+        production_dual_path_stream,
+        firmware_production_stream,
     ];
-    let mut samples: [Vec<Duration>; 3] = std::array::from_fn(|_| Vec::with_capacity(rounds));
+    let mut samples: [Vec<Duration>; 8] = std::array::from_fn(|_| Vec::with_capacity(rounds));
     let mut checksum = 0u64;
 
     for round in 0..rounds {
@@ -497,12 +485,8 @@ fn hp67_electrical_realtime_benchmark() {
     black_box(production_dual_path_stream(warmup_words));
     black_box(firmware_production_stream(warmup_words));
 
-    let [raw_phi, stage_commit_phi, staged_phi] = measure_phi_rounds_interleaved(rounds, words);
-    let fetch = measure_rounds(rounds, words, structural_fetch_stream);
-    let full = measure_rounds(rounds, words, full_current_structural_stream);
-    let architectural = measure_rounds(rounds, words, architectural_execution_stream);
-    let production = measure_rounds(rounds, words, production_dual_path_stream);
-    let firmware = measure_rounds(rounds, words, firmware_production_stream);
+    let [raw_phi, stage_commit_phi, staged_phi, fetch, full, architectural, production, firmware] =
+        measure_all_rounds_interleaved(rounds, words);
 
     let physical_word_us = HP67_OBSERVED_WORD_TIME_US as f64;
     let physical_words_per_second = 1_000_000.0 / physical_word_us;
@@ -527,6 +511,7 @@ fn hp67_electrical_realtime_benchmark() {
         rounds,
         physical_span.as_secs_f64()
     );
+    println!("Measurement order: all eight paths rotate together each round; workloads unchanged.");
     println!();
     println!(
         "{:<42} {:>12} {:>14} {:>13} {:>12} {:>12}",

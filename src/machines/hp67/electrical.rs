@@ -177,6 +177,9 @@ pub struct Hp67ElectricalFabric {
     pending_len: usize,
     owned_drivers: [bool; Hp67Driver::COUNT],
     contention_net_count: u8,
+    // Bit 0/1: PHI1/PHI2 does not have sole ACT ownership. Polarity changes
+    // preserve ownership, so normal clock edges do not rebuild this summary.
+    clock_owner_faults: u8,
 }
 
 impl Default for Hp67ElectricalFabric {
@@ -207,6 +210,7 @@ impl Default for Hp67ElectricalFabric {
             pending_len: 0,
             owned_drivers: [false; Hp67Driver::COUNT],
             contention_net_count: 0,
+            clock_owner_faults: 0,
         }
     }
 }
@@ -228,11 +232,7 @@ impl Hp67ElectricalFabric {
     /// distinguish an agreeing foreign driver from a valid resolved level.
     #[inline]
     pub(crate) fn clock_drives_valid(&self) -> bool {
-        [Hp67Net::Phi1, Hp67Net::Phi2].into_iter().all(|net| {
-            let dense = &self.nets[net.index()];
-            dense.low_driver_count + dense.high_driver_count == 1
-                && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ
-        })
+        self.clock_owner_faults == 0
     }
 
     /// Publish the current structural serial sources as one observable image.
@@ -454,7 +454,15 @@ impl Hp67ElectricalFabric {
     }
 
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
+        let was_released = self.nets[net_index].drive(driver) == Drive::HighZ;
         self.nets[net_index].set_drive(driver, drive);
+        if was_released != (drive == Drive::HighZ) && net_index <= Hp67Net::Phi2.index() {
+            let dense = &self.nets[net_index];
+            let valid = dense.low_driver_count + dense.high_driver_count == 1
+                && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ;
+            let bit = 1u8 << net_index;
+            self.clock_owner_faults = (self.clock_owner_faults & !bit) | if valid { 0 } else { bit };
+        }
         self.refresh_resolved_level(net_index);
     }
 
@@ -865,3 +873,7 @@ mod tests {
         assert_eq!(fabric.level(Hp67Net::Isa), LogicLevel::Low);
     }
 }
+
+#[cfg(test)]
+#[path = "clock_cache_tests.rs"]
+mod clock_cache_tests;

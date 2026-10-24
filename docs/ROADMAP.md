@@ -523,4 +523,17 @@ Dense count checks avoid heap allocation and driver scans on the normal path;
 all 224 edges and device work remain. Nine fault/recovery regressions accompany
 the change. Physical widths/dead time, exact sampling edges and propagation
 remain SOURCE-BLOCKED. See research/M16B_CLOCK_INTEGRITY_2026-10-24.md.
-Owner local gate pending; no runtime or performance pass is claimed.
+Owner M16B FULL GATE GREEN; exact 692ce6c5d1409e1acd167813630a1c3d5b9ce334 integrated (delivery 5/15). Both diagnostics 12/12; live median 3.690 us/word. Performance follow-up below.
+
+
+### M16B performance follow-up (same delivery)
+
+PHI ownership is summarized at committed High-Z occupancy changes, replacing
+repeated count/ACT-slot inspection at receivers with a cached two-clock fault
+mask. Level resolution, phase checks, contention, foreign-driver rejection and
+224 transitions remain. Independent scan/staged/mixed-update regressions and a
+rotating ownership kernel benchmark accompany the change. All eight electrical
+benchmark rows now rotate together; the live benchmark already rotated.
+No recovered performance is claimed before the owner gate. See
+`docs/research/M16B_CLOCK_CACHE_2026-10-24.md`. This follow-up does not consume
+delivery 6/15 or claim any new physical timing calibration.
