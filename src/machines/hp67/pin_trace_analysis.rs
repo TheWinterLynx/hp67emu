@@ -64,12 +64,17 @@ pub fn analyze_pin_trace(trace: &Hp67PinTrace) -> Result<PinAnalysis, String> {
         return Err("invalid/empty pin capture".into());
     }
     if (trace.domain == PinTimeDomain::Ordinal && trace.source != PinSource::Emulator)
-        || (trace.domain == PinTimeDomain::Nanoseconds && trace.source == PinSource::Emulator) {
+        || (trace.domain == PinTimeDomain::Nanoseconds && trace.source == PinSource::Emulator)
+    {
         return Err("source/time domain mismatch".into());
     }
-    if trace.domain == PinTimeDomain::Nanoseconds &&
-        (trace.rows.iter().any(|row| row.order != 0 || row.owners.iter().any(Option::is_some))
-         || trace.rows.windows(2).any(|rows| rows[1].at <= rows[0].at)) {
+    if trace.domain == PinTimeDomain::Nanoseconds
+        && (trace
+            .rows
+            .iter()
+            .any(|row| row.order != 0 || row.owners.iter().any(Option::is_some))
+            || trace.rows.windows(2).any(|rows| rows[1].at <= rows[0].at))
+    {
         return Err("physical observations require distinct timestamps without invented delta order or internal owners".into());
     }
     if clocks(&trace.rows[0])? != (true, true) {
@@ -155,8 +160,17 @@ pub fn analyze_pin_trace(trace: &Hp67PinTrace) -> Result<PinAnalysis, String> {
             result.coincident_changes += 1;
         }
         use super::super::timing::Hp67ClockEdge;
-        result.clock_edges.push(PinClockObservation { row_index: row_index + 1, word: coordinate / 56, bit,
-            edge: [Hp67ClockEdge::Phi1Falling, Hp67ClockEdge::Phi1Rising, Hp67ClockEdge::Phi2Falling, Hp67ClockEdge::Phi2Rising][edge] });
+        result.clock_edges.push(PinClockObservation {
+            row_index: row_index + 1,
+            word: coordinate / 56,
+            bit,
+            edge: [
+                Hp67ClockEdge::Phi1Falling,
+                Hp67ClockEdge::Phi1Rising,
+                Hp67ClockEdge::Phi2Falling,
+                Hp67ClockEdge::Phi2Rising,
+            ][edge],
+        });
         if edge == 1 {
             result.cells.push(PinCell {
                 word: coordinate / 56,

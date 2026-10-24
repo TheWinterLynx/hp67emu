@@ -31,19 +31,34 @@ impl Hp67ElectricalBackplane {
     pub fn start_pin_capture(&mut self, provenance: String) -> Result<(), String> {
         #[cfg(feature = "pin-capture")]
         {
-            if self.pin_trace.is_some() { return Err("pin capture already active".into()); }
-            if !self.at_transport_launch_boundary() { return Err("pin capture must start before PHI1 falling".into()); }
-            self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(self.word_bit(), provenance)?);
-            self.record_pins(); Ok(())
+            if self.pin_trace.is_some() {
+                return Err("pin capture already active".into());
+            }
+            if !self.at_transport_launch_boundary() {
+                return Err("pin capture must start before PHI1 falling".into());
+            }
+            self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(
+                self.word_bit(),
+                provenance,
+            )?);
+            self.record_pins();
+            Ok(())
         }
         #[cfg(not(feature = "pin-capture"))]
-        { let _ = provenance; Err("pin capture requires a diagnostic build: cargo build --release --features pin-capture".into()) }
+        {
+            let _ = provenance;
+            Err("pin capture requires a diagnostic build: cargo build --release --features pin-capture".into())
+        }
     }
     pub fn take_pin_capture(&mut self) -> Option<super::pin_trace::Hp67PinTrace> {
         #[cfg(feature = "pin-capture")]
-        { self.pin_trace.take() }
+        {
+            self.pin_trace.take()
+        }
         #[cfg(not(feature = "pin-capture"))]
-        { None }
+        {
+            None
+        }
     }
     #[cfg(feature = "pin-capture")]
     #[inline]
@@ -196,7 +211,9 @@ impl Hp67ElectricalBackplane {
     pub fn commit_staged(&mut self) -> Result<(), Hp67ElectricalError> {
         let result = self.fabric.commit_staged();
         #[cfg(feature = "pin-capture")]
-        if result.is_ok() { self.record_pins(); }
+        if result.is_ok() {
+            self.record_pins();
+        }
         result
     }
 
@@ -344,13 +361,28 @@ mod recorder_disabled_tests {
     use super::*;
     #[test]
     fn m16a_default_backplane_contains_only_electrical_fabric() {
-        assert_eq!(std::mem::size_of::<Hp67ElectricalBackplane>(), std::mem::size_of::<Hp67ElectricalFabric>());
+        assert_eq!(
+            std::mem::size_of::<Hp67ElectricalBackplane>(),
+            std::mem::size_of::<Hp67ElectricalFabric>()
+        );
         let mut bus = Hp67ElectricalBackplane::default();
         let before: Vec<_> = Hp67Net::ALL.into_iter().map(|net| bus.level(net)).collect();
-        let error = bus.start_pin_capture("request".into()).unwrap_err(); assert!(error.contains("--features pin-capture"));
-        assert_eq!(bus.tick(), Tick::ZERO); assert!(bus.take_pin_capture().is_none());
-        assert_eq!(Hp67Net::ALL.into_iter().map(|net| bus.level(net)).collect::<Vec<_>>(), before);
-        for _ in 0..224 { bus.advance_clock(); } assert_eq!(bus.tick().get(), 224); assert!(bus.take_pin_capture().is_none());
+        let error = bus.start_pin_capture("request".into()).unwrap_err();
+        assert!(error.contains("--features pin-capture"));
+        assert_eq!(bus.tick(), Tick::ZERO);
+        assert!(bus.take_pin_capture().is_none());
+        assert_eq!(
+            Hp67Net::ALL
+                .into_iter()
+                .map(|net| bus.level(net))
+                .collect::<Vec<_>>(),
+            before
+        );
+        for _ in 0..224 {
+            bus.advance_clock();
+        }
+        assert_eq!(bus.tick().get(), 224);
+        assert!(bus.take_pin_capture().is_none());
     }
 }
 #[cfg(all(test, feature = "pin-capture"))]
@@ -358,12 +390,25 @@ mod recorder_enabled_tests {
     use super::*;
     #[test]
     fn m16a_diagnostic_build_retains_full_pin_recording_and_joint_controls() {
-        let mut bus = Hp67ElectricalBackplane::default(); bus.start_pin_capture("diagnostic matrix fixture".into()).unwrap();
+        let mut bus = Hp67ElectricalBackplane::default();
+        bus.start_pin_capture("diagnostic matrix fixture".into())
+            .unwrap();
         bus.commit_display_controls(Drive::High, Drive::High);
-        for _ in 0..224 { bus.advance_clock(); }
+        for _ in 0..224 {
+            bus.advance_clock();
+        }
         let trace = bus.take_pin_capture().unwrap();
         let imported = super::super::pin_trace::import_pin_trace(&trace.to_tsv().unwrap()).unwrap();
-        let analysis = super::super::pin_trace::analyze_pin_trace(&imported).unwrap(); assert_eq!(analysis.clock_edges.len(), 224); assert_eq!(analysis.cells.len(), 56);
-        assert_eq!(imported.rows[1].levels[Hp67Net::Str.index()], Some(LogicLevel::High)); assert_eq!(imported.rows[1].levels[Hp67Net::Rcd.index()], Some(LogicLevel::High));
+        let analysis = super::super::pin_trace::analyze_pin_trace(&imported).unwrap();
+        assert_eq!(analysis.clock_edges.len(), 224);
+        assert_eq!(analysis.cells.len(), 56);
+        assert_eq!(
+            imported.rows[1].levels[Hp67Net::Str.index()],
+            Some(LogicLevel::High)
+        );
+        assert_eq!(
+            imported.rows[1].levels[Hp67Net::Rcd.index()],
+            Some(LogicLevel::High)
+        );
     }
 }

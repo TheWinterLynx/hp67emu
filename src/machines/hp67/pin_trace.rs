@@ -1,13 +1,11 @@
 //! Full-pin ordinal capture and strictly separated physical-time observations.
 //! Capture metadata is provenance supplied by the caller, not hardware proof.
-use super::{
-    wiring::{Hp67Driver, Hp67Net},
-};
-use crate::emulation::LogicLevel;
-#[cfg(feature = "pin-capture")]
-use crate::emulation::Drive;
 #[cfg(feature = "pin-capture")]
 use super::machine::Hp67ElectricalBackplane;
+use super::wiring::{Hp67Driver, Hp67Net};
+#[cfg(feature = "pin-capture")]
+use crate::emulation::Drive;
+use crate::emulation::LogicLevel;
 
 pub const MAX_PIN_ROWS: usize = 160_000;
 pub const MAX_PIN_BYTES: usize = 64 * 1024 * 1024;
@@ -324,7 +322,9 @@ pub fn import_pin_trace(input: &str) -> Result<Hp67PinTrace, String> {
 
 #[path = "pin_trace_analysis.rs"]
 mod analysis;
-pub use analysis::{analyze_pin_trace, compare_pin_traces, PinAnalysis, PinComparison, PinClockObservation};
+pub use analysis::{
+    analyze_pin_trace, compare_pin_traces, PinAnalysis, PinClockObservation, PinComparison,
+};
 
 #[cfg(all(test, feature = "pin-capture"))]
 #[path = "pin_trace_tests.rs"]
