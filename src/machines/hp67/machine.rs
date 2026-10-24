@@ -137,16 +137,32 @@ impl Hp67ElectricalBackplane {
             (Hp67Net::Phi2, self.clock_phase().phi2_low()),
         ] {
             let expected_drive = if low { Drive::Low } else { Drive::High };
-            let expected = if low { LogicLevel::Low } else { LogicLevel::High };
+            let expected = if low {
+                LogicLevel::Low
+            } else {
+                LogicLevel::High
+            };
             let actual = self.level(net);
             let act_drive = self.driver_drive(net, Hp67Driver::Act1820_2530);
-            if actual != expected || act_drive != expected_drive || self.active_driver_count(net) != 1 {
+            if actual != expected
+                || act_drive != expected_drive
+                || self.active_driver_count(net) != 1
+            {
                 let active_mask = Hp67Driver::ALL.into_iter().fold(0, |mask, driver| {
                     mask | if self.driver_drive(net, driver) != Drive::HighZ {
                         1u16 << driver.index()
-                    } else { 0 }
+                    } else {
+                        0
+                    }
                 });
-                return Hp67ClockFault { tick: self.tick().get(), net, expected, actual, act_drive, active_mask };
+                return Hp67ClockFault {
+                    tick: self.tick().get(),
+                    net,
+                    expected,
+                    actual,
+                    act_drive,
+                    active_mask,
+                };
             }
         }
         unreachable!("clock validity and diagnostic predicates must agree")

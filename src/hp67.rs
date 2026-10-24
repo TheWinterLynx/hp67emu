@@ -629,7 +629,8 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
-        self.backplane.validate_clock()
+        self.backplane
+            .validate_clock()
             .map_err(|error| format!("live cycle {cycle} invalid PHI image: {error:?}"))?;
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())

@@ -1290,7 +1290,9 @@ pub fn run_structural_data_tail_prefix_with_ram(
     mut trace: Option<&mut StructuralBusTrace>,
     mut ram: Option<&mut Hp67SerialRam>,
 ) -> Result<Option<super::act::ActRegister>, StructuralWordError> {
-    backplane.validate_clock().map_err(SerialFetchError::InvalidClock)?;
+    backplane
+        .validate_clock()
+        .map_err(SerialFetchError::InvalidClock)?;
     if ram.is_some() {
         data.use_autonomous_ram_owner();
     }
@@ -1603,7 +1605,9 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
     rom: &mut RomFetchEndpoint,
     source: &S,
 ) -> Result<u16, SerialFetchError> {
-    backplane.validate_clock().map_err(SerialFetchError::InvalidClock)?;
+    backplane
+        .validate_clock()
+        .map_err(SerialFetchError::InvalidClock)?;
     act.begin_fetch_cycle(address);
     match run_structural_word_transport(backplane, act, None, rom, source, None) {
         Ok(word) => Ok(word),
@@ -1647,7 +1651,9 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     rom0: &mut Rom0DisplayEndpoint,
     source: &S,
 ) -> Result<StructuralWordResult, StructuralWordError> {
-    backplane.validate_clock().map_err(SerialFetchError::InvalidClock)?;
+    backplane
+        .validate_clock()
+        .map_err(SerialFetchError::InvalidClock)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     let fetched_word = run_structural_word_transport(
@@ -1717,7 +1723,9 @@ pub fn run_structural_display_fetch_data_phase_cycle_with_ram<S: Hp67RomWordSour
     data_payload: Option<super::act::ActRegister>,
     ram: Option<&mut Hp67SerialRam>,
 ) -> Result<StructuralDataWordResult, StructuralWordError> {
-    backplane.validate_clock().map_err(SerialFetchError::InvalidClock)?;
+    backplane
+        .validate_clock()
+        .map_err(SerialFetchError::InvalidClock)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     if ram.is_some() {
@@ -1943,7 +1951,9 @@ pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
     source: &S,
     trace: &mut StructuralBusTrace,
 ) -> Result<StructuralWordResult, StructuralWordError> {
-    backplane.validate_clock().map_err(SerialFetchError::InvalidClock)?;
+    backplane
+        .validate_clock()
+        .map_err(SerialFetchError::InvalidClock)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     let fetched_word = run_traced_structural_word_transport(
@@ -2151,7 +2161,9 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced_with_ram<S: Hp67RomW
     trace: &mut StructuralBusTrace,
     ram: Option<&mut Hp67SerialRam>,
 ) -> Result<StructuralDataWordResult, StructuralWordError> {
-    backplane.validate_clock().map_err(SerialFetchError::InvalidClock)?;
+    backplane
+        .validate_clock()
+        .map_err(SerialFetchError::InvalidClock)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     if ram.is_some() {

@@ -1,23 +1,38 @@
 use super::*;
 use crate::emulation::{Drive, LogicLevel};
 
-fn pins(bus: &Hp67ElectricalBackplane) -> ([LogicLevel; Hp67Net::COUNT], [[Drive; Hp67Driver::COUNT]; Hp67Net::COUNT]) {
-    (Hp67Net::ALL.map(|net| bus.level(net)), Hp67Net::ALL.map(|net| Hp67Driver::ALL.map(|driver| bus.driver_drive(net, driver))))
+fn pins(
+    bus: &Hp67ElectricalBackplane,
+) -> (
+    [LogicLevel; Hp67Net::COUNT],
+    [[Drive; Hp67Driver::COUNT]; Hp67Net::COUNT],
+) {
+    (
+        Hp67Net::ALL.map(|net| bus.level(net)),
+        Hp67Net::ALL.map(|net| Hp67Driver::ALL.map(|driver| bus.driver_drive(net, driver))),
+    )
 }
 
 struct Rom;
 impl Hp67RomWordSource for Rom {
-    fn read_word(&self, _: u16) -> Option<u16> { Some(0x155) }
+    fn read_word(&self, _: u16) -> Option<u16> {
+        Some(0x155)
+    }
 }
 
 #[test]
 fn m16b_all_clock_phases_reject_every_foreign_driver_without_advancing() {
     for phase in 0..4 {
         for net in [Hp67Net::Phi1, Hp67Net::Phi2] {
-            for driver in Hp67Driver::ALL.into_iter().filter(|d| *d != Hp67Driver::Act1820_2530) {
+            for driver in Hp67Driver::ALL
+                .into_iter()
+                .filter(|d| *d != Hp67Driver::Act1820_2530)
+            {
                 for drive in [Drive::Low, Drive::High] {
                     let mut bus = Hp67ElectricalBackplane::default();
-                    for _ in 0..phase { bus.try_advance_clock_edge().unwrap(); }
+                    for _ in 0..phase {
+                        bus.try_advance_clock_edge().unwrap();
+                    }
                     let expected = bus.level(net);
                     bus.drive(net, driver, drive);
                     let before = pins(&bus);
@@ -43,16 +58,30 @@ fn m16b_missing_replaced_and_wrong_phase_act_clocks_are_not_repaired_by_stepping
         for net in [Hp67Net::Phi1, Hp67Net::Phi2] {
             for replacement in [false, true] {
                 let mut bus = Hp67ElectricalBackplane::default();
-                for _ in 0..phase { bus.advance_clock(); }
+                for _ in 0..phase {
+                    bus.advance_clock();
+                }
                 let original = bus.driver_drive(net, Hp67Driver::Act1820_2530);
                 bus.drive(net, Hp67Driver::Act1820_2530, Drive::HighZ);
-                if replacement { bus.drive(net, Hp67Driver::External, original); }
+                if replacement {
+                    bus.drive(net, Hp67Driver::External, original);
+                }
                 let before = pins(&bus);
                 assert!(bus.try_advance_clock_edge().is_err());
                 assert_eq!(bus.tick().get(), phase);
                 assert_eq!(pins(&bus), before);
-                if replacement { bus.drive(net, Hp67Driver::External, Drive::HighZ); }
-                bus.drive(net, Hp67Driver::Act1820_2530, if original == Drive::High { Drive::Low } else { Drive::High });
+                if replacement {
+                    bus.drive(net, Hp67Driver::External, Drive::HighZ);
+                }
+                bus.drive(
+                    net,
+                    Hp67Driver::Act1820_2530,
+                    if original == Drive::High {
+                        Drive::Low
+                    } else {
+                        Drive::High
+                    },
+                );
                 let error = bus.validate_clock().unwrap_err();
                 assert_ne!(error.actual, error.expected);
                 bus.drive(net, Hp67Driver::Act1820_2530, original);
@@ -78,7 +107,9 @@ fn m16b_staged_clock_fault_appears_only_after_commit_and_other_nets_stay_indepen
     bus.commit_staged().unwrap();
     bus.drive(Hp67Net::Data, Hp67Driver::External, Drive::Low);
     assert!(bus.validate_clock().is_ok());
-    for _ in 0..224 { bus.try_advance_clock_edge().unwrap(); }
+    for _ in 0..224 {
+        bus.try_advance_clock_edge().unwrap();
+    }
     assert_eq!(bus.word_index(), 1);
     assert_eq!(bus.level(Hp67Net::Data), LogicLevel::Low);
 }
@@ -98,14 +129,61 @@ fn m16b_all_word_compositions_reject_clock_fault_before_endpoint_or_pin_mutation
             bus.drive(net, Hp67Driver::External, Drive::High);
             let before = (act, rom, rom0, data, ram.clone(), pins(&bus));
             let result = match lane {
-                0 => run_structural_fetch_cycle(&mut bus, 0x007, &mut act, &mut rom, &Rom).map_err(StructuralWordError::Fetch),
-                1 => run_structural_display_fetch_cycle(&mut bus, 0x007, &state, &mut act, &mut rom, &mut rom0, &Rom).map(|r| r.fetched_word),
-                2 => run_structural_display_fetch_cycle_traced(&mut bus, 0x007, &state, &mut act, &mut rom, &mut rom0, &Rom, &mut trace).map(|r| r.fetched_word),
-                3 => run_structural_display_fetch_data_phase_cycle_with_ram(&mut bus, 0x007, &state, &mut act, &mut rom, &mut rom0, &Rom, &mut data, Some([7;14]), Some(&mut ram)).map(|r| r.word.fetched_word),
-                4 => run_structural_display_fetch_data_phase_cycle_traced_with_ram(&mut bus, 0x007, &state, &mut act, &mut rom, &mut rom0, &Rom, &mut data, Some([7;14]), &mut trace, Some(&mut ram)).map(|r| r.word.fetched_word),
-                _ => run_structural_data_tail_prefix_with_ram(&mut bus, &state, &mut act, &rom, &mut rom0, &mut data, Some(&mut trace), Some(&mut ram)).map(|_| 0),
+                0 => run_structural_fetch_cycle(&mut bus, 0x007, &mut act, &mut rom, &Rom)
+                    .map_err(StructuralWordError::Fetch),
+                1 => run_structural_display_fetch_cycle(
+                    &mut bus, 0x007, &state, &mut act, &mut rom, &mut rom0, &Rom,
+                )
+                .map(|r| r.fetched_word),
+                2 => run_structural_display_fetch_cycle_traced(
+                    &mut bus, 0x007, &state, &mut act, &mut rom, &mut rom0, &Rom, &mut trace,
+                )
+                .map(|r| r.fetched_word),
+                3 => run_structural_display_fetch_data_phase_cycle_with_ram(
+                    &mut bus,
+                    0x007,
+                    &state,
+                    &mut act,
+                    &mut rom,
+                    &mut rom0,
+                    &Rom,
+                    &mut data,
+                    Some([7; 14]),
+                    Some(&mut ram),
+                )
+                .map(|r| r.word.fetched_word),
+                4 => run_structural_display_fetch_data_phase_cycle_traced_with_ram(
+                    &mut bus,
+                    0x007,
+                    &state,
+                    &mut act,
+                    &mut rom,
+                    &mut rom0,
+                    &Rom,
+                    &mut data,
+                    Some([7; 14]),
+                    &mut trace,
+                    Some(&mut ram),
+                )
+                .map(|r| r.word.fetched_word),
+                _ => run_structural_data_tail_prefix_with_ram(
+                    &mut bus,
+                    &state,
+                    &mut act,
+                    &rom,
+                    &mut rom0,
+                    &mut data,
+                    Some(&mut trace),
+                    Some(&mut ram),
+                )
+                .map(|_| 0),
             };
-            assert!(matches!(result, Err(StructuralWordError::Fetch(SerialFetchError::InvalidClock(_)))));
+            assert!(matches!(
+                result,
+                Err(StructuralWordError::Fetch(SerialFetchError::InvalidClock(
+                    _
+                )))
+            ));
             assert_eq!((act, rom, rom0, data, ram, pins(&bus)), before);
             assert_eq!(bus.tick().get(), 0);
             assert!(trace.samples.is_empty());
@@ -119,7 +197,9 @@ fn m16b_receivers_reject_agreeing_foreign_clocks_before_consuming_inputs() {
         let mut bus = Hp67ElectricalBackplane::default();
         let mut ram = Hp67SerialRam::default();
         ram.begin_cycle(&bus).unwrap();
-        for _ in 0..(bit * 4 + 2) { bus.advance_clock(); }
+        for _ in 0..(bit * 4 + 2) {
+            bus.advance_clock();
+        }
         bus.drive(Hp67Net::Phi2, Hp67Driver::External, Drive::High);
         bus.drive(Hp67Net::Sync, Hp67Driver::Act1820_2530, Drive::High);
         let mut act = ActSerialEndpoint::new(0);
@@ -143,7 +223,10 @@ fn m16b_checked_and_legacy_clock_traversals_have_identical_committed_images() {
     let mut checked = Hp67ElectricalBackplane::default();
     let mut baseline = checked.clone();
     for _ in 0..224 * 15 {
-        assert_eq!(checked.try_advance_clock_edge().unwrap(), baseline.advance_clock_edge());
+        assert_eq!(
+            checked.try_advance_clock_edge().unwrap(),
+            baseline.advance_clock_edge()
+        );
         assert_eq!(checked.word_bit(), baseline.word_bit());
         assert_eq!(checked.word_index(), baseline.word_index());
         assert_eq!(pins(&checked), pins(&baseline));
@@ -154,8 +237,11 @@ fn m16b_checked_and_legacy_clock_traversals_have_identical_committed_images() {
 #[test]
 fn m16b_failed_checked_edge_records_no_phantom_transition_or_publication() {
     let mut bus = Hp67ElectricalBackplane::default();
-    bus.start_pin_capture("M16B clock fault fixture".into()).unwrap();
-    for _ in 0..2 { bus.try_advance_clock_edge().unwrap(); }
+    bus.start_pin_capture("M16B clock fault fixture".into())
+        .unwrap();
+    for _ in 0..2 {
+        bus.try_advance_clock_edge().unwrap();
+    }
     bus.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::High);
     let before = bus.clone().take_pin_capture().unwrap().to_tsv().unwrap();
     assert!(bus.try_advance_clock_edge().is_err());
