@@ -171,3 +171,9 @@ This closes logical storage ownership, not physical CRC DATA serialization or PH
 
 The live scope now includes the pin-derived cathode/anode/exposure circuit. Workloads and speed assertions are unchanged; the provisional display checkpoint is not calibrated physical timing.
 The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.
+
+
+## M16C resolved CRC FLAG/F2 — delivery 6/15
+
+Production idle scope now explicitly includes resolved CRC FLAG/F2 reception. Injected RAM/CRC reference fixtures disable it alongside autonomous control. Workloads, rotating order, correctness checks and timing parameters remain unchanged; no speed threshold is added.
+See `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md` for evidence and timing boundaries.

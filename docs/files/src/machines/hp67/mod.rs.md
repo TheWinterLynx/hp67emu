@@ -179,3 +179,9 @@ See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md
 ## M16B clock ownership integrity — delivery 5/15
 
 Exports Hp67ClockFault with the backplane and registers the clock integrity fault campaign.
+
+
+## M16C resolved CRC FLAG/F2 — delivery 6/15
+
+Exports the source/receiver split of the resolved active-low CRC FLAG/F2 bridge and its structured errors. Electrical source identity is the existing 1820-1751 CRC; no invented chip/driver slot or generic Woodstock layer is added.
+See `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md` for evidence and timing boundaries.

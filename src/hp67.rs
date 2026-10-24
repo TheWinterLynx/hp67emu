@@ -364,6 +364,7 @@ pub struct Hp67LiveMachine {
     pipeline: FetchPipelineLatch,
     data_serial: Hp67DataSerialWordPath,
     serial_ram: Option<Hp67SerialRam>,
+    crc_flag: Option<hp67emu::machines::hp67::Hp67CrcFlagBridge>,
     owned_crc_data: Option<hp67emu::machines::hp67::crc_owned_data::Hp67CrcOwnedData>,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
     pending_address_data_frame: Option<ActRegister>,
@@ -383,9 +384,11 @@ pub struct Hp67LiveMachine {
 
 impl Hp67LiveMachine {
     pub fn power_on_default() -> Result<Self, String> {
+        let mut backplane = Hp67ElectricalBackplane::default();
+        let crc_flag = hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(&mut backplane);
         Ok(Self {
             source: Hp67Firmware::default(),
-            backplane: Hp67ElectricalBackplane::default(),
+            backplane,
             act_serial: ActSerialEndpoint::new(0)
                 .with_received_execution()
                 .with_owned_flow()
@@ -399,6 +402,7 @@ impl Hp67LiveMachine {
                 .with_ram_command_receiver()
                 .with_crc_control(),
             serial_ram: Some(Hp67SerialRam::default()),
+            crc_flag: Some(crc_flag),
             owned_crc_data: Some(Default::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
@@ -452,6 +456,9 @@ impl Hp67LiveMachine {
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
+        if self.crc_flag.is_some() {
+            self.crc_flag = Some(hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(&mut self.backplane));
+        }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
         let owned_registers = self.act_serial.owned_register_state().is_some();
@@ -632,6 +639,10 @@ impl Hp67LiveMachine {
         self.backplane
             .validate_clock()
             .map_err(|error| format!("live cycle {cycle} invalid PHI image: {error:?}"))?;
+        if let Some(flag) = self.crc_flag.as_ref() {
+            flag.check(&self.backplane)
+                .map_err(|error| format!("live cycle {cycle} CRC F2 preflight: {error:?}"))?;
+        }
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())
             .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
@@ -695,6 +706,10 @@ impl Hp67LiveMachine {
         self.act_serial
             .check_owned_register_mirror(&self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
+        if let Some(flag) = self.crc_flag.as_mut() {
+            flag.begin_word(&mut self.backplane)
+                .map_err(|error| format!("live cycle {cycle} CRC F2 release: {error:?}"))?;
+        }
         self.pipeline.begin_cycle();
         self.complete_pending_ram_data_with_prefix(cycle, trace.as_deref_mut())?;
         if let Some(word) = executing_word {
@@ -937,6 +952,12 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} M14M commit failed: {error}"))?;
             self.sync_crc_buffer_status();
         }
+        if let Some(flag) = self.crc_flag.as_mut() {
+            let crc = self.data_serial.crc_control()
+                .ok_or_else(|| format!("live cycle {cycle} F2 source missing autonomous CRC"))?;
+            flag.publish(crc, &mut self.backplane)
+                .map_err(|error| format!("live cycle {cycle} CRC F2 publication: {error:?}"))?;
+        }
         if let Some((instruction, condition, flag, status3)) = crc_control_expected {
             let image = self
                 .act_serial
@@ -969,10 +990,12 @@ impl Hp67LiveMachine {
                     .crc
                     .commit_control_flag(result.flag, result.value)
                     .map_err(|error| format!("live cycle {cycle} CRC mirror commit: {error:?}"))?;
-                self.act_serial
-                    .receive_owned_crc_condition(result.condition)
+                let asserted = self.act_serial.receive_owned_crc_f2(&self.backplane)
                     .map_err(|error| format!("live cycle {cycle} {error}"))?;
-                self.machine.act.state.status[3] = actual_status3;
+                if asserted != (result.condition == Some(true)) {
+                    return Err(format!("live cycle {cycle} resolved F2/CRC comparison failed"));
+                }
+                self.machine.act.state.status[3] |= asserted;
             } else {
                 image
                     .commit(&mut self.machine.act.state, &mut self.machine.crc)
@@ -1677,6 +1700,10 @@ impl Hp67LiveMachine {
         live.act_serial.disable_received_execution();
         live.owned_crc_data = None;
         live.data_serial.disable_crc_control();
+        live.crc_flag = None;
+        live.backplane.drive(hp67emu::machines::hp67::Hp67Net::F2,
+            hp67emu::machines::hp67::Hp67Driver::CardReaderController1820_1751,
+            hp67emu::emulation::Drive::HighZ);
         Ok(live)
     }
 
@@ -4248,3 +4275,7 @@ mod pin_capture_tests;
 #[cfg(test)]
 #[path = "hp67/clock_integrity_tests.rs"]
 mod clock_integrity_tests;
+
+#[cfg(test)]
+#[path = "hp67/resolved_crc_flag_tests.rs"]
+mod resolved_crc_flag_tests;

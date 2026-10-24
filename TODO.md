@@ -682,3 +682,31 @@ benchmark rows now rotate together; the live benchmark already rotated.
 No recovered performance is claimed before the owner gate. See
 `docs/research/M16B_CLOCK_CACHE_2026-10-24.md`. This follow-up does not consume
 delivery 6/15 or claim any new physical timing calibration.
+
+
+## M16B cache validated integration
+
+Owner M16B PERF FULL GATE GREEN; exact 976e8e4fadf269d0fba22f307ba11e3d4084a613
+integrated. Both diagnostics 12/12 unchanged cycles. Live 3.348 us/word versus
+3.690 in prior run; still above M16A 2.845. The isolated same-process ownership
+kernel measures 0.549 cached versus 1.225 us/word count-based. These figures
+are workload/host measurements, not a whole-emulator controlled A/B result.
+Delivery 5/15 complete; no claim of full performance recovery.
+
+## M16C resolved CRC FLAG/F2 — delivery 6/15
+
+Autonomous CRC condition output now crosses the resolved active-low FLAG/F2
+net using the CRC identity before retained ACT S3 reception. Foreign agreeing
+drives, contention, floating/wrong-source inputs and changed source state are
+rejected; preflight precedes inputs and pending RAM tails. Reset and explicit
+reference fixtures preserve their composition. Nine new regressions include
+all CRC control commands and true firmware fault recovery/capture. The existing
+224-edge traversal remains; only completed-word source/receiver work is added.
+
+Direct HP-67 schematic logic sheets 1/2 establish the barred FLAG connection
+to ACT F2; Classic Notes page 55 establishes successful CRC tests asserting S3
+and firmware-owned clearing. Pulse publication/release at logical word
+boundaries and active High/Low output-stage modeling remain WORKING APPROXIMATION.
+Exact F2 pulse width/PHI offset, voltage thresholds, physical output circuitry
+and propagation remain SOURCE-BLOCKED. See
+`docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md`. Owner local gate pending.

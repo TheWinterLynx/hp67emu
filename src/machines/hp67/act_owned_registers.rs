@@ -113,6 +113,16 @@ impl ActSerialEndpoint {
         }
         Ok(())
     }
+    /// Production CRC condition enters through the validated resolved F2 net.
+    pub fn receive_owned_crc_f2(&mut self, bus: &Hp67ElectricalBackplane) -> Result<bool, String> {
+        if bus.word_bit() != 0 || !bus.at_transport_launch_boundary() {
+            return Err(format!("ACT F2 input requires completed b55: tick={}", bus.tick().get()));
+        }
+        let asserted = super::super::sample_crc_f2(bus)
+            .map_err(|error| format!("ACT F2 sample failed: {error:?}"))?;
+        self.receive_owned_crc_condition(Some(asserted))?;
+        Ok(asserted)
+    }
     pub fn qualify_owned_registers_from_received(&mut self) -> Result<(), String> {
         if let Some(mut state) = self.owned_register_state() {
             state.instruction_state = self
@@ -375,4 +385,34 @@ mod tests {
         );
         assert_eq!(act.owned_register_state(), Some(source));
     }
+    #[test]
+    fn m16c_act_s3_consumes_resolved_f2_and_rejects_invalid_inputs_before_mutation() {
+        use super::super::super::{Hp67Driver, Hp67Net, Hp67CrcFlagBridge};
+        use crate::emulation::Drive;
+        let mut act = endpoint();
+        let mut bus = Hp67ElectricalBackplane::default();
+        Hp67CrcFlagBridge::attach(&mut bus);
+        let before = act;
+        assert!(act.receive_owned_crc_f2(&bus).is_err());
+        assert_eq!(act, before);
+        prime(&mut act, 0, true);
+        let state = act.owned_register_state().unwrap();
+        act.begin_received_execution(&state).unwrap();
+        for bit in 0..56 { act.advance_execution_for_bit(bit).unwrap(); }
+        bus.drive(Hp67Net::F2, Hp67Driver::CardReaderController1820_1751, Drive::Low);
+        assert_eq!(act.receive_owned_crc_f2(&bus), Ok(true));
+        assert!(act.owned_register_state().unwrap().status[3]);
+        bus.drive(Hp67Net::F2, Hp67Driver::CardReaderController1820_1751, Drive::High);
+        assert_eq!(act.receive_owned_crc_f2(&bus), Ok(false));
+        assert!(act.owned_register_state().unwrap().status[3], "inactive F2 must not clear sticky S3");
+        let before = act;
+        bus.drive(Hp67Net::F2, Hp67Driver::External, Drive::Low);
+        assert!(act.receive_owned_crc_f2(&bus).is_err());
+        assert_eq!(act, before);
+        bus.drive(Hp67Net::F2, Hp67Driver::External, Drive::HighZ);
+        bus.advance_clock();
+        assert!(act.receive_owned_crc_f2(&bus).is_err());
+        assert_eq!(act, before);
+    }
+
 }

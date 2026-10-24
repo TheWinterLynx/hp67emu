@@ -4,7 +4,7 @@ Date: 2026-10-24
 Branch: agent/m16b-clock-cache
 Base: validated/integrated 692ce6c5d1409e1acd167813630a1c3d5b9ce334
 Delivery: follow-up to 5/15; does not consume delivery 6
-Status: implementation ready; owner runtime/performance pending.
+Status: owner M16B PERF FULL GATE GREEN; exact 976e8e4fadf269d0fba22f307ba11e3d4084a613 integrated.
 
 ## Trigger and attribution limits
 
@@ -43,3 +43,14 @@ performance. The existing eight electrical benchmark rows now rotate together
 in each round; their workload code is unchanged. Live already rotates.
 Compilation, both build suites, release, both diagnostics and all existing
 benchmarks are owner-only gates. Actions runs formatting/check/save only.
+
+
+## Owner measurements
+
+Both diagnostics 12/12 retain all cycle counts. Cached ownership kernel 0.549
+versus count-based 1.225 us/word in the same rotating run. Production live
+3.348 us/word, full no-DATA structural 1.573, raw PHI 0.422, stage/commit
+0.800, staged scheduler 0.815, autonomous RAM 1.294. Live improves 9.3%
+versus prior 3.690 but remains 17.7% above M16A 2.845. Other controls varied
+and electrical measurement order changed; do not assign all differences to
+this cache or claim full recovery. Existing fidelity checks remain enabled.

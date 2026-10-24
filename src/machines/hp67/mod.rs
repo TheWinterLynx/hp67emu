@@ -22,6 +22,7 @@ pub mod bus_trace;
 pub mod card_flux;
 pub mod card_transport;
 pub mod crc;
+pub mod crc_flag;
 pub mod crc_owned_data;
 pub mod data;
 pub mod display;
@@ -165,3 +166,5 @@ pub use serial_crc_control::{Hp67CrcControlResult, Hp67SerialCrcControl};
 
 #[cfg(test)]
 mod clock_integrity_tests;
+
+pub use crc_flag::{sample_crc_f2, Hp67CrcFlagBridge, Hp67CrcFlagError};
