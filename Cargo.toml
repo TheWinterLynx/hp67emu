@@ -8,6 +8,11 @@ repository = "https://github.com/TheWinterLynx/hp67emu"
 publish = false
 default-run = "hp67emu"
 
+[features]
+default = []
+# Full-pin recording is an explicit diagnostic build; offline audit stays available.
+pin-capture = []
+
 [dependencies]
 eframe = { version = "=0.27.2", features = ["wgpu"] }
 image = { version = "=0.24.9", default-features = false, features = ["png"] }

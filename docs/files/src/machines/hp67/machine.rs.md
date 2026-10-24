@@ -103,3 +103,9 @@ The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nom
 
 Opt-in pin recording observes committed immediate drives, joint IS/SYNC/DATA and display bundles, staged commit success and all PHI transitions. Each saved row preserves every declared net level and named high/low ownership mask. Delta order distinguishes multiple publications at one ordinal tick; a bundle has one snapshot. Disabled capture performs no pin enumeration/allocation. Overflow is explicit and cannot export truncated success. Power reset replaces the backplane and clears the recorder.
 Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.
+
+
+### M16A PHI windows and compiled-out recorder — delivery 4/15
+
+The pin-capture feature compiles in both recorder storage and every publication hook. Without it the backplane contains only the electrical fabric and no record_pins calls/method, rather than checking an optional observer at every PHI edge. Public start/take APIs explicitly refuse/return None in normal builds. Matrix regressions lock default storage/absence of side effects and diagnostic capture/atomic controls. All 224 PHI transitions, resolved nets and device work remain intact.
+See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.

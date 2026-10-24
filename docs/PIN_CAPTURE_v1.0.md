@@ -1,5 +1,7 @@
 # HP-67 pin captures v1.0
 
+Runtime build instructions are superseded by `docs/PIN_CAPTURE_v1.1.md`; the v1 data format remains compatible.
+
 ## Native commands
 
 - `hp67emu --trace-pins <1..512 words> <new.tsv>` captures real live firmware, with frozen no-key contacts and reset hold excluded.

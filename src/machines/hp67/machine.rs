@@ -22,28 +22,30 @@ use super::{
 #[derive(Debug, Clone, Default)]
 pub struct Hp67ElectricalBackplane {
     fabric: Hp67ElectricalFabric,
+    #[cfg(feature = "pin-capture")]
     pin_trace: Option<super::pin_trace::Hp67PinTrace>,
 }
 
 impl Hp67ElectricalBackplane {
     /// Opt-in diagnostic recording; never calibrates ordinal ticks as time.
     pub fn start_pin_capture(&mut self, provenance: String) -> Result<(), String> {
-        if self.pin_trace.is_some() {
-            return Err("pin capture already active".into());
+        #[cfg(feature = "pin-capture")]
+        {
+            if self.pin_trace.is_some() { return Err("pin capture already active".into()); }
+            if !self.at_transport_launch_boundary() { return Err("pin capture must start before PHI1 falling".into()); }
+            self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(self.word_bit(), provenance)?);
+            self.record_pins(); Ok(())
         }
-        if !self.at_transport_launch_boundary() {
-            return Err("pin capture must start before PHI1 falling".into());
-        }
-        self.pin_trace = Some(super::pin_trace::Hp67PinTrace::emulator(
-            self.word_bit(),
-            provenance,
-        )?);
-        self.record_pins();
-        Ok(())
+        #[cfg(not(feature = "pin-capture"))]
+        { let _ = provenance; Err("pin capture requires a diagnostic build: cargo build --release --features pin-capture".into()) }
     }
     pub fn take_pin_capture(&mut self) -> Option<super::pin_trace::Hp67PinTrace> {
-        self.pin_trace.take()
+        #[cfg(feature = "pin-capture")]
+        { self.pin_trace.take() }
+        #[cfg(not(feature = "pin-capture"))]
+        { None }
     }
+    #[cfg(feature = "pin-capture")]
     #[inline]
     fn record_pins(&mut self) {
         if self.pin_trace.is_some() {
@@ -114,6 +116,7 @@ impl Hp67ElectricalBackplane {
     ) {
         self.fabric
             .commit_serial_launch_with_roms(act_is, rom_is, sync, data);
+        #[cfg(feature = "pin-capture")]
         self.record_pins();
     }
 
@@ -132,17 +135,20 @@ impl Hp67ElectricalBackplane {
             data,
             Hp67Driver::RamAggregate,
         );
+        #[cfg(feature = "pin-capture")]
         self.record_pins();
     }
 
     /// Structural DATA bridge commit; no device sees an intermediate handoff.
     pub fn commit_data_level_bridge(&mut self, act: Drive, ram: Drive) {
         self.fabric.commit_data_level_bridge(act, ram);
+        #[cfg(feature = "pin-capture")]
         self.record_pins();
     }
 
     pub(crate) fn commit_display_controls(&mut self, str_drive: Drive, rcd_drive: Drive) {
         self.fabric.commit_display_controls(str_drive, rcd_drive);
+        #[cfg(feature = "pin-capture")]
         self.record_pins();
     }
 
@@ -166,6 +172,7 @@ impl Hp67ElectricalBackplane {
 
     pub fn drive(&mut self, net: Hp67Net, driver: Hp67Driver, drive: Drive) {
         self.fabric.set_drive_immediate(net, driver, drive);
+        #[cfg(feature = "pin-capture")]
         self.record_pins();
     }
 
@@ -188,9 +195,8 @@ impl Hp67ElectricalBackplane {
 
     pub fn commit_staged(&mut self) -> Result<(), Hp67ElectricalError> {
         let result = self.fabric.commit_staged();
-        if result.is_ok() {
-            self.record_pins();
-        }
+        #[cfg(feature = "pin-capture")]
+        if result.is_ok() { self.record_pins(); }
         result
     }
 
@@ -330,5 +336,34 @@ mod tests {
         assert_eq!(backplane.word_index(), 1);
         assert_eq!(backplane.word_bit(), 0);
         assert_eq!(backplane.word_digit(), 0);
+    }
+}
+
+#[cfg(all(test, not(feature = "pin-capture")))]
+mod recorder_disabled_tests {
+    use super::*;
+    #[test]
+    fn m16a_default_backplane_contains_only_electrical_fabric() {
+        assert_eq!(std::mem::size_of::<Hp67ElectricalBackplane>(), std::mem::size_of::<Hp67ElectricalFabric>());
+        let mut bus = Hp67ElectricalBackplane::default();
+        let before: Vec<_> = Hp67Net::ALL.into_iter().map(|net| bus.level(net)).collect();
+        let error = bus.start_pin_capture("request".into()).unwrap_err(); assert!(error.contains("--features pin-capture"));
+        assert_eq!(bus.tick(), Tick::ZERO); assert!(bus.take_pin_capture().is_none());
+        assert_eq!(Hp67Net::ALL.into_iter().map(|net| bus.level(net)).collect::<Vec<_>>(), before);
+        for _ in 0..224 { bus.advance_clock(); } assert_eq!(bus.tick().get(), 224); assert!(bus.take_pin_capture().is_none());
+    }
+}
+#[cfg(all(test, feature = "pin-capture"))]
+mod recorder_enabled_tests {
+    use super::*;
+    #[test]
+    fn m16a_diagnostic_build_retains_full_pin_recording_and_joint_controls() {
+        let mut bus = Hp67ElectricalBackplane::default(); bus.start_pin_capture("diagnostic matrix fixture".into()).unwrap();
+        bus.commit_display_controls(Drive::High, Drive::High);
+        for _ in 0..224 { bus.advance_clock(); }
+        let trace = bus.take_pin_capture().unwrap();
+        let imported = super::super::pin_trace::import_pin_trace(&trace.to_tsv().unwrap()).unwrap();
+        let analysis = super::super::pin_trace::analyze_pin_trace(&imported).unwrap(); assert_eq!(analysis.clock_edges.len(), 224); assert_eq!(analysis.cells.len(), 56);
+        assert_eq!(imported.rows[1].levels[Hp67Net::Str.index()], Some(LogicLevel::High)); assert_eq!(imported.rows[1].levels[Hp67Net::Rcd.index()], Some(LogicLevel::High));
     }
 }

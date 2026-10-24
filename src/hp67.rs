@@ -4239,5 +4239,5 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "pin-capture"))]
 mod pin_capture_tests;

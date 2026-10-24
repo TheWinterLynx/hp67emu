@@ -168,3 +168,9 @@ The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nom
 
 Exports pin_trace as the GUI-free bounded recorder, strict normalized capture importer and offline topology/interval/word-comparison interface.
 Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.
+
+
+### M16A PHI windows and compiled-out recorder — delivery 4/15
+
+Exports pin_timing for offline four-edge stability and observed setup/hold analysis. Its analysis is available independently of runtime recording features.
+See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.

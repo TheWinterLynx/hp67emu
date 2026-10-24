@@ -1,10 +1,13 @@
 //! Full-pin ordinal capture and strictly separated physical-time observations.
 //! Capture metadata is provenance supplied by the caller, not hardware proof.
 use super::{
-    machine::Hp67ElectricalBackplane,
     wiring::{Hp67Driver, Hp67Net},
 };
-use crate::emulation::{Drive, LogicLevel};
+use crate::emulation::LogicLevel;
+#[cfg(feature = "pin-capture")]
+use crate::emulation::Drive;
+#[cfg(feature = "pin-capture")]
+use super::machine::Hp67ElectricalBackplane;
 
 pub const MAX_PIN_ROWS: usize = 160_000;
 pub const MAX_PIN_BYTES: usize = 64 * 1024 * 1024;
@@ -63,6 +66,7 @@ impl Hp67PinTrace {
             overflowed: false,
         })
     }
+    #[cfg(feature = "pin-capture")]
     pub(crate) fn record(&mut self, mut row: PinRow) {
         if self.overflowed {
             return;
@@ -124,6 +128,7 @@ impl Hp67PinTrace {
         Ok(out)
     }
 }
+#[cfg(feature = "pin-capture")]
 pub(crate) fn snapshot(bus: &Hp67ElectricalBackplane) -> PinRow {
     PinRow {
         at: bus.tick().get(),
@@ -319,8 +324,8 @@ pub fn import_pin_trace(input: &str) -> Result<Hp67PinTrace, String> {
 
 #[path = "pin_trace_analysis.rs"]
 mod analysis;
-pub use analysis::{analyze_pin_trace, compare_pin_traces, PinAnalysis, PinComparison};
+pub use analysis::{analyze_pin_trace, compare_pin_traces, PinAnalysis, PinComparison, PinClockObservation};
 
-#[cfg(test)]
+#[cfg(all(test, feature = "pin-capture"))]
 #[path = "pin_trace_tests.rs"]
 mod tests;

@@ -644,4 +644,14 @@ audit, IS/SYNC/wrapped DATA decoding and explicit-word selected-pin comparison
 are available through native CLI. Eleven regressions cover the complete lane.
 This supplies validation tooling; no measured hardware fixture or new physical
 timing claim is introduced. See `docs/PIN_CAPTURE_v1.0.md` and
-`docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`. Owner local gate pending.
+`docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`. Owner M15Z FULL GATE GREEN; exact 38a64171 head integrated (delivery 3/15).
+
+
+## M16A PHI windows and compiled-out diagnostic observer — delivery 4/15
+
+Normal builds omit recorder storage and publication hooks; pin-capture builds
+retain the complete recording lane and its tests. Offline PHI window audits
+now report all-edge observed setup/hold separations, censoring, coincidences
+and PHI1 stability. Both builds are required in the owner gate. No physical
+edge or pulse-width approximation is promoted to exact timing. See
+`docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. Owner local gate pending.

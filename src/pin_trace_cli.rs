@@ -43,7 +43,7 @@ fn report(output: Option<&String>, content: &str) -> Result<(), String> {
 pub fn handles(command: Option<&str>) -> bool {
     matches!(
         command,
-        Some("--trace-pins" | "--audit-pins" | "--compare-pins")
+        Some("--trace-pins" | "--audit-pins" | "--compare-pins" | "--timing-pins")
     )
 }
 pub fn run(args: &[String]) -> Result<i32, String> {
@@ -56,6 +56,12 @@ pub fn run(args: &[String]) -> Result<i32, String> {
         Some("--audit-pins") if (2..=3).contains(&args.len()) => {
             let trace = read(&args[1])?; let analysis = analyze_pin_trace(&trace)?; report(args.get(2), &analysis.report(&trace))?; Ok(0)
         },
+        Some("--timing-pins") if (3..=4).contains(&args.len()) => {
+            let trace = read(&args[1])?;
+            let nets: Result<Vec<_>, String> = args[2].split(',').map(|name| PIN_NAMES.iter().position(|pin| *pin == name).map(|index| Hp67Net::ALL[index]).ok_or_else(|| format!("unknown timing pin {name:?}"))).collect();
+            let audit = hp67emu::machines::hp67::pin_timing::audit_pin_timing(&trace, &nets?)?;
+            report(args.get(3), &audit.report(&trace))?; Ok(audit.exit_code())
+        },
         Some("--compare-pins") if (7..=8).contains(&args.len()) => {
             let left = read(&args[1])?; let right = read(&args[2])?;
             let lw = args[3].parse::<u64>().map_err(|_| "invalid left word index")?; let rw = args[4].parse::<u64>().map_err(|_| "invalid right word index")?; let count = args[5].parse::<usize>().map_err(|_| "invalid comparison word count")?;
@@ -64,10 +70,14 @@ pub fn run(args: &[String]) -> Result<i32, String> {
             let text = format!("left={} source={:?} domain={:?} provenance={} word={}\nright={} source={:?} domain={:?} provenance={} word={}\nwords={} pins={}\n{}", args[1], left.source, left.domain, left.provenance, lw, args[2], right.source, right.domain, right.provenance, rw, count, args[6], result.report());
             report(args.get(7), &text)?; Ok(result.exit_code())
         },
-        _ => Err("usage: --trace-pins <1..512 words> <new.tsv> | --audit-pins <input.tsv> [new-report.txt] | --compare-pins <left.tsv> <right.tsv> <left-word> <right-word> <1..512 words> <IS,SYNC,...> [new-report.txt]".into()),
+        _ => Err("usage: --trace-pins <1..512 words> <new.tsv> | --audit-pins <input.tsv> [new-report.txt] | --compare-pins <left.tsv> <right.tsv> <left-word> <right-word> <1..512 words> <IS,SYNC,...> [new-report.txt] | --timing-pins <input.tsv> <IS,DATA,SYNC,...> [new-report.txt]".into()),
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "pin-capture"))]
 #[path = "pin_trace_cli_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "timing_cli_tests.rs"]
+mod timing_tests;

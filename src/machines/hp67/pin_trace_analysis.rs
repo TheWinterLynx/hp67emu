@@ -21,9 +21,18 @@ pub struct PinWord {
     pub data: u64,
     pub data_mask: u64,
 }
+/// An actual observed PHI transition and its source row, not a latch-edge claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PinClockObservation {
+    pub row_index: usize,
+    pub word: u64,
+    pub bit: u8,
+    pub edge: super::super::timing::Hp67ClockEdge,
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PinAnalysis {
     pub cells: Vec<PinCell>,
+    pub clock_edges: Vec<PinClockObservation>,
     pub words: BTreeMap<u64, PinWord>,
     pub phase_intervals: [Vec<u64>; 4],
     pub low_pulses: [Vec<u64>; Hp67Net::COUNT],
@@ -54,11 +63,21 @@ pub fn analyze_pin_trace(trace: &Hp67PinTrace) -> Result<PinAnalysis, String> {
     if trace.first_bit >= 56 || trace.rows.len() < 2 || trace.rows.len() > MAX_PIN_ROWS {
         return Err("invalid/empty pin capture".into());
     }
+    if (trace.domain == PinTimeDomain::Ordinal && trace.source != PinSource::Emulator)
+        || (trace.domain == PinTimeDomain::Nanoseconds && trace.source == PinSource::Emulator) {
+        return Err("source/time domain mismatch".into());
+    }
+    if trace.domain == PinTimeDomain::Nanoseconds &&
+        (trace.rows.iter().any(|row| row.order != 0 || row.owners.iter().any(Option::is_some))
+         || trace.rows.windows(2).any(|rows| rows[1].at <= rows[0].at)) {
+        return Err("physical observations require distinct timestamps without invented delta order or internal owners".into());
+    }
     if clocks(&trace.rows[0])? != (true, true) {
         return Err("capture must start with both PHI pins high before PHI1 falling".into());
     }
     let mut result = PinAnalysis {
         cells: Vec::new(),
+        clock_edges: Vec::new(),
         words: BTreeMap::new(),
         phase_intervals: std::array::from_fn(|_| Vec::new()),
         low_pulses: std::array::from_fn(|_| Vec::new()),
@@ -71,7 +90,7 @@ pub fn analyze_pin_trace(trace: &Hp67PinTrace) -> Result<PinAnalysis, String> {
     let mut last_edge: Option<(usize, u64)> = None;
     let mut cell_index = 0u64;
     let mut low_start = [None; Hp67Net::COUNT];
-    for pair in trace.rows.windows(2) {
+    for (row_index, pair) in trace.rows.windows(2).enumerate() {
         let previous = &pair[0];
         let row = &pair[1];
         if (row.at, row.order) <= (previous.at, previous.order) {
@@ -135,6 +154,9 @@ pub fn analyze_pin_trace(trace: &Hp67PinTrace) -> Result<PinAnalysis, String> {
         }) {
             result.coincident_changes += 1;
         }
+        use super::super::timing::Hp67ClockEdge;
+        result.clock_edges.push(PinClockObservation { row_index: row_index + 1, word: coordinate / 56, bit,
+            edge: [Hp67ClockEdge::Phi1Falling, Hp67ClockEdge::Phi1Rising, Hp67ClockEdge::Phi2Falling, Hp67ClockEdge::Phi2Rising][edge] });
         if edge == 1 {
             result.cells.push(PinCell {
                 word: coordinate / 56,

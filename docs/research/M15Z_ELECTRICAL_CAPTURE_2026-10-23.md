@@ -3,7 +3,9 @@
 Date: 2026-10-23
 Base: owner-validated M15Y `ae0865b0e33a1eead2ed0798ae178ae0deb06c33`, integrated into main.
 Branch: `agent/m15z-electrical-capture`
-Status: implemented; owner local gate pending.
+Status: owner FULL GATE GREEN; exact `38a64171323a70586048dfc6e689e0e6567771ed` integrated into main. Delivery 3/15 complete.
+Diagnostic 12/12 unchanged cycles; live median 3.336 us/word (95.92x hardware).
+The observed disabled-recorder regression is addressed in M16A; recovery awaits its local gate.
 
 ## Completed lane
 
