@@ -461,7 +461,8 @@ impl Hp67ElectricalFabric {
             let valid = dense.low_driver_count + dense.high_driver_count == 1
                 && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ;
             let bit = 1u8 << net_index;
-            self.clock_owner_faults = (self.clock_owner_faults & !bit) | if valid { 0 } else { bit };
+            self.clock_owner_faults =
+                (self.clock_owner_faults & !bit) | if valid { 0 } else { bit };
         }
         self.refresh_resolved_level(net_index);
     }

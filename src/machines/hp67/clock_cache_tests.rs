@@ -3,7 +3,11 @@ use super::*;
 fn recomputed_ownership(fabric: &Hp67ElectricalFabric) -> bool {
     [Hp67Net::Phi1, Hp67Net::Phi2].into_iter().all(|net| {
         let mask = Hp67Driver::ALL.into_iter().fold(0u16, |mask, driver| {
-            mask | if fabric.drive(net, driver) == Drive::HighZ { 0 } else { 1 << driver.index() }
+            mask | if fabric.drive(net, driver) == Drive::HighZ {
+                0
+            } else {
+                1 << driver.index()
+            }
         });
         mask == 1 << Hp67Driver::Act1820_2530.index()
     })
@@ -107,7 +111,11 @@ fn ownership_probe_stream<const CACHED: bool>(words: usize) -> u64 {
                 // This is a synthetic electrical kernel, not desktop throughput.
                 for _ in 0..2 {
                     let observed = black_box(&fabric);
-                    let valid = if CACHED { observed.clock_drives_valid() } else { count_based_ownership(observed) };
+                    let valid = if CACHED {
+                        observed.clock_drives_valid()
+                    } else {
+                        count_based_ownership(observed)
+                    };
                     assert!(black_box(valid));
                 }
             }
@@ -120,12 +128,20 @@ fn ownership_probe_stream<const CACHED: bool>(words: usize) -> u64 {
 #[test]
 #[ignore = "release-only rotating ownership query benchmark; not production throughput"]
 fn m16b_cache_ownership_realtime_benchmark() {
-    use std::{hint::black_box, time::{Duration, Instant}};
+    use std::{
+        hint::black_box,
+        time::{Duration, Instant},
+    };
     assert!(!cfg!(debug_assertions), "run with --release");
     const WORDS: usize = 50_000;
     const ROUNDS: usize = 8;
-    let paths: [fn(usize) -> u64; 2] = [ownership_probe_stream::<true>, ownership_probe_stream::<false>];
-    for path in paths { black_box(path(2_500)); }
+    let paths: [fn(usize) -> u64; 2] = [
+        ownership_probe_stream::<true>,
+        ownership_probe_stream::<false>,
+    ];
+    for path in paths {
+        black_box(path(2_500));
+    }
     let mut samples: [Vec<Duration>; 2] = std::array::from_fn(|_| Vec::with_capacity(ROUNDS));
     for round in 0..ROUNDS {
         for offset in 0..2 {
@@ -136,10 +152,18 @@ fn m16b_cache_ownership_realtime_benchmark() {
         }
     }
     println!("\nM16B OWNERSHIP QUERY KERNEL — ROTATING SAME-PROCESS COMPARISON");
-    for (index, name) in ["cached ownership", "M16B count-based ownership"].into_iter().enumerate() {
+    for (index, name) in ["cached ownership", "M16B count-based ownership"]
+        .into_iter()
+        .enumerate()
+    {
         samples[index].sort_unstable();
         let us = |d: Duration| d.as_secs_f64() * 1e6 / WORDS as f64;
-        println!("{name}: median={:.3} us/word best={:.3} worst={:.3}", us(samples[index][ROUNDS/2]), us(samples[index][0]), us(samples[index][ROUNDS-1]));
+        println!(
+            "{name}: median={:.3} us/word best={:.3} worst={:.3}",
+            us(samples[index][ROUNDS / 2]),
+            us(samples[index][0]),
+            us(samples[index][ROUNDS - 1])
+        );
     }
     println!("Both kernels maintain the cache, resolve every PHI edge and assert 224 transitions/word. Eight ownership probes per bit. This isolates query representation; it is not an old/new whole-emulator A/B result. No correctness speed threshold.");
 }
