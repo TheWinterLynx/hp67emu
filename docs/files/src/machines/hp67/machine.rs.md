@@ -109,3 +109,8 @@ Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.m
 
 The pin-capture feature compiles in both recorder storage and every publication hook. Without it the backplane contains only the electrical fabric and no record_pins calls/method, rather than checking an optional observer at every PHI edge. Public start/take APIs explicitly refuse/return None in normal builds. Matrix regressions lock default storage/absence of side effects and diagnostic capture/atomic controls. All 224 PHI transitions, resolved nets and device work remain intact.
 See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.
+
+
+## M16B clock ownership integrity — delivery 5/15
+
+Hp67ClockFault exposes ordinal tick, net, expected/resolved level, ACT contribution and exceptional active-driver mask. validate_clock checks both ownership and the active-low phase image; try_advance_clock_edge refuses before mutation. The existing raw scaffold stepping API remains available for low-level fixtures; production compositions validate before entry and shared launch/sample guards require sole ACT ownership. No widths, dead time or latch edges are calibrated.

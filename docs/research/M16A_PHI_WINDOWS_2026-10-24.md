@@ -59,3 +59,15 @@ builds and require default capture refusal or diagnostic capture-to-audit.
 All M15Z tests remain required under pin-capture. Full all-target checks, release
 builds and ignored 12/12 diagnostics run in both modes; benchmarks measure the
 normal build. Actions is formatting/check/save only. No runtime pass is claimed.
+
+
+## Owner validation and integration
+
+Owner reported M16A FULL GATE GREEN (delivery 4/15), exact
+685407cf7739011478bd5eb5f643da27cd83bab9 integrated. Both diagnostic
+builds pass 12/12 with unchanged cycle counts. Normal-build medians:
+PHI backplane 0.362 us/word, full no-DATA structural 1.351 us/word,
+autonomous RAM fixture 1.176 us/word, production live 2.845 us/word
+(112.48x nominal hardware). Versus M15Z live 3.336 us this is 14.7%
+less time; versus pre-capture M15Y 2.955 us it is 3.7% less time.
+Host-run comparisons are engineering measurements, not calibrated timing evidence.

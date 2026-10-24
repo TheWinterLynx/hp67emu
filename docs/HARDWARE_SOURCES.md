@@ -365,4 +365,18 @@ retain the complete recording lane and its tests. Offline PHI window audits
 now report all-edge observed setup/hold separations, censoring, coincidences
 and PHI1 stability. Both builds are required in the owner gate. No physical
 edge or pulse-width approximation is promoted to exact timing. See
-`docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. Owner local gate pending.
+`docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. Owner M16A FULL GATE GREEN; exact 685407cf7739011478bd5eb5f643da27cd83bab9 integrated (delivery 4/15).
+
+
+## M16B PHI ownership integrity — delivery 5/15
+
+Production composition and live entry now reject invalid PHI images before
+endpoint/input/DATA-tail mutation. Shared launch/sample guards additionally
+require sole ACT clock ownership, catching agreeing extra drivers and replacement
+sources that resolved-level tests alone missed. A checked edge API preserves
+time and pins on failure and reports tick/net/expected/actual/driver mask.
+Dense count checks avoid heap allocation and driver scans on the normal path;
+all 224 edges and device work remain. Nine fault/recovery regressions accompany
+the change. Physical widths/dead time, exact sampling edges and propagation
+remain SOURCE-BLOCKED. See research/M16B_CLOCK_INTEGRITY_2026-10-24.md.
+Owner local gate pending; no runtime or performance pass is claimed.

@@ -224,6 +224,17 @@ impl Hp67ElectricalFabric {
         self.nets[net.index()].drive(driver)
     }
 
+    /// Both clocks must have exactly one active contributor, the ACT. Counts
+    /// distinguish an agreeing foreign driver from a valid resolved level.
+    #[inline]
+    pub(crate) fn clock_drives_valid(&self) -> bool {
+        [Hp67Net::Phi1, Hp67Net::Phi2].into_iter().all(|net| {
+            let dense = &self.nets[net.index()];
+            dense.low_driver_count + dense.high_driver_count == 1
+                && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ
+        })
+    }
+
     /// Publish the current structural serial sources as one observable image.
     /// Optional DATA leaves that net untouched when the caller has no DATA role.
     /// External/other chip contributions survive. This commits no PHI/time edge.

@@ -119,3 +119,8 @@ See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
 
 Joint display-control publication applies named ROM0 STR and ACT RCD proposals as one observable bundle, without advancing PHI/time. External contributions are preserved for contention and agreeing-extra-owner rejection.
 The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.
+
+
+## M16B clock ownership integrity — delivery 5/15
+
+The fixed dense contributor counts now validate sole ACT ownership on both PHI nets. Agreeing external contributions remain electrically High but cannot authorize transport. The check is constant-size, with no driver scan, heap allocation, new storage or recorder hook. Generic resolution and staged commit semantics are unchanged.

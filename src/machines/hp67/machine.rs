@@ -18,6 +18,18 @@ use super::{
     wiring::{Hp67Driver, Hp67Net},
 };
 
+/// A committed PHI image that cannot authorize transport or another edge.
+/// Diagnostic masks are constructed only on the failure path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hp67ClockFault {
+    pub tick: u64,
+    pub net: Hp67Net,
+    pub expected: LogicLevel,
+    pub actual: LogicLevel,
+    pub act_drive: Drive,
+    pub active_mask: u16,
+}
+
 /// Pin-level connection fabric for HP-67 devices.
 #[derive(Debug, Clone, Default)]
 pub struct Hp67ElectricalBackplane {
@@ -94,12 +106,57 @@ impl Hp67ElectricalBackplane {
         self.clock_phase() == Hp67ClockPhase::InterphaseAfterPhi2
             && self.level(Hp67Net::Phi1) == LogicLevel::High
             && self.level(Hp67Net::Phi2) == LogicLevel::High
+            && self.fabric.clock_drives_valid()
     }
 
     pub(crate) fn at_transport_sample_edge(&self) -> bool {
         self.clock_phase() == Hp67ClockPhase::InterphaseAfterPhi1
             && self.level(Hp67Net::Phi1) == LogicLevel::High
             && self.level(Hp67Net::Phi2) == LogicLevel::High
+            && self.fabric.clock_drives_valid()
+    }
+
+    /// Validate committed clock ownership and the active-low phase image.
+    /// This validates simulator integrity, not physical pulse widths or delays.
+    #[inline]
+    pub fn validate_clock(&self) -> Result<(), Hp67ClockFault> {
+        let phase = self.clock_phase();
+        if self.fabric.clock_drives_valid()
+            && (self.level(Hp67Net::Phi1) == LogicLevel::Low) == phase.phi1_low()
+            && (self.level(Hp67Net::Phi2) == LogicLevel::Low) == phase.phi2_low()
+        {
+            return Ok(());
+        }
+        Err(self.clock_fault())
+    }
+
+    #[cold]
+    fn clock_fault(&self) -> Hp67ClockFault {
+        for (net, low) in [
+            (Hp67Net::Phi1, self.clock_phase().phi1_low()),
+            (Hp67Net::Phi2, self.clock_phase().phi2_low()),
+        ] {
+            let expected_drive = if low { Drive::Low } else { Drive::High };
+            let expected = if low { LogicLevel::Low } else { LogicLevel::High };
+            let actual = self.level(net);
+            let act_drive = self.driver_drive(net, Hp67Driver::Act1820_2530);
+            if actual != expected || act_drive != expected_drive || self.active_driver_count(net) != 1 {
+                let active_mask = Hp67Driver::ALL.into_iter().fold(0, |mask, driver| {
+                    mask | if self.driver_drive(net, driver) != Drive::HighZ {
+                        1u16 << driver.index()
+                    } else { 0 }
+                });
+                return Hp67ClockFault { tick: self.tick().get(), net, expected, actual, act_drive, active_mask };
+            }
+        }
+        unreachable!("clock validity and diagnostic predicates must agree")
+    }
+
+    /// Checked edge for external device scheduling. A rejected edge changes
+    /// neither pins, ordinal time nor optional diagnostic recording.
+    pub fn try_advance_clock_edge(&mut self) -> Result<(Tick, Hp67ClockEdge), Hp67ClockFault> {
+        self.validate_clock()?;
+        Ok(self.advance_clock_edge())
     }
 
     /// Current 4-bit digit coordinate (`0..13`).

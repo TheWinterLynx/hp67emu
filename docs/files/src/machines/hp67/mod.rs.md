@@ -174,3 +174,8 @@ Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.m
 
 Exports pin_timing for offline four-edge stability and observed setup/hold analysis. Its analysis is available independently of runtime recording features.
 See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.
+
+
+## M16B clock ownership integrity — delivery 5/15
+
+Exports Hp67ClockFault with the backplane and registers the clock integrity fault campaign.

@@ -129,7 +129,7 @@ pub use isa::{
     act_address_drive, rom_word_drive, wired_high_drive, ROM_ADDRESS_MASK, ROM_WORD_MASK,
 };
 pub use keyboard::{Hp67Key, Hp67Keyboard, HP67_KEY_PRESSED_STATUS_BIT};
-pub use machine::Hp67ElectricalBackplane;
+pub use machine::{Hp67ClockFault, Hp67ElectricalBackplane};
 pub use magnetic_card::{
     CardInsertionEnd, Hp67CardTrack, Hp67MagneticCard, Hp67MagneticCardError, Hp67MagneticTrack,
     TeenixHppError, TeenixHppImport, TrackMedia, HP67_CARD_BITS_PER_TRACK,
@@ -162,3 +162,6 @@ pub use ram_command::{
 mod ram_transport_tests;
 
 pub use serial_crc_control::{Hp67CrcControlResult, Hp67SerialCrcControl};
+
+#[cfg(test)]
+mod clock_integrity_tests;

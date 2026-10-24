@@ -629,6 +629,8 @@ impl Hp67LiveMachine {
         mut trace: Option<&mut StructuralBusTrace>,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        self.backplane.validate_clock()
+            .map_err(|error| format!("live cycle {cycle} invalid PHI image: {error:?}"))?;
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())
             .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
@@ -4241,3 +4243,7 @@ mod tests {
 
 #[cfg(all(test, feature = "pin-capture"))]
 mod pin_capture_tests;
+
+#[cfg(test)]
+#[path = "hp67/clock_integrity_tests.rs"]
+mod clock_integrity_tests;

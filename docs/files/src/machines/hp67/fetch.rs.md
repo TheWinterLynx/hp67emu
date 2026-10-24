@@ -372,3 +372,8 @@ This closes logical storage ownership, not physical CRC DATA serialization or PH
 
 All four display transports and the clocked RAM DATA prefix share one staged display checkpoint. ROM0 first evaluates incoming IS, proposes STR from its own completed byte, while ACT independently proposes RCD. Both outputs publish before resolved controls are sampled; data/control latches commit together only on success. Legacy result scan annotations remain comparison-only; production display consumes the raw receiver transaction.
 The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nominal segment dwell remain WORKING APPROXIMATION. See `docs/research/M15Y_DISPLAY_CIRCUIT_2026-10-23.md`.
+
+
+## M16B clock ownership integrity — delivery 5/15
+
+Fetch, display, DATA, traced twins, autonomous-RAM entry and clocked DATA prefix validate clock integrity before resetting endpoints or binding DATA. SerialFetchError::InvalidClock preserves the structured fault. Shared receiver/launch phase predicates now reject agreeing foreign PHI drivers as well as unresolved levels. Full words retain 56 cells/224 transitions.
