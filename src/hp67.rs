@@ -457,7 +457,9 @@ impl Hp67LiveMachine {
         self.source.reset_bank();
         self.backplane = Hp67ElectricalBackplane::default();
         if self.crc_flag.is_some() {
-            self.crc_flag = Some(hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(&mut self.backplane));
+            self.crc_flag = Some(hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(
+                &mut self.backplane,
+            ));
         }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
@@ -953,7 +955,9 @@ impl Hp67LiveMachine {
             self.sync_crc_buffer_status();
         }
         if let Some(flag) = self.crc_flag.as_mut() {
-            let crc = self.data_serial.crc_control()
+            let crc = self
+                .data_serial
+                .crc_control()
                 .ok_or_else(|| format!("live cycle {cycle} F2 source missing autonomous CRC"))?;
             flag.publish(crc, &mut self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC F2 publication: {error:?}"))?;
@@ -990,10 +994,14 @@ impl Hp67LiveMachine {
                     .crc
                     .commit_control_flag(result.flag, result.value)
                     .map_err(|error| format!("live cycle {cycle} CRC mirror commit: {error:?}"))?;
-                let asserted = self.act_serial.receive_owned_crc_f2(&self.backplane)
+                let asserted = self
+                    .act_serial
+                    .receive_owned_crc_f2(&self.backplane)
                     .map_err(|error| format!("live cycle {cycle} {error}"))?;
                 if asserted != (result.condition == Some(true)) {
-                    return Err(format!("live cycle {cycle} resolved F2/CRC comparison failed"));
+                    return Err(format!(
+                        "live cycle {cycle} resolved F2/CRC comparison failed"
+                    ));
                 }
                 self.machine.act.state.status[3] |= asserted;
             } else {
@@ -1701,9 +1709,11 @@ impl Hp67LiveMachine {
         live.owned_crc_data = None;
         live.data_serial.disable_crc_control();
         live.crc_flag = None;
-        live.backplane.drive(hp67emu::machines::hp67::Hp67Net::F2,
+        live.backplane.drive(
+            hp67emu::machines::hp67::Hp67Net::F2,
             hp67emu::machines::hp67::Hp67Driver::CardReaderController1820_1751,
-            hp67emu::emulation::Drive::HighZ);
+            hp67emu::emulation::Drive::HighZ,
+        );
         Ok(live)
     }
 
