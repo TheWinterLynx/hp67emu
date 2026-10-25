@@ -54,7 +54,7 @@ reconstructs the same pristine composition; no new startup drive is invented.
 
 ## Error ordering and retained tests
 
-Clock failures retain priority over SYNC failures. Floating/contended receiver
+Clock failures retain priority over SYNC failures. The DATA prefix also validates its existing start coordinate before source preflight or DATA owner selection, preserving the mid-cell rejection contract without mutation. Floating/contended receiver
 samples retain their existing unresolved-level error before source validation.
 Binary wrong-source/agreeing-extra images produce the new source fault. The
 M15D pre-injected foreign SYNC fixture now demands rejection at tick zero rather

@@ -1295,11 +1295,6 @@ pub fn run_structural_data_tail_prefix_with_ram(
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
-    super::sync::validate_sync_transport_entry(backplane)
-        .map_err(SerialFetchError::InvalidSyncSource)?;
-    if ram.is_some() {
-        data.use_autonomous_ram_owner();
-    }
     if backplane.word_bit() != 0
         || backplane.tick().get() & 3 != 0
         || act.clocked_prefix_display.is_some()
@@ -1308,6 +1303,11 @@ pub fn run_structural_data_tail_prefix_with_ram(
             tick: backplane.tick().get(),
         }
         .into());
+    }
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
+    if ram.is_some() {
+        data.use_autonomous_ram_owner();
     }
     if !data.electrical_level_bridge_enabled() {
         return Err(Hp67DataSerialError::ElectricalBridgeRequired.into());
