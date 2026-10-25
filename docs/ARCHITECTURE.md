@@ -514,4 +514,15 @@ and firmware-owned clearing. Pulse publication/release at logical word
 boundaries and active High/Low output-stage modeling remain WORKING APPROXIMATION.
 Exact F2 pulse width/PHI offset, voltage thresholds, physical output circuitry
 and propagation remain SOURCE-BLOCKED. See
-`docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md`. Owner local gate pending.
+`docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md`. Owner M16C v2 FULL GATE GREEN; exact 8ea080b80242122062c986811e8818df63131633 integrated (delivery 6/15). Both diagnostics 12/12; live 2.910 us/word, 109.96x hardware. Host measurements do not establish a controlled performance comparison.
+
+
+## M16D physical keyboard switch network — delivery 7/15
+
+The 35 physical contacts now have explicit cathode/KC wiring and a cached,
+bidirectional ideal-switch resolver supporting chords, backfeed, floating and
+contention. Production press/release owns this switch bank; retained key code
+and S15 remain the existing compatibility lane. No PHI hook or guessed
+scan-to-code/latch timing is introduced. Exact KC bias, output circuitry and
+ACT scan acquisition remain blocked. See
+`docs/research/M16D_KEYBOARD_CONTACT_NETWORK_2026-10-25.md`. Owner gate pending.

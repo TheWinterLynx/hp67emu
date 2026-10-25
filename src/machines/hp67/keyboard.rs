@@ -50,6 +50,44 @@ pub enum Hp67Key {
 }
 
 impl Hp67Key {
+    pub const ALL: [Hp67Key; 35] = [
+        Self::A,
+        Self::B,
+        Self::C,
+        Self::D,
+        Self::E,
+        Self::SigmaPlus,
+        Self::Gto,
+        Self::Dsp,
+        Self::Indirect,
+        Self::Sst,
+        Self::FunctionF,
+        Self::FunctionG,
+        Self::Sto,
+        Self::Rcl,
+        Self::FunctionH,
+        Self::Enter,
+        Self::ChangeSign,
+        Self::Exponent,
+        Self::ClearX,
+        Self::Subtract,
+        Self::Digit7,
+        Self::Digit8,
+        Self::Digit9,
+        Self::Add,
+        Self::Digit4,
+        Self::Digit5,
+        Self::Digit6,
+        Self::Multiply,
+        Self::Digit1,
+        Self::Digit2,
+        Self::Digit3,
+        Self::Divide,
+        Self::Digit0,
+        Self::Decimal,
+        Self::RunStop,
+    ];
+
     /// Return the HP-67 hardware key code. Octal notation mirrors the preserved
     /// firmware listings and the source-backed keyboard definition.
     pub const fn scan_code(self) -> u8 {
@@ -95,18 +133,23 @@ impl Hp67Key {
 
 /// Physical keyboard state at the ACT instruction boundary.
 ///
-/// `pressed` is the live contact state. `code` is intentionally separate and
+/// The switch bank is the live contact state. `code` is intentionally separate and
 /// survives release; releasing a key must not clear either the last key code or
 /// ACT S15. The firmware owns S15 clearing with `0 -> s 15`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Hp67Keyboard {
-    pressed: Option<Hp67Key>,
+    contacts: super::keyboard_matrix::Hp67KeyboardMatrix,
     code: Option<u8>,
 }
 
 impl Hp67Keyboard {
     pub const fn pressed(&self) -> Option<Hp67Key> {
-        self.pressed
+        self.contacts.single_key()
+    }
+
+    /// Physical contacts, independent of the retained compatibility key code.
+    pub const fn contacts(&self) -> &super::keyboard_matrix::Hp67KeyboardMatrix {
+        &self.contacts
     }
 
     pub const fn code(&self) -> Option<u8> {
@@ -114,12 +157,15 @@ impl Hp67Keyboard {
     }
 
     pub fn press(&mut self, key: Hp67Key) {
-        self.pressed = Some(key);
+        self.contacts = super::keyboard_matrix::Hp67KeyboardMatrix::default();
+        self.contacts.set_closed(key, true);
         self.code = Some(key.scan_code());
     }
 
     pub fn release(&mut self) {
-        self.pressed = None;
+        if self.contacts.single_key().is_some() {
+            self.contacts = super::keyboard_matrix::Hp67KeyboardMatrix::default();
+        }
     }
 
     /// Present external keyboard state to the instruction-boundary ACT model.
@@ -133,7 +179,7 @@ impl Hp67Keyboard {
         if let Some(code) = self.code {
             act.key_buffer = Some(code);
         }
-        if self.pressed.is_some() {
+        if self.pressed().is_some() {
             act.status[HP67_KEY_PRESSED_STATUS_BIT] = true;
         }
     }
@@ -145,43 +191,7 @@ mod tests {
 
     use super::*;
 
-    const ALL_KEYS: [Hp67Key; 35] = [
-        Hp67Key::A,
-        Hp67Key::B,
-        Hp67Key::C,
-        Hp67Key::D,
-        Hp67Key::E,
-        Hp67Key::SigmaPlus,
-        Hp67Key::Gto,
-        Hp67Key::Dsp,
-        Hp67Key::Indirect,
-        Hp67Key::Sst,
-        Hp67Key::FunctionF,
-        Hp67Key::FunctionG,
-        Hp67Key::Sto,
-        Hp67Key::Rcl,
-        Hp67Key::FunctionH,
-        Hp67Key::Enter,
-        Hp67Key::ChangeSign,
-        Hp67Key::Exponent,
-        Hp67Key::ClearX,
-        Hp67Key::Subtract,
-        Hp67Key::Digit7,
-        Hp67Key::Digit8,
-        Hp67Key::Digit9,
-        Hp67Key::Add,
-        Hp67Key::Digit4,
-        Hp67Key::Digit5,
-        Hp67Key::Digit6,
-        Hp67Key::Multiply,
-        Hp67Key::Digit1,
-        Hp67Key::Digit2,
-        Hp67Key::Digit3,
-        Hp67Key::Divide,
-        Hp67Key::Digit0,
-        Hp67Key::Decimal,
-        Hp67Key::RunStop,
-    ];
+    const ALL_KEYS: [Hp67Key; 35] = Hp67Key::ALL;
 
     #[test]
     fn matrix_contains_35_unique_source_backed_codes() {

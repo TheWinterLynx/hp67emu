@@ -19,3 +19,5 @@ Represent one physical key contact, preserve the most recently driven hardware k
 ## Implementation
 
 `Hp67Key::scan_code()` maps all 35 physical keys to their historical octal hardware codes, including digit 1 as `0142`. `Hp67Keyboard::press()` closes a contact and updates the hardware code; `release()` only opens the contact. `sample_into_act()` presents the retained code through `key_buffer` and asserts S15 only while a contact is closed. Unit tests verify code uniqueness and the critical S15 lifecycle: firmware can clear S15, a held contact reasserts it, release does not synthesize a clear, and after release a subsequent firmware clear remains low.
+
+M16D: physical contact storage is now Hp67KeyboardMatrix. press/release change that bank; pressed reads its sole closed contact. contacts exposes the passive network. Hp67Key::ALL locks enum order for wiring and contact masks. The legacy code/S15 boundary behavior remains an explicit compatibility lane, not electrical scan fidelity.

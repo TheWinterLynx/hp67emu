@@ -185,3 +185,5 @@ Exports Hp67ClockFault with the backplane and registers the clock integrity faul
 
 Exports the source/receiver split of the resolved active-low CRC FLAG/F2 bridge and its structured errors. Electrical source identity is the existing 1820-1751 CRC; no invented chip/driver slot or generic Woodstock layer is added.
 See `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md` for evidence and timing boundaries.
+
+M16D exports keyboard_matrix with explicit cathode/KC contact topology and ideal switch resolution. It assigns no ACT latch edge or column bias.

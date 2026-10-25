@@ -4,7 +4,7 @@ Date: 2026-10-25
 Base: owner-validated/integrated M16B cache 976e8e4fadf269d0fba22f307ba11e3d4084a613
 Branch: agent/m16c-resolved-crc-flag
 Delivery: 6/15
-Status: code/regressions prepared; owner runtime gate pending.
+Status: owner v2 FULL GATE GREEN; exact 8ea080b80242122062c986811e8818df63131633 integrated. Delivery 6/15 complete. Both diagnostics 12/12; live 2.910 us/word (109.96x).
 
 ## Evidence inspected directly
 

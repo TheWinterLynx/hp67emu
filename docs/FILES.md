@@ -54,3 +54,8 @@ The documentation regression uses these companion files as the source-level owne
 - [HP-67 program media formats](HP67_CARD_FORMATS.md)
 
 - [src/machines/hp67/display_exposure.rs](files/src/machines/hp67/display_exposure.rs.md)
+
+## M16D keyboard connectivity
+
+- [src/machines/hp67/keyboard_matrix.rs](files/src/machines/hp67/keyboard_matrix.rs.md)
+- [src/machines/hp67/keyboard_matrix_tests.rs](files/src/machines/hp67/keyboard_matrix_tests.rs.md)

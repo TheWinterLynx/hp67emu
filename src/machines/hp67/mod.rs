@@ -34,6 +34,7 @@ pub mod fetch;
 pub mod hp67firmware;
 pub mod isa;
 pub mod keyboard;
+pub mod keyboard_matrix;
 pub mod machine;
 pub mod magnetic_card;
 pub mod pin_timing;
