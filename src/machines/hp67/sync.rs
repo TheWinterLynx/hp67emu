@@ -12,11 +12,10 @@ pub struct Hp67SyncFault {
 }
 
 /// Sole ACT ownership is required even if a foreign source agrees electrically.
-/// Normal validation uses dense counts; diagnostic enumeration is failure-only.
+/// Normal validation uses committed occupancy metadata; diagnostics are failure-only.
 #[inline]
 pub fn validate_sync_source(bus: &Hp67ElectricalBackplane) -> Result<(), Hp67SyncFault> {
-    if bus.active_driver_count(Hp67Net::Sync) == 1
-        && bus.driver_drive(Hp67Net::Sync, Hp67Driver::Act1820_2530) != Drive::HighZ
+    if bus.sync_drives_valid()
         && matches!(bus.level(Hp67Net::Sync), LogicLevel::Low | LogicLevel::High)
     {
         return Ok(());

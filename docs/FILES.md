@@ -65,3 +65,5 @@ The documentation regression uses these companion files as the source-level owne
 - [src/machines/hp67/sync.rs](files/src/machines/hp67/sync.rs.md)
 - [src/machines/hp67/sync_tests.rs](files/src/machines/hp67/sync_tests.rs.md)
 - [src/hp67/sync_integrity_tests.rs](files/src/hp67/sync_integrity_tests.rs.md)
+
+- [src/machines/hp67/sync_cache_tests.rs](files/src/machines/hp67/sync_cache_tests.rs.md)

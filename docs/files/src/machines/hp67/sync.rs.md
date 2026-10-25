@@ -18,4 +18,7 @@ Reject missing, replaced, contended and agreeing foreign sources before state mu
 
 ## Implementation
 
-The normal path checks existing fixed-size counts/slots and resolved binary level. Only the cold error path enumerates a driver mask. Transport entry alone permits an undriven pristine tick zero; actual receivers never accept that exception. No new storage, heap allocation, per-bit hook or drive is added. Library/native tests cover sources, both qualifiers, all ten receive positions, six transports, pending tails and optional capture.
+The normal path checks committed sole-ACT ownership metadata and resolved binary level. Only the cold error path enumerates a driver mask. Transport entry alone permits an undriven pristine tick zero; actual receivers never accept that exception. The fabric retains one ownership boolean; no heap allocation, per-bit participant or drive is added. Library/native tests cover sources, both qualifiers, all ten receive positions, six transports, pending tails and optional capture.
+
+
+M16E performance follow-up replaces repeated active-count/ACT-slot queries with fabric-maintained committed occupancy metadata. Binary resolved-level checks, cold fault masks, pristine-only entry and independent receiver enforcement remain unchanged. See docs/research/M16E_SYNC_CACHE_2026-10-25.md.

@@ -136,3 +136,6 @@ specialized IS/SYNC/DATA bundles cannot invalidate PHI ownership. Queries use
 one mask comparison; normal resolution/counters and cold fault masks remain.
 No validity checks, clock edges or observed net changes are removed. See
 `docs/research/M16B_CLOCK_CACHE_2026-10-24.md`.
+
+
+M16E performance follow-up retains a committed sole-ACT SYNC occupancy boolean. Immediate/staged updates refresh it on High-Z occupancy changes. Joint serial commits skip unchanged/valid High-Low work, refresh on release or changed invalid images, and preserve all foreign contributors. Independent full scans cover all public commit paths; PHI cache and all net resolution remain unchanged.

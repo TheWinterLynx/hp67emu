@@ -3,7 +3,7 @@
 Date: 2026-10-25
 Base: owner-validated/integrated M16D 87e01acb9bd9ab8c3aa1441cd5c98d9e567810ba
 Branch: agent/m16e-sync-source-integrity
-Status: code/regressions prepared; owner local runtime gate pending.
+Status: owner FULL GATE GREEN; exact 61d2633d4ac58d48eb2661744048a6aabcede450 integrated (delivery 8/15). Both diagnostics 12/12 unchanged cycles. Live 2.942 us/word (108.75x), full structural 1.326, PHI 0.353, autonomous RAM 1.085. Performance follow-up: M16E_SYNC_CACHE_2026-10-25.md.
 
 ## Concrete defect
 

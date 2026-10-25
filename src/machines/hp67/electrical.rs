@@ -180,6 +180,8 @@ pub struct Hp67ElectricalFabric {
     // Bit 0/1: PHI1/PHI2 does not have sole ACT ownership. Polarity changes
     // preserve ownership, so normal clock edges do not rebuild this summary.
     clock_owner_faults: u8,
+    // Exactly one active SYNC contributor, the ACT; derived from committed drives.
+    sync_owner_valid: bool,
 }
 
 impl Default for Hp67ElectricalFabric {
@@ -211,6 +213,7 @@ impl Default for Hp67ElectricalFabric {
             owned_drivers: [false; Hp67Driver::COUNT],
             contention_net_count: 0,
             clock_owner_faults: 0,
+            sync_owner_valid: false,
         }
     }
 }
@@ -233,6 +236,19 @@ impl Hp67ElectricalFabric {
     #[inline]
     pub(crate) fn clock_drives_valid(&self) -> bool {
         self.clock_owner_faults == 0
+    }
+
+    /// Cached ownership only; resolved levels and all electrical commits remain.
+    #[inline]
+    pub(crate) const fn sync_drives_valid(&self) -> bool {
+        self.sync_owner_valid
+    }
+
+    #[inline]
+    fn refresh_sync_owner(&mut self) {
+        let dense = &self.nets[Hp67Net::Sync.index()];
+        self.sync_owner_valid = dense.low_driver_count + dense.high_driver_count == 1
+            && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ;
     }
 
     /// Publish the current structural serial sources as one observable image.
@@ -288,6 +304,12 @@ impl Hp67ElectricalFabric {
         }
         let sync_changed =
             self.nets[Hp67Net::Sync.index()].set_drive(Hp67Driver::Act1820_2530, sync);
+        // An already-valid source stays valid through High/Low changes. Avoid
+        // another ACT-slot read on every normal launch. Invalid images are
+        // recomputed on change, including first attachment and explicit release.
+        if sync_changed && (!self.sync_owner_valid || sync == Drive::HighZ) {
+            self.refresh_sync_owner();
+        }
         let data_changed = if let Some((act, ram)) = data {
             let data_net = &mut self.nets[Hp67Net::Data.index()];
             data_net.set_drive(Hp67Driver::Act1820_2530, act) | data_net.set_drive(data_owner, ram)
@@ -456,13 +478,17 @@ impl Hp67ElectricalFabric {
     fn apply_drive(&mut self, net_index: usize, driver: Hp67Driver, drive: Drive) {
         let was_released = self.nets[net_index].drive(driver) == Drive::HighZ;
         self.nets[net_index].set_drive(driver, drive);
-        if was_released != (drive == Drive::HighZ) && net_index <= Hp67Net::Phi2.index() {
-            let dense = &self.nets[net_index];
-            let valid = dense.low_driver_count + dense.high_driver_count == 1
-                && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ;
-            let bit = 1u8 << net_index;
-            self.clock_owner_faults =
-                (self.clock_owner_faults & !bit) | if valid { 0 } else { bit };
+        if was_released != (drive == Drive::HighZ) {
+            if net_index <= Hp67Net::Phi2.index() {
+                let dense = &self.nets[net_index];
+                let valid = dense.low_driver_count + dense.high_driver_count == 1
+                    && dense.drive(Hp67Driver::Act1820_2530) != Drive::HighZ;
+                let bit = 1u8 << net_index;
+                self.clock_owner_faults =
+                    (self.clock_owner_faults & !bit) | if valid { 0 } else { bit };
+            } else if net_index == Hp67Net::Sync.index() {
+                self.refresh_sync_owner();
+            }
         }
         self.refresh_resolved_level(net_index);
     }
@@ -878,3 +904,7 @@ mod tests {
 #[cfg(test)]
 #[path = "clock_cache_tests.rs"]
 mod clock_cache_tests;
+
+#[cfg(test)]
+#[path = "sync_cache_tests.rs"]
+mod sync_cache_tests;

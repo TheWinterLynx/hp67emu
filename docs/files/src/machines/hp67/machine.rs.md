@@ -114,3 +114,6 @@ See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md
 ## M16B clock ownership integrity — delivery 5/15
 
 Hp67ClockFault exposes ordinal tick, net, expected/resolved level, ACT contribution and exceptional active-driver mask. validate_clock checks both ownership and the active-low phase image; try_advance_clock_edge refuses before mutation. The existing raw scaffold stepping API remains available for low-level fixtures; production compositions validate before entry and shared launch/sample guards require sole ACT ownership. No widths, dead time or latch edges are calibrated.
+
+
+M16E performance follow-up forwards crate-private committed SYNC ownership metadata to the strict validator. It changes no pin, tick, trace or receiver policy.

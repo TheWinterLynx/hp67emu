@@ -240,6 +240,11 @@ impl Hp67ElectricalBackplane {
         self.record_pins();
     }
 
+    #[inline]
+    pub(crate) const fn sync_drives_valid(&self) -> bool {
+        self.fabric.sync_drives_valid()
+    }
+
     pub fn active_driver_count(&self, net: Hp67Net) -> u8 {
         self.fabric.active_driver_count(net)
     }

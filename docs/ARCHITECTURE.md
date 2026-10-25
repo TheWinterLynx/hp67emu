@@ -536,4 +536,16 @@ sources no longer masquerade as valid logic. Six structural composition entries
 and live preflight reject before endpoint/input/tail/clock mutation. A pristine
 undriven tick-zero fixture may initialize ACT output; later missing output is a
 fault. No physical edge, width or delay is inferred. See
-`docs/research/M16E_SYNC_SOURCE_INTEGRITY_2026-10-25.md`. Owner gate pending.
+`docs/research/M16E_SYNC_SOURCE_INTEGRITY_2026-10-25.md`. Owner M16E FULL GATE GREEN; exact 61d2633d4ac58d48eb2661744048a6aabcede450 integrated (delivery 8/15). Both diagnostics 12/12 with unchanged cycles; live 2.942 us/word (108.75x), versus 2.745 previously. Performance follow-up below.
+
+
+### M16E performance follow-up (same delivery)
+
+Committed SYNC source occupancy is cached, replacing repeated count/ACT-slot
+queries while retaining binary-level checks, complete diagnostics and every
+receiver/source policy. Immediate, staged and joint source commits maintain the
+same predicate. All 224 PHI transitions remain. Independent scan regressions and
+a rotating same-process query benchmark accompany this change; the live gate
+still determines production cost. See
+`docs/research/M16E_SYNC_CACHE_2026-10-25.md`. Owner gate pending; no performance
+recovery claimed. This follow-up does not consume delivery 9/15.
