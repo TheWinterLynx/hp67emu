@@ -641,6 +641,8 @@ impl Hp67LiveMachine {
         self.backplane
             .validate_clock()
             .map_err(|error| format!("live cycle {cycle} invalid PHI image: {error:?}"))?;
+        hp67emu::machines::hp67::sync::validate_sync_transport_entry(&self.backplane)
+            .map_err(|error| format!("live cycle {cycle} invalid SYNC source: {error:?}"))?;
         if let Some(flag) = self.crc_flag.as_ref() {
             flag.check(&self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC F2 preflight: {error:?}"))?;
@@ -4289,3 +4291,7 @@ mod clock_integrity_tests;
 #[cfg(test)]
 #[path = "hp67/resolved_crc_flag_tests.rs"]
 mod resolved_crc_flag_tests;
+
+#[cfg(test)]
+#[path = "hp67/sync_integrity_tests.rs"]
+mod sync_integrity_tests;

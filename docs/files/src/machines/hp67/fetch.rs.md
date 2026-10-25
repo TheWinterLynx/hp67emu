@@ -377,3 +377,6 @@ The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nom
 ## M16B clock ownership integrity — delivery 5/15
 
 Fetch, display, DATA, traced twins, autonomous-RAM entry and clocked DATA prefix validate clock integrity before resetting endpoints or binding DATA. SerialFetchError::InvalidClock preserves the structured fault. Shared receiver/launch phase predicates now reject agreeing foreign PHI drivers as well as unresolved levels. Full words retain 56 cells/224 transitions.
+
+
+M16E adds strict ACT source validation on SYNC reception and preflight at all six structural word/prefix entries. Invalid sources are rejected before endpoint reset or time advancement. The earlier M15D foreign-source test now requires tick-zero rejection instead of waiting for contention at b46; this strengthens its failure guarantee.

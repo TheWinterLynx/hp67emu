@@ -3,7 +3,7 @@
 Date: 2026-10-25
 Base: owner-validated M16C v2 8ea080b80242122062c986811e8818df63131633, integrated main.
 Branch: agent/m16d-keyboard-contact-network
-Status: implementation prepared; owner local runtime gate pending.
+Status: owner FULL GATE GREEN; exact 87e01acb9bd9ab8c3aa1441cd5c98d9e567810ba integrated. Delivery 7/15 complete. Both diagnostics 12/12, unchanged cycles. Live 2.745 us/word (116.56x), full structural 1.291, PHI 0.346, autonomous RAM 1.065. Separate host runs do not isolate implementation cost.
 
 ## Direct evidence
 

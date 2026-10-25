@@ -525,4 +525,15 @@ contention. Production press/release owns this switch bank; retained key code
 and S15 remain the existing compatibility lane. No PHI hook or guessed
 scan-to-code/latch timing is introduced. Exact KC bias, output circuitry and
 ACT scan acquisition remain blocked. See
-`docs/research/M16D_KEYBOARD_CONTACT_NETWORK_2026-10-25.md`. Owner gate pending.
+`docs/research/M16D_KEYBOARD_CONTACT_NETWORK_2026-10-25.md`. Owner M16D FULL GATE GREEN; exact 87e01acb9bd9ab8c3aa1441cd5c98d9e567810ba integrated (delivery 7/15). Both diagnostics 12/12 with unchanged cycles; live 2.745 us/word (116.56x).
+
+
+## M16E SYNC source integrity — delivery 8/15
+
+ACT, RAM and CRC now require sole ACT ownership of resolved SYNC before
+consuming instruction qualifiers. Agreeing foreign sources and replacement
+sources no longer masquerade as valid logic. Six structural composition entries
+and live preflight reject before endpoint/input/tail/clock mutation. A pristine
+undriven tick-zero fixture may initialize ACT output; later missing output is a
+fault. No physical edge, width or delay is inferred. See
+`docs/research/M16E_SYNC_SOURCE_INTEGRITY_2026-10-25.md`. Owner gate pending.

@@ -30,3 +30,6 @@ state. Pure command classification preserves the M15N logical contract. Tests
 cover all 1024 words/both qualifiers, real pin faults, duplicates/phase errors,
 selectors and an altered valid net bit proving the received word is authoritative.
 Exact PHI/latch timing and physical RAM partitioning remain unproven.
+
+
+M16E validates sole ACT SYNC ownership after binary-level checks and before either partial-word or qualifier mutation. CRC and autonomous RAM inherit this check through their existing command receivers.

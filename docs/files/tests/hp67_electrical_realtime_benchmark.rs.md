@@ -84,3 +84,5 @@ functions, word/round counts, scope, checks and output rows remain unchanged.
 This reduces fixed-order bias; it does not calibrate prior host runs or create
 a whole-emulator old/new comparison. The live authority benchmark already
 uses rotating order and is unchanged.
+
+M16E: measured production paths include sole ACT SYNC source validation at entry and instruction receivers. Workloads and all 224 PHI transitions remain unchanged.

@@ -43,6 +43,7 @@ pub mod ram_command;
 pub mod rom_devices;
 pub mod serial_crc_control;
 pub mod serial_ram;
+pub mod sync;
 pub mod timing;
 pub mod wiring;
 

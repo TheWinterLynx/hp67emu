@@ -97,6 +97,7 @@ pub trait Hp67RomWordSource {
 /// Errors that make a serial fetch electrically or structurally invalid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SerialFetchError {
+    InvalidSyncSource(super::sync::Hp67SyncFault),
     InvalidClock(super::machine::Hp67ClockFault),
     FloatingIsa {
         word_bit: u8,
@@ -950,6 +951,8 @@ impl ActSerialEndpoint {
                 })
             }
         };
+        super::sync::validate_sync_source(bus)
+            .map_err(SerialFetchError::InvalidSyncSource)?;
         if self
             .received_sync
             .is_some_and(|previous| previous != qualifier)
@@ -1293,6 +1296,8 @@ pub fn run_structural_data_tail_prefix_with_ram(
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
     if ram.is_some() {
         data.use_autonomous_ram_owner();
     }
@@ -1608,6 +1613,8 @@ pub fn run_structural_fetch_cycle<S: Hp67RomWordSource>(
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
     act.begin_fetch_cycle(address);
     match run_structural_word_transport(backplane, act, None, rom, source, None) {
         Ok(word) => Ok(word),
@@ -1654,6 +1661,8 @@ pub fn run_structural_display_fetch_cycle<S: Hp67RomWordSource>(
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     let fetched_word = run_structural_word_transport(
@@ -1726,6 +1735,8 @@ pub fn run_structural_display_fetch_data_phase_cycle_with_ram<S: Hp67RomWordSour
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     if ram.is_some() {
@@ -1954,6 +1965,8 @@ pub fn run_structural_display_fetch_cycle_traced<S: Hp67RomWordSource>(
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     let fetched_word = run_traced_structural_word_transport(
@@ -2164,6 +2177,8 @@ pub fn run_structural_display_fetch_data_phase_cycle_traced_with_ram<S: Hp67RomW
     backplane
         .validate_clock()
         .map_err(SerialFetchError::InvalidClock)?;
+    super::sync::validate_sync_transport_entry(backplane)
+        .map_err(SerialFetchError::InvalidSyncSource)?;
     let display_scan_slot = act.display_scan_slot();
     act.begin_display_fetch_cycle(address)?;
     if ram.is_some() {
@@ -2843,14 +2858,10 @@ mod tests {
         let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
         let result = run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source);
-        assert_eq!(
-            result,
-            Err(SerialFetchError::UnresolvedSync {
-                word_bit: 46,
-                level: LogicLevel::Contention,
-            })
-        );
-        assert_eq!(backplane.tick().get(), 46 * 4 + 2);
+        assert!(matches!(result, Err(SerialFetchError::InvalidSyncSource(fault))
+            if fault.tick == 0 && fault.word_bit == 0
+                && fault.active_mask == 1 << Hp67Driver::External.index()));
+        assert_eq!(backplane.tick().get(), 0);
         assert_eq!(act.received_mask, 0);
         assert!(act.fetched_instruction_state().is_err());
     }

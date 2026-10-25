@@ -177,3 +177,5 @@ The b7 checkpoint, one-cell pulse bridge, whole-word cathode application and nom
 
 Production idle scope now explicitly includes resolved CRC FLAG/F2 reception. Injected RAM/CRC reference fixtures disable it alongside autonomous control. Workloads, rotating order, correctness checks and timing parameters remain unchanged; no speed threshold is added.
 See `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md` for evidence and timing boundaries.
+
+M16E: measured production paths include sole ACT SYNC source validation at entry and instruction receivers. Workloads and all 224 PHI transitions remain unchanged.

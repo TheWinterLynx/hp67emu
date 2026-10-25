@@ -187,3 +187,6 @@ Exports the source/receiver split of the resolved active-low CRC FLAG/F2 bridge 
 See `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md` for evidence and timing boundaries.
 
 M16D exports keyboard_matrix with explicit cathode/KC contact topology and ideal switch resolution. It assigns no ACT latch edge or column bias.
+
+
+M16E exports sync source validation and structured failure diagnostics. It introduces no new net/driver or physical timing policy.
