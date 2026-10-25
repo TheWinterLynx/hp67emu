@@ -25,7 +25,10 @@ pub const fn key_contact(key: Hp67Key) -> Hp67KeyContact {
     } else {
         ((index - 15) / 4 + 3, (index - 15) % 4 + 2)
     };
-    Hp67KeyContact { cathode: HP67_KEYBOARD_CATHODES[row], column: column as u8 }
+    Hp67KeyContact {
+        cathode: HP67_KEYBOARD_CATHODES[row],
+        column: column as u8,
+    }
 }
 
 /// Resolved wires include backfeeding into cathodes through multiple contacts.
@@ -44,7 +47,10 @@ pub struct Hp67KeyboardMatrix {
 }
 impl Default for Hp67KeyboardMatrix {
     fn default() -> Self {
-        Self { closed: 0, components: std::array::from_fn(|i| 1 << i) }
+        Self {
+            closed: 0,
+            components: std::array::from_fn(|i| 1 << i),
+        }
     }
 }
 impl Hp67KeyboardMatrix {
@@ -61,18 +67,31 @@ impl Hp67KeyboardMatrix {
     }
     pub fn set_closed(&mut self, key: Hp67Key, closed: bool) {
         let bit = 1u64 << key as usize;
-        let next = if closed { self.closed | bit } else { self.closed & !bit };
-        if next == self.closed { return; }
+        let next = if closed {
+            self.closed | bit
+        } else {
+            self.closed & !bit
+        };
+        if next == self.closed {
+            return;
+        }
         self.closed = next;
         self.components = std::array::from_fn(|i| 1 << i);
         for key in Hp67Key::ALL {
-            if !self.is_closed(key) { continue; }
+            if !self.is_closed(key) {
+                continue;
+            }
             let contact = key_contact(key);
-            let row = HP67_KEYBOARD_CATHODES.iter().position(|&c| c == contact.cathode).expect("wired cathode");
+            let row = HP67_KEYBOARD_CATHODES
+                .iter()
+                .position(|&c| c == contact.cathode)
+                .expect("wired cathode");
             let column = 8 + usize::from(contact.column - 1);
             let merged = self.components[row] | self.components[column];
             for component in &mut self.components {
-                if *component & merged != 0 { *component = merged; }
+                if *component & merged != 0 {
+                    *component = merged;
+                }
             }
         }
     }
@@ -84,7 +103,7 @@ impl Hp67KeyboardMatrix {
         let mut high = 0u16;
         for (index, drive) in cathodes.into_iter().chain(columns).enumerate() {
             match drive {
-                Drive::HighZ => {},
+                Drive::HighZ => {}
                 Drive::Low => low |= 1 << index,
                 Drive::High => high |= 1 << index,
             }
