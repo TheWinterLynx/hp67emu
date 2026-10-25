@@ -45,7 +45,9 @@ fn sync_fault(bus: &Hp67ElectricalBackplane) -> Hp67SyncFault {
         active_mask: Hp67Driver::ALL.into_iter().fold(0, |mask, driver| {
             if bus.driver_drive(Hp67Net::Sync, driver) != Drive::HighZ {
                 mask | (1 << driver.index())
-            } else { mask }
+            } else {
+                mask
+            }
         }),
     }
 }

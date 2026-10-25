@@ -951,8 +951,7 @@ impl ActSerialEndpoint {
                 })
             }
         };
-        super::sync::validate_sync_source(bus)
-            .map_err(SerialFetchError::InvalidSyncSource)?;
+        super::sync::validate_sync_source(bus).map_err(SerialFetchError::InvalidSyncSource)?;
         if self
             .received_sync
             .is_some_and(|previous| previous != qualifier)
@@ -2858,9 +2857,11 @@ mod tests {
         let mut act = ActSerialEndpoint::new(0x07b);
         let mut rom = RomFetchEndpoint::default();
         let result = run_structural_fetch_cycle(&mut backplane, 0x07b, &mut act, &mut rom, &source);
-        assert!(matches!(result, Err(SerialFetchError::InvalidSyncSource(fault))
+        assert!(
+            matches!(result, Err(SerialFetchError::InvalidSyncSource(fault))
             if fault.tick == 0 && fault.word_bit == 0
-                && fault.active_mask == 1 << Hp67Driver::External.index()));
+                && fault.active_mask == 1 << Hp67Driver::External.index())
+        );
         assert_eq!(backplane.tick().get(), 0);
         assert_eq!(act.received_mask, 0);
         assert!(act.fetched_instruction_state().is_err());

@@ -124,8 +124,7 @@ impl Hp67RamCommandReceiver {
                 })
             }
         };
-        super::sync::validate_sync_source(bus)
-            .map_err(Hp67RamCommandError::InvalidSyncSource)?;
+        super::sync::validate_sync_source(bus).map_err(Hp67RamCommandError::InvalidSyncSource)?;
         if bit != ROM_WORD_FIRST_BIT && self.qualifier != Some(instruction) {
             return Err(Hp67RamCommandError::ChangedSync { word_bit: bit });
         }

@@ -1,11 +1,20 @@
-use super::*;
 use super::super::{
-    isa::{act_address_drive, rom_word_drive}, rom_devices::RomIsDrives,
+    isa::{act_address_drive, rom_word_drive},
+    rom_devices::RomIsDrives,
     ActSerialEndpoint, Hp67RamCommandReceiver, Hp67SerialCrcControl,
 };
+use super::*;
 
-fn pins(bus: &Hp67ElectricalBackplane) -> ([LogicLevel; Hp67Net::COUNT], [[Drive; Hp67Driver::COUNT]; Hp67Net::COUNT]) {
-    (Hp67Net::ALL.map(|net| bus.level(net)), Hp67Net::ALL.map(|net| Hp67Driver::ALL.map(|driver| bus.driver_drive(net, driver))))
+fn pins(
+    bus: &Hp67ElectricalBackplane,
+) -> (
+    [LogicLevel; Hp67Net::COUNT],
+    [[Drive; Hp67Driver::COUNT]; Hp67Net::COUNT],
+) {
+    (
+        Hp67Net::ALL.map(|net| bus.level(net)),
+        Hp67Net::ALL.map(|net| Hp67Driver::ALL.map(|driver| bus.driver_drive(net, driver))),
+    )
 }
 
 #[test]
@@ -26,17 +35,29 @@ fn m16e_pristine_entry_is_not_a_valid_receiver_source_or_a_later_repair() {
 fn m16e_every_foreign_sync_source_is_rejected_at_all_phases_and_both_levels() {
     for phase in 0..4 {
         for act_drive in [Drive::Low, Drive::High] {
-            for driver in Hp67Driver::ALL.into_iter().filter(|d| *d != Hp67Driver::Act1820_2530) {
+            for driver in Hp67Driver::ALL
+                .into_iter()
+                .filter(|d| *d != Hp67Driver::Act1820_2530)
+            {
                 for foreign in [Drive::Low, Drive::High] {
                     for replace in [false, true] {
                         let mut bus = Hp67ElectricalBackplane::default();
-                        bus.drive(Hp67Net::Sync, Hp67Driver::Act1820_2530, if replace { Drive::HighZ } else { act_drive });
-                        for _ in 0..phase { bus.advance_clock(); }
+                        bus.drive(
+                            Hp67Net::Sync,
+                            Hp67Driver::Act1820_2530,
+                            if replace { Drive::HighZ } else { act_drive },
+                        );
+                        for _ in 0..phase {
+                            bus.advance_clock();
+                        }
                         bus.drive(Hp67Net::Sync, driver, foreign);
                         let before = pins(&bus);
                         let error = validate_sync_source(&bus).unwrap_err();
                         assert_eq!(error.tick, phase);
-                        assert_eq!(error.active_mask & (1 << driver.index()), 1 << driver.index());
+                        assert_eq!(
+                            error.active_mask & (1 << driver.index()),
+                            1 << driver.index()
+                        );
                         assert!(validate_sync_transport_entry(&bus).is_err());
                         assert_eq!(pins(&bus), before);
                         assert_eq!(bus.tick().get(), phase);
@@ -57,16 +78,33 @@ fn m16e_act_ram_crc_reject_faults_at_each_return_bit_then_retry_same_sample() {
         let mut storage = Hp67SerialRam::default();
         storage.begin_cycle(&bus).unwrap();
         for bit in 0..56 {
-            if bit == 2 { storage.bind_body(&bus).unwrap(); }
-            let sync = if bit >= 46 && instruction { Drive::High } else { Drive::Low };
-            bus.commit_serial_launch(act_address_drive(0, bit), RomIsDrives::Aggregate(rom_word_drive(0x230, bit)), sync, None);
-            bus.advance_clock(); bus.advance_clock();
+            if bit == 2 {
+                storage.bind_body(&bus).unwrap();
+            }
+            let sync = if bit >= 46 && instruction {
+                Drive::High
+            } else {
+                Drive::Low
+            };
+            bus.commit_serial_launch(
+                act_address_drive(0, bit),
+                RomIsDrives::Aggregate(rom_word_drive(0x230, bit)),
+                sync,
+                None,
+            );
+            bus.advance_clock();
+            bus.advance_clock();
             if bit >= 46 {
-                for driver in Hp67Driver::ALL.into_iter().filter(|d| *d != Hp67Driver::Act1820_2530) {
+                for driver in Hp67Driver::ALL
+                    .into_iter()
+                    .filter(|d| *d != Hp67Driver::Act1820_2530)
+                {
                     for drive in [Drive::Low, Drive::High] {
                         for replace in [false, true] {
                             let mut fault = bus.clone();
-                            if replace { fault.drive(Hp67Net::Sync, Hp67Driver::Act1820_2530, Drive::HighZ); }
+                            if replace {
+                                fault.drive(Hp67Net::Sync, Hp67Driver::Act1820_2530, Drive::HighZ);
+                            }
                             fault.drive(Hp67Net::Sync, driver, drive);
                             let before_pins = pins(&fault);
                             let before = (act, ram, crc, storage.clone());
@@ -92,7 +130,8 @@ fn m16e_act_ram_crc_reject_faults_at_each_return_bit_then_retry_same_sample() {
             }
             crc.sample_at_edge(&bus).unwrap();
             storage.sample_at_edge(&bus).unwrap();
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
         }
         assert_eq!(act.fetched_word().unwrap(), 0x230);
         assert_eq!(ram.received_frame(), crc.received_frame());
@@ -128,7 +167,6 @@ impl Hp67RomWordSource for Rom {
         Some(0x155)
     }
 }
-
 
 #[test]
 fn m16e_all_word_compositions_reject_sync_fault_before_endpoint_or_pin_mutation() {
@@ -197,9 +235,9 @@ fn m16e_all_word_compositions_reject_sync_fault_before_endpoint_or_pin_mutation(
             };
             assert!(matches!(
                 result,
-                Err(StructuralWordError::Fetch(SerialFetchError::InvalidSyncSource(
-                    _
-                )))
+                Err(StructuralWordError::Fetch(
+                    SerialFetchError::InvalidSyncSource(_)
+                ))
             ));
             assert_eq!((act, rom, rom0, data, ram, pins(&bus)), before);
             assert_eq!(bus.tick().get(), 0);
@@ -207,7 +245,6 @@ fn m16e_all_word_compositions_reject_sync_fault_before_endpoint_or_pin_mutation(
         }
     }
 }
-
 
 #[cfg(feature = "pin-capture")]
 #[test]
