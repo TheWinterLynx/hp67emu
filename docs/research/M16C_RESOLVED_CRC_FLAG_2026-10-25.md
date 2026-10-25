@@ -68,3 +68,17 @@ both SYNC qualifiers/contact values over real 224-transition words and preserve
 one-word command delay. Full all-target suites, release, both 12/12 diagnostic
 builds and electrical/DATA/RAM/live benchmarks remain owner-only. Actions formats
 and checks/saves formatting only. No PAC or new application semantics added.
+
+
+## Gate v1 failure and v2 fixture correction
+
+Owner focused library gate: four tests passed; the internal pulse fixture failed
+while searching for SET flag 0. This was an invalid test premise: the decoder
+explicitly excludes selector zero from the first SET family. READY is owned by
+the existing buffer/transport handshake and has TEST/CLEAR 0o100. No production
+change is justified by this failure.
+
+The corrected fixture locks the absence of SET 0 and runs the entire delayed
+SET/TEST/repeated-TEST pin sequence for all eleven settable flags 1..11. It
+keeps the original pulse/clear assertions and adds full settable-flag coverage.
+Formatting and complete owner gate v2 are required; no runtime pass is claimed.

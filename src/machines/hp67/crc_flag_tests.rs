@@ -146,22 +146,27 @@ fn m16c_f2_missing_replaced_changed_source_and_wrong_phase_preserve_source_state
 
 #[test]
 fn m16c_internal_crc_test_pulses_once_then_clears_internal_flag_without_contact_reset() {
-    let set = (0..=0x3ff)
-        .find(|op| decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::SetFlag { flag: 0 }))
-        .unwrap();
-    let test = (0..=0x3ff)
-        .find(|op| {
-            decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::TestFlagAndClear { flag: 0 })
-        })
-        .unwrap();
-    let mut crc = Hp67SerialCrcControl::default();
-    let mut bus = Hp67ElectricalBackplane::default();
-    let mut flag = Hp67CrcFlagBridge::attach(&mut bus);
-    for (opcode, expected) in [(set, false), (test, false), (test, true), (0, false)] {
-        flag.begin_word(&mut bus).unwrap();
-        word(&mut crc, &mut bus, opcode, true);
-        flag.publish(&crc, &mut bus).unwrap();
-        assert_eq!(sample_crc_f2(&bus).unwrap(), expected);
+    // READY (flag 0) is supplied by the buffer/transport handshake. The
+    // selector-zero SET encoding is absent; do not invent one for a fixture.
+    assert!((0..=0x3ff).all(|opcode| {
+        decode_crc_opcode(opcode).unwrap() != Some(CrcInstruction::SetFlag { flag: 0 })
+    }));
+    for index in 1..CRC_FLAG_COUNT as u8 {
+        let set = (0..=0x3ff)
+            .find(|op| decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::SetFlag { flag: index }))
+            .expect("each internal control flag 1..11 has a SET opcode");
+        let test = (0..=0x3ff)
+            .find(|op| decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::TestFlagAndClear { flag: index }))
+            .expect("each internal control flag 1..11 has a TEST/CLEAR opcode");
+        let mut crc = Hp67SerialCrcControl::default();
+        let mut bus = Hp67ElectricalBackplane::default();
+        let mut flag = Hp67CrcFlagBridge::attach(&mut bus);
+        for (opcode, expected) in [(set, false), (test, false), (test, true), (0, false)] {
+            flag.begin_word(&mut bus).unwrap();
+            word(&mut crc, &mut bus, opcode, true);
+            flag.publish(&crc, &mut bus).unwrap();
+            assert_eq!(sample_crc_f2(&bus).unwrap(), expected, "flag={index} opcode={opcode:03x}");
+        }
+        assert!(!crc.flags()[usize::from(index)]);
     }
-    assert!(!crc.flags()[0]);
 }
