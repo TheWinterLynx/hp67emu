@@ -153,10 +153,15 @@ fn m16c_internal_crc_test_pulses_once_then_clears_internal_flag_without_contact_
     }));
     for index in 1..CRC_FLAG_COUNT as u8 {
         let set = (0..=0x3ff)
-            .find(|op| decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::SetFlag { flag: index }))
+            .find(|op| {
+                decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::SetFlag { flag: index })
+            })
             .expect("each internal control flag 1..11 has a SET opcode");
         let test = (0..=0x3ff)
-            .find(|op| decode_crc_opcode(*op).unwrap() == Some(CrcInstruction::TestFlagAndClear { flag: index }))
+            .find(|op| {
+                decode_crc_opcode(*op).unwrap()
+                    == Some(CrcInstruction::TestFlagAndClear { flag: index })
+            })
             .expect("each internal control flag 1..11 has a TEST/CLEAR opcode");
         let mut crc = Hp67SerialCrcControl::default();
         let mut bus = Hp67ElectricalBackplane::default();
@@ -165,7 +170,11 @@ fn m16c_internal_crc_test_pulses_once_then_clears_internal_flag_without_contact_
             flag.begin_word(&mut bus).unwrap();
             word(&mut crc, &mut bus, opcode, true);
             flag.publish(&crc, &mut bus).unwrap();
-            assert_eq!(sample_crc_f2(&bus).unwrap(), expected, "flag={index} opcode={opcode:03x}");
+            assert_eq!(
+                sample_crc_f2(&bus).unwrap(),
+                expected,
+                "flag={index} opcode={opcode:03x}"
+            );
         }
         assert!(!crc.flags()[usize::from(index)]);
     }
