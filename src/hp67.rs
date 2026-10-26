@@ -465,7 +465,9 @@ impl Hp67LiveMachine {
             ));
         }
         if self.motor_output.is_some() {
-            self.motor_output = Some(hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut self.backplane));
+            self.motor_output = Some(hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(
+                &mut self.backplane,
+            ));
         }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
@@ -653,8 +655,12 @@ impl Hp67LiveMachine {
             flag.check(&self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC F2 preflight: {error:?}"))?;
         }
-        let pin_motor = self.motor_output.as_ref().map(|motor| motor.check(&self.backplane))
-            .transpose().map_err(|error| format!("live cycle {cycle} CRC MOTOR preflight: {error:?}"))?;
+        let pin_motor = self
+            .motor_output
+            .as_ref()
+            .map(|motor| motor.check(&self.backplane))
+            .transpose()
+            .map_err(|error| format!("live cycle {cycle} CRC MOTOR preflight: {error:?}"))?;
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())
             .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
@@ -675,10 +681,14 @@ impl Hp67LiveMachine {
         );
         let card_motor_was_on = if let Some(on) = pin_motor {
             if on != expected_motor {
-                return Err(format!("live cycle {cycle} MOTOR/CRC latch mismatch: pin={on} CRC={expected_motor}"));
+                return Err(format!(
+                    "live cycle {cycle} MOTOR/CRC latch mismatch: pin={on} CRC={expected_motor}"
+                ));
             }
             on
-        } else { expected_motor };
+        } else {
+            expected_motor
+        };
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
                 "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
@@ -1151,8 +1161,12 @@ impl Hp67LiveMachine {
                 .flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
         );
         if let Some(motor) = self.motor_output.as_mut() {
-            let crc = self.data_serial.crc_control().ok_or("MOTOR output requires autonomous CRC control")?;
-            motor.publish(crc, &mut self.backplane)
+            let crc = self
+                .data_serial
+                .crc_control()
+                .ok_or("MOTOR output requires autonomous CRC control")?;
+            motor
+                .publish(crc, &mut self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC MOTOR publication: {error:?}"))?;
         }
         self.advance_crc_transport(cycle, card_motor_was_on)?;
