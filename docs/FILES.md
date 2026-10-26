@@ -67,3 +67,8 @@ The documentation regression uses these companion files as the source-level owne
 - [src/hp67/sync_integrity_tests.rs](files/src/hp67/sync_integrity_tests.rs.md)
 
 - [src/machines/hp67/sync_cache_tests.rs](files/src/machines/hp67/sync_cache_tests.rs.md)
+
+## M16F IS window source identity
+
+- [src/machines/hp67/is_owner_tests.rs](files/src/machines/hp67/is_owner_tests.rs.md)
+- [src/hp67/is_owner_tests.rs](files/src/hp67/is_owner_tests.rs.md)

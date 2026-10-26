@@ -12,7 +12,7 @@ pub struct Hp67SyncFault {
 }
 
 /// Sole ACT ownership is required even if a foreign source agrees electrically.
-/// Normal validation uses committed occupancy metadata; diagnostics are failure-only.
+/// Normal validation uses committed counts/ACT slot; diagnostics are failure-only.
 #[inline]
 pub fn validate_sync_source(bus: &Hp67ElectricalBackplane) -> Result<(), Hp67SyncFault> {
     if bus.sync_drives_valid()

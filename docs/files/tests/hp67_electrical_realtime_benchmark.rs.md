@@ -86,3 +86,5 @@ a whole-emulator old/new comparison. The live authority benchmark already
 uses rotating order and is unchanged.
 
 M16E: measured production paths include sole ACT SYNC source validation at entry and instruction receivers. Workloads and all 224 PHI transitions remain unchanged.
+
+M16F: the measured paths include IS identity checks at the existing sample checkpoints; 56 cells, 224 transitions, workload and measurement order remain. No new performance claim precedes owner measurement.

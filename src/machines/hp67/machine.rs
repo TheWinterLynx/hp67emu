@@ -241,7 +241,7 @@ impl Hp67ElectricalBackplane {
     }
 
     #[inline]
-    pub(crate) const fn sync_drives_valid(&self) -> bool {
+    pub(crate) fn sync_drives_valid(&self) -> bool {
         self.fabric.sync_drives_valid()
     }
 

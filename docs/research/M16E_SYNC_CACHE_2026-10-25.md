@@ -4,7 +4,7 @@ Date: 2026-10-25
 Branch: agent/m16e-sync-cache
 Base: owner-validated/integrated 61d2633d4ac58d48eb2661744048a6aabcede450
 Delivery: follow-up to 8/15; does not consume delivery 9
-Status: implementation prepared; owner runtime/performance gate pending.
+Status: owner M16E PERF FULL GATE GREEN; exact b86849d5d0f7819fc0b6f7c1c749d7f5ff8f5491 integrated. Both diagnostics 12/12 unchanged cycles. Kernel cached 0.254 versus counted 0.252 us/word, live 3.023 versus prior 2.942. No performance benefit demonstrated. M16F retires the cache while retaining its source-equivalence regressions.
 
 ## Trigger and attribution limits
 

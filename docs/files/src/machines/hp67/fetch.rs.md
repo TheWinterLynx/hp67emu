@@ -380,3 +380,8 @@ Fetch, display, DATA, traced twins, autonomous-RAM entry and clocked DATA prefix
 
 
 M16E adds strict ACT source validation on SYNC reception and preflight at all six structural word/prefix entries. Invalid sources are rejected before endpoint reset or time advancement. The earlier M15D foreign-source test now requires tick-zero rejection instead of waiting for contention at b46; this strengthens its failure guarantee.
+
+
+M16F checks the actual IS High conductor against the bit-cell role before display/address/instruction/RAM/CRC consumers. Display/address require ACT, return requires the ROM selected from received address/bank latches, idle cells admit no active High. Passive Low remains valid release; no invisible output-enable or exact PHI timing is inferred. Normal/traced/DATA/prefix paths share the check. Scalar reference helpers retain their explicit role.
+
+M16F selects the word-local expected return owner once after received b27, avoiding a per-return-bit chip scan. Clocked b0/b1 prefix has only an ACT display source and no return owner.

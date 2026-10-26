@@ -4295,3 +4295,7 @@ mod resolved_crc_flag_tests;
 #[cfg(test)]
 #[path = "hp67/sync_integrity_tests.rs"]
 mod sync_integrity_tests;
+
+#[cfg(test)]
+#[path = "hp67/is_owner_tests.rs"]
+mod is_owner_tests;

@@ -139,3 +139,6 @@ No validity checks, clock edges or observed net changes are removed. See
 
 
 M16E performance follow-up retains a committed sole-ACT SYNC occupancy boolean. Immediate/staged updates refresh it on High-Z occupancy changes. Joint serial commits skip unchanged/valid High-Low work, refresh on release or changed invalid images, and preserve all foreign contributors. Independent full scans cover all public commit paths; PHI cache and all net resolution remain unchanged.
+
+
+M16F retires the ineffective M16E SYNC occupancy cache. sync_drives_valid derives the same predicate directly from committed counts/ACT slot; the extra boolean and both maintenance paths are removed. All independent scan, staged-commit, bundle, clone/reset and mixed-update regressions remain. PHI metadata and net resolution are unchanged.

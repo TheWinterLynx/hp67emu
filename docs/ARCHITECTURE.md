@@ -547,5 +547,16 @@ receiver/source policy. Immediate, staged and joint source commits maintain the
 same predicate. All 224 PHI transitions remain. Independent scan regressions and
 a rotating same-process query benchmark accompany this change; the live gate
 still determines production cost. See
-`docs/research/M16E_SYNC_CACHE_2026-10-25.md`. Owner gate pending; no performance
-recovery claimed. This follow-up does not consume delivery 9/15.
+`docs/research/M16E_SYNC_CACHE_2026-10-25.md`. Owner M16E PERF FULL GATE GREEN; exact b86849d5d0f7819fc0b6f7c1c749d7f5ff8f5491 integrated. Both diagnostics remain 12/12. Kernel cached 0.254 versus counted 0.252 us/word; live 3.023 versus 2.942 previously. No performance benefit demonstrated. M16F retires the cache and retains the source tests. This follow-up does not consume delivery 9/15.
+
+
+## M16F IS window source identity — delivery 9/15
+
+Shared normal/traced/DATA/prefix transport now validates the sole active High
+IS contributor against its cell role before receiver consumption: ACT for
+display/address, the independently selected ROM for return, none during idle.
+Passive Low remains valid release. This closes wrong-chip/wrong-window source
+substitution without comparing against expected payload bits. Exact launch/
+latch/output-enable timing remains unresolved. The ineffective M16E SYNC cache
+is retired while all source/staging/commit regressions remain. See
+`docs/research/M16F_IS_WINDOW_OWNERS_2026-10-26.md`. Owner local gate pending.

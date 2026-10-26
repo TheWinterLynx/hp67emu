@@ -24,7 +24,7 @@ fn check(fabric: &Hp67ElectricalFabric) {
 }
 
 #[test]
-fn m16e_cache_all_immediate_net_source_drive_pairs_match_independent_scan() {
+fn m16f_sync_source_all_immediate_net_source_drive_pairs_match_independent_scan() {
     for net in Hp67Net::ALL {
         for driver in Hp67Driver::ALL {
             for act in [Drive::HighZ, Drive::Low, Drive::High] {
@@ -49,7 +49,7 @@ fn m16e_cache_all_immediate_net_source_drive_pairs_match_independent_scan() {
 }
 
 #[test]
-fn m16e_cache_staged_handoffs_repeated_stages_and_contention_commits_match_scan() {
+fn m16f_sync_source_staged_handoffs_repeated_stages_and_contention_commits_match_scan() {
     let mut fabric = Hp67ElectricalFabric::default();
     let act = fabric.claim_driver_owner(Hp67Driver::Act1820_2530).unwrap();
     let other = fabric.claim_driver_owner(Hp67Driver::External).unwrap();
@@ -87,7 +87,7 @@ fn m16e_cache_staged_handoffs_repeated_stages_and_contention_commits_match_scan(
 }
 
 #[test]
-fn m16e_cache_atomic_serial_bundles_preserve_every_foreign_contributor() {
+fn m16f_sync_source_atomic_serial_bundles_preserve_every_foreign_contributor() {
     for driver in Hp67Driver::ALL
         .into_iter()
         .filter(|d| *d != Hp67Driver::Act1820_2530)
@@ -127,7 +127,7 @@ fn m16e_cache_atomic_serial_bundles_preserve_every_foreign_contributor() {
 }
 
 #[test]
-fn m16e_cache_mixed_immediate_staged_and_serial_updates_keep_all_metadata_consistent() {
+fn m16f_sync_source_mixed_immediate_staged_and_serial_updates_keep_all_metadata_consistent() {
     let mut fabric = Hp67ElectricalFabric::default();
     let owners: Vec<_> = Hp67Driver::ALL
         .into_iter()
@@ -160,7 +160,7 @@ fn m16e_cache_mixed_immediate_staged_and_serial_updates_keep_all_metadata_consis
 }
 
 #[test]
-fn m16e_cache_public_validator_retains_fault_details_and_pristine_exception() {
+fn m16f_sync_source_public_validator_retains_fault_details_and_pristine_exception() {
     use crate::machines::hp67::{sync::*, Hp67ElectricalBackplane};
     let mut bus = Hp67ElectricalBackplane::default();
     assert!(validate_sync_transport_entry(&bus).is_ok());
@@ -187,7 +187,7 @@ fn m16e_cache_public_validator_retains_fault_details_and_pristine_exception() {
     }
 }
 
-fn probe_stream<const CACHED: bool>(words: usize) {
+fn probe_stream<const HELPER: bool>(words: usize) {
     use crate::machines::hp67::{sync::validate_sync_source, Hp67ElectricalBackplane};
     use std::hint::black_box;
     let mut bus = Hp67ElectricalBackplane::default();
@@ -209,7 +209,7 @@ fn probe_stream<const CACHED: bool>(words: usize) {
             if bit == 0 || bit >= 46 {
                 for _ in 0..3 {
                     let observed = black_box(&bus);
-                    let valid = if CACHED {
+                    let valid = if HELPER {
                         validate_sync_source(observed).is_ok()
                     } else {
                         observed.active_driver_count(Hp67Net::Sync) == 1
@@ -253,8 +253,8 @@ fn m16e_sync_source_query_realtime_benchmark() {
             samples[path][round] = start.elapsed().as_secs_f64() * 1_000_000.0 / WORDS as f64;
         }
     }
-    println!("\nM16E SYNC SOURCE QUERY KERNEL / SAME PROCESS");
-    for (path, name) in ["cached ownership", "count + ACT slot"]
+    println!("\nM16E SYNC SOURCE QUERY KERNEL / CACHE RETIRED");
+    for (path, name) in ["source helper", "count + ACT slot"]
         .into_iter()
         .enumerate()
     {
@@ -266,5 +266,5 @@ fn m16e_sync_source_query_realtime_benchmark() {
             samples[path][ROUNDS - 1]
         );
     }
-    println!("Scope: 33 equivalent source probes/word, joint IS/SYNC publication, 56 cells/224 PHI transitions, rotating order. Both paths maintain the new cache; this isolates query cost, not whole-emulator old/new performance. No speed threshold is a correctness assertion.");
+    println!("Scope: 33 equivalent source probes/word, joint IS/SYNC publication, 56 cells/224 PHI transitions, rotating order. Both paths query committed counts; the cache was retired after no measured gain. This kernel is not whole-emulator old/new performance. No speed threshold is a correctness assertion.");
 }

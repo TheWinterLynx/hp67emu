@@ -19,3 +19,6 @@ Lock cache equivalence, first attachment, foreign agreeing/replaced sources, inv
 ## Implementation
 
 Five regressions independently scan source arrays across exhaustive pairs, 20,000 mixed writes and all serial bundle/foreign-source combinations. An ignored rotating release kernel retains 56 cells/224 PHI transitions and cache maintenance in both paths while comparing 33 equivalent cached/count-based queries. It isolates query cost, not whole-emulator old/new speed. No timing threshold asserts correctness.
+
+
+M16F retains every source-equivalence/staging/bundle/fault regression after retiring the cache. The tests now validate direct committed-source queries against independent scans; the historical ignored kernel reports that cache retirement and compares helper/count queries without claiming an optimization.

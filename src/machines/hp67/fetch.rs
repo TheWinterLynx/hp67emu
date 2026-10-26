@@ -105,6 +105,11 @@ pub enum SerialFetchError {
     IsaContention {
         word_bit: u8,
     },
+    UnexpectedIsaSource {
+        word_bit: u8,
+        expected: Option<Hp67Driver>,
+        driver_mask: u16,
+    },
     InvalidIsaDrives {
         word_bit: u8,
         driver_mask: u16,
@@ -332,6 +337,33 @@ fn sample_transport_isa_at_edge(
         });
     }
     sample_transport_isa(backplane, word_bit)
+}
+
+/// Validate the source role after existing polarity/count/phase checks. A Low
+/// remains passive release: there is no claim about invisible output enables.
+/// The selected chip comes from the ROM's received address/bank latches.
+fn sample_transport_owned_isa_at_edge(
+    backplane: &Hp67ElectricalBackplane,
+    word_bit: u8,
+    return_driver: Option<Hp67Driver>,
+) -> Result<LogicLevel, SerialFetchError> {
+    let level = sample_transport_isa_at_edge(backplane, word_bit)?;
+    if level == LogicLevel::High {
+        let expected = match isa_window_for_bit(word_bit) {
+            IsaWindow::RomAddress { .. } => Some(ACT_IS_DRIVER),
+            IsaWindow::RomWord { .. } => return_driver,
+            IsaWindow::Other if display_data_serial_bit(word_bit).is_some() => Some(ACT_IS_DRIVER),
+            IsaWindow::Other => None,
+        };
+        if !expected.is_some_and(|driver| backplane.driver_drive(Hp67Net::Isa, driver) == Drive::High) {
+            return Err(SerialFetchError::UnexpectedIsaSource {
+                word_bit,
+                expected,
+                driver_mask: backplane.active_isa_driver_mask(),
+            });
+        }
+    }
+    Ok(level)
 }
 
 /// ACT-side state for structural 56-bit machine words.
@@ -1154,6 +1186,14 @@ impl RomFetchEndpoint {
         self.physical_chips.as_ref()
     }
 
+    /// Identity selected by received address and bank state, not payload bits.
+    fn return_driver(&self) -> Option<Hp67Driver> {
+        match self.physical_chips.as_ref() {
+            Some(chips) => chips.chips().iter().find(|chip| chip.selected()).map(|chip| chip.profile().driver),
+            None => self.response_word.map(|_| Hp67Driver::StructuralRomResponder),
+        }
+    }
+
     pub(crate) fn is_drives_for_bit(&self, word_bit: u8) -> RomIsDrives {
         match self.physical_chips.as_ref() {
             Some(chips) => chips.is_drives_for_bit(word_bit),
@@ -1354,7 +1394,7 @@ pub fn run_structural_data_tail_prefix_with_ram(
                 });
             }
         }
-        sample_transport_isa_at_edge(backplane, word_bit)?;
+        sample_transport_owned_isa_at_edge(backplane, word_bit, None)?;
         sample_display_transport(act, rom0, backplane)?;
         sample_data_with_ram(data, ram.as_deref_mut(), word_bit, backplane)?;
         for _ in 0..2 {
@@ -1414,6 +1454,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
     // Hold committed sources until the next complete launch image is ready.
     let instruction_qualifier = act.successor_is_instruction();
 
+    let mut return_driver = None;
     for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         let display_bit = display_data_serial_bit(expected_bit);
@@ -1441,7 +1482,7 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         )?;
 
         advance_transport_to_sample(backplane);
-        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
+        let is_level = sample_transport_owned_isa_at_edge(backplane, expected_bit, return_driver)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             sample_display_transport(act, endpoint, backplane)?;
@@ -1450,6 +1491,11 @@ fn run_structural_word_transport<S: Hp67RomWordSource>(
         match isa_window_for_bit(expected_bit) {
             IsaWindow::RomAddress { .. } => {
                 rom.sample_for_bit(expected_bit, is_level, source)?;
+                if expected_bit == super::timing::ROM_ADDRESS_LAST_BIT {
+                    // One role lookup after the complete received address,
+                    // rather than scanning chip selection on each return bit.
+                    return_driver = rom.return_driver();
+                }
             }
             IsaWindow::RomWord { .. } => {
                 act.sample_instruction_at_edge(backplane)?;
@@ -1530,6 +1576,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
     // Hold committed sources until the next complete launch image is ready.
     let instruction_qualifier = act.successor_is_instruction();
 
+    let mut return_driver = None;
     for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         if expected_bit == 2 {
@@ -1563,7 +1610,7 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         )?;
 
         advance_transport_to_sample(backplane);
-        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
+        let is_level = sample_transport_owned_isa_at_edge(backplane, expected_bit, return_driver)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             sample_display_transport(act, endpoint, backplane)?;
@@ -1572,6 +1619,11 @@ fn run_structural_word_transport_with_data<S: Hp67RomWordSource>(
         match isa_window_for_bit(expected_bit) {
             IsaWindow::RomAddress { .. } => {
                 rom.sample_for_bit(expected_bit, is_level, source)?;
+                if expected_bit == super::timing::ROM_ADDRESS_LAST_BIT {
+                    // One role lookup after the complete received address,
+                    // rather than scanning chip selection on each return bit.
+                    return_driver = rom.return_driver();
+                }
             }
             IsaWindow::RomWord { .. } => {
                 act.sample_instruction_at_edge(backplane)?;
@@ -1865,6 +1917,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
     // Hold committed sources until the next complete launch image is ready.
     let instruction_qualifier = act.successor_is_instruction();
 
+    let mut return_driver = None;
     for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         let display_bit = display_data_serial_bit(expected_bit);
@@ -1904,7 +1957,7 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
                 rom_drive,
             });
         }
-        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
+        let is_level = sample_transport_owned_isa_at_edge(backplane, expected_bit, return_driver)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             sample_display_transport(act, endpoint, backplane)?;
@@ -1913,6 +1966,11 @@ fn run_traced_structural_word_transport<S: Hp67RomWordSource>(
         match isa_window_for_bit(expected_bit) {
             IsaWindow::RomAddress { .. } => {
                 rom.sample_for_bit(expected_bit, is_level, source)?;
+                if expected_bit == super::timing::ROM_ADDRESS_LAST_BIT {
+                    // One role lookup after the complete received address,
+                    // rather than scanning chip selection on each return bit.
+                    return_driver = rom.return_driver();
+                }
             }
             IsaWindow::RomWord { .. } => {
                 act.sample_instruction_at_edge(backplane)?;
@@ -2043,6 +2101,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
     // Hold committed sources until the next complete launch image is ready.
     let instruction_qualifier = act.successor_is_instruction();
 
+    let mut return_driver = None;
     for expected_bit in first_bit..BITS_PER_WORD {
         debug_assert_eq!(backplane.word_bit(), expected_bit);
         if expected_bit == 2 {
@@ -2088,7 +2147,7 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
                 rom_drive,
             });
         }
-        let is_level = sample_transport_isa_at_edge(backplane, expected_bit)?;
+        let is_level = sample_transport_owned_isa_at_edge(backplane, expected_bit, return_driver)?;
 
         if let Some(endpoint) = rom0.as_deref_mut() {
             sample_display_transport(act, endpoint, backplane)?;
@@ -2097,6 +2156,11 @@ fn run_traced_structural_word_transport_with_data<S: Hp67RomWordSource>(
         match isa_window_for_bit(expected_bit) {
             IsaWindow::RomAddress { .. } => {
                 rom.sample_for_bit(expected_bit, is_level, source)?;
+                if expected_bit == super::timing::ROM_ADDRESS_LAST_BIT {
+                    // One role lookup after the complete received address,
+                    // rather than scanning chip selection on each return bit.
+                    return_driver = rom.return_driver();
+                }
             }
             IsaWindow::RomWord { .. } => {
                 act.sample_instruction_at_edge(backplane)?;
@@ -2890,7 +2954,7 @@ mod tests {
         let source = FixtureRom {
             words: [(0x07b, 0x04c), (0x001, 0x3e3)],
         };
-        // DISPLAY-off emits the measured blank byte 0x20: its first High is b5.
+        // DISPLAY-off emits 0x20; the foreign sole High at b0 must fail before overlap at b5.
         let state = ActArchitecturalState::default();
         assert!(!state.display_enable);
         for path in 0..4 {
@@ -2952,20 +3016,20 @@ mod tests {
             assert_eq!(
                 result,
                 Err(StructuralWordError::Fetch(
-                    SerialFetchError::InvalidIsaDrives {
-                        word_bit: 5,
-                        driver_mask: (1u16 << Hp67Driver::Act1820_2530.index())
-                            | (1u16 << Hp67Driver::External.index()),
+                    SerialFetchError::UnexpectedIsaSource {
+                        word_bit: 0,
+                        expected: Some(Hp67Driver::Act1820_2530),
+                        driver_mask: 1u16 << Hp67Driver::External.index(),
                     }
                 )),
                 "path {path}"
             );
             assert_eq!(backplane.level(Hp67Net::Isa), LogicLevel::High);
-            assert_eq!(backplane.tick().get(), 22);
-            assert_eq!(backplane.word_bit(), 5);
+            assert_eq!(backplane.tick().get(), 2);
+            assert_eq!(backplane.word_bit(), 0);
             assert!(rom0.display_byte().is_err());
             if path >= 2 {
-                assert_eq!(trace.samples.len(), 22);
+                assert_eq!(trace.samples.len(), 2);
             }
         }
     }
@@ -4051,3 +4115,7 @@ mod display_circuit_transport_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "is_owner_tests.rs"]
+mod is_owner_tests;

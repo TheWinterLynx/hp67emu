@@ -179,3 +179,5 @@ Production idle scope now explicitly includes resolved CRC FLAG/F2 reception. In
 See `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md` for evidence and timing boundaries.
 
 M16E: measured production paths include sole ACT SYNC source validation at entry and instruction receivers. Workloads and all 224 PHI transitions remain unchanged.
+
+M16F: the measured paths include IS identity checks at the existing sample checkpoints; 56 cells, 224 transitions, workload and measurement order remain. No new performance claim precedes owner measurement.

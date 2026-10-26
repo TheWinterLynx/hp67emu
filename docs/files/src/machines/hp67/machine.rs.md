@@ -117,3 +117,6 @@ Hp67ClockFault exposes ordinal tick, net, expected/resolved level, ACT contribut
 
 
 M16E performance follow-up forwards crate-private committed SYNC ownership metadata to the strict validator. It changes no pin, tick, trace or receiver policy.
+
+
+M16F forwards direct committed SYNC ownership queries after cache retirement; no SYNC check, source policy or diagnostic is removed.
