@@ -3,7 +3,7 @@
 Date: 2026-10-26
 Base: owner-validated/integrated M16E cache b86849d5d0f7819fc0b6f7c1c749d7f5ff8f5491
 Branch: agent/m16f-is-window-owners
-Status: implementation prepared; owner local gate pending.
+Status: owner M16F FULL GATE GREEN; exact 2186b6bc1e524fe784e51ef2051224109b80b4a2 integrated (delivery 9/15). Both diagnostics 12/12 unchanged cycles; live 2.885 us/word (110.92x), full structural 1.314, PHI 0.347, autonomous RAM 1.098. No isolated performance attribution.
 
 ## Concrete gap and implemented path
 

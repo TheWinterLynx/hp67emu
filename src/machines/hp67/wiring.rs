@@ -118,10 +118,12 @@ pub enum Hp67Net {
     Kc3,
     Kc4,
     Kc5,
+    /// CRC active-low motor control to the card-reader sense-amplifier stage.
+    Motor,
 }
 
 impl Hp67Net {
-    pub const COUNT: usize = 14;
+    pub const COUNT: usize = 15;
 
     pub const fn index(self) -> usize {
         self as usize
@@ -142,6 +144,7 @@ impl Hp67Net {
         Self::Kc3,
         Self::Kc4,
         Self::Kc5,
+        Self::Motor,
     ];
 }
 

@@ -12,7 +12,7 @@ pub const MAX_PIN_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_CAPTURE_WORDS: usize = 512;
 pub const PIN_NAMES: [&str; Hp67Net::COUNT] = [
     "PHI1", "PHI2", "IS", "DATA", "SYNC", "RCD", "STR", "F1", "F2", "KC1", "KC2", "KC3", "KC4",
-    "KC5",
+    "KC5", "MOTOR",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

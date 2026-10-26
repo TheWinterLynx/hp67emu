@@ -19,6 +19,7 @@ fn compare_word(
         .unwrap()
         .check_mirror(&live.machine.crc)
         .unwrap();
+    assert_eq!(hp67emu::machines::hp67::motor::sample_motor(&live.backplane).unwrap(), live.machine.crc.flag(CRC_FLAG_MOTOR_ON).unwrap());
     assert_eq!(live.backplane.tick().get() - tick, 224);
     actual
 }

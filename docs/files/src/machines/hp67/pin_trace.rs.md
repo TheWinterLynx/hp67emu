@@ -27,3 +27,6 @@ See `docs/PIN_CAPTURE_v1.0.md`. No timing profile is installed and no hardware a
 
 Recorder-only snapshot/record code and the legacy capture regression module are gated by pin-capture; strict import/export and analysis are always available. PinClockObservation is exported so the window auditor uses validated actual edge rows and explicit word/bit coordinates.
 See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.
+
+
+M16G appends MOTOR to PIN_NAMES for full fifteen-pin export. Existing sparse named-column import already preserves absent MOTOR as unknown (None), so legacy captures remain distinguishable from actual Off/High/Floating observations. See docs/PIN_CAPTURE_v1.2.md.

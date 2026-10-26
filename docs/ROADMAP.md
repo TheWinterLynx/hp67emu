@@ -609,4 +609,16 @@ Passive Low remains valid release. This closes wrong-chip/wrong-window source
 substitution without comparing against expected payload bits. Exact launch/
 latch/output-enable timing remains unresolved. The ineffective M16E SYNC cache
 is retired while all source/staging/commit regressions remain. See
-`docs/research/M16F_IS_WINDOW_OWNERS_2026-10-26.md`. Owner local gate pending.
+`docs/research/M16F_IS_WINDOW_OWNERS_2026-10-26.md`. Owner M16F FULL GATE GREEN; exact 2186b6bc1e524fe784e51ef2051224109b80b4a2 integrated (delivery 9/15). Both diagnostics 12/12 unchanged cycles; live 2.885 us/word (110.92x), full structural 1.314, PHI 0.347, autonomous RAM 1.098. Separate-run measurements do not isolate change cost.
+
+
+## M16G resolved CRC MOTOR — delivery 10/15
+
+Independent CRC control now publishes a named active-low MOTOR output. Strict
+resolved sampling, rather than the latch parameter, supplies the production
+transport motor gate. Preflight preserves faults before inputs/clocks/tails;
+changed outputs publish at the existing completed-word boundary. Prior-word
+interval sampling, head/startup policy and record cadence remain unchanged.
+Capture v1.2 exports MOTOR; absent legacy columns stay unknown. Output stage,
+exact motor/PHI delay and analog mechanics remain unresolved. See
+`docs/research/M16G_RESOLVED_MOTOR_2026-10-26.md`. Owner gate pending.

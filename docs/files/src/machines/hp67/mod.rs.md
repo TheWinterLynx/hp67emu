@@ -190,3 +190,6 @@ M16D exports keyboard_matrix with explicit cathode/KC contact topology and ideal
 
 
 M16E exports sync source validation and structured failure diagnostics. It introduces no new net/driver or physical timing policy.
+
+
+M16G exposes the machine-specific motor module, retaining separate source state, strict resolved sampler and explicit physical timing/output-stage limits.

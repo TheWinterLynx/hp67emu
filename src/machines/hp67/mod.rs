@@ -37,6 +37,7 @@ pub mod keyboard;
 pub mod keyboard_matrix;
 pub mod machine;
 pub mod magnetic_card;
+pub mod motor;
 pub mod pin_timing;
 pub mod pin_trace;
 pub mod ram_command;

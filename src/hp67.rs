@@ -365,6 +365,7 @@ pub struct Hp67LiveMachine {
     data_serial: Hp67DataSerialWordPath,
     serial_ram: Option<Hp67SerialRam>,
     crc_flag: Option<hp67emu::machines::hp67::Hp67CrcFlagBridge>,
+    motor_output: Option<hp67emu::machines::hp67::motor::Hp67MotorOutput>,
     owned_crc_data: Option<hp67emu::machines::hp67::crc_owned_data::Hp67CrcOwnedData>,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
     pending_address_data_frame: Option<ActRegister>,
@@ -386,6 +387,7 @@ impl Hp67LiveMachine {
     pub fn power_on_default() -> Result<Self, String> {
         let mut backplane = Hp67ElectricalBackplane::default();
         let crc_flag = hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(&mut backplane);
+        let motor_output = hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut backplane);
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane,
@@ -403,6 +405,7 @@ impl Hp67LiveMachine {
                 .with_crc_control(),
             serial_ram: Some(Hp67SerialRam::default()),
             crc_flag: Some(crc_flag),
+            motor_output: Some(motor_output),
             owned_crc_data: Some(Default::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
@@ -460,6 +463,9 @@ impl Hp67LiveMachine {
             self.crc_flag = Some(hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(
                 &mut self.backplane,
             ));
+        }
+        if self.motor_output.is_some() {
+            self.motor_output = Some(hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut self.backplane));
         }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
@@ -647,6 +653,8 @@ impl Hp67LiveMachine {
             flag.check(&self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC F2 preflight: {error:?}"))?;
         }
+        let pin_motor = self.motor_output.as_ref().map(|motor| motor.check(&self.backplane))
+            .transpose().map_err(|error| format!("live cycle {cycle} CRC MOTOR preflight: {error:?}"))?;
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())
             .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
@@ -661,10 +669,16 @@ impl Hp67LiveMachine {
             data.check_mirror(&self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} {error}"))?;
         }
-        let card_motor_was_on = self.data_serial.crc_control().map_or_else(
+        let expected_motor = self.data_serial.crc_control().map_or_else(
             || self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true),
             |crc| crc.flags()[CRC_FLAG_MOTOR_ON],
         );
+        let card_motor_was_on = if let Some(on) = pin_motor {
+            if on != expected_motor {
+                return Err(format!("live cycle {cycle} MOTOR/CRC latch mismatch: pin={on} CRC={expected_motor}"));
+            }
+            on
+        } else { expected_motor };
         if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
             return Err(format!(
                 "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
@@ -1136,6 +1150,11 @@ impl Hp67LiveMachine {
                 .crc
                 .flag(hp67emu::machines::hp67::CRC_FLAG_F7_STATUS),
         );
+        if let Some(motor) = self.motor_output.as_mut() {
+            let crc = self.data_serial.crc_control().ok_or("MOTOR output requires autonomous CRC control")?;
+            motor.publish(crc, &mut self.backplane)
+                .map_err(|error| format!("live cycle {cycle} CRC MOTOR publication: {error:?}"))?;
+        }
         self.advance_crc_transport(cycle, card_motor_was_on)?;
 
         // Only a changed logical transport handshake enters the device.
@@ -1711,6 +1730,12 @@ impl Hp67LiveMachine {
         live.owned_crc_data = None;
         live.data_serial.disable_crc_control();
         live.crc_flag = None;
+        live.motor_output = None;
+        live.backplane.drive(
+            hp67emu::machines::hp67::Hp67Net::Motor,
+            hp67emu::machines::hp67::Hp67Driver::CardReaderController1820_1751,
+            hp67emu::emulation::Drive::HighZ,
+        );
         live.backplane.drive(
             hp67emu::machines::hp67::Hp67Net::F2,
             hp67emu::machines::hp67::Hp67Driver::CardReaderController1820_1751,
@@ -4299,3 +4324,7 @@ mod sync_integrity_tests;
 #[cfg(test)]
 #[path = "hp67/is_owner_tests.rs"]
 mod is_owner_tests;
+
+#[cfg(test)]
+#[path = "hp67/motor_tests.rs"]
+mod motor_tests;

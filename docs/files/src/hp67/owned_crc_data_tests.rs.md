@@ -21,3 +21,6 @@ Preserve strict comparisons, two-buffer capacity, FIFO ordering, completed-word 
 Three regressions cover keyboard/traced execution/reset, corrupted FIFO mirrors rejected before clocks and pending RAM tails, and complete real-firmware write/eject/reinsert/read of all 34 records. Production ACT, CRC, media and 224-transition word timing agree with the reference at every word. Existing full regressions retain clipping and both-track behavior.
 
 Logical 28-bit records and b55 publication remain a working approximation. Magnetic order, CRC DATA wire ownership/phase and exact physical edges remain source-blocked.
+
+
+M16G strengthens compare_word with resolved MOTOR/CRC-latch agreement on every step, so the existing full real-firmware write/read of all 34 records exercises the production MOTOR gate as well as retained CRC DATA. No duplicate card roundtrip harness is added.

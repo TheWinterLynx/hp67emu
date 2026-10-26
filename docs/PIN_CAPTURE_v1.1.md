@@ -105,3 +105,5 @@ marks unresolved or coincident selected observations; 0 means analyzed resolved
 observations, not conformance to undocumented setup/hold requirements. Censored
 bounds and phase-value disagreements remain visible even on exit 0. No profile
 is automatically inferred or installed and no emulator edge policy changes.
+
+M16G extends the named inventory with MOTOR while retaining the v1 TSV schema and legacy sparse import. See [PIN_CAPTURE_v1.2.md](PIN_CAPTURE_v1.2.md).
