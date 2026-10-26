@@ -355,7 +355,9 @@ fn sample_transport_owned_isa_at_edge(
             IsaWindow::Other if display_data_serial_bit(word_bit).is_some() => Some(ACT_IS_DRIVER),
             IsaWindow::Other => None,
         };
-        if !expected.is_some_and(|driver| backplane.driver_drive(Hp67Net::Isa, driver) == Drive::High) {
+        if !expected
+            .is_some_and(|driver| backplane.driver_drive(Hp67Net::Isa, driver) == Drive::High)
+        {
             return Err(SerialFetchError::UnexpectedIsaSource {
                 word_bit,
                 expected,
@@ -1189,8 +1191,14 @@ impl RomFetchEndpoint {
     /// Identity selected by received address and bank state, not payload bits.
     fn return_driver(&self) -> Option<Hp67Driver> {
         match self.physical_chips.as_ref() {
-            Some(chips) => chips.chips().iter().find(|chip| chip.selected()).map(|chip| chip.profile().driver),
-            None => self.response_word.map(|_| Hp67Driver::StructuralRomResponder),
+            Some(chips) => chips
+                .chips()
+                .iter()
+                .find(|chip| chip.selected())
+                .map(|chip| chip.profile().driver),
+            None => self
+                .response_word
+                .map(|_| Hp67Driver::StructuralRomResponder),
         }
     }
 
