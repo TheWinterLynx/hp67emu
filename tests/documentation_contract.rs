@@ -14,16 +14,17 @@ const REQUIRED_SECTIONS: &[&str] = &[
 ];
 
 #[test]
-fn every_rust_source_has_a_companion_markdown_document() {
+fn every_source_has_a_companion_markdown_document() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut sources = Vec::new();
-    collect_rust_files(&root.join("src"), &mut sources);
-    collect_rust_files(&root.join("tests"), &mut sources);
+    collect_source_files(&root.join("src"), &mut sources, "rs");
+    collect_source_files(&root.join("tests"), &mut sources, "rs");
+    collect_source_files(&root.join("tools"), &mut sources, "ps1");
     sources.sort();
 
     assert!(
         !sources.is_empty(),
-        "documentation contract found no Rust files"
+        "documentation contract found no source files"
     );
 
     let mut failures = Vec::new();
@@ -71,14 +72,14 @@ fn architecture_documents_are_present() {
     }
 }
 
-fn collect_rust_files(directory: &Path, out: &mut Vec<PathBuf>) {
+fn collect_source_files(directory: &Path, out: &mut Vec<PathBuf>, extension: &str) {
     let entries = fs::read_dir(directory)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", directory.display()));
     for entry in entries {
         let path = entry.expect("directory entry must be readable").path();
         if path.is_dir() {
-            collect_rust_files(&path, out);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            collect_source_files(&path, out, extension);
+        } else if path.extension().is_some_and(|value| value == extension) {
             out.push(path);
         }
     }

@@ -45,6 +45,8 @@ The documentation regression uses these companion files as the source-level owne
 
 ## Development tools
 
+- [tools/gate_m16g.ps1](files/tools/gate_m16g.ps1.md)
+
 - [tools/convert_hp67_card.py](files/tools/convert_hp67_card.py.md)
 - [tools/extract_hp67_card_artwork.py](files/tools/extract_hp67_card_artwork.py.md)
 - [tools/generate_hp67_diagnostic_pacs.py](files/tools/generate_hp67_diagnostic_pacs.py.md)

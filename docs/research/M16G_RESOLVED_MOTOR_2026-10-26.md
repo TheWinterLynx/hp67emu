@@ -95,3 +95,9 @@ new production gate through actual card transport without duplicating that harne
 Full suites/release/both diagnostic builds and electrical/DATA/RAM/live benches
 remain owner-only gates. Actions performs fmt/check/save only. No runtime result
 or integration is claimed until the owner full gate is green.
+
+## Owner gate feedback — 2026-10-28
+
+The owner log for formatted head 70645a294f14cddc53a91dbdc12470ef89037c34 ends the focused native stage with 3/3 passed, then stops in stage 4 at Clippy (14 library findings, 49 including library tests). The pasted v1 gate had mistakenly substituted Clippy for the established warnings-denied all-target regression gate. No full-suite/release/benchmark result is available from that run.
+
+The v2 correction is checked in as tools/gate_m16g.ps1 and follows AGENTS.md/docs/CI.md: compiler warnings remain denied; both build variants run all-target tests, release builds and the ignored diagnostic. The nine-stage order, literal -- argument forwarding and serial benchmarks are explicit. The documentation contract now includes tools PowerShell companions. Emulator source, pin scheduling, source checks and benchmark workloads are unchanged. No Clippy allowances or test exclusions were added. Owner full gate remains pending; no M16G integration is authorized by this failed run.
