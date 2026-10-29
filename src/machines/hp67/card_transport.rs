@@ -132,6 +132,7 @@ impl Default for Hp67CardSpeed {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hp67CardTransportError {
     CardAlreadyLoaded,
+    ReaderHeadMismatch { pins: bool, transport: bool },
     Crc(CrcArchitecturalError),
 }
 
@@ -286,7 +287,7 @@ impl Hp67CardTransport {
         motor_on: bool,
         crc: &mut CrcArchitecturalCore,
     ) -> Result<usize, Hp67CardTransportError> {
-        self.advance_crc_port(elapsed_us, motor_on, crc)
+        self.advance_crc_port(elapsed_us, motor_on, crc, None)
     }
 
     pub fn advance_us_owned(
@@ -295,6 +296,33 @@ impl Hp67CardTransport {
         motor_on: bool,
         data: &mut super::crc_owned_data::Hp67CrcOwnedData,
         control: &mut super::Hp67SerialCrcControl,
+    ) -> Result<usize, Hp67CardTransportError> {
+        self.advance_owned_port(elapsed_us, motor_on, data, control, None)
+    }
+
+    /// Production head/write authority comes from a resolved CRC-side receiver.
+    /// The legacy no-reader entry point remains an explicit reference fixture.
+    pub fn advance_us_owned_with_reader(
+        &mut self,
+        elapsed_us: u64,
+        motor_on: bool,
+        data: &mut super::crc_owned_data::Hp67CrcOwnedData,
+        control: &mut super::Hp67SerialCrcControl,
+        reader: &super::reader_contacts::Hp67CrcReaderGate,
+    ) -> Result<usize, Hp67CardTransportError> {
+        if reader.head_active() != self.head_active {
+            return Err(Hp67CardTransportError::ReaderHeadMismatch { pins: reader.head_active(), transport: self.head_active });
+        }
+        self.advance_owned_port(elapsed_us, motor_on, data, control, Some(reader))
+    }
+
+    fn advance_owned_port(
+        &mut self,
+        elapsed_us: u64,
+        motor_on: bool,
+        data: &mut super::crc_owned_data::Hp67CrcOwnedData,
+        control: &mut super::Hp67SerialCrcControl,
+        reader: Option<&super::reader_contacts::Hp67CrcReaderGate>,
     ) -> Result<usize, Hp67CardTransportError> {
         data.sync_control(
             control.flags()[super::CRC_FLAG_BUFFER_READY],
@@ -307,6 +335,7 @@ impl Hp67CardTransport {
                 data: &mut *data,
                 control: &*control,
             },
+            reader,
         );
         let (ready, error) = data.buffer_status();
         control.apply_buffer_status(ready, error);
@@ -318,8 +347,10 @@ impl Hp67CardTransport {
         elapsed_us: u64,
         motor_on: bool,
         crc: &mut impl CardCrcPort,
+        reader: Option<&super::reader_contacts::Hp67CrcReaderGate>,
     ) -> Result<usize, Hp67CardTransportError> {
-        if !motor_on || !self.head_active || self.card.is_none() || self.is_complete() {
+        let head_active = reader.map_or(self.head_active, |gate| gate.head_active());
+        if !motor_on || !head_active || self.card.is_none() || self.is_complete() {
             return Ok(0);
         }
 
@@ -339,7 +370,7 @@ impl Hp67CardTransport {
         }
 
         if crc.flag(CRC_FLAG_WRITE_MODE) == Some(true) {
-            return self.advance_write_us(elapsed_us, crc);
+            return self.advance_write_us(elapsed_us, crc, reader.map(|gate| gate.write_permitted()));
         }
 
         self.advance_read_us(elapsed_us, crc)
@@ -378,11 +409,12 @@ impl Hp67CardTransport {
         &mut self,
         elapsed_us: u64,
         crc: &mut impl CardCrcPort,
+        write_permitted: Option<bool>,
     ) -> Result<usize, Hp67CardTransportError> {
-        let write_protected = self
-            .active_track()
-            .expect("card and insertion end presence checked by advance_us")
-            .write_protected();
+        let write_protected = write_permitted.map_or_else(
+            || self.active_track().expect("card and insertion end presence checked by advance_us").write_protected(),
+            |permitted| !permitted,
+        );
 
         if write_protected {
             crc.signal_write_capacity(true);

@@ -42,6 +42,7 @@ pub mod motor;
 pub mod pin_timing;
 pub mod pin_trace;
 pub mod ram_command;
+pub mod reader_contacts;
 pub mod rom_devices;
 pub mod serial_crc_control;
 pub mod serial_ram;

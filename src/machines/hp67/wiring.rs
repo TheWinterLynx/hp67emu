@@ -122,10 +122,14 @@ pub enum Hp67Net {
     Motor,
     /// Card insertion switch feeding CRC; head arrival is a separate signal.
     Mtrs,
+    /// Card reader head switch, active low at head arrival.
+    Hds,
+    /// Card corner switch; grounded permits writing when HDS closes.
+    Wps,
 }
 
 impl Hp67Net {
-    pub const COUNT: usize = 16;
+    pub const COUNT: usize = 18;
 
     pub const fn index(self) -> usize {
         self as usize
@@ -148,6 +152,8 @@ impl Hp67Net {
         Self::Kc5,
         Self::Motor,
         Self::Mtrs,
+        Self::Hds,
+        Self::Wps,
     ];
 }
 

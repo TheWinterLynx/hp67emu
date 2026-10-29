@@ -14,6 +14,8 @@ use super::{
 };
 
 const MAX_PENDING_DRIVES: usize = Hp67Net::COUNT * Hp67Driver::COUNT;
+// Pending markers reserve zero and encode entry index + 1 in one byte.
+const _: () = assert!(MAX_PENDING_DRIVES <= u8::MAX as usize);
 
 #[derive(Debug, Clone, Copy)]
 struct Hp67PendingDrive {
@@ -356,6 +358,12 @@ impl Hp67ElectricalFabric {
                 mask | (1u16 << driver.index())
             }
         })
+    }
+
+    /// Install the complete logical HDS/WPS contact image before observation.
+    pub(crate) fn commit_reader_contacts(&mut self, hds: Drive, wps: Drive) {
+        self.apply_drive(Hp67Net::Hds.index(), Hp67Driver::External, hds);
+        self.apply_drive(Hp67Net::Wps.index(), Hp67Driver::External, wps);
     }
 
     /// Joint STR/RCD publication: no receiver observes a half-updated bundle.

@@ -234,6 +234,12 @@ impl Hp67ElectricalBackplane {
         self.record_pins();
     }
 
+    pub(crate) fn commit_reader_contacts(&mut self, hds: Drive, wps: Drive) {
+        self.fabric.commit_reader_contacts(hds, wps);
+        #[cfg(feature = "pin-capture")]
+        self.record_pins();
+    }
+
     pub(crate) fn commit_display_controls(&mut self, str_drive: Drive, rcd_drive: Drive) {
         self.fabric.commit_display_controls(str_drive, rcd_drive);
         #[cfg(feature = "pin-capture")]

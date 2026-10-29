@@ -93,3 +93,5 @@ M16G: live includes the CRC MOTOR source/receiver gate. The no-DATA structural f
 
 
 M16H scope notes that the no-DATA fixture does not instantiate live MTRS; the live authority benchmark measures that production path. Measurement loops and structural behavior are unchanged.
+
+M16I scope distinguishes the no-DATA structural fixture from live HDS/WPS receiver checks. Measured loops and physical transition counts are unchanged.

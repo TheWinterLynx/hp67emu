@@ -48,3 +48,5 @@ M16G appends Motor at index 14 without changing prior indices or driver identiti
 
 
 M16H appends Mtrs at index 15, preserving all previous net/driver indices. Sixteen nets times thirteen drivers gives 208 staging slots, within the existing u8 marker range. MTRS uses External physical stimulus; generic fabric default remains Floating.
+
+M16I appends Hds and Wps at indices 16/17, using External physical-stimulus ownership. HDS grounds at head arrival; grounded WPS permits writing. Generic unattached levels remain Floating; voltage/pull-up details are not inferred.

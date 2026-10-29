@@ -367,6 +367,8 @@ pub struct Hp67LiveMachine {
     crc_flag: Option<hp67emu::machines::hp67::Hp67CrcFlagBridge>,
     motor_output: Option<hp67emu::machines::hp67::motor::Hp67MotorOutput>,
     card_present_contact: Option<hp67emu::machines::hp67::card_contact::Hp67CardPresentContact>,
+    reader_contacts: Option<hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts>,
+    crc_reader_gate: Option<hp67emu::machines::hp67::reader_contacts::Hp67CrcReaderGate>,
     owned_crc_data: Option<hp67emu::machines::hp67::crc_owned_data::Hp67CrcOwnedData>,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
     pending_address_data_frame: Option<ActRegister>,
@@ -391,6 +393,7 @@ impl Hp67LiveMachine {
         let motor_output = hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut backplane);
         let card_present_contact =
             hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut backplane);
+        let reader_contacts = hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(&mut backplane);
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane,
@@ -410,6 +413,8 @@ impl Hp67LiveMachine {
             crc_flag: Some(crc_flag),
             motor_output: Some(motor_output),
             card_present_contact: Some(card_present_contact),
+            reader_contacts: Some(reader_contacts),
+            crc_reader_gate: Some(Default::default()),
             owned_crc_data: Some(Default::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
@@ -480,6 +485,10 @@ impl Hp67LiveMachine {
                 ),
             );
         }
+        if self.reader_contacts.is_some() {
+            self.reader_contacts = Some(hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(&mut self.backplane));
+            self.crc_reader_gate = Some(Default::default());
+        }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
         let owned_registers = self.act_serial.owned_register_state().is_some();
@@ -540,6 +549,36 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
     }
 
+    fn check_reader_contacts(&self) -> Result<(), String> {
+        if let Some(source) = self.reader_contacts.as_ref() {
+            let inputs = source.check(&self.backplane)
+                .map_err(|error| format!("live cycle {} HDS/WPS preflight: {error:?}", self.boot_cycle))?;
+            let receiver = self.crc_reader_gate.as_ref().ok_or("HDS/WPS source requires CRC receiver")?;
+            if inputs.head_active != receiver.head_active() || inputs.head_active != self.card_transport.head_active() {
+                return Err(format!("live cycle {} HDS receiver/transport mismatch", self.boot_cycle));
+            }
+        }
+        Ok(())
+    }
+
+    /// Preserve the existing logical arrival/exit event policy. This does not
+    /// establish the physical HDS/WPS edge order or insertion-to-head distance.
+    fn set_reader_head_contact(&mut self, active: bool) -> Result<(), String> {
+        self.check_reader_contacts()?;
+        if let Some(source) = self.reader_contacts.as_mut() {
+            let permitted = active && self.card_transport.active_track().is_some_and(|track| !track.write_protected());
+            source.publish(&mut self.backplane, hp67emu::machines::hp67::reader_contacts::Hp67ReaderContactInputs { head_active: active, write_permitted: permitted })
+                .map_err(|error| format!("HDS/WPS contact publication: {error:?}"))?;
+            let receiver = self.crc_reader_gate.as_mut().ok_or("HDS/WPS source requires CRC receiver")?;
+            receiver.sample_contacts(&self.backplane)
+                .map_err(|error| format!("CRC HDS/WPS reception: {error:?}"))?;
+            self.card_transport.set_head_active(receiver.head_active());
+        } else {
+            self.card_transport.set_head_active(active);
+        }
+        Ok(())
+    }
+
     fn check_card_present_contact(&self) -> Result<(), String> {
         if let Some(contact) = self.card_present_contact.as_ref() {
             let present = contact.check(&self.backplane).map_err(|error| {
@@ -584,6 +623,7 @@ impl Hp67LiveMachine {
         card: Hp67MagneticCard,
         insertion_end: CardInsertionEnd,
     ) -> Result<(), String> {
+        self.check_reader_contacts()?;
         self.check_card_present_contact()?;
         let previous_transport = self.card_transport.clone();
         self.card_transport
@@ -632,16 +672,19 @@ impl Hp67LiveMachine {
     }
 
     pub fn take_magnetic_card_for_power_off(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
+        self.check_reader_contacts()?;
         if self.card_transport.card().is_none() {
             return Ok(None);
         }
 
         self.set_card_present_contact(false)?;
+        self.set_reader_head_contact(false)?;
         self.card_startup_buffer_clears = 0;
         Ok(self.card_transport.take_card_for_power_off())
     }
 
     pub fn withdraw_unstarted_magnetic_card(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
+        self.check_reader_contacts()?;
         if self.card_motor_on()
             || self.card_transport.head_active()
             || self.card_transport.next_record() != 0
@@ -708,6 +751,7 @@ impl Hp67LiveMachine {
             .map(|motor| motor.check(&self.backplane))
             .transpose()
             .map_err(|error| format!("live cycle {cycle} CRC MOTOR preflight: {error:?}"))?;
+        self.check_reader_contacts()?;
         self.check_card_present_contact()?;
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())
@@ -938,7 +982,7 @@ impl Hp67LiveMachine {
                         self.card_startup_buffer_clears =
                             self.card_startup_buffer_clears.saturating_add(1);
                         if self.card_startup_buffer_clears == 2 {
-                            self.card_transport.set_head_active(true);
+                            self.set_reader_head_contact(true)?;
                         }
                     }
                 }
@@ -1238,7 +1282,7 @@ impl Hp67LiveMachine {
             self.set_card_present_contact(false).map_err(|error| {
                 format!("live cycle {cycle} card exit contact failed: {error:?}")
             })?;
-            self.card_transport.set_head_active(false);
+            self.set_reader_head_contact(false)?;
         }
 
         self.boot_cycle = cycle.saturating_add(1);
@@ -1261,12 +1305,15 @@ impl Hp67LiveMachine {
                 .data_serial
                 .crc_control_mut()
                 .expect("owned CRC control");
-            let result = self.card_transport.advance_us_owned(
-                HP67_OBSERVED_WORD_TIME_US,
-                motor_on,
-                data,
-                control,
-            );
+            let result = if let Some(reader) = self.crc_reader_gate.as_ref() {
+                self.card_transport.advance_us_owned_with_reader(
+                    HP67_OBSERVED_WORD_TIME_US, motor_on, data, control, reader,
+                )
+            } else {
+                self.card_transport.advance_us_owned(
+                    HP67_OBSERVED_WORD_TIME_US, motor_on, data, control,
+                )
+            };
             if let Some((mut transport, mut crc)) = observer {
                 let expected = transport.advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut crc);
                 if result != expected || self.card_transport != transport {
@@ -1798,6 +1845,11 @@ impl Hp67LiveMachine {
         live.crc_flag = None;
         live.motor_output = None;
         live.card_present_contact = None;
+        live.reader_contacts = None;
+        live.crc_reader_gate = None;
+        for net in [hp67emu::machines::hp67::Hp67Net::Hds, hp67emu::machines::hp67::Hp67Net::Wps] {
+            live.backplane.drive(net, hp67emu::machines::hp67::Hp67Driver::External, hp67emu::emulation::Drive::HighZ);
+        }
         live.backplane.drive(
             hp67emu::machines::hp67::Hp67Net::Mtrs,
             hp67emu::machines::hp67::Hp67Driver::External,
@@ -4405,3 +4457,7 @@ mod motor_tests;
 #[cfg(test)]
 #[path = "hp67/card_contact_tests.rs"]
 mod card_contact_tests;
+
+#[cfg(test)]
+#[path = "hp67/reader_contacts_tests.rs"]
+mod reader_contacts_tests;

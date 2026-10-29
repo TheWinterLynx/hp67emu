@@ -3,7 +3,7 @@
 Date: 2026-10-29
 Base: owner-validated/integrated b2fc0de22c464b3a3eba56f1a3d41f8556b4e5e6 (M16G v2)
 Branch: agent/m16h-resolved-card-contacts
-Status: implementation prepared, owner local runtime/performance gate pending.
+Status: owner FULL GATE GREEN v2 at b68f97facc5b3c900eef5a5e03269112065d5d91; exact validated head integrated into main (delivery 11/15).
 
 ## Evidence and limits
 
@@ -91,3 +91,7 @@ is fmt/check/save only. No compilation or runtime result is claimed here.
 ## Owner v1 feedback / fixture correction
 
 The owner focused library run reports 4 passed / 1 failed, stopping at m16h_fifteen_pin_capture_keeps_absent_mtrs_unknown. Static inspection shows that its generated legacy capture had only one row, while import_pin_trace correctly rejects captures shorter than two rows. Version 2 supplies two valid rows with PHI1 high-to-low and consistent source masks, explicitly asserts rejection of the one-row prefix, and verifies absent MTRS level/ownership on both accepted rows plus roundtrip parity. The parser, electrical implementation, timing and remaining acceptance assertions are unchanged. The gate markers advance to v2; full owner validation remains pending and no integration is authorized by the failed run.
+
+## Owner acceptance
+
+Owner full gate v2 green at exact b68f97facc5b3c900eef5a5e03269112065d5d91. Both diagnostics 12/12 with unchanged cycles. Live median 2.777 us/word (115.25x), best 2.748/worst 2.799, compared with M16G 2.971 (about 6.5% lower time in this run; no isolated attribution). Full structural 1.338, IS fetch 0.933, PHI 0.355, stage 0.666, staged scheduler 0.654, autonomous RAM 1.088. Exact integration is authorized by the green marker; M16I starts there.

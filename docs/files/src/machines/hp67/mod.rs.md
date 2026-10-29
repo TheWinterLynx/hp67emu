@@ -196,3 +196,5 @@ M16G exposes the machine-specific motor module, retaining separate source state,
 
 
 M16H exports card_contact for the mechanical MTRS source and CRC-facing resolved receiver; native/UI adapters do not own firmware contact interpretation.
+
+M16I exports reader_contacts for resolved HDS/WPS sources and independent retained CRC head/write permission.

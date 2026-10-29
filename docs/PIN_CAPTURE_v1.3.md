@@ -20,3 +20,5 @@ The existing comparison/timing CLI accepts MTRS through the named inventory.
 Capture-only storage stays compiled out by default. Both builds perform the same
 contact validation, CRC reception and 224 PHI transitions per word. Capture event
 coordinates and boundary policy do not prove physical contact or propagation timing.
+
+M16I appends HDS/WPS without changing previous indices; see PIN_CAPTURE_v1.4.md.

@@ -87,3 +87,10 @@ The documentation regression uses these companion files as the source-level owne
 - [src/machines/hp67/card_contact_tests.rs](files/src/machines/hp67/card_contact_tests.rs.md)
 - [src/hp67/card_contact_tests.rs](files/src/hp67/card_contact_tests.rs.md)
 - [tools/gate_m16h.ps1](files/tools/gate_m16h.ps1.md)
+
+## M16I head and write-permission inputs
+
+- [src/machines/hp67/reader_contacts.rs](files/src/machines/hp67/reader_contacts.rs.md)
+- [src/machines/hp67/reader_contacts_tests.rs](files/src/machines/hp67/reader_contacts_tests.rs.md)
+- [src/hp67/reader_contacts_tests.rs](files/src/hp67/reader_contacts_tests.rs.md)
+- [tools/gate_m16i.ps1](files/tools/gate_m16i.ps1.md)

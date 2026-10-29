@@ -19,3 +19,5 @@ Clippy and any additional workflow require the current task's authorization; the
 The v1 pasted M16G command incorrectly introduced Clippy; the owner report on 2026-10-28 shows the feature-native focused tests passed (3/3), then Clippy stopped on inherited findings. Those findings are not a runtime MOTOR regression or a full-gate pass. Version 2 restores the gate already required here and in AGENTS.md without changing source semantics, suppressing lints or claiming the remaining stages passed. Clippy cleanup remains a separate, explicitly scoped task.
 
 M16G v2 was owner-validated on 2026-10-29 at b2fc0de22c464b3a3eba56f1a3d41f8556b4e5e6. M16H uses `tools/gate_m16h.ps1` with the same nine stages and exact tested HEAD output; its focused filter and marker identify M16H. Owner runtime validation is still pending.
+
+M16H v2 is owner-validated/integrated at b68f97facc5b3c900eef5a5e03269112065d5d91. M16I uses tools/gate_m16i.ps1 with the same nine stages, compiler warnings denied and exact HEAD in the final marker; runtime/performance acceptance remains pending.
