@@ -389,7 +389,8 @@ impl Hp67LiveMachine {
         let mut backplane = Hp67ElectricalBackplane::default();
         let crc_flag = hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(&mut backplane);
         let motor_output = hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut backplane);
-        let card_present_contact = hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut backplane);
+        let card_present_contact =
+            hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut backplane);
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane,
@@ -473,7 +474,11 @@ impl Hp67LiveMachine {
             ));
         }
         if self.card_present_contact.is_some() {
-            self.card_present_contact = Some(hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut self.backplane));
+            self.card_present_contact = Some(
+                hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(
+                    &mut self.backplane,
+                ),
+            );
         }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
@@ -537,10 +542,22 @@ impl Hp67LiveMachine {
 
     fn check_card_present_contact(&self) -> Result<(), String> {
         if let Some(contact) = self.card_present_contact.as_ref() {
-            let present = contact.check(&self.backplane)
-                .map_err(|error| format!("live cycle {} CRC MTRS preflight: {error:?}", self.boot_cycle))?;
-            if self.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_CARD_PRESENT) != Some(present) {
-                return Err(format!("live cycle {} MTRS/oracle contact mismatch", self.boot_cycle));
+            let present = contact.check(&self.backplane).map_err(|error| {
+                format!(
+                    "live cycle {} CRC MTRS preflight: {error:?}",
+                    self.boot_cycle
+                )
+            })?;
+            if self
+                .machine
+                .crc
+                .external_flag(hp67emu::machines::hp67::CRC_FLAG_CARD_PRESENT)
+                != Some(present)
+            {
+                return Err(format!(
+                    "live cycle {} MTRS/oracle contact mismatch",
+                    self.boot_cycle
+                ));
             }
         }
         Ok(())
@@ -549,12 +566,16 @@ impl Hp67LiveMachine {
     fn set_card_present_contact(&mut self, present: bool) -> Result<(), String> {
         self.check_card_present_contact()?;
         let observed = if let Some(contact) = self.card_present_contact.as_mut() {
-            contact.set_closed(&mut self.backplane, present)
+            contact
+                .set_closed(&mut self.backplane, present)
                 .map_err(|error| format!("CRC MTRS contact publication: {error:?}"))?;
             hp67emu::machines::hp67::card_contact::sample_card_present(&self.backplane)
                 .map_err(|error| format!("CRC MTRS contact reception: {error:?}"))?
-        } else { present };
-        self.machine.set_card_present(observed)
+        } else {
+            present
+        };
+        self.machine
+            .set_card_present(observed)
             .map_err(|error| format!("CRC card-present observer update: {error:?}"))
     }
 
@@ -1777,7 +1798,11 @@ impl Hp67LiveMachine {
         live.crc_flag = None;
         live.motor_output = None;
         live.card_present_contact = None;
-        live.backplane.drive(hp67emu::machines::hp67::Hp67Net::Mtrs, hp67emu::machines::hp67::Hp67Driver::External, hp67emu::emulation::Drive::HighZ);
+        live.backplane.drive(
+            hp67emu::machines::hp67::Hp67Net::Mtrs,
+            hp67emu::machines::hp67::Hp67Driver::External,
+            hp67emu::emulation::Drive::HighZ,
+        );
         live.backplane.drive(
             hp67emu::machines::hp67::Hp67Net::Motor,
             hp67emu::machines::hp67::Hp67Driver::CardReaderController1820_1751,
@@ -3605,7 +3630,8 @@ mod tests {
         );
         assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(false));
 
-        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1).unwrap();
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
 
         for _ in 0..1_024 {
             live.step_firmware_cycle().unwrap();

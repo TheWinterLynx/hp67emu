@@ -21,7 +21,10 @@ fn compare_word(
         .unwrap();
     assert_eq!(
         hp67emu::machines::hp67::card_contact::sample_card_present(&live.backplane).unwrap(),
-        live.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_CARD_PRESENT).unwrap()
+        live.machine
+            .crc
+            .external_flag(hp67emu::machines::hp67::CRC_FLAG_CARD_PRESENT)
+            .unwrap()
     );
     assert_eq!(
         hp67emu::machines::hp67::motor::sample_motor(&live.backplane).unwrap(),

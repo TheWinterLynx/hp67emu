@@ -54,13 +54,21 @@ impl Hp67SerialCrcControl {
 
     /// Production card-present input comes from MTRS. The mirror is checked,
     /// never imported as the source for that external contact.
-    pub fn freeze_inputs_with_mtrs(&mut self, mirror: &CrcArchitecturalCore, bus: &Hp67ElectricalBackplane) -> Result<(), String> {
+    pub fn freeze_inputs_with_mtrs(
+        &mut self,
+        mirror: &CrcArchitecturalCore,
+        bus: &Hp67ElectricalBackplane,
+    ) -> Result<(), String> {
         let present = super::card_contact::sample_card_present(bus)
             .map_err(|error| format!("CRC MTRS input: {error:?}"))?;
         self.freeze_checked_inputs(mirror, Some(present))
     }
 
-    fn freeze_checked_inputs(&mut self, mirror: &CrcArchitecturalCore, mtrs: Option<bool>) -> Result<(), String> {
+    fn freeze_checked_inputs(
+        &mut self,
+        mirror: &CrcArchitecturalCore,
+        mtrs: Option<bool>,
+    ) -> Result<(), String> {
         if self.expected_bit != 0 {
             return Err("CRC contacts must freeze before b0".into());
         }
@@ -73,7 +81,9 @@ impl Hp67SerialCrcControl {
         // Validate everything before replacing the frozen word image.
         self.external = std::array::from_fn(|index| {
             if index == super::CRC_FLAG_CARD_PRESENT {
-                if let Some(present) = mtrs { return present; }
+                if let Some(present) = mtrs {
+                    return present;
+                }
             }
             mirror.external_flag(index).expect("CRC contact index")
         });
