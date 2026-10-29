@@ -393,7 +393,8 @@ impl Hp67LiveMachine {
         let motor_output = hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut backplane);
         let card_present_contact =
             hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut backplane);
-        let reader_contacts = hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(&mut backplane);
+        let reader_contacts =
+            hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(&mut backplane);
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane,
@@ -486,7 +487,11 @@ impl Hp67LiveMachine {
             );
         }
         if self.reader_contacts.is_some() {
-            self.reader_contacts = Some(hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(&mut self.backplane));
+            self.reader_contacts = Some(
+                hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(
+                    &mut self.backplane,
+                ),
+            );
             self.crc_reader_gate = Some(Default::default());
         }
         let received_execution = self.act_serial.received_execution_enabled();
@@ -551,11 +556,23 @@ impl Hp67LiveMachine {
 
     fn check_reader_contacts(&self) -> Result<(), String> {
         if let Some(source) = self.reader_contacts.as_ref() {
-            let inputs = source.check(&self.backplane)
-                .map_err(|error| format!("live cycle {} HDS/WPS preflight: {error:?}", self.boot_cycle))?;
-            let receiver = self.crc_reader_gate.as_ref().ok_or("HDS/WPS source requires CRC receiver")?;
-            if inputs.head_active != receiver.head_active() || inputs.head_active != self.card_transport.head_active() {
-                return Err(format!("live cycle {} HDS receiver/transport mismatch", self.boot_cycle));
+            let inputs = source.check(&self.backplane).map_err(|error| {
+                format!(
+                    "live cycle {} HDS/WPS preflight: {error:?}",
+                    self.boot_cycle
+                )
+            })?;
+            let receiver = self
+                .crc_reader_gate
+                .as_ref()
+                .ok_or("HDS/WPS source requires CRC receiver")?;
+            if inputs.head_active != receiver.head_active()
+                || inputs.head_active != self.card_transport.head_active()
+            {
+                return Err(format!(
+                    "live cycle {} HDS receiver/transport mismatch",
+                    self.boot_cycle
+                ));
             }
         }
         Ok(())
@@ -566,11 +583,26 @@ impl Hp67LiveMachine {
     fn set_reader_head_contact(&mut self, active: bool) -> Result<(), String> {
         self.check_reader_contacts()?;
         if let Some(source) = self.reader_contacts.as_mut() {
-            let permitted = active && self.card_transport.active_track().is_some_and(|track| !track.write_protected());
-            source.publish(&mut self.backplane, hp67emu::machines::hp67::reader_contacts::Hp67ReaderContactInputs { head_active: active, write_permitted: permitted })
+            let permitted = active
+                && self
+                    .card_transport
+                    .active_track()
+                    .is_some_and(|track| !track.write_protected());
+            source
+                .publish(
+                    &mut self.backplane,
+                    hp67emu::machines::hp67::reader_contacts::Hp67ReaderContactInputs {
+                        head_active: active,
+                        write_permitted: permitted,
+                    },
+                )
                 .map_err(|error| format!("HDS/WPS contact publication: {error:?}"))?;
-            let receiver = self.crc_reader_gate.as_mut().ok_or("HDS/WPS source requires CRC receiver")?;
-            receiver.sample_contacts(&self.backplane)
+            let receiver = self
+                .crc_reader_gate
+                .as_mut()
+                .ok_or("HDS/WPS source requires CRC receiver")?;
+            receiver
+                .sample_contacts(&self.backplane)
                 .map_err(|error| format!("CRC HDS/WPS reception: {error:?}"))?;
             self.card_transport.set_head_active(receiver.head_active());
         } else {
@@ -1307,11 +1339,18 @@ impl Hp67LiveMachine {
                 .expect("owned CRC control");
             let result = if let Some(reader) = self.crc_reader_gate.as_ref() {
                 self.card_transport.advance_us_owned_with_reader(
-                    HP67_OBSERVED_WORD_TIME_US, motor_on, data, control, reader,
+                    HP67_OBSERVED_WORD_TIME_US,
+                    motor_on,
+                    data,
+                    control,
+                    reader,
                 )
             } else {
                 self.card_transport.advance_us_owned(
-                    HP67_OBSERVED_WORD_TIME_US, motor_on, data, control,
+                    HP67_OBSERVED_WORD_TIME_US,
+                    motor_on,
+                    data,
+                    control,
                 )
             };
             if let Some((mut transport, mut crc)) = observer {
@@ -1847,8 +1886,15 @@ impl Hp67LiveMachine {
         live.card_present_contact = None;
         live.reader_contacts = None;
         live.crc_reader_gate = None;
-        for net in [hp67emu::machines::hp67::Hp67Net::Hds, hp67emu::machines::hp67::Hp67Net::Wps] {
-            live.backplane.drive(net, hp67emu::machines::hp67::Hp67Driver::External, hp67emu::emulation::Drive::HighZ);
+        for net in [
+            hp67emu::machines::hp67::Hp67Net::Hds,
+            hp67emu::machines::hp67::Hp67Net::Wps,
+        ] {
+            live.backplane.drive(
+                net,
+                hp67emu::machines::hp67::Hp67Driver::External,
+                hp67emu::emulation::Drive::HighZ,
+            );
         }
         live.backplane.drive(
             hp67emu::machines::hp67::Hp67Net::Mtrs,

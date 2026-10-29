@@ -19,11 +19,22 @@ fn compare_word(
         .unwrap()
         .check_mirror(&live.machine.crc)
         .unwrap();
-    let reader = hp67emu::machines::hp67::reader_contacts::sample_reader_contacts(&live.backplane).unwrap();
+    let reader =
+        hp67emu::machines::hp67::reader_contacts::sample_reader_contacts(&live.backplane).unwrap();
     assert_eq!(reader.head_active, live.card_transport.head_active());
-    assert_eq!(live.crc_reader_gate.as_ref().unwrap().head_active(), reader.head_active);
+    assert_eq!(
+        live.crc_reader_gate.as_ref().unwrap().head_active(),
+        reader.head_active
+    );
     if reader.head_active {
-        assert_eq!(live.crc_reader_gate.as_ref().unwrap().write_permitted(), !live.card_transport.active_track().unwrap().write_protected());
+        assert_eq!(
+            live.crc_reader_gate.as_ref().unwrap().write_permitted(),
+            !live
+                .card_transport
+                .active_track()
+                .unwrap()
+                .write_protected()
+        );
     }
     assert_eq!(
         hp67emu::machines::hp67::card_contact::sample_card_present(&live.backplane).unwrap(),

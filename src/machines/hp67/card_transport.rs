@@ -311,7 +311,10 @@ impl Hp67CardTransport {
         reader: &super::reader_contacts::Hp67CrcReaderGate,
     ) -> Result<usize, Hp67CardTransportError> {
         if reader.head_active() != self.head_active {
-            return Err(Hp67CardTransportError::ReaderHeadMismatch { pins: reader.head_active(), transport: self.head_active });
+            return Err(Hp67CardTransportError::ReaderHeadMismatch {
+                pins: reader.head_active(),
+                transport: self.head_active,
+            });
         }
         self.advance_owned_port(elapsed_us, motor_on, data, control, Some(reader))
     }
@@ -370,7 +373,11 @@ impl Hp67CardTransport {
         }
 
         if crc.flag(CRC_FLAG_WRITE_MODE) == Some(true) {
-            return self.advance_write_us(elapsed_us, crc, reader.map(|gate| gate.write_permitted()));
+            return self.advance_write_us(
+                elapsed_us,
+                crc,
+                reader.map(|gate| gate.write_permitted()),
+            );
         }
 
         self.advance_read_us(elapsed_us, crc)
@@ -412,7 +419,11 @@ impl Hp67CardTransport {
         write_permitted: Option<bool>,
     ) -> Result<usize, Hp67CardTransportError> {
         let write_protected = write_permitted.map_or_else(
-            || self.active_track().expect("card and insertion end presence checked by advance_us").write_protected(),
+            || {
+                self.active_track()
+                    .expect("card and insertion end presence checked by advance_us")
+                    .write_protected()
+            },
             |permitted| !permitted,
         );
 
