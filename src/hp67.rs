@@ -366,6 +366,7 @@ pub struct Hp67LiveMachine {
     serial_ram: Option<Hp67SerialRam>,
     crc_flag: Option<hp67emu::machines::hp67::Hp67CrcFlagBridge>,
     motor_output: Option<hp67emu::machines::hp67::motor::Hp67MotorOutput>,
+    card_present_contact: Option<hp67emu::machines::hp67::card_contact::Hp67CardPresentContact>,
     owned_crc_data: Option<hp67emu::machines::hp67::crc_owned_data::Hp67CrcOwnedData>,
     pending_ram_data_transfer: Option<PendingRamDataTransfer>,
     pending_address_data_frame: Option<ActRegister>,
@@ -388,6 +389,7 @@ impl Hp67LiveMachine {
         let mut backplane = Hp67ElectricalBackplane::default();
         let crc_flag = hp67emu::machines::hp67::Hp67CrcFlagBridge::attach(&mut backplane);
         let motor_output = hp67emu::machines::hp67::motor::Hp67MotorOutput::attach(&mut backplane);
+        let card_present_contact = hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut backplane);
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane,
@@ -406,6 +408,7 @@ impl Hp67LiveMachine {
             serial_ram: Some(Hp67SerialRam::default()),
             crc_flag: Some(crc_flag),
             motor_output: Some(motor_output),
+            card_present_contact: Some(card_present_contact),
             owned_crc_data: Some(Default::default()),
             pending_ram_data_transfer: None,
             pending_address_data_frame: None,
@@ -469,6 +472,9 @@ impl Hp67LiveMachine {
                 &mut self.backplane,
             ));
         }
+        if self.card_present_contact.is_some() {
+            self.card_present_contact = Some(hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut self.backplane));
+        }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
         let owned_registers = self.act_serial.owned_register_state().is_some();
@@ -529,18 +535,42 @@ impl Hp67LiveMachine {
             .map_err(|error| format!("HP-67 program-mode flag update failed: {error:?}"))
     }
 
+    fn check_card_present_contact(&self) -> Result<(), String> {
+        if let Some(contact) = self.card_present_contact.as_ref() {
+            let present = contact.check(&self.backplane)
+                .map_err(|error| format!("live cycle {} CRC MTRS preflight: {error:?}", self.boot_cycle))?;
+            if self.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_CARD_PRESENT) != Some(present) {
+                return Err(format!("live cycle {} MTRS/oracle contact mismatch", self.boot_cycle));
+            }
+        }
+        Ok(())
+    }
+
+    fn set_card_present_contact(&mut self, present: bool) -> Result<(), String> {
+        self.check_card_present_contact()?;
+        let observed = if let Some(contact) = self.card_present_contact.as_mut() {
+            contact.set_closed(&mut self.backplane, present)
+                .map_err(|error| format!("CRC MTRS contact publication: {error:?}"))?;
+            hp67emu::machines::hp67::card_contact::sample_card_present(&self.backplane)
+                .map_err(|error| format!("CRC MTRS contact reception: {error:?}"))?
+        } else { present };
+        self.machine.set_card_present(observed)
+            .map_err(|error| format!("CRC card-present observer update: {error:?}"))
+    }
+
     pub fn insert_magnetic_card(
         &mut self,
         card: Hp67MagneticCard,
         insertion_end: CardInsertionEnd,
     ) -> Result<(), String> {
+        self.check_card_present_contact()?;
         let previous_transport = self.card_transport.clone();
         self.card_transport
             .insert_card(card, insertion_end)
             .map_err(|error| format!("HP-67 card insertion failed: {error:?}"))?;
         self.card_startup_buffer_clears = 0;
 
-        if let Err(error) = self.machine.set_card_present(true) {
+        if let Err(error) = self.set_card_present_contact(true) {
             self.card_transport = previous_transport;
             return Err(format!("HP-67 card-present contact failed: {error:?}"));
         }
@@ -585,9 +615,7 @@ impl Hp67LiveMachine {
             return Ok(None);
         }
 
-        self.machine
-            .set_card_present(false)
-            .map_err(|error| format!("HP-67 power-off card contact failed: {error:?}"))?;
+        self.set_card_present_contact(false)?;
         self.card_startup_buffer_clears = 0;
         Ok(self.card_transport.take_card_for_power_off())
     }
@@ -603,9 +631,7 @@ impl Hp67LiveMachine {
             return Ok(None);
         }
 
-        self.machine
-            .set_card_present(false)
-            .map_err(|error| format!("HP-67 card withdrawal contact failed: {error:?}"))?;
+        self.set_card_present_contact(false)?;
         self.card_startup_buffer_clears = 0;
         Ok(self.card_transport.take_unstarted_card())
     }
@@ -661,6 +687,7 @@ impl Hp67LiveMachine {
             .map(|motor| motor.check(&self.backplane))
             .transpose()
             .map_err(|error| format!("live cycle {cycle} CRC MOTOR preflight: {error:?}"))?;
+        self.check_card_present_contact()?;
         self.display_circuit
             .check_phase(self.act_serial.display_scan_slot())
             .map_err(|error| format!("live cycle {cycle} display phase failed: {error:?}"))?;
@@ -668,8 +695,12 @@ impl Hp67LiveMachine {
             .check_owned_flow_mirror(&self.machine.act.state)
             .map_err(|error| format!("live cycle {cycle} {error}"))?;
         if let Some(crc) = self.data_serial.crc_control_mut() {
-            crc.freeze_inputs(&self.machine.crc)
-                .map_err(|error| format!("live cycle {cycle} CRC inputs: {error}"))?;
+            let frozen = if self.card_present_contact.is_some() {
+                crc.freeze_inputs_with_mtrs(&self.machine.crc, &self.backplane)
+            } else {
+                crc.freeze_inputs(&self.machine.crc)
+            };
+            frozen.map_err(|error| format!("live cycle {cycle} CRC inputs: {error}"))?;
         }
         if let Some(data) = self.owned_crc_data.as_ref() {
             data.check_mirror(&self.machine.crc)
@@ -1183,7 +1214,7 @@ impl Hp67LiveMachine {
             self.sync_crc_buffer_status();
         }
         if self.card_transport.is_complete() {
-            self.machine.set_card_present(false).map_err(|error| {
+            self.set_card_present_contact(false).map_err(|error| {
                 format!("live cycle {cycle} card exit contact failed: {error:?}")
             })?;
             self.card_transport.set_head_active(false);
@@ -1745,6 +1776,8 @@ impl Hp67LiveMachine {
         live.data_serial.disable_crc_control();
         live.crc_flag = None;
         live.motor_output = None;
+        live.card_present_contact = None;
+        live.backplane.drive(hp67emu::machines::hp67::Hp67Net::Mtrs, hp67emu::machines::hp67::Hp67Driver::External, hp67emu::emulation::Drive::HighZ);
         live.backplane.drive(
             hp67emu::machines::hp67::Hp67Net::Motor,
             hp67emu::machines::hp67::Hp67Driver::CardReaderController1820_1751,
@@ -3572,7 +3605,7 @@ mod tests {
         );
         assert_eq!(live.machine.crc.flag(CRC_FLAG_MOTOR_ON), Some(false));
 
-        live.machine.set_card_present(true).unwrap();
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1).unwrap();
 
         for _ in 0..1_024 {
             live.step_firmware_cycle().unwrap();
@@ -4342,3 +4375,7 @@ mod is_owner_tests;
 #[cfg(test)]
 #[path = "hp67/motor_tests.rs"]
 mod motor_tests;
+
+#[cfg(test)]
+#[path = "hp67/card_contact_tests.rs"]
+mod card_contact_tests;

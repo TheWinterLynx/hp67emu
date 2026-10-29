@@ -26,3 +26,5 @@ the same electrical MOTOR source/receiver checks and all 224 PHI transitions.
 The additional net extends fixed fabric/staging storage; it does not add a
 per-bit participant or change clock topology. Runtime/performance acceptance
 remains the owner gate.
+
+M16H appends MTRS without changing these indices; see PIN_CAPTURE_v1.3.md.

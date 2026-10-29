@@ -183,3 +183,6 @@ M16E: measured production paths include sole ACT SYNC source validation at entry
 M16F: the measured paths include IS identity checks at the existing sample checkpoints; 56 cells, 224 transitions, workload and measurement order remain. No new performance claim precedes owner measurement.
 
 M16G: live includes the CRC MOTOR source/receiver gate. The no-DATA structural fixture does not instantiate this output. Added Motor fabric inventory preserves old indices and all 224 transitions; workloads and rotation remain unchanged.
+
+
+M16H production idle includes resolved MTRS preflight and CRC word input reception; synthetic reference rows explicitly omit autonomous contacts/control. Workloads, rotation, sizes, transitions and measured paths are unchanged.

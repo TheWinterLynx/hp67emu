@@ -12,8 +12,8 @@ fn m16c_live_f2_matches_independent_crc_and_reference_firmware_through_contacts(
     let mut controls = 0;
     for cycle in 0..2400 {
         if cycle == 1200 {
-            live.machine.set_card_present(true).unwrap();
-            reference.machine.set_card_present(true).unwrap();
+            live.set_card_present_contact(true).unwrap();
+            reference.set_card_present_contact(true).unwrap();
         }
         let tick = live.backplane.tick().get();
         assert_eq!(
@@ -150,7 +150,7 @@ fn m16c_live_f2_preflight_preserves_pending_ram_tail_and_recovers_without_losing
 fn m16c_pin_capture_contains_crc_owned_f2_pulses_and_real_phi_words() {
     use hp67emu::machines::hp67::pin_trace::{analyze_pin_trace, import_pin_trace};
     let mut live = Hp67LiveMachine::power_on_default().unwrap();
-    live.machine.set_card_present(true).unwrap();
+    live.set_card_present_contact(true).unwrap();
     let mut seen = false;
     for _ in 0..BOOT_CYCLE_LIMIT {
         live.step_firmware_cycle_with_execution().unwrap();

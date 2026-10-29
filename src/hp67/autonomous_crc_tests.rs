@@ -12,7 +12,7 @@ fn m15t_crc_live_matches_reference_and_traced_firmware_with_real_contacts() {
     for cycle in 0..2400 {
         if cycle == 1200 {
             for machine in [&mut live, &mut traced, &mut reference] {
-                machine.machine.set_card_present(true).unwrap();
+                machine.set_card_present_contact(true).unwrap();
             }
         }
         let tick = live.backplane.tick().get();

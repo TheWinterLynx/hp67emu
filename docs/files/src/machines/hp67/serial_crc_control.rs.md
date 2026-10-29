@@ -28,3 +28,6 @@ A fixed-size Copy image samples all 56 coordinates, independently collects b46..
 Completed-word control timing remains a WORKING APPROXIMATION. Exact CRC F2,
 PHI latch edges, output circuitry, magnetic sensing and DATA serialization remain
 SOURCE-BLOCKED. No new physical timing value is introduced.
+
+
+M16H adds freeze_inputs_with_mtrs: read strict resolved MTRS, check internal-latch mirror and card-present observer, then replace the frozen input image atomically. Card-present is taken from the pin; other unmigrated external flags retain their existing logical snapshot. freeze_inputs remains explicit reference/standalone fixture behavior. Freeze errors cannot mutate prior contact state or pending instruction. Word-boundary snapshot is a working policy, not a proven MTRS sampling edge.

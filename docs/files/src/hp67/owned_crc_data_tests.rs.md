@@ -24,3 +24,6 @@ Logical 28-bit records and b55 publication remain a working approximation. Magne
 
 
 M16G strengthens compare_word with resolved MOTOR/CRC-latch agreement on every step, so the existing full real-firmware write/read of all 34 records exercises the production MOTOR gate as well as retained CRC DATA. No duplicate card roundtrip harness is added.
+
+
+M16H strengthens the existing full real-firmware 34-record write/read roundtrip: compare_word checks resolved MTRS against the independently updated card-present observer after every word, including actual card exit. The expensive scenario is reused rather than duplicated.

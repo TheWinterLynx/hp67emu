@@ -30,3 +30,6 @@ See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md
 
 
 M16G appends MOTOR to PIN_NAMES for full fifteen-pin export. Existing sparse named-column import already preserves absent MOTOR as unknown (None), so legacy captures remain distinguishable from actual Off/High/Floating observations. See docs/PIN_CAPTURE_v1.2.md.
+
+
+M16H appends MTRS to sixteen exported named pins. Existing named-column imports preserve absent MTRS as None for both level and source masks; re-export leaves it unknown. The v1 extensible metadata and earlier indices remain unchanged.

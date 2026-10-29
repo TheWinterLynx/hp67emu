@@ -21,3 +21,6 @@ Preserve sticky S3 and command pipeline semantics, source identity, resolved lev
 Three always-enabled regressions compare 2400 real-firmware cycles with the independent reference composition, reject all foreign F2 sources before inputs/clocks, and retry a fault before a real pending RAM tail against an unfaulted machine. One feature-only test waits for a real CRC assertion then captures 512 full words, CRC driver masks and TSV roundtrip. No synthetic opcode replaces production command reception.
 
 Wiring/active-low net evidence and explicit boundary/push-pull approximations are recorded in `docs/research/M16C_RESOLVED_CRC_FLAG_2026-10-25.md`.
+
+
+M16H migrates virtual card-contact stimulation from the architectural observer to the checked physical MTRS publication helper. The fixture intentionally closes the insertion switch without creating media, preserving the previous CRC/F2 control workload and assertions. Production UI insertion and the actual-card roundtrip are separately exercised through the card object.

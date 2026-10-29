@@ -572,3 +572,10 @@ interval sampling, head/startup policy and record cadence remain unchanged.
 Capture v1.2 exports MOTOR; absent legacy columns stay unknown. Output stage,
 exact motor/PHI delay and analog mechanics remain unresolved. See
 `docs/research/M16G_RESOLVED_MOTOR_2026-10-26.md`. Owner gate pending.
+
+
+## M16G accepted / M16H prepared — 2026-10-29
+
+Owner M16G v2 FULL GATE GREEN at b2fc0de22c464b3a3eba56f1a3d41f8556b4e5e6 is integrated unchanged: delivery 10/15, both diagnostic builds 12/12 with unchanged cycles. Live median 2.971 us/word (107.72x), approximately 3.0% higher time than M16F; no isolated attribution.
+
+M16H (delivery 11/15, validation pending) routes card-insertion MTRS through a checked External source, resolved active-low pin, atomic CRC input freeze and real-firmware F2/MOTOR path. Insertion/withdrawal/power-off/exit update the source, and the reference mirror is comparison-only for this production input. Captures append MTRS at index 15 and preserve missing observations as unknown. Existing head/startup/record policies and all 56 cells/224 transitions remain. High/open normalization and word-frozen reception are working approximations; physical voltage, bounce, exact contact/PHI edges, HDS geometry and magnetic timing remain source-blocked. See research/M16H_RESOLVED_MTRS_2026-10-29.md and PIN_CAPTURE_v1.3.md.

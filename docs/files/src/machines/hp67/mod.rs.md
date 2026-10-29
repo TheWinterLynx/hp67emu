@@ -193,3 +193,6 @@ M16E exports sync source validation and structured failure diagnostics. It intro
 
 
 M16G exposes the machine-specific motor module, retaining separate source state, strict resolved sampler and explicit physical timing/output-stage limits.
+
+
+M16H exports card_contact for the mechanical MTRS source and CRC-facing resolved receiver; native/UI adapters do not own firmware contact interpretation.

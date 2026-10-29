@@ -47,15 +47,36 @@ impl Hp67SerialCrcControl {
         self.receiver.received_frame()
     }
 
-    /// Check the mirror before freezing contacts. Never import internal latches.
+    /// Explicit reference composition: snapshot logical external inputs.
     pub fn freeze_inputs(&mut self, mirror: &CrcArchitecturalCore) -> Result<(), String> {
+        self.freeze_checked_inputs(mirror, None)
+    }
+
+    /// Production card-present input comes from MTRS. The mirror is checked,
+    /// never imported as the source for that external contact.
+    pub fn freeze_inputs_with_mtrs(&mut self, mirror: &CrcArchitecturalCore, bus: &Hp67ElectricalBackplane) -> Result<(), String> {
+        let present = super::card_contact::sample_card_present(bus)
+            .map_err(|error| format!("CRC MTRS input: {error:?}"))?;
+        self.freeze_checked_inputs(mirror, Some(present))
+    }
+
+    fn freeze_checked_inputs(&mut self, mirror: &CrcArchitecturalCore, mtrs: Option<bool>) -> Result<(), String> {
         if self.expected_bit != 0 {
             return Err("CRC contacts must freeze before b0".into());
         }
         self.check_mirror(mirror)?;
-        for (index, input) in self.external.iter_mut().enumerate() {
-            *input = mirror.external_flag(index).expect("CRC contact index");
+        if let Some(present) = mtrs {
+            if mirror.external_flag(super::CRC_FLAG_CARD_PRESENT) != Some(present) {
+                return Err(format!("CRC MTRS/oracle contact mismatch: pin={present}"));
+            }
         }
+        // Validate everything before replacing the frozen word image.
+        self.external = std::array::from_fn(|index| {
+            if index == super::CRC_FLAG_CARD_PRESENT {
+                if let Some(present) = mtrs { return present; }
+            }
+            mirror.external_flag(index).expect("CRC contact index")
+        });
         Ok(())
     }
 

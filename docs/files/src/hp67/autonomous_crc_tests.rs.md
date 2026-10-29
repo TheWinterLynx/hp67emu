@@ -28,3 +28,6 @@ Compare production, traced production and reference firmware through boot and ca
 Completed-word control timing remains a WORKING APPROXIMATION. Exact CRC F2,
 PHI latch edges, output circuitry, magnetic sensing and DATA serialization remain
 SOURCE-BLOCKED. No new physical timing value is introduced.
+
+
+M16H migrates virtual card-contact stimulation from the architectural observer to the checked physical MTRS publication helper. The fixture intentionally closes the insertion switch without creating media, preserving the previous CRC/F2 control workload and assertions. Production UI insertion and the actual-card roundtrip are separately exercised through the card object.

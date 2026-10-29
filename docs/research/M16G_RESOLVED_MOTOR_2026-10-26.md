@@ -3,7 +3,7 @@
 Date: 2026-10-26
 Base: owner-validated/integrated M16F 2186b6bc1e524fe784e51ef2051224109b80b4a2
 Branch: agent/m16g-resolved-motor
-Status: implementation prepared; owner local gate pending.
+Status: owner FULL GATE GREEN v2 on b2fc0de22c464b3a3eba56f1a3d41f8556b4e5e6; exact validated head integrated into main (delivery 10/15).
 
 ## Evidence inspected
 
@@ -101,3 +101,7 @@ or integration is claimed until the owner full gate is green.
 The owner log for formatted head 70645a294f14cddc53a91dbdc12470ef89037c34 ends the focused native stage with 3/3 passed, then stops in stage 4 at Clippy (14 library findings, 49 including library tests). The pasted v1 gate had mistakenly substituted Clippy for the established warnings-denied all-target regression gate. No full-suite/release/benchmark result is available from that run.
 
 The v2 correction is checked in as tools/gate_m16g.ps1 and follows AGENTS.md/docs/CI.md: compiler warnings remain denied; both build variants run all-target tests, release builds and the ignored diagnostic. The nine-stage order, literal -- argument forwarding and serial benchmarks are explicit. The documentation contract now includes tools PowerShell companions. Emulator source, pin scheduling, source checks and benchmark workloads are unchanged. No Clippy allowances or test exclusions were added. Owner full gate remains pending; no M16G integration is authorized by this failed run.
+
+## Owner acceptance — 2026-10-29
+
+Owner full gate v2 green at exact b2fc0de22c464b3a3eba56f1a3d41f8556b4e5e6. Both diagnostic builds pass 12/12 with unchanged cycle counts. Live median 2.971 us/word (107.72x), best 2.954/worst 2.987; full structural 1.312, IS fetch 0.970, PHI 0.358, stage 0.644, staged scheduler 0.679, autonomous RAM 1.077. Relative to M16F live 2.885, elapsed word time is approximately 3.0% higher; host/run noise and the new lane are not isolated by that comparison. No zero-cost or speedup claim. The green marker authorizes exact integration and continuation; M16H starts there.

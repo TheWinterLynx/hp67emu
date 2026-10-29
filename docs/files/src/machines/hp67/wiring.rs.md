@@ -45,3 +45,6 @@ See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
 
 
 M16G appends Motor at index 14 without changing prior indices or driver identities. HP-67 logic PCB sheet 2 labels the barred MOT/Motor CRC output; HP-97 service section 2-36 corroborates grounding MOTOR to activate the sense-amplifier/motor stage. See M16G_RESOLVED_MOTOR_2026-10-26.md. No bias or transistor stage is inferred.
+
+
+M16H appends Mtrs at index 15, preserving all previous net/driver indices. Sixteen nets times thirteen drivers gives 208 staging slots, within the existing u8 marker range. MTRS uses External physical stimulus; generic fabric default remains Floating.
