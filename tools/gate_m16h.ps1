@@ -8,11 +8,11 @@ try {
     if ($dirty) { throw 'Hay cambios locales en source/tests/tools/Cargo; guardalos antes del gate' }
     $head = & git rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Git HEAD KO' }
-    Write-Host "M16H owner gate v1 | commit=$head"
+    Write-Host "M16H owner gate v2 | commit=$head"
     function Invoke-HP67M16H {
         param([string[]]$CargoArgs)
         & cargo @CargoArgs
-        if ($LASTEXITCODE -ne 0) { throw "M16H GATE v1 KO: cargo $($CargoArgs -join ' ')" }
+        if ($LASTEXITCODE -ne 0) { throw "M16H GATE v2 KO: cargo $($CargoArgs -join ' ')" }
     }
     Write-Host '[1/9] M16H FORMATO'
     Invoke-HP67M16H -CargoArgs @('fmt', '--all', '--', '--check')
@@ -40,7 +40,7 @@ try {
     Invoke-HP67M16H -CargoArgs @('test', '--locked', '--release', '--lib', 'm15n_autonomous_serial_ram_realtime_benchmark', '--', '--ignored', '--nocapture', '--test-threads=1')
     Write-Host '[9/9] M16H BENCH LIVE'
     Invoke-HP67M16H -CargoArgs @('test', '--locked', '--release', '--bin', 'hp67emu', 'm14o_live_authority_realtime_benchmark', '--', '--ignored', '--nocapture', '--test-threads=1')
-    Write-Host "M16H FULL GATE GREEN | HP67-M16H-RESOLVED-MTRS-v1 | ENTREGA 11/15 | commit=$head"
+    Write-Host "M16H FULL GATE GREEN | HP67-M16H-RESOLVED-MTRS-v2 | ENTREGA 11/15 | commit=$head"
 }
 finally {
     $env:RUSTFLAGS = $previousRustFlags

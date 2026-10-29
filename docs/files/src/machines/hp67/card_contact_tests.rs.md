@@ -14,3 +14,5 @@ Cover all opcodes/qualifiers/contact states, retained external versus clearable 
 
 ## Implementation
 Actual words advance 56 cells and 224 PHI transitions. All 4096 opcode/contact/qualifier cases compare an independent CRC oracle and resolved F2. A feature-only test records closed/open at ordinal 224/448, no extra rows for unchanged publication and no extra time for physical publication. Capture ordinals are not calibrated timing.
+
+M16H v2 corrects the legacy fifteen-pin fixture to contain two valid rows with a PHI1 transition. It explicitly checks that the first, single-row prefix is rejected by the unchanged parser, then checks unknown MTRS level/ownership on both accepted rows and export/import parity. The owner v1 run passed the other four focused library tests but stopped here before later stages.

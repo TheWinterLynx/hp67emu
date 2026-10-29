@@ -87,3 +87,7 @@ The checked-in tools/gate_m16h.ps1 retains the validated nine-stage M16G v2 gate
 fmt, both focused library/native builds, warnings-denied all-target tests, both release
 builds, both 12/12 diagnostics, serial electrical/DATA/RAM/live benchmarks. Actions
 is fmt/check/save only. No compilation or runtime result is claimed here.
+
+## Owner v1 feedback / fixture correction
+
+The owner focused library run reports 4 passed / 1 failed, stopping at m16h_fifteen_pin_capture_keeps_absent_mtrs_unknown. Static inspection shows that its generated legacy capture had only one row, while import_pin_trace correctly rejects captures shorter than two rows. Version 2 supplies two valid rows with PHI1 high-to-low and consistent source masks, explicitly asserts rejection of the one-row prefix, and verifies absent MTRS level/ownership on both accepted rows plus roundtrip parity. The parser, electrical implementation, timing and remaining acceptance assertions are unchanged. The gate markers advance to v2; full owner validation remains pending and no integration is authorized by the failed run.

@@ -199,21 +199,33 @@ fn m16h_fifteen_pin_capture_keeps_absent_mtrs_unknown() {
         text.push_str(name);
     }
     text.push('\n');
-    text.push_str("0\t0");
-    for index in 0..15 {
-        text.push('\t');
-        text.push_str(if index <= 1 {
-            "1:0001:0000"
-        } else if index == 2 {
-            "0:0000:0000"
-        } else {
-            "Z:0000:0000"
-        });
+    for at in 0..2 {
+        text.push_str(&format!("{at}\t0"));
+        for index in 0..15 {
+            let cell = match index {
+                0 if at == 1 => "0:0000:0001",
+                0 | 1 => "1:0001:0000",
+                2 => "0:0000:0000",
+                _ => "Z:0000:0000",
+            };
+            text.push('\t');
+            text.push_str(cell);
+        }
+        text.push('\n');
+        if at == 0 {
+            // An absent optional pin is allowed; a one-row capture is not.
+            assert_eq!(
+                import_pin_trace(&text).unwrap_err(),
+                "capture needs at least two rows"
+            );
+        }
     }
-    text.push('\n');
     let capture = import_pin_trace(&text).unwrap();
-    assert_eq!(capture.rows[0].levels[Hp67Net::Mtrs.index()], None);
-    assert_eq!(capture.rows[0].owners[Hp67Net::Mtrs.index()], None);
+    assert_eq!(capture.rows.len(), 2);
+    for row in &capture.rows {
+        assert_eq!(row.levels[Hp67Net::Mtrs.index()], None);
+        assert_eq!(row.owners[Hp67Net::Mtrs.index()], None);
+    }
     assert_eq!(
         import_pin_trace(&capture.to_tsv().unwrap()).unwrap(),
         capture

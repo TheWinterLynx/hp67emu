@@ -14,3 +14,5 @@ Stop on every failed command, reject dirty source/tests/tools/Cargo inputs, prin
 
 ## Implementation
 Same named CargoArgs string-array forwarding, try/finally, fmt-first ordering, both focused suites, both all-target suites, both release builds, both ignored diagnostics and serial benchmarks as the validated M16G v2 runner. Only milestone/filter/marker change. No Clippy substitution, persistent logs, deployment or merge.
+
+Version 2 identifies the legacy-capture fixture correction in progress/failure/green markers. All nine stages and their commands are unchanged.
