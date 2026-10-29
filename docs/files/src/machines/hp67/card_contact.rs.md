@@ -14,4 +14,3 @@ Publish physical input changes, validate sole source including agreeing foreign 
 
 ## Implementation
 Attach normalizes open High. set_closed checks the previous publication before changing it, and changes only on actual physical events. Receiver accepts Low as closed only with one External contribution. High/Low normalization and word-frozen reception remain working approximations; no passive bias, bounce, voltage or PHI timing is invented.
-
