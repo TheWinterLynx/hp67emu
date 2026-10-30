@@ -43,7 +43,7 @@ fn report(output: Option<&String>, content: &str) -> Result<(), String> {
 pub fn handles(command: Option<&str>) -> bool {
     matches!(
         command,
-        Some("--trace-pins" | "--audit-pins" | "--compare-pins" | "--timing-pins")
+        Some("--trace-pins" | "--audit-pins" | "--compare-pins" | "--timing-pins" | "--integrity-pins")
     )
 }
 pub fn run(args: &[String]) -> Result<i32, String> {
@@ -55,6 +55,11 @@ pub fn run(args: &[String]) -> Result<i32, String> {
         },
         Some("--audit-pins") if (2..=3).contains(&args.len()) => {
             let trace = read(&args[1])?; let analysis = analyze_pin_trace(&trace)?; report(args.get(2), &analysis.report(&trace))?; Ok(0)
+        },
+        Some("--integrity-pins") if (2..=3).contains(&args.len()) => {
+            let trace = read(&args[1])?;
+            let audit = hp67emu::machines::hp67::pin_integrity::audit_pin_integrity(&trace)?;
+            report(args.get(2), &audit.report(&trace))?; Ok(audit.exit_code())
         },
         Some("--timing-pins") if (3..=4).contains(&args.len()) => {
             let trace = read(&args[1])?;
@@ -70,7 +75,7 @@ pub fn run(args: &[String]) -> Result<i32, String> {
             let text = format!("left={} source={:?} domain={:?} provenance={} word={}\nright={} source={:?} domain={:?} provenance={} word={}\nwords={} pins={}\n{}", args[1], left.source, left.domain, left.provenance, lw, args[2], right.source, right.domain, right.provenance, rw, count, args[6], result.report());
             report(args.get(7), &text)?; Ok(result.exit_code())
         },
-        _ => Err("usage: --trace-pins <1..512 words> <new.tsv> | --audit-pins <input.tsv> [new-report.txt] | --compare-pins <left.tsv> <right.tsv> <left-word> <right-word> <1..512 words> <IS,SYNC,...> [new-report.txt] | --timing-pins <input.tsv> <IS,DATA,SYNC,...> [new-report.txt]".into()),
+        _ => Err("usage: --integrity-pins <input.tsv> [new-report.txt] | --trace-pins <1..512 words> <new.tsv> | --audit-pins <input.tsv> [new-report.txt] | --compare-pins <left.tsv> <right.tsv> <left-word> <right-word> <1..512 words> <IS,SYNC,...> [new-report.txt] | --timing-pins <input.tsv> <IS,DATA,SYNC,...> [new-report.txt]".into()),
     }
 }
 
@@ -81,3 +86,7 @@ mod tests;
 #[cfg(test)]
 #[path = "timing_cli_tests.rs"]
 mod timing_tests;
+
+#[cfg(test)]
+#[path = "integrity_cli_tests.rs"]
+mod integrity_tests;

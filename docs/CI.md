@@ -28,3 +28,8 @@ M16I is owner-validated/integrated at 774f0eb408e98da9469204ec7f350f99fa4bd6e6. 
 ## M16K owner gate
 
 Run tools/gate_m16k.ps1 after checking out the exact formatted M16K head. Nine stages retain both feature builds, warning-denied tests, both 12/12 diagnostics and all existing benchmarks. Stage 8 adds m16k_crc_transaction_realtime_benchmark. Actions remains cargo fmt/check/save only; runtime/performance acceptance is local.
+
+
+## M16L owner gate
+
+M16K v2 is owner-validated/integrated at 3920d01adee5683a0038e17948cabc2c433149da. Run tools/gate_m16l.ps1 on the exact formatted M16L head; both warning-denied variants, release bins, both 12/12 diagnostics and all prior benchmarks/kernel remain. Only focused filter and marker advance to M16L delivery 15/15. Offline integrity tests do not install runtime observers or certify source-blocked physical edges. Runtime acceptance remains pending.

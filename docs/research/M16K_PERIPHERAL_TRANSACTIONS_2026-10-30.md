@@ -3,7 +3,7 @@
 Date: 2026-10-30
 Base: owner-validated/integrated ddb3cc0e5331c20f01cfc5171a4ef4bd64a08297
 Branch: agent/m16k-crc-transactions
-Status: implementation prepared; owner runtime/performance gate pending.
+Status: owner v2 FULL GATE GREEN 3920d01adee5683a0038e17948cabc2c433149da, integrated unchanged.
 
 ## Problem and resulting behavior
 
@@ -80,3 +80,8 @@ been executed by the agent and no performance recovery is claimed in advance.
 Owner focused library gate reported four passed, one failed and one ignored. The failed final-bit fault/retry fixture fetched 0o1000 but asserted flag 0 after execution. The existing independent crc_opcode_families_cover_all_twelve_flags regression and decoder establish 0o1000 as SetFlag { flag: 4 }. This is a fixture expectation error, not authority to change CRC semantics or the production transaction implementation.
 
 v2 explicitly checks the decode, precise b55 InvalidInstruction error, complete old/new state equality on rejection and retry, no premature frame/result/flag publication, exact sole flag 4/result after retry, the separately received next opcode and 448 PHI transitions. The production files and all existing gate stages/workloads are unchanged. No tests/builds/benchmarks were run by the agent; owner v2 acceptance is pending. M16K remains unmerged.
+
+
+## Owner v2 acceptance — 2026-10-30
+
+Both diagnostics 12/12 with unchanged cycles. CRC kernel prepared 0.485 versus prior-copy 0.575 us/word (15.65% lower time); live 3.029 us/word (105.65x), best 3.003/worst 3.085, versus 3.047 previously. Kernel gain is demonstrated for its labelled workload; the separate live runs show only a small difference, not isolated causal speedup. Full no-DATA 1.318, IS 0.968, PHI 0.346, autonomous RAM 1.084. Delivery 14/15 complete.

@@ -21,3 +21,8 @@ Preserve deterministic observation, source/domain/provenance, bounded input/outp
 Two native regressions compare recording on/off for 512 firmware words including contact events and complete ACT/RAM/CRC/display results, require every PHI edge and real RAM owner coverage, and import/export the full capture. A contended STR word retains its electrical prefix and unresolved observation; reset discards the recorder.
 
 See `docs/PIN_CAPTURE_v1.0.md`. No timing profile is installed and no hardware accuracy claim follows from synthetic agreement.
+
+
+## M16L ownership audit
+
+M16L captures actual firmware after PROGRAM/RUN selector changes and physical card insertion, audits each 256-word capture and requires all 14336 cell checkpoints with scoped integrity success. No synthetic replacement instruction stream is used.

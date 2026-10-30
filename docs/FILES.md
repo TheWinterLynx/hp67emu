@@ -107,3 +107,11 @@ The documentation regression uses these companion files as the source-level owne
 
 - `src/machines/hp67/crc_transaction_tests.rs`: prior-copy parity and fault/retry/kernel comparison; companion under docs/files.
 - `tools/gate_m16k.ps1`: full owner gate and additional CRC kernel; companion under docs/files.
+
+
+## M16L pin integrity
+
+- src/machines/hp67/pin_integrity.rs and pin_integrity_tests.rs: offline production source/coverage audit and regressions.
+- src/integrity_cli_tests.rs: native file/exit-status regressions.
+- tools/gate_m16l.ps1: owner nine-stage gate, exact tested SHA.
+Each has a docs/files companion. See PIN_CAPTURE_v1.6.md.

@@ -27,3 +27,8 @@ See `docs/PIN_CAPTURE_v1.0.md`. No timing profile is installed and no hardware a
 
 Adds --timing-pins <input.tsv> <IS,DATA,SYNC,...> [new-report.txt] in all native builds. The audit reports observed setup/hold separations and phase windows, marks unresolved/coincident observations with exit 3, and never installs a timing profile. Full-pin capture tests run in the explicit diagnostic build; offline timing CLI tests run in both modes.
 See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.
+
+
+## M16L ownership audit
+
+Adds --integrity-pins <input.tsv> [new-report.txt] in all native builds, strict input and create_new output behavior, with scoped 0/2/3 statuses. It audits production source contracts, not complete physical accuracy. Malformed input remains an error. Scope and source-blocked limits are included in every report.

@@ -200,3 +200,8 @@ M16H exports card_contact for the mechanical MTRS source and CRC-facing resolved
 M16I exports reader_contacts for resolved HDS/WPS sources and independent retained CRC head/write permission.
 
 M16J exports program_switch for grounded PROGRAM selection and strict CRC-facing reception.
+
+
+## M16L ownership audit
+
+Exports pin_integrity as GUI-free offline audit tooling. No new device/net or scheduling callback is introduced.
