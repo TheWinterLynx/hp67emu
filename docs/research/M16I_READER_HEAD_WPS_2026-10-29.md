@@ -3,7 +3,7 @@
 Date: 2026-10-29
 Base: owner-validated/integrated M16H v2 b68f97facc5b3c900eef5a5e03269112065d5d91
 Branch: agent/m16i-reader-head-wps
-Status: implementation prepared; owner local runtime/performance gate pending.
+Status: owner FULL GATE GREEN at 774f0eb408e98da9469204ec7f350f99fa4bd6e6; exact tested head integrated into main (delivery 12/15).
 
 ## Evidence inspected
 
@@ -121,3 +121,7 @@ Owner-only tools/gate_m16i.ps1 retains the validated nine-stage gate: fmt, focus
 library/native both builds, compiler-warnings-denied all-target tests, release
 binary builds, both ignored 12/12 diagnostics, serial electrical/DATA/RAM/live
 benchmarks. Actions performs fmt/check/save only. No local runtime result is claimed.
+
+## Owner acceptance — 2026-10-30
+
+Exact 774f0eb408e98da9469204ec7f350f99fa4bd6e6 is owner FULL GATE GREEN. Both diagnostic builds 12/12 with unchanged cycles. Live median 2.703 us/word (118.37x), best 2.674/worst 2.728; full structural 1.313, IS fetch 0.923, PHI 0.350, stage 0.660, staged scheduler 0.673, autonomous RAM 1.094. This run has about 2.7% lower live time than M16H 2.777, without isolating implementation cost from host/run variation. Exact integration and continuation are authorized by the green marker.

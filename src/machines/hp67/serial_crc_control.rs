@@ -49,7 +49,7 @@ impl Hp67SerialCrcControl {
 
     /// Explicit reference composition: snapshot logical external inputs.
     pub fn freeze_inputs(&mut self, mirror: &CrcArchitecturalCore) -> Result<(), String> {
-        self.freeze_checked_inputs(mirror, None)
+        self.freeze_checked_inputs(mirror, None, None)
     }
 
     /// Production card-present input comes from MTRS. The mirror is checked,
@@ -61,13 +61,24 @@ impl Hp67SerialCrcControl {
     ) -> Result<(), String> {
         let present = super::card_contact::sample_card_present(bus)
             .map_err(|error| format!("CRC MTRS input: {error:?}"))?;
-        self.freeze_checked_inputs(mirror, Some(present))
+        self.freeze_checked_inputs(mirror, Some(present), None)
+    }
+
+    /// Production physical contacts: both selected inputs are sampled from
+    /// resolved conductors before the frozen input image can change.
+    pub fn freeze_inputs_with_contacts(&mut self, mirror: &CrcArchitecturalCore, bus: &Hp67ElectricalBackplane) -> Result<(), String> {
+        let present = super::card_contact::sample_card_present(bus)
+            .map_err(|error| format!("CRC MTRS input: {error:?}"))?;
+        let program = super::program_switch::sample_program_mode(bus)
+            .map_err(|error| format!("CRC PGMSW input: {error:?}"))?;
+        self.freeze_checked_inputs(mirror, Some(present), Some(program))
     }
 
     fn freeze_checked_inputs(
         &mut self,
         mirror: &CrcArchitecturalCore,
         mtrs: Option<bool>,
+        program: Option<bool>,
     ) -> Result<(), String> {
         if self.expected_bit != 0 {
             return Err("CRC contacts must freeze before b0".into());
@@ -78,12 +89,20 @@ impl Hp67SerialCrcControl {
                 return Err(format!("CRC MTRS/oracle contact mismatch: pin={present}"));
             }
         }
+        if let Some(selected) = program {
+            if mirror.external_flag(super::CRC_FLAG_PROGRAM_MODE) != Some(selected) {
+                return Err(format!("CRC PGMSW/oracle contact mismatch: pin={selected}"));
+            }
+        }
         // Validate everything before replacing the frozen word image.
         self.external = std::array::from_fn(|index| {
             if index == super::CRC_FLAG_CARD_PRESENT {
                 if let Some(present) = mtrs {
                     return present;
                 }
+            }
+            if index == super::CRC_FLAG_PROGRAM_MODE {
+                if let Some(selected) = program { return selected; }
             }
             mirror.external_flag(index).expect("CRC contact index")
         });

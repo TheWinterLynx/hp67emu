@@ -41,6 +41,7 @@ pub mod magnetic_card;
 pub mod motor;
 pub mod pin_timing;
 pub mod pin_trace;
+pub mod program_switch;
 pub mod ram_command;
 pub mod reader_contacts;
 pub mod rom_devices;

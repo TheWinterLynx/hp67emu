@@ -21,3 +21,5 @@ None, re-exporting unknown rather than open, inactive or Floating. The compariso
 and timing CLI resolves both names through the existing pin inventory. A missing
 observation cannot prove equality or real timing. Default builds compile capture
 storage/hooks out while retaining the same input validation and 224 transitions.
+
+M16J appends PGMSW without changing earlier indices; see PIN_CAPTURE_v1.5.md.

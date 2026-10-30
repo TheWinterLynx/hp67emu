@@ -126,10 +126,12 @@ pub enum Hp67Net {
     Hds,
     /// Card corner switch; grounded permits writing when HDS closes.
     Wps,
+    /// Physical RUN/W-PRGM selector feeding CRC SEL, active low in PROGRAM.
+    PgmSw,
 }
 
 impl Hp67Net {
-    pub const COUNT: usize = 18;
+    pub const COUNT: usize = 19;
 
     pub const fn index(self) -> usize {
         self as usize
@@ -154,6 +156,7 @@ impl Hp67Net {
         Self::Mtrs,
         Self::Hds,
         Self::Wps,
+        Self::PgmSw,
     ];
 }
 

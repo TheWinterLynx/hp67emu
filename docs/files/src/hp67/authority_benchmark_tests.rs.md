@@ -188,3 +188,5 @@ M16G: live includes the CRC MOTOR source/receiver gate. The no-DATA structural f
 M16H production idle includes resolved MTRS preflight and CRC word input reception; synthetic reference rows explicitly omit autonomous contacts/control. Workloads, rotation, sizes, transitions and measured paths are unchanged.
 
 M16I production idle includes HDS/WPS source validation and a retained CRC receiver. The idle workload does not measure active-card throughput. Synthetic fixtures retain their explicit reference composition; path order, loops and timing budget are unchanged.
+
+M16J production idle includes resolved PGMSW validation and the CRC contact snapshot. Synthetic reference rows retain their explicitly non-production contact path. Fixtures, iteration order, work sizes and PHI transition requirements are unchanged.

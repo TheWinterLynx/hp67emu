@@ -35,3 +35,5 @@ M16G appends MOTOR to PIN_NAMES for full fifteen-pin export. Existing sparse nam
 M16H appends MTRS to sixteen exported named pins. Existing named-column imports preserve absent MTRS as None for both level and source masks; re-export leaves it unknown. The v1 extensible metadata and earlier indices remain unchanged.
 
 M16I appends HDS/WPS at indices 16/17, giving eighteen named columns. Old optional-column traces retain unknown level/ownership for omitted contacts, and prior net/driver indices remain unchanged.
+
+M16J appends PGMSW to nineteen named pins. Legacy/sparse capture import leaves absent level/ownership unknown, and prior names/indices stay stable.

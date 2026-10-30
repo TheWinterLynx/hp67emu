@@ -94,3 +94,10 @@ The documentation regression uses these companion files as the source-level owne
 - [src/machines/hp67/reader_contacts_tests.rs](files/src/machines/hp67/reader_contacts_tests.rs.md)
 - [src/hp67/reader_contacts_tests.rs](files/src/hp67/reader_contacts_tests.rs.md)
 - [tools/gate_m16i.ps1](files/tools/gate_m16i.ps1.md)
+
+## M16J physical RUN/W-PRGM input
+
+- [src/machines/hp67/program_switch.rs](files/src/machines/hp67/program_switch.rs.md)
+- [src/machines/hp67/program_switch_tests.rs](files/src/machines/hp67/program_switch_tests.rs.md)
+- [src/hp67/program_switch_tests.rs](files/src/hp67/program_switch_tests.rs.md)
+- [tools/gate_m16j.ps1](files/tools/gate_m16j.ps1.md)

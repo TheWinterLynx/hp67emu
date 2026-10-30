@@ -29,3 +29,5 @@ M16G strengthens compare_word with resolved MOTOR/CRC-latch agreement on every s
 M16H strengthens the existing full real-firmware 34-record write/read roundtrip: compare_word checks resolved MTRS against the independently updated card-present observer after every word, including actual card exit. The expensive scenario is reused rather than duplicated.
 
 M16I strengthens every-word comparison through the existing full 34-record write/read roundtrip: resolved HDS equals transport/CRC head state; while head-active, latched write permission matches the selected physical corner. Actual completed exit is checked after both contacts reopen.
+
+M16J switches the existing full 34-record fixture to the physical selector API and compares resolved PGMSW with its CRC input observer after every word. All program/write/read/exit assertions remain intact.

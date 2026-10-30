@@ -19,6 +19,7 @@ fn compare_word(
         .unwrap()
         .check_mirror(&live.machine.crc)
         .unwrap();
+    assert_eq!(hp67emu::machines::hp67::program_switch::sample_program_mode(&live.backplane).unwrap(), live.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE).unwrap());
     let reader =
         hp67emu::machines::hp67::reader_contacts::sample_reader_contacts(&live.backplane).unwrap();
     assert_eq!(reader.head_active, live.card_transport.head_active());
@@ -146,7 +147,7 @@ fn m15x_poisoned_fifo_mirror_is_rejected_before_clocks_or_data_tail() {
 fn m15x_real_firmware_owned_crc_writes_and_reads_all_34_records() {
     let (mut live, mut reference) = boot_pair();
     for machine in [&mut live, &mut reference] {
-        machine.machine.set_program_mode(true).unwrap();
+        machine.set_program_mode(true).unwrap();
     }
     let waits = live.main_wait_visits;
     for _ in 0..2048 {

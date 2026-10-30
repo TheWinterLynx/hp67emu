@@ -21,3 +21,5 @@ The v1 pasted M16G command incorrectly introduced Clippy; the owner report on 20
 M16G v2 was owner-validated on 2026-10-29 at b2fc0de22c464b3a3eba56f1a3d41f8556b4e5e6. M16H uses `tools/gate_m16h.ps1` with the same nine stages and exact tested HEAD output; its focused filter and marker identify M16H. Owner runtime validation is still pending.
 
 M16H v2 is owner-validated/integrated at b68f97facc5b3c900eef5a5e03269112065d5d91. M16I uses tools/gate_m16i.ps1 with the same nine stages, compiler warnings denied and exact HEAD in the final marker; runtime/performance acceptance remains pending.
+
+M16I is owner-validated/integrated at 774f0eb408e98da9469204ec7f350f99fa4bd6e6. M16J uses tools/gate_m16j.ps1 with the same nine stages, both warning-denied variants and exact HEAD marker; full runtime/performance acceptance is pending.
