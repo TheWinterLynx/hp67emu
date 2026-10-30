@@ -186,11 +186,15 @@ fn m16k_shared_data_fault_at_each_cell_preserves_crc_ram_receiver_and_sink_then_
 
 #[test]
 fn m16k_fault_on_final_received_bit_cannot_publish_frame_or_execute_pending_command() {
+    // 1000 octal is SET flag 4, not the buffer-ready flag 0.
+    let pending = CrcInstruction::SetFlag { flag: 4 };
+    assert_eq!(decode_crc_opcode(0o1000), Ok(Some(pending)));
     for net in [Hp67Net::Isa, Hp67Net::Sync] {
         let mut crc = Hp67SerialCrcControl::default();
         let mut bus = Hp67ElectricalBackplane::default();
         let mut old = crc;
         run_pair(&mut crc, &mut old, &mut bus, 0o1000, true);
+        assert_eq!(crc.flags(), &[false; CRC_FLAG_COUNT]);
         for bit in 0..56 {
             launch(&mut bus, 0o0300, true);
             bus.advance_clock();
@@ -200,17 +204,40 @@ fn m16k_fault_on_final_received_bit_cannot_publish_frame_or_execute_pending_comm
                 let mut fault = bus.clone();
                 fault.drive(net, Hp67Driver::External, Drive::High);
                 fault.drive(net, Hp67Driver::Act1820_2530, Drive::Low);
-                assert!(crc.prepare_sample(&fault).is_err());
+                let error = crc.sample_at_edge(&fault);
+                assert!(matches!(
+                    error,
+                    Err(Hp67CrcControlError::Command(
+                        Hp67RamCommandError::InvalidInstruction { word_bit: 55, .. }
+                    ))
+                ));
+                assert_eq!(error, full_copy_sample(&mut old, &fault));
                 assert_eq!(crc, before);
-                assert!(!crc.flags[0]);
+                assert_eq!(old, before);
+                assert_eq!(crc.flags(), &[false; CRC_FLAG_COUNT]);
+                assert_eq!(crc.received_frame(), None);
                 assert_eq!(crc.result(), None);
             }
             crc.sample_at_edge(&bus).unwrap();
+            full_copy_sample(&mut old, &bus).unwrap();
+            assert_eq!(crc, old);
             bus.advance_clock();
             bus.advance_clock();
         }
-        assert!(crc.flags[0]);
+        let mut expected_flags = [false; CRC_FLAG_COUNT];
+        expected_flags[4] = true;
+        assert_eq!(crc.flags(), &expected_flags);
+        assert_eq!(
+            crc.result(),
+            Some(Hp67CrcControlResult {
+                instruction: pending,
+                flag: 4,
+                value: true,
+                condition: None,
+            })
+        );
         assert_eq!(crc.received_frame().unwrap().word, 0o0300);
+        assert_eq!(bus.tick().get(), 448);
     }
 }
 

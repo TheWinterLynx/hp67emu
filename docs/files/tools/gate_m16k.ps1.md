@@ -19,3 +19,8 @@ Fail first, restore RUSTFLAGS/directory, retain -- argument separation, print te
 ## Implementation
 
 Typed CargoArgs invokes fmt, focused library/native tests in both variants, all-target tests in both variants, both release builds and both ignored 12/12 diagnostics. Electrical/DATA/autonomous RAM/live workloads are unchanged; stage 8 additionally runs the rotating CRC transaction kernel. The success marker identifies delivery 14/15, which is project sequencing rather than full physical fidelity completion.
+
+
+## M16K v2
+
+Version 2 retains all nine stages and both variants unchanged. The marker distinguishes the corrected final-bit test fixture (0o1000 sets flag 4). Runtime acceptance is still pending; only fmt/check/save runs in Actions.

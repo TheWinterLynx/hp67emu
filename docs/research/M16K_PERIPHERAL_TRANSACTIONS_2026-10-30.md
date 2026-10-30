@@ -73,3 +73,10 @@ The existing electrical, DATA, autonomous RAM and live benchmark workloads, orde
 and iteration sizes are unchanged. The nine-stage owner gate adds the kernel to
 stage 8. Actions only runs cargo fmt/check/save. No tests/builds/benchmarks have
 been executed by the agent and no performance recovery is claimed in advance.
+
+
+## Owner v1 failure and v2 correction — 2026-10-30
+
+Owner focused library gate reported four passed, one failed and one ignored. The failed final-bit fault/retry fixture fetched 0o1000 but asserted flag 0 after execution. The existing independent crc_opcode_families_cover_all_twelve_flags regression and decoder establish 0o1000 as SetFlag { flag: 4 }. This is a fixture expectation error, not authority to change CRC semantics or the production transaction implementation.
+
+v2 explicitly checks the decode, precise b55 InvalidInstruction error, complete old/new state equality on rejection and retry, no premature frame/result/flag publication, exact sole flag 4/result after retry, the separately received next opcode and 448 PHI transitions. The production files and all existing gate stages/workloads are unchanged. No tests/builds/benchmarks were run by the agent; owner v2 acceptance is pending. M16K remains unmerged.
