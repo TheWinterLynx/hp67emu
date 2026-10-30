@@ -490,16 +490,24 @@ impl Hp67DataSerialWordPath {
                 tick: backplane.tick().get(),
             });
         }
-        let crc_sample = self.crc_control.as_ref()
+        let crc_sample = self
+            .crc_control
+            .as_ref()
             .map(|crc| crc.prepare_sample(backplane))
             .transpose()
             .map_err(Hp67DataSerialError::CrcControl)?;
-        let command_receiver = if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT).contains(&word_bit) {
-            self.ram_command_receiver.map(|mut receiver| {
-                receiver.sample_at_edge(backplane)
-                    .map(|()| receiver)
-                    .map_err(Hp67DataSerialError::RamCommand)
-            }).transpose()?
+        let command_receiver = if (super::timing::ROM_WORD_FIRST_BIT
+            ..=super::timing::ROM_WORD_LAST_BIT)
+            .contains(&word_bit)
+        {
+            self.ram_command_receiver
+                .map(|mut receiver| {
+                    receiver
+                        .sample_at_edge(backplane)
+                        .map(|()| receiver)
+                        .map_err(Hp67DataSerialError::RamCommand)
+                })
+                .transpose()?
         } else {
             None
         };
@@ -509,7 +517,10 @@ impl Hp67DataSerialWordPath {
                 self.ram_command_receiver = Some(receiver);
             }
             if let Some(sample) = crc_sample {
-                self.crc_control.as_mut().expect("prepared CRC endpoint").commit_sample(sample);
+                self.crc_control
+                    .as_mut()
+                    .expect("prepared CRC endpoint")
+                    .commit_sample(sample);
             }
             return Ok(());
         }
@@ -526,7 +537,10 @@ impl Hp67DataSerialWordPath {
             self.ram_command_receiver = Some(receiver);
         }
         if let Some(sample) = crc_sample {
-            self.crc_control.as_mut().expect("prepared CRC endpoint").commit_sample(sample);
+            self.crc_control
+                .as_mut()
+                .expect("prepared CRC endpoint")
+                .commit_sample(sample);
         }
         Ok(())
     }

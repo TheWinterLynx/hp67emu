@@ -250,7 +250,9 @@ impl Hp67SerialRam {
         // No RAM storage or unchanged receiver travels through idle DATA cells.
         let command_receiver = if (ROM_WORD_FIRST_BIT..=ROM_WORD_LAST_BIT).contains(&bit) {
             let mut receiver = self.command_receiver;
-            receiver.sample_at_edge(bus).map_err(Hp67SerialRamError::Command)?;
+            receiver
+                .sample_at_edge(bus)
+                .map_err(Hp67SerialRamError::Command)?;
             Some(receiver)
         } else {
             None
@@ -778,5 +780,4 @@ mod tests {
         assert_eq!(rig.ram.register(0x20), Some(&[0; ACT_WORD_DIGITS]));
         assert_eq!(rig.last_read, Some(pattern(7)));
     }
-
 }

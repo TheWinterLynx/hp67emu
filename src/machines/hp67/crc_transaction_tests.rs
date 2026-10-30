@@ -4,62 +4,88 @@ use crate::emulation::Drive;
 use crate::machines::hp67::{Hp67DataSerialWordPath, Hp67Driver, Hp67Net};
 
 fn launch(bus: &mut Hp67ElectricalBackplane, word: u16, instruction: bool) {
-    use crate::machines::hp67::{isa::{act_address_drive, rom_word_drive}, rom_devices::RomIsDrives};
+    use crate::machines::hp67::{
+        isa::{act_address_drive, rom_word_drive},
+        rom_devices::RomIsDrives,
+    };
     let bit = bus.word_bit();
-    bus.commit_serial_launch(act_address_drive(0x123, bit), RomIsDrives::Aggregate(rom_word_drive(word, bit)), if bit >= 46 && instruction { Drive::High } else { Drive::Low }, None);
+    bus.commit_serial_launch(
+        act_address_drive(0x123, bit),
+        RomIsDrives::Aggregate(rom_word_drive(word, bit)),
+        if bit >= 46 && instruction {
+            Drive::High
+        } else {
+            Drive::Low
+        },
+        None,
+    );
 }
 
 // Preserved M16J full-copy algorithm, test-only. It is a regression comparator,
 // not physical timing evidence and not selectable in the production endpoint.
-fn full_copy_sample(crc: &mut Hp67SerialCrcControl, bus: &Hp67ElectricalBackplane) -> Result<(), Hp67CrcControlError> {
+fn full_copy_sample(
+    crc: &mut Hp67SerialCrcControl,
+    bus: &Hp67ElectricalBackplane,
+) -> Result<(), Hp67CrcControlError> {
     let bit = bus.word_bit();
     if !bus.at_transport_sample_edge() || bit != crc.expected_bit {
-        return Err(Hp67CrcControlError::Phase { expected: crc.expected_bit, actual: bit, tick: bus.tick().get() });
+        return Err(Hp67CrcControlError::Phase {
+            expected: crc.expected_bit,
+            actual: bit,
+            tick: bus.tick().get(),
+        });
     }
-        // Prepare the small control image: a failed command sample cannot change
-        // latches, pending instruction, contacts or the partial receive window.
-        let mut next = *crc;
-        if bit == 0 {
-            next.executing = match next.receiver.received_frame() {
-                Some(frame) if frame.instruction => decode_crc_opcode(frame.word)
-                    .map_err(|_| Hp67CrcControlError::Decode(frame.word))?,
-                _ => None,
+    // Prepare the small control image: a failed command sample cannot change
+    // latches, pending instruction, contacts or the partial receive window.
+    let mut next = *crc;
+    if bit == 0 {
+        next.executing = match next.receiver.received_frame() {
+            Some(frame) if frame.instruction => decode_crc_opcode(frame.word)
+                .map_err(|_| Hp67CrcControlError::Decode(frame.word))?,
+            _ => None,
+        };
+        next.result = None;
+    }
+    if bit >= 46 {
+        next.receiver
+            .sample_at_edge(bus)
+            .map_err(Hp67CrcControlError::Command)?;
+    }
+    if bit == 55 {
+        if let Some(instruction) = next.executing {
+            let flag = match instruction {
+                CrcInstruction::SetFlag { flag } | CrcInstruction::TestFlagAndClear { flag } => {
+                    flag
+                }
             };
-            next.result = None;
+            let index = usize::from(flag);
+            let (value, condition) = match instruction {
+                CrcInstruction::SetFlag { .. } => (true, None),
+                CrcInstruction::TestFlagAndClear { .. } => {
+                    (false, Some(next.flags[index] || next.external[index]))
+                }
+            };
+            next.flags[index] = value;
+            next.result = Some(Hp67CrcControlResult {
+                instruction,
+                flag,
+                value,
+                condition,
+            });
         }
-        if bit >= 46 {
-            next.receiver
-                .sample_at_edge(bus)
-                .map_err(Hp67CrcControlError::Command)?;
-        }
-        if bit == 55 {
-            if let Some(instruction) = next.executing {
-                let flag = match instruction {
-                    CrcInstruction::SetFlag { flag }
-                    | CrcInstruction::TestFlagAndClear { flag } => flag,
-                };
-                let index = usize::from(flag);
-                let (value, condition) = match instruction {
-                    CrcInstruction::SetFlag { .. } => (true, None),
-                    CrcInstruction::TestFlagAndClear { .. } => {
-                        (false, Some(next.flags[index] || next.external[index]))
-                    }
-                };
-                next.flags[index] = value;
-                next.result = Some(Hp67CrcControlResult {
-                    instruction,
-                    flag,
-                    value,
-                    condition,
-                });
-            }
-        }
-        next.expected_bit = if bit == 55 { 0 } else { bit + 1 };
-        *crc = next;
-        Ok(())
     }
+    next.expected_bit = if bit == 55 { 0 } else { bit + 1 };
+    *crc = next;
+    Ok(())
+}
 
-fn run_pair(crc: &mut Hp67SerialCrcControl, old: &mut Hp67SerialCrcControl, bus: &mut Hp67ElectricalBackplane, opcode: u16, instruction: bool) {
+fn run_pair(
+    crc: &mut Hp67SerialCrcControl,
+    old: &mut Hp67SerialCrcControl,
+    bus: &mut Hp67ElectricalBackplane,
+    opcode: u16,
+    instruction: bool,
+) {
     let start = bus.tick().get();
     for _ in 0..56 {
         launch(bus, opcode, instruction);
@@ -67,7 +93,8 @@ fn run_pair(crc: &mut Hp67SerialCrcControl, old: &mut Hp67SerialCrcControl, bus:
         assert_eq!(crc.sample_at_edge(bus), full_copy_sample(old, bus));
         assert_eq!(*crc, before);
         assert_eq!(*crc, *old);
-        bus.advance_clock(); bus.advance_clock();
+        bus.advance_clock();
+        bus.advance_clock();
         crc.sample_at_edge(bus).unwrap();
         full_copy_sample(old, bus).unwrap();
         assert_eq!(*crc, *old, "opcode={opcode:03x} bit={}", bus.word_bit());
@@ -75,7 +102,8 @@ fn run_pair(crc: &mut Hp67SerialCrcControl, old: &mut Hp67SerialCrcControl, bus:
         assert_eq!(crc.sample_at_edge(bus), full_copy_sample(old, bus));
         assert_eq!(*crc, before);
         assert_eq!(*crc, *old);
-        bus.advance_clock(); bus.advance_clock();
+        bus.advance_clock();
+        bus.advance_clock();
     }
     assert_eq!(bus.tick().get() - start, 224);
 }
@@ -106,7 +134,8 @@ fn m16k_preparation_and_discard_leave_every_retained_field_unchanged() {
     for opcode in [0o1000, 0o0300, 0] {
         for _ in 0..56 {
             launch(&mut bus, opcode, true);
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
             let before = crc;
             let _discarded = crc.prepare_sample(&bus).unwrap();
             assert_eq!(crc, before);
@@ -116,14 +145,17 @@ fn m16k_preparation_and_discard_leave_every_retained_field_unchanged() {
             let after = crc;
             assert!(crc.prepare_sample(&bus).is_err());
             assert_eq!(crc, after);
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
         }
     }
 }
 
 #[test]
 fn m16k_shared_data_fault_at_each_cell_preserves_crc_ram_receiver_and_sink_then_retries() {
-    let mut path = Hp67DataSerialWordPath::default().with_ram_command_receiver().with_crc_control();
+    let mut path = Hp67DataSerialWordPath::default()
+        .with_ram_command_receiver()
+        .with_crc_control();
     let mut bus = Hp67ElectricalBackplane::default();
     let mut old = Hp67SerialCrcControl::default();
     for opcode in [0o1000, 0o0300, 0] {
@@ -132,7 +164,8 @@ fn m16k_shared_data_fault_at_each_cell_preserves_crc_ram_receiver_and_sink_then_
         let start = bus.tick().get();
         for bit in 0..56 {
             launch(&mut bus, opcode, true);
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
             let before = path;
             bus.drive(Hp67Net::Data, Hp67Driver::External, Drive::High);
             let tick = bus.tick();
@@ -143,7 +176,8 @@ fn m16k_shared_data_fault_at_each_cell_preserves_crc_ram_receiver_and_sink_then_
             path.sample_transport_word_bit_at_edge(bit, &bus).unwrap();
             full_copy_sample(&mut old, &bus).unwrap();
             assert_eq!(*path.crc_control().unwrap(), old);
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
         }
         assert_eq!(bus.tick().get() - start, 224);
         assert_eq!(path.complete_word(), None);
@@ -159,7 +193,8 @@ fn m16k_fault_on_final_received_bit_cannot_publish_frame_or_execute_pending_comm
         run_pair(&mut crc, &mut old, &mut bus, 0o1000, true);
         for bit in 0..56 {
             launch(&mut bus, 0o0300, true);
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
             if bit == 55 {
                 let before = crc;
                 let mut fault = bus.clone();
@@ -171,7 +206,8 @@ fn m16k_fault_on_final_received_bit_cannot_publish_frame_or_execute_pending_comm
                 assert_eq!(crc.result(), None);
             }
             crc.sample_at_edge(&bus).unwrap();
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
         }
         assert!(crc.flags[0]);
         assert_eq!(crc.received_frame().unwrap().word, 0o0300);
@@ -186,7 +222,8 @@ fn benchmark_lane(words: usize, previous: bool) -> (u128, Hp67SerialCrcControl) 
     for word in 0..words {
         for _ in 0..56 {
             launch(&mut bus, (word & 0x3ff) as u16, word & 1 == 0);
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
             if previous {
                 // The enclosing DATA path formerly copied this image too.
                 let mut next = crc;
@@ -196,7 +233,8 @@ fn benchmark_lane(words: usize, previous: bool) -> (u128, Hp67SerialCrcControl) 
                 let sample = crc.prepare_sample(&bus).unwrap();
                 crc.commit_sample(black_box(sample));
             }
-            bus.advance_clock(); bus.advance_clock();
+            bus.advance_clock();
+            bus.advance_clock();
         }
         black_box(&crc);
     }
@@ -223,9 +261,15 @@ fn m16k_crc_transaction_realtime_benchmark() {
         assert_eq!(images[0], images[1]);
     }
     println!("\nM16K CRC TRANSACTION / MATCHED PRIOR COPY KERNEL");
-    for (lane, name) in ["prepared fields", "prior full copy"].into_iter().enumerate() {
+    for (lane, name) in ["prepared fields", "prior full copy"]
+        .into_iter()
+        .enumerate()
+    {
         times[lane].sort_by(f64::total_cmp);
-        println!("{name}: median={:.3} us/word best={:.3} worst={:.3}", times[lane][3], times[lane][0], times[lane][6]);
+        println!(
+            "{name}: median={:.3} us/word best={:.3} worst={:.3}",
+            times[lane][3], times[lane][0], times[lane][6]
+        );
     }
     println!("Scope: rotating same-process CRC+resolved IS/SYNC/224 PHI workload; black-box transaction boundaries. Prior lane preserves M16J nested-copy algorithm only in tests. Not whole-live A/B or hardware timing evidence; no speed threshold.");
 }

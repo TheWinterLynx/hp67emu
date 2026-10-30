@@ -182,7 +182,9 @@ impl Hp67SerialCrcControl {
             Hp67CrcControlChange::Begin(executing)
         } else if bit >= 46 {
             let mut receiver = self.receiver;
-            receiver.sample_at_edge(bus).map_err(Hp67CrcControlError::Command)?;
+            receiver
+                .sample_at_edge(bus)
+                .map_err(Hp67CrcControlError::Command)?;
             Hp67CrcControlChange::Receive(receiver)
         } else {
             Hp67CrcControlChange::Advance

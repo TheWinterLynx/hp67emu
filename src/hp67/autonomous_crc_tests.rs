@@ -105,14 +105,29 @@ fn m16k_crc_transaction_real_firmware_mode_key_and_card_contacts_preserve_trace_
     let mut controls = 0;
     for cycle in 0..3200 {
         for machine in [&mut live, &mut traced, &mut reference] {
-            if cycle == 1200 { machine.set_program_mode(true).unwrap(); }
-            if cycle == 2200 { machine.set_program_mode(false).unwrap(); }
-            if cycle == 2600 { machine.set_card_present_contact(true).unwrap(); }
-            machine.set_key_contact(if (700..850).contains(&cycle) { Some(Hp67Key::Digit7) } else { None });
+            if cycle == 1200 {
+                machine.set_program_mode(true).unwrap();
+            }
+            if cycle == 2200 {
+                machine.set_program_mode(false).unwrap();
+            }
+            if cycle == 2600 {
+                machine.set_card_present_contact(true).unwrap();
+            }
+            machine.set_key_contact(if (700..850).contains(&cycle) {
+                Some(Hp67Key::Digit7)
+            } else {
+                None
+            });
         }
         let tick = live.backplane.tick().get();
         let mut trace = StructuralBusTrace::default();
-        assert_eq!(live.step_firmware_cycle_with_execution().unwrap(), traced.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap());
+        assert_eq!(
+            live.step_firmware_cycle_with_execution().unwrap(),
+            traced
+                .step_firmware_cycle_with_trace(Some(&mut trace))
+                .unwrap()
+        );
         reference.step_firmware_cycle_with_execution().unwrap();
         assert_eq!(live.machine.act.state, reference.machine.act.state);
         assert_eq!(live.machine.crc, reference.machine.crc);
@@ -132,5 +147,8 @@ fn m16k_crc_transaction_real_firmware_mode_key_and_card_contacts_preserve_trace_
         assert_eq!(trace.samples.len(), 224);
     }
     assert!(controls > 0);
-    assert_eq!(live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
+    assert_eq!(
+        live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
+        Some(true)
+    );
 }
