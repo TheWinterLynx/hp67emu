@@ -396,7 +396,10 @@ impl Hp67LiveMachine {
             hp67emu::machines::hp67::card_contact::Hp67CardPresentContact::attach(&mut backplane);
         let reader_contacts =
             hp67emu::machines::hp67::reader_contacts::Hp67ReaderContacts::attach(&mut backplane);
-        let program_switch = hp67emu::machines::hp67::program_switch::Hp67ProgramSwitch::attach(&mut backplane, false);
+        let program_switch = hp67emu::machines::hp67::program_switch::Hp67ProgramSwitch::attach(
+            &mut backplane,
+            false,
+        );
         Ok(Self {
             source: Hp67Firmware::default(),
             backplane,
@@ -472,7 +475,12 @@ impl Hp67LiveMachine {
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         // Electronic reset cannot move the physical RUN/W-PRGM selector.
         let program_before_reset = self.program_switch.as_ref().map_or_else(
-            || self.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE).expect("CRC program selector input"),
+            || {
+                self.machine
+                    .crc
+                    .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE)
+                    .expect("CRC program selector input")
+            },
             |selector| selector.program_selected(),
         );
         self.source.reset_bank();
@@ -503,7 +511,12 @@ impl Hp67LiveMachine {
             self.crc_reader_gate = Some(Default::default());
         }
         if self.program_switch.is_some() {
-            self.program_switch = Some(hp67emu::machines::hp67::program_switch::Hp67ProgramSwitch::attach(&mut self.backplane, program_before_reset));
+            self.program_switch = Some(
+                hp67emu::machines::hp67::program_switch::Hp67ProgramSwitch::attach(
+                    &mut self.backplane,
+                    program_before_reset,
+                ),
+            );
         }
         let received_execution = self.act_serial.received_execution_enabled();
         let owned_flow = self.act_serial.owned_flow_state().is_some();
@@ -537,7 +550,8 @@ impl Hp67LiveMachine {
         self.pending_ram_data_transfer = None;
         self.pending_address_data_frame = None;
         self.machine = Hp67ArchitecturalMachine::default();
-        self.machine.set_program_mode(program_before_reset)
+        self.machine
+            .set_program_mode(program_before_reset)
             .map_err(|error| format!("program selector reset observer: {error:?}"))?;
         self.keyboard = Hp67Keyboard::default();
         self.card_transport = Hp67CardTransport::default();
@@ -563,10 +577,19 @@ impl Hp67LiveMachine {
 
     fn check_program_switch(&self) -> Result<(), String> {
         if let Some(selector) = self.program_switch.as_ref() {
-            let program = selector.check(&self.backplane)
-                .map_err(|error| format!("live cycle {} PGMSW preflight: {error:?}", self.boot_cycle))?;
-            if self.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE) != Some(program) {
-                return Err(format!("live cycle {} PGMSW/oracle contact mismatch", self.boot_cycle));
+            let program = selector.check(&self.backplane).map_err(|error| {
+                format!("live cycle {} PGMSW preflight: {error:?}", self.boot_cycle)
+            })?;
+            if self
+                .machine
+                .crc
+                .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE)
+                != Some(program)
+            {
+                return Err(format!(
+                    "live cycle {} PGMSW/oracle contact mismatch",
+                    self.boot_cycle
+                ));
             }
         }
         Ok(())
@@ -575,12 +598,16 @@ impl Hp67LiveMachine {
     pub fn set_program_mode(&mut self, program: bool) -> Result<(), String> {
         self.check_program_switch()?;
         let observed = if let Some(selector) = self.program_switch.as_mut() {
-            selector.set_program(&mut self.backplane, program)
+            selector
+                .set_program(&mut self.backplane, program)
                 .map_err(|error| format!("PGMSW contact publication: {error:?}"))?;
             hp67emu::machines::hp67::program_switch::sample_program_mode(&self.backplane)
                 .map_err(|error| format!("PGMSW contact reception: {error:?}"))?
-        } else { program };
-        self.machine.set_program_mode(observed)
+        } else {
+            program
+        };
+        self.machine
+            .set_program_mode(observed)
             .map_err(|error| format!("HP-67 program selector observer failed: {error:?}"))
     }
 
@@ -1920,7 +1947,11 @@ impl Hp67LiveMachine {
         live.reader_contacts = None;
         live.crc_reader_gate = None;
         live.program_switch = None;
-        live.backplane.drive(hp67emu::machines::hp67::Hp67Net::PgmSw, hp67emu::machines::hp67::Hp67Driver::External, hp67emu::emulation::Drive::HighZ);
+        live.backplane.drive(
+            hp67emu::machines::hp67::Hp67Net::PgmSw,
+            hp67emu::machines::hp67::Hp67Driver::External,
+            hp67emu::emulation::Drive::HighZ,
+        );
         for net in [
             hp67emu::machines::hp67::Hp67Net::Hds,
             hp67emu::machines::hp67::Hp67Net::Wps,

@@ -66,7 +66,11 @@ impl Hp67SerialCrcControl {
 
     /// Production physical contacts: both selected inputs are sampled from
     /// resolved conductors before the frozen input image can change.
-    pub fn freeze_inputs_with_contacts(&mut self, mirror: &CrcArchitecturalCore, bus: &Hp67ElectricalBackplane) -> Result<(), String> {
+    pub fn freeze_inputs_with_contacts(
+        &mut self,
+        mirror: &CrcArchitecturalCore,
+        bus: &Hp67ElectricalBackplane,
+    ) -> Result<(), String> {
         let present = super::card_contact::sample_card_present(bus)
             .map_err(|error| format!("CRC MTRS input: {error:?}"))?;
         let program = super::program_switch::sample_program_mode(bus)
@@ -102,7 +106,9 @@ impl Hp67SerialCrcControl {
                 }
             }
             if index == super::CRC_FLAG_PROGRAM_MODE {
-                if let Some(selected) = program { return selected; }
+                if let Some(selected) = program {
+                    return selected;
+                }
             }
             mirror.external_flag(index).expect("CRC contact index")
         });

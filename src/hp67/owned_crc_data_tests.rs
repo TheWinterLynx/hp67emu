@@ -19,7 +19,13 @@ fn compare_word(
         .unwrap()
         .check_mirror(&live.machine.crc)
         .unwrap();
-    assert_eq!(hp67emu::machines::hp67::program_switch::sample_program_mode(&live.backplane).unwrap(), live.machine.crc.external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE).unwrap());
+    assert_eq!(
+        hp67emu::machines::hp67::program_switch::sample_program_mode(&live.backplane).unwrap(),
+        live.machine
+            .crc
+            .external_flag(hp67emu::machines::hp67::CRC_FLAG_PROGRAM_MODE)
+            .unwrap()
+    );
     let reader =
         hp67emu::machines::hp67::reader_contacts::sample_reader_contacts(&live.backplane).unwrap();
     assert_eq!(reader.head_active, live.card_transport.head_active());

@@ -47,11 +47,17 @@ pub struct Hp67ProgramSwitch {
 }
 impl Hp67ProgramSwitch {
     pub fn attach(bus: &mut Hp67ElectricalBackplane, program: bool) -> Self {
-        bus.drive(Hp67Net::PgmSw, Hp67Driver::External, if program { Drive::Low } else { Drive::High });
+        bus.drive(
+            Hp67Net::PgmSw,
+            Hp67Driver::External,
+            if program { Drive::Low } else { Drive::High },
+        );
         Self { program }
     }
     /// Physical selector position retained across electronic reset.
-    pub const fn program_selected(&self) -> bool { self.program }
+    pub const fn program_selected(&self) -> bool {
+        self.program
+    }
     pub fn check(&self, bus: &Hp67ElectricalBackplane) -> Result<bool, Hp67ProgramSwitchError> {
         let actual = sample_program_mode(bus)?;
         if actual != self.program {
@@ -81,7 +87,6 @@ impl Hp67ProgramSwitch {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 #[path = "program_switch_tests.rs"]
