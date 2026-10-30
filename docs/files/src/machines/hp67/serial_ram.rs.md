@@ -134,3 +134,8 @@ changes. Reset reconstructs the path and the RAM-capable transport binds its
 owner again. The standalone RAM fixture also uses this identity. Exact physical
 DATA output stage/polarity, per-IC mapping and PHI edges remain unresolved.
 See `docs/research/M15R_RAM_DATA_DRIVER_2026-10-20.md`.
+
+
+## M16K peripheral transactions
+
+M16K carries an optional command receiver proposal only within b46..b55; other cells retain it in place. All DATA/phase/ownership validation still precedes mutation. A regression discards proposals and injects DATA faults during address/write/read/clear, then lets the original successful sample commit exactly once. Storage and event timing are unchanged.

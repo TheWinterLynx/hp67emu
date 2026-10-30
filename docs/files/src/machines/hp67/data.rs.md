@@ -197,3 +197,8 @@ Per-sample CRC/RAM command images commit only after DATA validation succeeds.
 No CRC DATA serialization or physical F2/PHI latch timing is asserted. The live
 benchmark includes the endpoint only in its production firmware row; injected
 RAM/CRC workloads retain the explicit reference bridge.
+
+
+## M16K peripheral transactions
+
+M16K prepares a CRC field transaction and optional RAM-command receiver image before DATA validation, then commits both only after the sink accepts the sample. The previous nested CRC whole-image copies are removed. Outside b46..b55 the RAM command receiver remains retained rather than being copied unchanged. Existing prefix-replay semantics and all source/phase/ownership guards are preserved. No allocation, cache, skipped cell or new PHI policy is introduced.

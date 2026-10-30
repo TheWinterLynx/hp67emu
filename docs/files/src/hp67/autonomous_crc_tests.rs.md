@@ -31,3 +31,8 @@ SOURCE-BLOCKED. No new physical timing value is introduced.
 
 
 M16H migrates virtual card-contact stimulation from the architectural observer to the checked physical MTRS publication helper. The fixture intentionally closes the insertion switch without creating media, preserving the previous CRC/F2 control workload and assertions. Production UI insertion and the actual-card roundtrip are separately exercised through the card object.
+
+
+## M16K peripheral transactions
+
+M16K compares 3200 actual firmware words across normal/traced production and the architectural reference, with key contacts, both selector changes and MTRS polling. Per-word ACT/CRC/RAM and retained production device/display state, all named net levels, trace row count and 224 PHI transitions remain checked.

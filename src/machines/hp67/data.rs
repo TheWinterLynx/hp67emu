@@ -490,25 +490,27 @@ impl Hp67DataSerialWordPath {
                 tick: backplane.tick().get(),
             });
         }
-        let mut crc_control = self.crc_control;
-        if let Some(crc) = crc_control.as_mut() {
-            crc.sample_at_edge(backplane)
-                .map_err(Hp67DataSerialError::CrcControl)?;
-        }
-        let mut command_receiver = self.ram_command_receiver;
-        if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT)
-            .contains(&word_bit)
-        {
-            if let Some(receiver) = command_receiver.as_mut() {
-                receiver
-                    .sample_at_edge(backplane)
-                    .map_err(Hp67DataSerialError::RamCommand)?;
-            }
-        }
+        let crc_sample = self.crc_control.as_ref()
+            .map(|crc| crc.prepare_sample(backplane))
+            .transpose()
+            .map_err(Hp67DataSerialError::CrcControl)?;
+        let command_receiver = if (super::timing::ROM_WORD_FIRST_BIT..=super::timing::ROM_WORD_LAST_BIT).contains(&word_bit) {
+            self.ram_command_receiver.map(|mut receiver| {
+                receiver.sample_at_edge(backplane)
+                    .map(|()| receiver)
+                    .map_err(Hp67DataSerialError::RamCommand)
+            }).transpose()?
+        } else {
+            None
+        };
         if !self.electrical_level_bridge {
             self.visit_transport_word_bit(word_bit)?;
-            self.ram_command_receiver = command_receiver;
-            self.crc_control = crc_control;
+            if let Some(receiver) = command_receiver {
+                self.ram_command_receiver = Some(receiver);
+            }
+            if let Some(sample) = crc_sample {
+                self.crc_control.as_mut().expect("prepared CRC endpoint").commit_sample(sample);
+            }
             return Ok(());
         }
         let bit = self.sample_level_bridge(word_bit, backplane)?;
@@ -520,8 +522,12 @@ impl Hp67DataSerialWordPath {
             debug_assert!(self.completed_payload.is_none());
             self.completed_payload = completed;
         }
-        self.ram_command_receiver = command_receiver;
-        self.crc_control = crc_control;
+        if let Some(receiver) = command_receiver {
+            self.ram_command_receiver = Some(receiver);
+        }
+        if let Some(sample) = crc_sample {
+            self.crc_control.as_mut().expect("prepared CRC endpoint").commit_sample(sample);
+        }
         Ok(())
     }
 

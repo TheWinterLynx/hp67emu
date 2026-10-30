@@ -95,3 +95,42 @@ fn m15t_crc_real_card_transport_hands_ready_to_independent_control() {
     }
     assert!(ready && consumed);
 }
+
+#[test]
+fn m16k_crc_transaction_real_firmware_mode_key_and_card_contacts_preserve_trace_and_oracle() {
+    use hp67emu::machines::hp67::Hp67Net;
+    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    let mut traced = Hp67LiveMachine::power_on_default().unwrap();
+    let mut reference = Hp67LiveMachine::power_on_reference_fixture().unwrap();
+    let mut controls = 0;
+    for cycle in 0..3200 {
+        for machine in [&mut live, &mut traced, &mut reference] {
+            if cycle == 1200 { machine.set_program_mode(true).unwrap(); }
+            if cycle == 2200 { machine.set_program_mode(false).unwrap(); }
+            if cycle == 2600 { machine.set_card_present_contact(true).unwrap(); }
+            machine.set_key_contact(if (700..850).contains(&cycle) { Some(Hp67Key::Digit7) } else { None });
+        }
+        let tick = live.backplane.tick().get();
+        let mut trace = StructuralBusTrace::default();
+        assert_eq!(live.step_firmware_cycle_with_execution().unwrap(), traced.step_firmware_cycle_with_trace(Some(&mut trace)).unwrap());
+        reference.step_firmware_cycle_with_execution().unwrap();
+        assert_eq!(live.machine.act.state, reference.machine.act.state);
+        assert_eq!(live.machine.crc, reference.machine.crc);
+        assert_eq!(live.machine.ram, reference.machine.ram);
+        assert_eq!(live.act_serial, traced.act_serial);
+        assert_eq!(live.data_serial, traced.data_serial);
+        assert_eq!(live.serial_ram, traced.serial_ram);
+        assert_eq!(live.owned_crc_data, traced.owned_crc_data);
+        assert_eq!(live.display_circuit, traced.display_circuit);
+        for net in Hp67Net::ALL {
+            assert_eq!(live.backplane.level(net), traced.backplane.level(net));
+        }
+        let crc = live.data_serial.crc_control().unwrap();
+        crc.check_mirror(&live.machine.crc).unwrap();
+        controls += usize::from(crc.result().is_some());
+        assert_eq!(live.backplane.tick().get(), tick + 224);
+        assert_eq!(trace.samples.len(), 224);
+    }
+    assert!(controls > 0);
+    assert_eq!(live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT), Some(true));
+}

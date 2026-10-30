@@ -101,3 +101,9 @@ The documentation regression uses these companion files as the source-level owne
 - [src/machines/hp67/program_switch_tests.rs](files/src/machines/hp67/program_switch_tests.rs.md)
 - [src/hp67/program_switch_tests.rs](files/src/hp67/program_switch_tests.rs.md)
 - [tools/gate_m16j.ps1](files/tools/gate_m16j.ps1.md)
+
+
+## M16K peripheral transactions
+
+- `src/machines/hp67/crc_transaction_tests.rs`: prior-copy parity and fault/retry/kernel comparison; companion under docs/files.
+- `tools/gate_m16k.ps1`: full owner gate and additional CRC kernel; companion under docs/files.

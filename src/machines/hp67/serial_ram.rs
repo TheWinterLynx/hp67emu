@@ -61,7 +61,7 @@ struct IncomingFrame {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Hp67SerialRamSample {
     bit: u8,
-    command_receiver: Hp67RamCommandReceiver,
+    command_receiver: Option<Hp67RamCommandReceiver>,
     data: Option<bool>,
 }
 
@@ -246,14 +246,15 @@ impl Hp67SerialRam {
                 tick: bus.tick().get(),
             });
         }
-        // Copy only the small receiver image, never the RAM array. Commit it
-        // after DATA validation so an invalid input cannot consume the other.
-        let mut command_receiver = self.command_receiver;
-        if (ROM_WORD_FIRST_BIT..=ROM_WORD_LAST_BIT).contains(&bit) {
-            command_receiver
-                .sample_at_edge(bus)
-                .map_err(Hp67SerialRamError::Command)?;
-        }
+        // Only instruction-window cells propose a new command receiver image.
+        // No RAM storage or unchanged receiver travels through idle DATA cells.
+        let command_receiver = if (ROM_WORD_FIRST_BIT..=ROM_WORD_LAST_BIT).contains(&bit) {
+            let mut receiver = self.command_receiver;
+            receiver.sample_at_edge(bus).map_err(Hp67SerialRamError::Command)?;
+            Some(receiver)
+        } else {
+            None
+        };
         let data_sample = if self.incoming.is_some() {
             let level = bus.level(Hp67Net::Data);
             let active_drivers = bus.active_data_driver_count();
@@ -296,7 +297,9 @@ impl Hp67SerialRam {
             command_receiver,
             data: data_sample,
         } = sample;
-        self.command_receiver = command_receiver;
+        if let Some(receiver) = command_receiver {
+            self.command_receiver = receiver;
+        }
         let mut event = None;
         if let Some(value) = data_sample {
             let frame = self.incoming.as_mut().expect("validated incoming frame");
@@ -745,4 +748,35 @@ mod tests {
         assert_eq!(rig.bus.tick().get(), (2 + ROUNDS * PAIRS * 2) as u64 * 224);
         assert_eq!(rig.reads, ROUNDS * PAIRS - 1);
     }
+
+    #[test]
+    fn m16k_ram_proposals_only_carry_command_images_in_return_window_and_discard_is_atomic() {
+        let mut rig = Rig::new();
+        for (opcode, payload) in [
+            (0o1160, None),
+            (0o1360, Some(address_word(0x20))),
+            (0o0070, Some(pattern(7))),
+            (0, None),
+            (0o1260, None),
+            (0, None),
+        ] {
+            rig.word_with(opcode, true, payload, |bit, bus, ram| {
+                let before = ram.clone();
+                let discarded = ram.prepare_sample(bus).unwrap();
+                assert_eq!(discarded.command_receiver.is_some(), bit >= 46);
+                assert_eq!(*ram, before);
+                // The fixture's later successful sample is the sole commit.
+                // Rejected DATA cannot publish the prepared IS/SYNC receiver.
+                if ram.incoming.is_some() {
+                    let mut fault = bus.clone();
+                    fault.drive(Hp67Net::Data, Hp67Driver::External, Drive::High);
+                    assert!(ram.prepare_sample(&fault).is_err());
+                    assert_eq!(*ram, before);
+                }
+            });
+        }
+        assert_eq!(rig.ram.register(0x20), Some(&[0; ACT_WORD_DIGITS]));
+        assert_eq!(rig.last_read, Some(pattern(7)));
+    }
+
 }

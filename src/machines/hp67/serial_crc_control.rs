@@ -34,6 +34,21 @@ pub struct Hp67SerialCrcControl {
     result: Option<Hp67CrcControlResult>,
 }
 
+// Small, non-Copy proposals are consumed once by the composition. No frozen
+// contacts or retained flag array travel through the per-cell DATA transaction.
+#[derive(Debug)]
+pub(crate) struct Hp67CrcControlSample {
+    bit: u8,
+    change: Hp67CrcControlChange,
+}
+
+#[derive(Debug)]
+enum Hp67CrcControlChange {
+    Begin(Option<CrcInstruction>),
+    Advance,
+    Receive(Hp67RamCommandReceiver),
+}
+
 impl Hp67SerialCrcControl {
     pub const fn flags(&self) -> &[bool; CRC_FLAG_COUNT] {
         &self.flags
@@ -138,6 +153,18 @@ impl Hp67SerialCrcControl {
         &mut self,
         bus: &Hp67ElectricalBackplane,
     ) -> Result<(), Hp67CrcControlError> {
+        let sample = self.prepare_sample(bus)?;
+        self.commit_sample(sample);
+        Ok(())
+    }
+
+    /// Validate without copying retained latches or contacts. The caller must
+    /// commit before modifying this endpoint again; only the shared DATA
+    /// transaction holds this crate-private proposal across another check.
+    pub(crate) fn prepare_sample(
+        &self,
+        bus: &Hp67ElectricalBackplane,
+    ) -> Result<Hp67CrcControlSample, Hp67CrcControlError> {
         let bit = bus.word_bit();
         if !bus.at_transport_sample_edge() || bit != self.expected_bit {
             return Err(Hp67CrcControlError::Phase {
@@ -146,24 +173,36 @@ impl Hp67SerialCrcControl {
                 tick: bus.tick().get(),
             });
         }
-        // Prepare the small control image: a failed command sample cannot change
-        // latches, pending instruction, contacts or the partial receive window.
-        let mut next = *self;
-        if bit == 0 {
-            next.executing = match next.receiver.received_frame() {
+        let change = if bit == 0 {
+            let executing = match self.receiver.received_frame() {
                 Some(frame) if frame.instruction => decode_crc_opcode(frame.word)
                     .map_err(|_| Hp67CrcControlError::Decode(frame.word))?,
                 _ => None,
             };
-            next.result = None;
-        }
-        if bit >= 46 {
-            next.receiver
-                .sample_at_edge(bus)
-                .map_err(Hp67CrcControlError::Command)?;
+            Hp67CrcControlChange::Begin(executing)
+        } else if bit >= 46 {
+            let mut receiver = self.receiver;
+            receiver.sample_at_edge(bus).map_err(Hp67CrcControlError::Command)?;
+            Hp67CrcControlChange::Receive(receiver)
+        } else {
+            Hp67CrcControlChange::Advance
+        };
+        Ok(Hp67CrcControlSample { bit, change })
+    }
+
+    pub(crate) fn commit_sample(&mut self, sample: Hp67CrcControlSample) {
+        let Hp67CrcControlSample { bit, change } = sample;
+        debug_assert_eq!(bit, self.expected_bit);
+        match change {
+            Hp67CrcControlChange::Begin(executing) => {
+                self.executing = executing;
+                self.result = None;
+            }
+            Hp67CrcControlChange::Receive(receiver) => self.receiver = receiver,
+            Hp67CrcControlChange::Advance => {}
         }
         if bit == 55 {
-            if let Some(instruction) = next.executing {
+            if let Some(instruction) = self.executing {
                 let flag = match instruction {
                     CrcInstruction::SetFlag { flag }
                     | CrcInstruction::TestFlagAndClear { flag } => flag,
@@ -172,11 +211,11 @@ impl Hp67SerialCrcControl {
                 let (value, condition) = match instruction {
                     CrcInstruction::SetFlag { .. } => (true, None),
                     CrcInstruction::TestFlagAndClear { .. } => {
-                        (false, Some(next.flags[index] || next.external[index]))
+                        (false, Some(self.flags[index] || self.external[index]))
                     }
                 };
-                next.flags[index] = value;
-                next.result = Some(Hp67CrcControlResult {
+                self.flags[index] = value;
+                self.result = Some(Hp67CrcControlResult {
                     instruction,
                     flag,
                     value,
@@ -184,9 +223,7 @@ impl Hp67SerialCrcControl {
                 });
             }
         }
-        next.expected_bit = if bit == 55 { 0 } else { bit + 1 };
-        *self = next;
-        Ok(())
+        self.expected_bit = if bit == 55 { 0 } else { bit + 1 };
     }
 }
 
@@ -383,3 +420,7 @@ mod tests {
         assert!(!crc.flags[4] && crc.external[4]);
     }
 }
+
+#[cfg(test)]
+#[path = "crc_transaction_tests.rs"]
+mod transaction_tests;

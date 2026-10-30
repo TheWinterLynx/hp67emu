@@ -23,3 +23,8 @@ M16G v2 was owner-validated on 2026-10-29 at b2fc0de22c464b3a3eba56f1a3d41f8556b
 M16H v2 is owner-validated/integrated at b68f97facc5b3c900eef5a5e03269112065d5d91. M16I uses tools/gate_m16i.ps1 with the same nine stages, compiler warnings denied and exact HEAD in the final marker; runtime/performance acceptance remains pending.
 
 M16I is owner-validated/integrated at 774f0eb408e98da9469204ec7f350f99fa4bd6e6. M16J uses tools/gate_m16j.ps1 with the same nine stages, both warning-denied variants and exact HEAD marker; full runtime/performance acceptance is pending.
+
+
+## M16K owner gate
+
+Run tools/gate_m16k.ps1 after checking out the exact formatted M16K head. Nine stages retain both feature builds, warning-denied tests, both 12/12 diagnostics and all existing benchmarks. Stage 8 adds m16k_crc_transaction_realtime_benchmark. Actions remains cargo fmt/check/save only; runtime/performance acceptance is local.

@@ -3,7 +3,7 @@
 Date: 2026-10-30
 Base: owner-validated/integrated 774f0eb408e98da9469204ec7f350f99fa4bd6e6 (M16I)
 Branch: agent/m16j-resolved-program-switch
-Status: implementation prepared; owner full runtime/performance gate pending.
+Status: owner FULL GATE GREEN at ddb3cc0e5331c20f01cfc5171a4ef4bd64a08297; integrated unchanged.
 
 ## Evidence inspected
 
@@ -92,3 +92,8 @@ the new selector; synthetic reference rows do not claim this production path.
 Workload loops/order/sizes remain unchanged. tools/gate_m16j.ps1 retains the nine
 owner-only stages and both warning-denied builds/12-of-12 diagnostics. Actions is
 fmt/check/save only. Runtime/performance acceptance remains pending.
+
+
+## Owner acceptance — 2026-10-30
+
+Both diagnostic variants 12/12, unchanged cycles. Live 3.047 us/word (105.02x), best 3.023/worst 3.125; structural 1.339, IS 0.965, PHI 0.345 and autonomous RAM 1.057. Separate-run values do not establish attribution. Delivery 13/15 complete; M16K addresses redundant peripheral transaction images with a matched kernel and the unchanged full live gate.
