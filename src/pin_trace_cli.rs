@@ -43,7 +43,13 @@ fn report(output: Option<&String>, content: &str) -> Result<(), String> {
 pub fn handles(command: Option<&str>) -> bool {
     matches!(
         command,
-        Some("--trace-pins" | "--audit-pins" | "--compare-pins" | "--timing-pins" | "--integrity-pins")
+        Some(
+            "--trace-pins"
+                | "--audit-pins"
+                | "--compare-pins"
+                | "--timing-pins"
+                | "--integrity-pins"
+        )
     )
 }
 pub fn run(args: &[String]) -> Result<i32, String> {

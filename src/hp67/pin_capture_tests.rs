@@ -81,15 +81,21 @@ fn m15z_failed_live_word_keeps_its_electrical_fault_prefix_in_capture() {
 #[test]
 fn m16l_integrity_accepts_real_firmware_selector_and_inserted_card_captures() {
     use hp67emu::machines::hp67::{
-        pin_integrity::audit_pin_integrity,
-        Hp67CardTrack, Hp67MagneticTrack, HP67_CARD_RECORDS_PER_TRACK,
+        pin_integrity::audit_pin_integrity, Hp67CardTrack, Hp67MagneticTrack,
+        HP67_CARD_RECORDS_PER_TRACK,
     };
     let mut live = Hp67LiveMachine::power_on_default().unwrap();
-    for _ in 0..1200 { live.step_firmware_cycle_with_execution().unwrap(); }
+    for _ in 0..1200 {
+        live.step_firmware_cycle_with_execution().unwrap();
+    }
     for program in [true, false] {
         live.set_program_mode(program).unwrap();
-        live.backplane.start_pin_capture("real firmware selector event; ordinal bridge".into()).unwrap();
-        for _ in 0..256 { live.step_firmware_cycle_with_execution().unwrap(); }
+        live.backplane
+            .start_pin_capture("real firmware selector event; ordinal bridge".into())
+            .unwrap();
+        for _ in 0..256 {
+            live.step_firmware_cycle_with_execution().unwrap();
+        }
         let trace = live.backplane.take_pin_capture().unwrap();
         let audit = audit_pin_integrity(&trace).unwrap();
         assert_eq!(audit.exit_code(), 0, "{}", audit.report(&trace));
@@ -97,9 +103,14 @@ fn m16l_integrity_accepts_real_firmware_selector_and_inserted_card_captures() {
     }
     let track = Hp67MagneticTrack::from_words([0x0300_0000; HP67_CARD_RECORDS_PER_TRACK]).unwrap();
     let card = Hp67MagneticCard::default().with_track(Hp67CardTrack::Track1, track);
-    live.insert_magnetic_card(card, CardInsertionEnd::End1).unwrap();
-    live.backplane.start_pin_capture("real firmware inserted card; ordinal bridge".into()).unwrap();
-    for _ in 0..256 { live.step_firmware_cycle_with_execution().unwrap(); }
+    live.insert_magnetic_card(card, CardInsertionEnd::End1)
+        .unwrap();
+    live.backplane
+        .start_pin_capture("real firmware inserted card; ordinal bridge".into())
+        .unwrap();
+    for _ in 0..256 {
+        live.step_firmware_cycle_with_execution().unwrap();
+    }
     let trace = live.backplane.take_pin_capture().unwrap();
     let audit = audit_pin_integrity(&trace).unwrap();
     assert_eq!(audit.exit_code(), 0, "{}", audit.report(&trace));
