@@ -247,10 +247,13 @@ fn m16l_integrity_validates_direct_images_and_bounds_diagnostics_without_losing_
     assert!(audit.report(&trace).contains("violations_total=112"));
 }
 
-
 fn display_delta_fixture(bit: u8) -> (Hp67PinTrace, usize) {
     let mut trace = fixture(1);
-    let index = trace.rows.iter().position(|row| row.at == u64::from(bit) * 4 + 2).unwrap();
+    let index = trace
+        .rows
+        .iter()
+        .position(|row| row.at == u64::from(bit) * 4 + 2)
+        .unwrap();
     let mut published = trace.rows[index].clone();
     published.order = 1;
     trace.rows.insert(index + 1, published);
@@ -265,15 +268,23 @@ fn release_controls(row: &mut PinRow) {
 #[test]
 fn m16l_display_audit_observes_existing_same_tick_publication_without_rewriting_startup() {
     let (mut trace, index) = display_delta_fixture(0);
-    for row in &mut trace.rows[..=index] { release_controls(row); }
+    for row in &mut trace.rows[..=index] {
+        release_controls(row);
+    }
     let original = trace.clone();
     let audit = audit_pin_integrity(&trace).unwrap();
     assert_eq!(audit.exit_code(), 0, "{}", audit.report(&trace));
     assert_eq!(audit.pins[Hp67Net::Str.index()].checked, 56);
     assert_eq!(audit.pins[Hp67Net::Rcd.index()].checked, 56);
     assert_eq!(trace, original);
-    assert_eq!(trace.rows[index].levels[Hp67Net::Str.index()], Some(LogicLevel::Floating));
-    assert_eq!(audit_pin_integrity(&import_pin_trace(&trace.to_tsv().unwrap()).unwrap()).unwrap(), audit);
+    assert_eq!(
+        trace.rows[index].levels[Hp67Net::Str.index()],
+        Some(LogicLevel::Floating)
+    );
+    assert_eq!(
+        audit_pin_integrity(&import_pin_trace(&trace.to_tsv().unwrap()).unwrap()).unwrap(),
+        audit
+    );
 }
 #[test]
 fn m16l_display_post_publication_faults_remain_errors_at_every_control_commit_bit() {
@@ -290,7 +301,10 @@ fn m16l_display_post_publication_faults_remain_errors_at_every_control_commit_bi
                 }
                 let audit = audit_pin_integrity(&trace).unwrap();
                 assert_eq!(audit.exit_code(), 2);
-                assert!(audit.findings.iter().any(|f| f.net == net && f.order == 1 && f.word_bit == Some((0, bit))));
+                assert!(audit
+                    .findings
+                    .iter()
+                    .any(|f| f.net == net && f.order == 1 && f.word_bit == Some((0, bit))));
             }
         }
     }
@@ -298,7 +312,10 @@ fn m16l_display_post_publication_faults_remain_errors_at_every_control_commit_bi
 #[test]
 fn m16l_display_settling_cannot_hide_other_receiver_faults_or_borrow_later_ticks() {
     let (mut trace, index) = display_delta_fixture(0);
-    trace.rows[index].owners[Hp67Net::Sync.index()].as_mut().unwrap().low |= mask(Hp67Driver::External);
+    trace.rows[index].owners[Hp67Net::Sync.index()]
+        .as_mut()
+        .unwrap()
+        .low |= mask(Hp67Driver::External);
     assert_eq!(audit_pin_integrity(&trace).unwrap().exit_code(), 2);
     for bit in [0, 1] {
         let mut trace = fixture(1);

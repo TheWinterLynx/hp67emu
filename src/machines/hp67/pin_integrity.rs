@@ -248,9 +248,11 @@ pub fn audit_pin_integrity(trace: &Hp67PinTrace) -> Result<PinIntegrityAudit, St
         // Only those controls use that post-publication observation. Other
         // receivers still consume the edge image, and no later tick is read.
         let display_row = if matches!(edge.bit, 0 | 7 | 8) {
-            trace.rows[edge.row_index..].iter()
+            trace.rows[edge.row_index..]
+                .iter()
                 .take_while(|next| next.at == row.at)
-                .last().expect("edge row belongs to its own tick")
+                .last()
+                .expect("edge row belongs to its own tick")
         } else {
             row
         };
@@ -264,7 +266,11 @@ pub fn audit_pin_integrity(trace: &Hp67PinTrace) -> Result<PinIntegrityAudit, St
             .filter(|n| !matches!(n, Hp67Net::Phi1 | Hp67Net::Phi2))
         {
             if audit.pins[net.index()].assessed {
-                let observed = if matches!(net, Hp67Net::Str | Hp67Net::Rcd) { display_row } else { row };
+                let observed = if matches!(net, Hp67Net::Str | Hp67Net::Rcd) {
+                    display_row
+                } else {
+                    row
+                };
                 audit.inspect(observed, net, Some((edge.word, edge.bit)), address);
             }
         }
