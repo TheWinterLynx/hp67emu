@@ -15,8 +15,11 @@ Exit 2 means a source/level contract violation. Exit 3 means missing coverage,
 including physical traces without internal ownership masks, sparse legacy pins,
 incomplete address or a partial capture. Malformed input remains an error.
 
-PHI ownership is audited at every row; other rules use the model's provisional
-PHI1-rising checkpoint. Sole source roles: PHI1/2, SYNC and RCD ACT; STR ROM0;
+PHI ownership is audited at every row. Other rules use the model's provisional
+PHI1-rising checkpoint, except STR/RCD at b0/b7/b8: the display receiver publishes
+then samples the joint pair at the same tick, so v2 audits the final same-tick
+delta image for those controls. It never borrows a later tick; other receivers
+retain the original edge image. Startup Floating observations are preserved. Sole source roles: PHI1/2, SYNC and RCD ACT; STR ROM0;
 F2/MOTOR CRC; MTRS/HDS/WPS/PGMSW External. Binary output stages remain existing
 normalized bridge policy. IS rejects active Low, multiple High, wrong-window and
 wrong-page sources, but accepts passive Low release. Return candidates use the

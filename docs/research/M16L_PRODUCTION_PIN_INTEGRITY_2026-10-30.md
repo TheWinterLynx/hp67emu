@@ -72,3 +72,12 @@ Owner M16K baseline: live 3.029 us/word, 105.65x hardware; same-process CRC prep
 Actions is exclusively cargo fmt/check/save. Tests, release builds, both 12/12
 firmware diagnostics and all benchmarks remain owner-only gate_m16l.ps1. No runtime
 validation has been executed by the agent; no new measured physical fixture exists.
+
+
+## Owner v1 failure / v2 correction — 2026-10-30
+
+Owner focused feature-native gate: 2/3 passed; the sixteen-word startup CLI audit failed with one STR and one RCD violation at tick 2, order 0, word 0/b0. Captured masks and Floating levels are valid observations. The existing sample_display_transport in fetch.rs first samples display data, then commits the joint control pair at b0/b7/b8, then consumes controls. The backplane recorder observes PHI1 rising before this zero-time publication and records the committed pair as a later delta at the same tick. The auditor incorrectly used the pre-publication row as the display receiver input.
+
+v2 changes only offline observation: STR/RCD at those three publication bits use the last row at exactly the same tick, matching the current receiver boundary. All other pins and display bits use the original PHI1 edge row. Mask validation and PHI ownership still cover every row. No initial-row exemption, unknown-to-High substitution, later-tick lookahead, clock change, runtime mutation or new physical timing assertion is added. The report states this provisional display boundary explicitly.
+
+Three additional normal-build regressions preserve the original Floating startup image, verify post-publication fault rejection for both controls/all three commit bits, and prevent hiding other receiver faults or borrowing later ticks. Native CLI expected scoped success remains unchanged. Full v2 runtime/performance gate is pending; no tests/builds/benchmarks run by the agent, and M16L remains unmerged.

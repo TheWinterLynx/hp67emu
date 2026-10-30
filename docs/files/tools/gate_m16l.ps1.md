@@ -19,3 +19,8 @@ Fail first, restore flags/directory, keep compiler warnings denied and exact tes
 ## Implementation
 
 Runs formatting, focused library/native tests, all-target tests, release bins and ignored diagnostic 12/12 in both variants. Electrical/DATA/RAM/live benchmarks and the M16K CRC matched kernel are retained unchanged. Actions is formatting only. Delivery 15 indicates the agreed implementation sequence, not full measured physical completion.
+
+
+## M16L v2
+
+Marker and progress now identify v2. All cargo calls, focused filters, both variants, nine stages and benchmark workloads are unchanged. The correction concerns offline STR/RCD post-publication observations only. Owner runtime gate remains pending.

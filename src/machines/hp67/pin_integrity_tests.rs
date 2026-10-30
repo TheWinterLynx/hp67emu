@@ -246,3 +246,67 @@ fn m16l_integrity_validates_direct_images_and_bounds_diagnostics_without_losing_
     assert_eq!(audit.findings.len(), MAX_INTEGRITY_FINDINGS);
     assert!(audit.report(&trace).contains("violations_total=112"));
 }
+
+
+fn display_delta_fixture(bit: u8) -> (Hp67PinTrace, usize) {
+    let mut trace = fixture(1);
+    let index = trace.rows.iter().position(|row| row.at == u64::from(bit) * 4 + 2).unwrap();
+    let mut published = trace.rows[index].clone();
+    published.order = 1;
+    trace.rows.insert(index + 1, published);
+    (trace, index)
+}
+fn release_controls(row: &mut PinRow) {
+    for net in [Hp67Net::Str, Hp67Net::Rcd] {
+        row.levels[net.index()] = Some(LogicLevel::Floating);
+        row.owners[net.index()] = Some(PinOwners { high: 0, low: 0 });
+    }
+}
+#[test]
+fn m16l_display_audit_observes_existing_same_tick_publication_without_rewriting_startup() {
+    let (mut trace, index) = display_delta_fixture(0);
+    for row in &mut trace.rows[..=index] { release_controls(row); }
+    let original = trace.clone();
+    let audit = audit_pin_integrity(&trace).unwrap();
+    assert_eq!(audit.exit_code(), 0, "{}", audit.report(&trace));
+    assert_eq!(audit.pins[Hp67Net::Str.index()].checked, 56);
+    assert_eq!(audit.pins[Hp67Net::Rcd.index()].checked, 56);
+    assert_eq!(trace, original);
+    assert_eq!(trace.rows[index].levels[Hp67Net::Str.index()], Some(LogicLevel::Floating));
+    assert_eq!(audit_pin_integrity(&import_pin_trace(&trace.to_tsv().unwrap()).unwrap()).unwrap(), audit);
+}
+#[test]
+fn m16l_display_post_publication_faults_remain_errors_at_every_control_commit_bit() {
+    for bit in [0, 7, 8] {
+        for net in [Hp67Net::Str, Hp67Net::Rcd] {
+            for missing in [false, true] {
+                let (mut trace, index) = display_delta_fixture(bit);
+                let row = &mut trace.rows[index + 1];
+                if missing {
+                    row.levels[net.index()] = Some(LogicLevel::Floating);
+                    row.owners[net.index()] = Some(PinOwners { high: 0, low: 0 });
+                } else {
+                    row.owners[net.index()].as_mut().unwrap().high |= mask(Hp67Driver::External);
+                }
+                let audit = audit_pin_integrity(&trace).unwrap();
+                assert_eq!(audit.exit_code(), 2);
+                assert!(audit.findings.iter().any(|f| f.net == net && f.order == 1 && f.word_bit == Some((0, bit))));
+            }
+        }
+    }
+}
+#[test]
+fn m16l_display_settling_cannot_hide_other_receiver_faults_or_borrow_later_ticks() {
+    let (mut trace, index) = display_delta_fixture(0);
+    trace.rows[index].owners[Hp67Net::Sync.index()].as_mut().unwrap().low |= mask(Hp67Driver::External);
+    assert_eq!(audit_pin_integrity(&trace).unwrap().exit_code(), 2);
+    for bit in [0, 1] {
+        let mut trace = fixture(1);
+        // The valid image on the following PHI2-falling tick is not a repair
+        // at this receiver checkpoint. b1 also has no display publication.
+        release_controls(sample_mut(&mut trace, bit));
+        let audit = audit_pin_integrity(&trace).unwrap();
+        assert_eq!(audit.exit_code(), 2);
+        assert!(audit.findings.iter().any(|f| f.word_bit == Some((0, bit))));
+    }
+}

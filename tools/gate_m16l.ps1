@@ -8,11 +8,11 @@ try {
     if ($dirty) { throw 'Hay cambios locales en source/tests/tools/Cargo; guardalos antes del gate' }
     $head = & git rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Git HEAD KO' }
-    Write-Host "M16L owner gate v1 | commit=$head"
+    Write-Host "M16L owner gate v2 | commit=$head"
     function Invoke-HP67M16L {
         param([string[]]$CargoArgs)
         & cargo @CargoArgs
-        if ($LASTEXITCODE -ne 0) { throw "M16L GATE v1 KO: cargo $($CargoArgs -join ' ')" }
+        if ($LASTEXITCODE -ne 0) { throw "M16L GATE v2 KO: cargo $($CargoArgs -join ' ')" }
     }
     Write-Host '[1/9] M16L FORMATO'
     Invoke-HP67M16L -CargoArgs @('fmt', '--all', '--', '--check')
@@ -41,7 +41,7 @@ try {
     Invoke-HP67M16L -CargoArgs @('test', '--locked', '--release', '--lib', 'm16k_crc_transaction_realtime_benchmark', '--', '--ignored', '--nocapture', '--test-threads=1')
     Write-Host '[9/9] M16L BENCH LIVE'
     Invoke-HP67M16L -CargoArgs @('test', '--locked', '--release', '--bin', 'hp67emu', 'm14o_live_authority_realtime_benchmark', '--', '--ignored', '--nocapture', '--test-threads=1')
-    Write-Host "M16L FULL GATE GREEN | HP67-M16L-PIN-INTEGRITY-v1 | ENTREGA 15/15 | commit=$head"
+    Write-Host "M16L FULL GATE GREEN | HP67-M16L-PIN-INTEGRITY-v2 | ENTREGA 15/15 | commit=$head"
 }
 finally {
     $env:RUSTFLAGS = $previousRustFlags

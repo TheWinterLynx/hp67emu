@@ -19,3 +19,8 @@ Verify source substitution, agreeing sources, all IS roles, DATA source limits, 
 ## Implementation
 
 Six normal-build tests cover synthetic complete captures, all foreign drivers on eleven sole-owner nets, wrong-window/page/reference IS, passive release versus active Low, DATA release/sole-source/overlap, unknown contacts/owners/address and truncated captures. A synthetic nanosecond fixture has no invented internal owners and returns incomplete. Finding storage is capped at 64 while 112 violations remain counted; input snapshots are unchanged.
+
+
+## M16L v2 display delta regressions
+
+Three additional tests model the actual first b0 edge before and after same-tick display publication, keep the original Floating row unchanged and verify TSV roundtrip; reject missing/agreeing sources in the final publication row for STR and RCD at each b0/b7/b8; and prove that same-tick repair cannot hide SYNC faults or repair an uninitialized control using a later tick/non-publication b1. Existing six tests and native expectations are retained.

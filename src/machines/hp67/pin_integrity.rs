@@ -180,7 +180,7 @@ impl PinIntegrityAudit {
     }
     pub fn report(&self, trace: &Hp67PinTrace) -> String {
         use std::fmt::Write;
-        let mut out = format!("HP67 PRODUCTION PIN INTEGRITY v1\nsource={:?} domain={:?}\nprovenance={}\ncells={} complete_capture={} scoped_exit={}\n", trace.source, trace.domain, trace.provenance, self.cells, self.complete_capture, self.exit_code());
+        let mut out = format!("HP67 PRODUCTION PIN INTEGRITY v2\nsource={:?} domain={:?}\nprovenance={}\ncells={} complete_capture={} scoped_exit={}\n", trace.source, trace.domain, trace.provenance, self.cells, self.complete_capture, self.exit_code());
         for p in &self.pins {
             writeln!(out, "pin={} scope={} checked={} missing_levels={} missing_owners={} missing_address={} violations={}", PIN_NAMES[p.net.index()], if p.assessed { "BRIDGE_CONTRACT" } else { "UNASSESSED" }, p.checked, p.missing_levels, p.missing_owners, p.missing_address, p.violations).unwrap();
         }
@@ -205,7 +205,7 @@ impl PinIntegrityAudit {
             self.findings.len()
         )
         .unwrap();
-        out.push_str("Scope: current production bridge; PHI owners checked at every row, other assessed pins at provisional PHI1-rising checkpoints. IS return page uses observed address; ROM bank identity is NOT certified. DATA direction/frame/payload and CRC logical FIFO serialization are NOT certified. F1/KC acquisition is UNASSESSED.\nSOURCE-BLOCKED: exact PHI widths/dead time, physical launch/latch edges and propagation, DATA output stage/polarity and physical RAM mapping, magnetic sense/serialization. No nanosecond calibration, hardware equivalence or complete-emulator certification follows from exit 0.\n");
+        out.push_str("Scope: current production bridge; PHI owners checked at every row, other assessed pins at provisional PHI1-rising checkpoints, except STR/RCD at b0/b7/b8 use the final same-tick post-publication image. No later tick is substituted. IS return page uses observed address; ROM bank identity is NOT certified. DATA direction/frame/payload and CRC logical FIFO serialization are NOT certified. F1/KC acquisition is UNASSESSED.\nSOURCE-BLOCKED: exact PHI widths/dead time, physical launch/latch edges and propagation, DATA output stage/polarity and physical RAM mapping, magnetic sense/serialization. No nanosecond calibration, hardware equivalence or complete-emulator certification follows from exit 0.\n");
         out
     }
 }
@@ -243,6 +243,17 @@ pub fn audit_pin_integrity(trace: &Hp67PinTrace) -> Result<PinIntegrityAudit, St
         .filter(|e| e.edge == Hp67ClockEdge::Phi1Rising)
     {
         let row = &trace.rows[edge.row_index];
+        // The existing display receiver publishes STR/RCD after PHI1 rises
+        // at b0/b7/b8, then consumes the committed pair without advancing time.
+        // Only those controls use that post-publication observation. Other
+        // receivers still consume the edge image, and no later tick is read.
+        let display_row = if matches!(edge.bit, 0 | 7 | 8) {
+            trace.rows[edge.row_index..].iter()
+                .take_while(|next| next.at == row.at)
+                .last().expect("edge row belongs to its own tick")
+        } else {
+            row
+        };
         let address = analysis
             .words
             .get(&edge.word)
@@ -253,7 +264,8 @@ pub fn audit_pin_integrity(trace: &Hp67PinTrace) -> Result<PinIntegrityAudit, St
             .filter(|n| !matches!(n, Hp67Net::Phi1 | Hp67Net::Phi2))
         {
             if audit.pins[net.index()].assessed {
-                audit.inspect(row, net, Some((edge.word, edge.bit)), address);
+                let observed = if matches!(net, Hp67Net::Str | Hp67Net::Rcd) { display_row } else { row };
+                audit.inspect(observed, net, Some((edge.word, edge.bit)), address);
             }
         }
     }
