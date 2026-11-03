@@ -19,3 +19,7 @@ Use full PAC names, show missing-document status, cache availability outside the
 ## Implementation
 
 The catalog contains the Spanish owner handbook and eleven PAC manuals. Desktop resolution checks documentation beside the executable and in the development checkout, validates the PDF signature and passes paths as direct process arguments. Web builds use the validated available.rs manifest and a Trunk copy-dir resource. The local publisher validates and copies all twelve files before advertising browser availability. A refresh button invalidates UI availability; no PDF decoder or per-frame filesystem scan is added.
+
+
+
+PAC manuals are alphabetically ordered by full title; the owner handbook retains its separate section.

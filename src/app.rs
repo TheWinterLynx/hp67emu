@@ -472,12 +472,13 @@ impl Hp67App {
                         egui::ScrollArea::vertical()
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
+                                let order = crate::program_library::program_library_display_order();
                                 let mut pack_start = 0usize;
-                                while pack_start < PROGRAM_LIBRARY.len() {
-                                    let pack = PROGRAM_LIBRARY[pack_start].pack;
+                                while pack_start < order.len() {
+                                    let pack = PROGRAM_LIBRARY[order[pack_start]].pack;
                                     let mut pack_end = pack_start + 1;
-                                    while pack_end < PROGRAM_LIBRARY.len()
-                                        && PROGRAM_LIBRARY[pack_end].pack == pack
+                                    while pack_end < order.len()
+                                        && PROGRAM_LIBRARY[order[pack_end]].pack == pack
                                     {
                                         pack_end += 1;
                                     }
@@ -490,10 +491,8 @@ impl Hp67App {
                                     .id_source(("hp67-program-pack", pack))
                                     .default_open(false)
                                     .show(ui, |ui| {
-                                        for (index, entry) in
-                                            PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
-                                        {
-                                            let index = pack_start + index;
+                                        for &index in &order[pack_start..pack_end] {
+                                            let entry = &PROGRAM_LIBRARY[index];
                                             let label = if entry.reference.is_empty() {
                                                 entry.title.to_owned()
                                             } else {
@@ -640,12 +639,13 @@ impl Hp67App {
                         .id_source("hp67-program-library-web-packs")
                         .auto_shrink([false, false])
                         .show(&mut columns[0], |ui| {
+                            let order = crate::program_library::program_library_display_order();
                             let mut pack_start = 0usize;
-                            while pack_start < PROGRAM_LIBRARY.len() {
-                                let pack = PROGRAM_LIBRARY[pack_start].pack;
+                            while pack_start < order.len() {
+                                let pack = PROGRAM_LIBRARY[order[pack_start]].pack;
                                 let mut pack_end = pack_start + 1;
-                                while pack_end < PROGRAM_LIBRARY.len()
-                                    && PROGRAM_LIBRARY[pack_end].pack == pack
+                                while pack_end < order.len()
+                                    && PROGRAM_LIBRARY[order[pack_end]].pack == pack
                                 {
                                     pack_end += 1;
                                 }
@@ -658,10 +658,8 @@ impl Hp67App {
                                 .id_source(("hp67-program-pack-web", pack))
                                 .default_open(false)
                                 .show(ui, |ui| {
-                                    for (offset, entry) in
-                                        PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
-                                    {
-                                        let index = pack_start + offset;
+                                    for &index in &order[pack_start..pack_end] {
+                                        let entry = &PROGRAM_LIBRARY[index];
                                         let label = if entry.reference.is_empty() {
                                             entry.title.to_owned()
                                         } else {
@@ -931,12 +929,13 @@ impl Hp67App {
                         .auto_shrink([false, false])
                         .max_height(list_height)
                         .show(ui, |ui| {
+                            let order = crate::program_library::program_library_display_order();
                             let mut pack_start = 0usize;
-                            while pack_start < PROGRAM_LIBRARY.len() {
-                                let pack = PROGRAM_LIBRARY[pack_start].pack;
+                            while pack_start < order.len() {
+                                let pack = PROGRAM_LIBRARY[order[pack_start]].pack;
                                 let mut pack_end = pack_start + 1;
-                                while pack_end < PROGRAM_LIBRARY.len()
-                                    && PROGRAM_LIBRARY[pack_end].pack == pack
+                                while pack_end < order.len()
+                                    && PROGRAM_LIBRARY[order[pack_end]].pack == pack
                                 {
                                     pack_end += 1;
                                 }
@@ -949,10 +948,8 @@ impl Hp67App {
                                 .id_source(("hp67-program-pack-mobile", pack))
                                 .default_open(pack_start == 0)
                                 .show(ui, |ui| {
-                                    for (offset, entry) in
-                                        PROGRAM_LIBRARY[pack_start..pack_end].iter().enumerate()
-                                    {
-                                        let index = pack_start + offset;
+                                    for &index in &order[pack_start..pack_end] {
+                                        let entry = &PROGRAM_LIBRARY[index];
                                         let label = if entry.reference.is_empty() {
                                             entry.title.to_owned()
                                         } else {
@@ -1434,7 +1431,7 @@ impl eframe::App for Hp67App {
                 ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
             }
             egui::menu::bar(ui, |ui| {
-                crate::documentation::help_menu(ui);
+
                 ui.menu_button("Cards", |ui| {
                     if web_compact {
                         ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
@@ -1451,6 +1448,9 @@ impl eframe::App for Hp67App {
                         save_from_menu = true;
                         ui.close_menu();
                     }
+                });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.push_id("hp67-help-right", |ui| crate::documentation::help_menu(ui));
                 });
             });
         });
@@ -1784,3 +1784,4 @@ mod tests {
         ));
     }
 }
+

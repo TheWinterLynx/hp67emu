@@ -77,3 +77,7 @@ M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M1
 
 
 Documentation v2.3 adds Help/Documentation and direct access to the selected PAC manual on desktop, wide web and compact web layouts. The UI opens the platform PDF reader without modifying machine state.
+
+
+
+All three library layouts use the cached alphabetical pack/title display indices; card selection still uses the original catalog index. Help is anchored at the far right of the menu bar.

@@ -24,3 +24,7 @@ The 15 Standard Pac and 20 Games Pac physical cards are backed by source-faithfu
 
 
 PAC library v2.2 normalizes presentation names to full HP-67 names, including the demonstration and custom diagnostic packs. Source media paths and card references remain unchanged. A catalog regression requires the HP-67 prefix for every pack.
+
+
+
+The cached presentation order sorts pack names and card titles case-insensitively, with reference/index tie-breakers. The original PROGRAM_LIBRARY order and media identities are unchanged; the sorted permutation supplies original indices to all three UI layouts.

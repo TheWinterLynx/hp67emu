@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
+from normalize_pack_names_v2_2 import order_library_ui
 
 HERE=Path(__file__).resolve().parent
 
@@ -24,7 +25,7 @@ def validate_pdf(path,expected=None):
 
 def patch_sources(repo,module):
     app=repo/'src/app.rs';text=app.read_text(encoding='utf-8')
-    if 'crate::documentation::help_menu(ui);' not in text:
+    if 'crate::documentation::help_menu(ui)' not in text:
         marker='            egui::menu::bar(ui, |ui| {'
         if text.count(marker)!=1:raise ValueError('Application menu anchor changed')
         text=text.replace(marker,marker+'\n                crate::documentation::help_menu(ui);',1)
@@ -44,6 +45,7 @@ def patch_sources(repo,module):
     if 'href="documentation"' not in html:
         if '    <style>' not in html:raise ValueError('Trunk document anchor changed')
         html=html.replace('    <style>','    <link data-trunk rel="copy-dir" href="documentation" />\n    <style>',1)
+    text=order_library_ui(text)
     return {app:text,main:maintext,index:html,repo/'src/documentation.rs':module}
 
 def install(repo,work,check=False):
@@ -91,3 +93,4 @@ def install(repo,work,check=False):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--repo',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--check',action='store_true');a=p.parse_args();install(a.repo.resolve(),a.work.resolve(),a.check)
 if __name__=='__main__':main()
+

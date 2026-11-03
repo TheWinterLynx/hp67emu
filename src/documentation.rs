@@ -12,14 +12,6 @@ pub const MANUALS: &[Manual] = &[
         file: "hp67-oh-es.pdf",
     },
     Manual {
-        title: "HP-67 Standard Pac",
-        file: "hp67-pac-standard-en.pdf",
-    },
-    Manual {
-        title: "HP-67 Games Pac I",
-        file: "hp6797-pac-games-en.pdf",
-    },
-    Manual {
         title: "HP-67 Business Decisions Pac I",
         file: "hp6797-pac-business-en.pdf",
     },
@@ -28,8 +20,16 @@ pub const MANUALS: &[Manual] = &[
         file: "hp6797-pac-civileng-en.pdf",
     },
     Manual {
+        title: "HP-67 Clinical Laboratory and Nuclear Medicine Pac",
+        file: "hp6797-pac-clinical-en.pdf",
+    },
+    Manual {
         title: "HP-67 Electrical Engineering Pac I",
         file: "hp6797-pac-eleceng-en.pdf",
+    },
+    Manual {
+        title: "HP-67 Games Pac I",
+        file: "hp6797-pac-games-en.pdf",
     },
     Manual {
         title: "HP-67 Mathematics Pac I",
@@ -40,16 +40,16 @@ pub const MANUALS: &[Manual] = &[
         file: "hp6797-pac-mecheng-en.pdf",
     },
     Manual {
-        title: "HP-67 Statistics Pac I",
-        file: "hp6797-pac-stat-en.pdf",
-    },
-    Manual {
-        title: "HP-67 Clinical Laboratory and Nuclear Medicine Pac",
-        file: "hp6797-pac-clinical-en.pdf",
-    },
-    Manual {
         title: "HP-67 Navigation Pac I",
         file: "hp6797-pac-navigation-en.pdf",
+    },
+    Manual {
+        title: "HP-67 Standard Pac",
+        file: "hp67-pac-standard-en.pdf",
+    },
+    Manual {
+        title: "HP-67 Statistics Pac I",
+        file: "hp6797-pac-stat-en.pdf",
     },
     Manual {
         title: "HP-67 Surveying Pac I",
@@ -257,6 +257,7 @@ mod tests {
             assert!(files.contains(*file));
         }
         assert_eq!(MANUALS.len(), 12);
+        assert!(MANUALS[1..].windows(2).all(|pair| pair[0].title.to_lowercase() <= pair[1].title.to_lowercase()));
         assert!(manual_for_pack("HP-67 Electrical Engineering Pac I").is_some());
         assert!(manual_for_pack("HP-67 Custom Diagnostic Pac").is_none());
     }
@@ -276,3 +277,4 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+

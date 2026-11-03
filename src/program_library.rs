@@ -463,6 +463,19 @@ const fn catalog_artwork(title: &'static str, reference: &'static str) -> Progra
     }
 }
 
+/// Stable presentation indices: catalog/media identities never move.
+pub fn program_library_display_order() -> &'static [usize] {
+    static ORDER: std::sync::OnceLock<Vec<usize>> = std::sync::OnceLock::new();
+    ORDER.get_or_init(|| {
+        let mut order: Vec<_> = (0..PROGRAM_LIBRARY.len()).collect();
+        order.sort_by_cached_key(|&index| {
+            let entry = &PROGRAM_LIBRARY[index];
+            (entry.pack.to_lowercase(), entry.title.to_lowercase(), entry.reference, index)
+        });
+        order
+    })
+}
+
 pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
     ProgramLibraryEntry {
         pack: "HP-67 Demonstration Pac I",
@@ -1259,6 +1272,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn alphabetical_display_order_keeps_every_original_catalog_index() {
+        let order = program_library_display_order();
+        let mut indices = order.to_vec();
+        indices.sort_unstable();
+        assert_eq!(indices, (0..PROGRAM_LIBRARY.len()).collect::<Vec<_>>());
+        for pair in order.windows(2) {
+            let a = &PROGRAM_LIBRARY[pair[0]];
+            let b = &PROGRAM_LIBRARY[pair[1]];
+            assert!((a.pack.to_lowercase(), a.title.to_lowercase(), a.reference)
+                <= (b.pack.to_lowercase(), b.title.to_lowercase(), b.reference));
+        }
+    }
+
+    #[test]
     fn pack_names_use_consistent_hp67_prefix() {
         for entry in PROGRAM_LIBRARY {
             assert!(entry.pack.starts_with("HP-67 "), "{}", entry.pack);
@@ -1574,3 +1601,4 @@ mod tests {
         }
     }
 }
+
