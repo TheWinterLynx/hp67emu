@@ -465,7 +465,7 @@ const fn catalog_artwork(title: &'static str, reference: &'static str) -> Progra
 
 pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "01",
         title: "Area Of Circle",
         source_pdf: None,
@@ -474,7 +474,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Area Of Circle", "01"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "02",
         title: "Pythagorean",
         source_pdf: None,
@@ -483,7 +483,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Pythagorean", "02"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "03",
         title: "Future Savings",
         source_pdf: None,
@@ -492,7 +492,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Future Savings", "03"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "04",
         title: "Time To Fall",
         source_pdf: None,
@@ -501,7 +501,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Time To Fall", "04"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "05",
         title: "Cumulative Total",
         source_pdf: None,
@@ -510,7 +510,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Cumulative Total", "05"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "06",
         title: "Base Areas",
         source_pdf: None,
@@ -519,7 +519,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Base Areas", "06"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "07",
         title: "Average Of 3",
         source_pdf: None,
@@ -528,7 +528,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Average Of 3", "07"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "08",
         title: "Square Roots",
         source_pdf: None,
@@ -537,7 +537,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Square Roots", "08"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "09",
         title: "Accountants",
         source_pdf: None,
@@ -546,7 +546,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Accountants", "09"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "10",
         title: "Calculate e",
         source_pdf: None,
@@ -555,7 +555,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Calculate e", "10"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "11",
         title: "Common Logs",
         source_pdf: None,
@@ -564,7 +564,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Common Logs", "11"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "12",
         title: "Quadratic Roots",
         source_pdf: None,
@@ -573,7 +573,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Quadratic Roots", "12"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "13",
         title: "Dice",
         source_pdf: None,
@@ -582,7 +582,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Dice", "13"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "14",
         title: "I Register",
         source_pdf: None,
@@ -591,7 +591,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("I Register", "14"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "15",
         title: "Manhattan Value",
         source_pdf: None,
@@ -600,7 +600,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Manhattan Value", "15"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "16",
         title: "Register I",
         source_pdf: None,
@@ -609,7 +609,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Register I", "16"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "17",
         title: "I Addressing",
         source_pdf: None,
@@ -618,7 +618,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("I Addressing", "17"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "18",
         title: "I Average",
         source_pdf: None,
@@ -627,7 +627,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("I Average", "18"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "19",
         title: "I Random",
         source_pdf: None,
@@ -636,7 +636,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("I Random", "19"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "20",
         title: "Fibonacci",
         source_pdf: None,
@@ -648,7 +648,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Fibonacci", "20"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "21",
         title: "Dist Spd Time",
         source_pdf: None,
@@ -657,7 +657,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Dist Spd Time", "21"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "22",
         title: "Flags",
         source_pdf: None,
@@ -666,7 +666,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Flags", "22"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "HP67diagA",
         title: "HP-67 Diagnostic A",
         source_pdf: None,
@@ -675,7 +675,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("HP-67 Diagnostic A", "HP67diagA"),
     },
     ProgramLibraryEntry {
-        pack: "Demo Pac 1",
+        pack: "HP-67 Demonstration Pac I",
         reference: "HP67diagB",
         title: "HP-67 Diagnostic B",
         source_pdf: None,
@@ -1097,7 +1097,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Diagnostic Program", "SD1-15A"),
     },
     ProgramLibraryEntry {
-        pack: "HP-67 Diagnostic Cards",
+        pack: "HP-67 Diagnostic Pac",
         reference: "SD-15C",
         title: "Diagnostic Program (SD-15C)",
         source_pdf: None,
@@ -1109,7 +1109,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Diagnostic Program", "SD-15C"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-01",
         title: "Flow GSB/GTO/RTN — expect 7.00",
         source_pdf: None,
@@ -1121,7 +1121,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Flow GSB/GTO/RTN", "CD-01"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-02",
         title: "Flags SF/CF/F? — expect 6.00",
         source_pdf: None,
@@ -1133,7 +1133,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Flags SF/CF/F?", "CD-02"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-03",
         title: "Conditionals — expect 7.00",
         source_pdf: None,
@@ -1145,7 +1145,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Conditionals", "CD-03"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-04",
         title: "Indirect STO/RCL — expect 42.00",
         source_pdf: None,
@@ -1157,7 +1157,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Indirect STO/RCL", "CD-04"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-05",
         title: "Nested GSB — expect 6.00",
         source_pdf: None,
@@ -1169,7 +1169,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Nested GSB", "CD-05"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-06",
         title: "Second-half label search — expect 67.00",
         source_pdf: None,
@@ -1181,7 +1181,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Second-half label search", "CD-06"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-07",
         title: "ISZ loop — expect 3.00",
         source_pdf: None,
@@ -1193,7 +1193,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("ISZ loop", "CD-07"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-08",
         title: "DSZ loop — expect 3.00",
         source_pdf: None,
@@ -1205,7 +1205,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("DSZ loop", "CD-08"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-09",
         title: "Long DSZ burn-in — expect 2000.00",
         source_pdf: None,
@@ -1217,7 +1217,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Long DSZ burn-in", "CD-09"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-10",
         title: "Nested GSB burn-in — expect 500.00",
         source_pdf: None,
@@ -1229,7 +1229,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Nested GSB burn-in", "CD-10"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-11",
         title: "Function identity burn-in — expect 1.00",
         source_pdf: None,
@@ -1241,7 +1241,7 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
         artwork: catalog_artwork("Function identity burn-in", "CD-11"),
     },
     ProgramLibraryEntry {
-        pack: "Custom Diagnostic Pacs",
+        pack: "HP-67 Custom Diagnostic Pac",
         reference: "CD-12",
         title: "Cross-half GSB burn-in — expect 500.00",
         source_pdf: None,
@@ -1257,6 +1257,13 @@ pub const PROGRAM_LIBRARY: &[ProgramLibraryEntry] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pack_names_use_consistent_hp67_prefix() {
+        for entry in PROGRAM_LIBRARY {
+            assert!(entry.pack.starts_with("HP-67 "), "{}", entry.pack);
+        }
+    }
 
     #[test]
     fn every_pdf_backed_card_has_a_unique_embedded_artwork_row() {
@@ -1345,7 +1352,7 @@ mod tests {
     fn custom_diagnostic_pack_contains_twelve_known_result_cards() {
         let entries = PROGRAM_LIBRARY
             .iter()
-            .filter(|entry| entry.pack == "Custom Diagnostic Pacs")
+            .filter(|entry| entry.pack == "HP-67 Custom Diagnostic Pac")
             .collect::<Vec<_>>();
         assert_eq!(entries.len(), 12);
         assert_eq!(
