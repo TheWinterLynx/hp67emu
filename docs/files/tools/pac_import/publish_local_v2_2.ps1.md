@@ -19,3 +19,6 @@ Preserve magnetic media, original source references and user work; fail on inval
 ## Implementation
 
 This file retains the local import/repair implementation or provides the full-name catalog/publication adapter. Rust compilation and tests run only in the owner local gate.
+
+
+Documentation v2.3 preflights all twelve PDFs before branch changes, packages them under documentation, installs Help/PAC access, and stages the UI module, main/index wiring and companions alongside the validated corpus.

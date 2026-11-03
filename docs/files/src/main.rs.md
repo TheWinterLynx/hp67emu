@@ -39,3 +39,6 @@ Native `--decode-is input.tsv report.txt [start_row words]` decodes an explicit 
 
 Dispatches --trace-pins, --audit-pins and --compare-pins to a native-only CLI module before GUI startup. Exit 0 is resolved scoped equality/success, 2 differences, 3 unresolved selected observations and 1 input/argument/output failure. Legacy IS commands and WASM startup are unchanged.
 Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.
+
+
+Documentation v2.3 adds Help/Documentation and direct access to the selected PAC manual on desktop, wide web and compact web layouts. The UI opens the platform PDF reader without modifying machine state.

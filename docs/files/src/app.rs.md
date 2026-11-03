@@ -74,3 +74,6 @@ WASM Program Library selection no longer forces the listing view. Selecting a pr
 
 
 M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M14T. ROM0 E/G shared signs route to physical G emitters, and slot 15 replaces slot 1 under the existing structural compatibility policy. The renderer selects lit geometry from nonzero dwell; artwork gain remains unchanged because current/radiant-energy conversion is not proven. Partial scans remain private. DISPLAY disable and power reset blank the optical snapshot immediately. Diagnostic immediate masks remain available to tests and firmware prompt detection.
+
+
+Documentation v2.3 adds Help/Documentation and direct access to the selected PAC manual on desktop, wide web and compact web layouts. The UI opens the platform PDF reader without modifying machine state.
