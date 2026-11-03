@@ -27,6 +27,8 @@ const CARD_SAVE_VIEWPORT_KEY: &str = "hp67-card-save-viewport";
 const CARD_ARTWORK_ATLAS_WIDTH: u32 = 499;
 const CARD_ARTWORK_ATLAS_ROW_HEIGHT: u32 = 80;
 const CARD_ARTWORK_ATLAS_ROWS: u32 = 349;
+const UNLIMITED_SLICE_BUDGET: Duration = Duration::from_millis(8);
+const UNLIMITED_BATCH_WORDS: u32 = 64;
 #[cfg(any(target_arch = "wasm32", test))]
 const WEB_PROGRAM_LIBRARY_COMPACT_WIDTH: f32 = 700.0;
 #[cfg(any(target_arch = "wasm32", test))]
@@ -63,6 +65,7 @@ pub struct Hp67App {
     card_import_name: Option<String>,
     card_insertion_end: CardInsertionEnd,
     last_live_tick: Option<Instant>,
+    unlimited_speed: bool,
     card_phase: ProgramCardPhase,
     card_phase_started: Option<Instant>,
     card_read_progress: f32,
@@ -179,6 +182,7 @@ impl Hp67App {
             card_import_name: None,
             card_insertion_end: CardInsertionEnd::End1,
             last_live_tick: None,
+            unlimited_speed: false,
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
             card_read_progress: 0.0,
@@ -1475,6 +1479,17 @@ impl eframe::App for Hp67App {
                         ui.close_menu();
                     }
                 });
+                ui.menu_button("Speed", |ui| {
+                    if ui.checkbox(&mut self.unlimited_speed, "Unlimited").changed() {
+                        // Do not replay host time when switching pacing modes.
+                        self.last_live_tick = None;
+                    }
+                    ui.label(if self.unlimited_speed {
+                        "Maximum speed; all emulated cycles retained"
+                    } else {
+                        "Real HP-67 speed (1x)"
+                    });
+                });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.push_id("hp67-help-right", |ui| crate::documentation::help_menu(ui));
                 });
@@ -1568,7 +1583,22 @@ impl eframe::App for Hp67App {
         let mut live_card_active = false;
         if self.state.power_on {
             if let Some(machine) = self.live_machine.as_mut() {
-                if let Err(error) = machine.advance(elapsed) {
+                let result = if self.unlimited_speed {
+                    let started = Instant::now();
+                    let mut result = Ok(());
+                    // Bound UI occupancy, not simulated speed. Sample contacts
+                    // again between slices; check host time once per batch.
+                    while started.elapsed() < UNLIMITED_SLICE_BUDGET {
+                        result = machine.advance_word_budget(UNLIMITED_BATCH_WORDS);
+                        if result.is_err() {
+                            break;
+                        }
+                    }
+                    result
+                } else {
+                    machine.advance(elapsed)
+                };
+                if let Err(error) = result {
                     live_error = Some(error);
                 } else {
                     live_card_active =
@@ -1604,7 +1634,11 @@ impl eframe::App for Hp67App {
             // Keep the physical firmware machine advancing after boot idle as well
             // as during startup. The same cadence also samples held/released key
             // contacts without introducing host-side calculator semantics.
-            ctx.request_repaint_after(Duration::from_micros(4_800));
+            if self.unlimited_speed {
+                ctx.request_repaint();
+            } else {
+                ctx.request_repaint_after(Duration::from_micros(4_800));
+            }
         }
         self.show_card_save_dialog(ctx);
         self.show_program_library(ctx);

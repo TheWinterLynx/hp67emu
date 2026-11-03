@@ -789,6 +789,14 @@ impl Hp67LiveMachine {
         Ok(self.card_transport.take_unstarted_card())
     }
 
+    /// Spend virtual time through the normal live path without host pacing.
+    /// Reset hold, PHI transitions and card transport retain simulated timing.
+    pub fn advance_word_budget(&mut self, words: u32) -> Result<(), String> {
+        self.advance(Duration::from_micros(
+            u64::from(words) * HP67_OBSERVED_WORD_TIME_US,
+        ))
+    }
+
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
@@ -2301,6 +2309,36 @@ mod official_pac_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unlimited_word_budget_preserves_live_cycles_and_realtime_resume() {
+        let mut unlimited = Hp67LiveMachine::power_on_default().unwrap();
+        let mut paced = Hp67LiveMachine::power_on_default().unwrap();
+        // Include a partial word and reset hold before changing pacing.
+        unlimited.advance(Duration::from_micros(123)).unwrap();
+        paced.advance(Duration::from_micros(123)).unwrap();
+        unlimited.advance_word_budget(0).unwrap();
+        assert_eq!(unlimited.boot_cycle, 0);
+        for _ in 0..64 {
+            unlimited.advance_word_budget(64).unwrap();
+        }
+        paced.advance(Duration::from_micros(4096 * HP67_OBSERVED_WORD_TIME_US)).unwrap();
+        assert!(unlimited.boot_cycle > 0);
+        assert_eq!(unlimited.backplane.tick(), paced.backplane.tick());
+        assert_eq!(unlimited.backplane.tick().get(), unlimited.boot_cycle * 224);
+        assert_eq!(unlimited.boot_cycle, paced.boot_cycle);
+        assert_eq!(unlimited.pending_us, paced.pending_us);
+        assert_eq!(ActSerialStateSnapshot::capture(&unlimited.machine.act.state),
+            ActSerialStateSnapshot::capture(&paced.machine.act.state));
+        assert_eq!(unlimited.display_frame(), paced.display_frame());
+        // Returning to real time adds only the newly elapsed duration.
+        unlimited.advance(Duration::from_micros(517)).unwrap();
+        paced.advance(Duration::from_micros(517)).unwrap();
+        assert_eq!(unlimited.boot_cycle, paced.boot_cycle);
+        assert_eq!(unlimited.pending_us, paced.pending_us);
+        assert_eq!(ActSerialStateSnapshot::capture(&unlimited.machine.act.state),
+            ActSerialStateSnapshot::capture(&paced.machine.act.state));
+    }
+
     #[test]
     fn m15k_live_rom_banks_ignore_provider_view_and_reset_with_power() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
