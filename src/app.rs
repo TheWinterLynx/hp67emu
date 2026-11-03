@@ -81,12 +81,20 @@ pub struct Hp67App {
 fn decode_embedded_full_resolution_artwork(
     entry: &crate::program_library::ProgramLibraryEntry,
 ) -> Result<Option<image::RgbaImage>, String> {
-    let Some(bytes) = entry.artwork_path.and_then(crate::program_library::embedded_card_artwork) else {
+    let Some(bytes) = entry
+        .artwork_path
+        .and_then(crate::program_library::embedded_card_artwork)
+    else {
         return Ok(None);
     };
     image::load_from_memory_with_format(bytes, image::ImageFormat::Png)
         .map(|image| Some(image.to_rgba8()))
-        .map_err(|error| format!("invalid embedded source artwork {}: {error}", entry.reference))
+        .map_err(|error| {
+            format!(
+                "invalid embedded source artwork {}: {error}",
+                entry.reference
+            )
+        })
 }
 
 fn decode_embedded_card_artwork_atlas() -> Result<image::RgbaImage, String> {
@@ -362,18 +370,30 @@ impl Hp67App {
             if self.card_artwork_atlas.is_none() {
                 self.card_artwork_atlas = Some(decode_embedded_card_artwork_atlas()?);
             }
-            let atlas = self.card_artwork_atlas.as_ref().expect("atlas was initialized");
-            Some(image::imageops::crop_imm(
-                atlas, 0, row as u32 * CARD_ARTWORK_ATLAS_ROW_HEIGHT,
-                CARD_ARTWORK_ATLAS_WIDTH, CARD_ARTWORK_ATLAS_ROW_HEIGHT,
-            ).to_image())
+            let atlas = self
+                .card_artwork_atlas
+                .as_ref()
+                .expect("atlas was initialized");
+            Some(
+                image::imageops::crop_imm(
+                    atlas,
+                    0,
+                    row as u32 * CARD_ARTWORK_ATLAS_ROW_HEIGHT,
+                    CARD_ARTWORK_ATLAS_WIDTH,
+                    CARD_ARTWORK_ATLAS_ROW_HEIGHT,
+                )
+                .to_image(),
+            )
         } else {
             match entry.artwork_path {
                 Some(path) if Path::new(path).is_file() => {
                     let bytes = fs::read(path)
                         .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
-                    Some(image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
-                        .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?.to_rgba8())
+                    Some(
+                        image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+                            .map_err(|error| format!("invalid artwork PNG {}: {error}", path))?
+                            .to_rgba8(),
+                    )
                 }
                 _ => None,
             }
@@ -381,7 +401,11 @@ impl Hp67App {
         let artwork_texture = decoded_artwork.map(|decoded| {
             let size = [decoded.width() as usize, decoded.height() as usize];
             let image = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
-            ctx.load_texture(format!("hp67-program-card-artwork-{index}"), image, TextureOptions::LINEAR)
+            ctx.load_texture(
+                format!("hp67-program-card-artwork-{index}"),
+                image,
+                TextureOptions::LINEAR,
+            )
         });
 
         self.card_media = Some(loaded.card);
@@ -1627,14 +1651,32 @@ mod tests {
 
     #[test]
     fn embedded_source_artwork_keeps_600_dpi_and_covers_every_scanned_card() {
-        for entry in PROGRAM_LIBRARY.iter().filter(|entry| entry.artwork_path.is_some()) {
-            let bytes = entry.artwork_path.and_then(crate::program_library::embedded_card_artwork)
+        for entry in PROGRAM_LIBRARY
+            .iter()
+            .filter(|entry| entry.artwork_path.is_some())
+        {
+            let bytes = entry
+                .artwork_path
+                .and_then(crate::program_library::embedded_card_artwork)
                 .unwrap_or_else(|| panic!("{} lacks embedded source PNG", entry.reference));
-            let reader = image::io::Reader::with_format(std::io::Cursor::new(bytes), image::ImageFormat::Png);
-            assert_eq!(reader.into_dimensions().unwrap(), (1679, 269), "{}", entry.reference);
+            let reader = image::io::Reader::with_format(
+                std::io::Cursor::new(bytes),
+                image::ImageFormat::Png,
+            );
+            assert_eq!(
+                reader.into_dimensions().unwrap(),
+                (1679, 269),
+                "{}",
+                entry.reference
+            );
         }
-        let artillery = PROGRAM_LIBRARY.iter().find(|entry| entry.reference == "GA1-05A").unwrap();
-        let image = decode_embedded_full_resolution_artwork(artillery).unwrap().unwrap();
+        let artillery = PROGRAM_LIBRARY
+            .iter()
+            .find(|entry| entry.reference == "GA1-05A")
+            .unwrap();
+        let image = decode_embedded_full_resolution_artwork(artillery)
+            .unwrap()
+            .unwrap();
         assert_eq!(image.dimensions(), (1679, 269));
         assert!(image.width() > CARD_ARTWORK_ATLAS_WIDTH * 3);
         assert!(image.height() > CARD_ARTWORK_ATLAS_ROW_HEIGHT * 3);
