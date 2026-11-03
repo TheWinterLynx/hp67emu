@@ -93,4 +93,3 @@ def install(repo,work,check=False):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--repo',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--check',action='store_true');a=p.parse_args();install(a.repo.resolve(),a.work.resolve(),a.check)
 if __name__=='__main__':main()
-
