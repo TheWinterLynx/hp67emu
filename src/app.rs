@@ -1378,6 +1378,24 @@ impl Hp67App {
     }
 }
 
+// The reader and firmware handshake share simulation time. Keep their normal
+// wall-clock pacing while a card is moving instead of accelerating transport
+// or making its image lag behind already-completed media operations.
+fn unlimited_processing_allowed(
+    enabled: bool,
+    phase: ProgramCardPhase,
+    reader_busy: bool,
+) -> bool {
+    enabled
+        && !reader_busy
+        && !matches!(
+            phase,
+            ProgramCardPhase::WaitingAtReader
+                | ProgramCardPhase::ReadingFromRight
+                | ProgramCardPhase::InsertingWindowFromRight
+        )
+}
+
 fn card_insertion_allowed(power_on: bool) -> bool {
     power_on
 }
@@ -1488,7 +1506,7 @@ impl eframe::App for Hp67App {
                         self.last_live_tick = None;
                     }
                     ui.label(if self.unlimited_speed {
-                        "Maximum speed; all emulated cycles retained"
+                        "Unlimited calculations; card handling stays at 1x"
                     } else {
                         "Real HP-67 speed (1x)"
                     });
@@ -1584,9 +1602,17 @@ impl eframe::App for Hp67App {
 
         let mut live_error = None;
         let mut live_card_active = false;
+        let mut unlimited_active = false;
         if self.state.power_on {
             if let Some(machine) = self.live_machine.as_mut() {
-                let result = if self.unlimited_speed {
+                unlimited_active = unlimited_processing_allowed(
+                    self.unlimited_speed,
+                    self.card_phase,
+                    machine.magnetic_card_inserted()
+                        || machine.card_motor_on()
+                        || machine.card_record_stream_active(),
+                );
+                let result = if unlimited_active {
                     let started = Instant::now();
                     let mut result = Ok(());
                     // Bound UI occupancy, not simulated speed. Sample contacts
@@ -1594,6 +1620,17 @@ impl eframe::App for Hp67App {
                     while started.elapsed() < UNLIMITED_SLICE_BUDGET {
                         result = machine.advance_word_budget(UNLIMITED_BATCH_WORDS);
                         if result.is_err() {
+                            break;
+                        }
+                        // Firmware may assert motor-on during this batch.
+                        if !unlimited_processing_allowed(
+                            self.unlimited_speed,
+                            self.card_phase,
+                            machine.magnetic_card_inserted()
+                                || machine.card_motor_on()
+                                || machine.card_record_stream_active(),
+                        ) {
+                            unlimited_active = false;
                             break;
                         }
                     }
@@ -1637,7 +1674,7 @@ impl eframe::App for Hp67App {
             // Keep the physical firmware machine advancing after boot idle as well
             // as during startup. The same cadence also samples held/released key
             // contacts without introducing host-side calculator semantics.
-            if self.unlimited_speed {
+            if unlimited_active {
                 ctx.request_repaint();
             } else {
                 ctx.request_repaint_after(Duration::from_micros(4_800));
@@ -1658,6 +1695,29 @@ impl eframe::App for Hp67App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unlimited_processing_keeps_card_motion_and_reader_at_realtime() {
+        // A waiting card must remain at 1x even before firmware starts motor-on.
+        for phase in [
+            ProgramCardPhase::WaitingAtReader,
+            ProgramCardPhase::ReadingFromRight,
+            ProgramCardPhase::InsertingWindowFromRight,
+        ] {
+            assert!(!unlimited_processing_allowed(true, phase, false));
+            assert!(!unlimited_processing_allowed(true, phase, true));
+        }
+        // Reader occupancy/motor/stream protect timing independently of UI phase.
+        for phase in [
+            ProgramCardPhase::Idle,
+            ProgramCardPhase::ParkedLeft,
+            ProgramCardPhase::InWindow,
+        ] {
+            assert!(!unlimited_processing_allowed(true, phase, true));
+            assert!(unlimited_processing_allowed(true, phase, false));
+            assert!(!unlimited_processing_allowed(false, phase, false));
+        }
+    }
 
     #[test]
     fn web_program_library_uses_compact_flow_for_phone_sized_viewports() {
