@@ -1480,7 +1480,10 @@ impl eframe::App for Hp67App {
                     }
                 });
                 ui.menu_button("Speed", |ui| {
-                    if ui.checkbox(&mut self.unlimited_speed, "Unlimited").changed() {
+                    if ui
+                        .checkbox(&mut self.unlimited_speed, "Unlimited")
+                        .changed()
+                    {
                         // Do not replay host time when switching pacing modes.
                         self.last_live_tick = None;
                     }

@@ -2321,22 +2321,28 @@ mod tests {
         for _ in 0..64 {
             unlimited.advance_word_budget(64).unwrap();
         }
-        paced.advance(Duration::from_micros(4096 * HP67_OBSERVED_WORD_TIME_US)).unwrap();
+        paced
+            .advance(Duration::from_micros(4096 * HP67_OBSERVED_WORD_TIME_US))
+            .unwrap();
         assert!(unlimited.boot_cycle > 0);
         assert_eq!(unlimited.backplane.tick(), paced.backplane.tick());
         assert_eq!(unlimited.backplane.tick().get(), unlimited.boot_cycle * 224);
         assert_eq!(unlimited.boot_cycle, paced.boot_cycle);
         assert_eq!(unlimited.pending_us, paced.pending_us);
-        assert_eq!(ActSerialStateSnapshot::capture(&unlimited.machine.act.state),
-            ActSerialStateSnapshot::capture(&paced.machine.act.state));
+        assert_eq!(
+            ActSerialStateSnapshot::capture(&unlimited.machine.act.state),
+            ActSerialStateSnapshot::capture(&paced.machine.act.state)
+        );
         assert_eq!(unlimited.display_frame(), paced.display_frame());
         // Returning to real time adds only the newly elapsed duration.
         unlimited.advance(Duration::from_micros(517)).unwrap();
         paced.advance(Duration::from_micros(517)).unwrap();
         assert_eq!(unlimited.boot_cycle, paced.boot_cycle);
         assert_eq!(unlimited.pending_us, paced.pending_us);
-        assert_eq!(ActSerialStateSnapshot::capture(&unlimited.machine.act.state),
-            ActSerialStateSnapshot::capture(&paced.machine.act.state));
+        assert_eq!(
+            ActSerialStateSnapshot::capture(&unlimited.machine.act.state),
+            ActSerialStateSnapshot::capture(&paced.machine.act.state)
+        );
     }
 
     #[test]
