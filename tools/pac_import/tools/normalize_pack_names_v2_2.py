@@ -100,4 +100,3 @@ def main():
         manifest.write_text(json.dumps(data,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
     print('PACK NAMES OK: '+', '.join(dict.fromkeys(re.findall(r'pack: "([^"]+)"',new))),flush=True)
 if __name__=='__main__':main()
-
