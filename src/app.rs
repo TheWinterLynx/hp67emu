@@ -1381,11 +1381,7 @@ impl Hp67App {
 // The reader and firmware handshake share simulation time. Keep their normal
 // wall-clock pacing while a card is moving instead of accelerating transport
 // or making its image lag behind already-completed media operations.
-fn unlimited_processing_allowed(
-    enabled: bool,
-    phase: ProgramCardPhase,
-    reader_busy: bool,
-) -> bool {
+fn unlimited_processing_allowed(enabled: bool, phase: ProgramCardPhase, reader_busy: bool) -> bool {
     enabled
         && !reader_busy
         && !matches!(
