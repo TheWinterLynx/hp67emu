@@ -375,7 +375,7 @@ mod tests {
         let bytes = embedded("hp67-pac-standard-en.pdf").unwrap();
         let pdf = Pdf::new(Arc::new(bytes)).unwrap();
         let cache = RenderCache::new();
-        let image = render_page(&pdf, &cache, 9, 480).unwrap();
+        let image = render_page(&pdf, &cache, 13, 480).unwrap();
         assert!(image.size[0] > 100 && image.size[1] > 100);
         assert!(image.pixels.windows(2).any(|pair| pair[0] != pair[1]));
         assert!(render_page(&pdf, &cache, pdf.pages().len(), 480).is_err());
