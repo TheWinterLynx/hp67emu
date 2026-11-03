@@ -1,0 +1,9 @@
+{
+  "catalog_entries": 438,
+  "native_imported_cards": 401,
+  "recorded_tracks": 790,
+  "atlas_rows": 349,
+  "source_faces": 232,
+  "branch": "agent/import-all-pacs-local-v2",
+  "validation_scope": "Container/checksum/source preservation and extraction checks performed by Python. Run owner Rust gate before merge."
+}

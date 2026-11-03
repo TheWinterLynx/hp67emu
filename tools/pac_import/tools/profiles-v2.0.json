@@ -1,0 +1,2852 @@
+{
+  "me": {
+    "file": "hp6797-pac-mecheng-en.pdf",
+    "sha256": "c5bb97019b19803aa39bdc7ceb34dbd80f5b6b4d961f2337425ea7b43ce4d658",
+    "rows": [
+      {
+        "page": 10,
+        "rect": [
+          83.0,
+          68.0,
+          285.0,
+          101.0
+        ],
+        "header": "01-01 VECTOR STATICS",
+        "app": 1,
+        "id": "me-01"
+      },
+      {
+        "page": 18,
+        "rect": [
+          83.0,
+          65.0,
+          284.0,
+          98.0
+        ],
+        "header": "02-01 SECTION PROPERTIES",
+        "app": 2,
+        "id": "me-02"
+      },
+      {
+        "page": 18,
+        "rect": [
+          83.0,
+          111.0,
+          284.0,
+          142.0
+        ],
+        "header": "02-01 SECTION PROPERTIES",
+        "app": 2,
+        "id": "me-03"
+      },
+      {
+        "page": 28,
+        "rect": [
+          90.0,
+          69.0,
+          291.0,
+          101.0
+        ],
+        "header": "03-01 STRESS ON AN ELEMENT",
+        "app": 3,
+        "id": "me-04"
+      },
+      {
+        "page": 34,
+        "rect": [
+          87.0,
+          66.0,
+          288.0,
+          98.0
+        ],
+        "header": "04-01 SODERBERG\u2019S EQUATION FOR FATIGUE",
+        "app": 4,
+        "id": "me-05"
+      },
+      {
+        "page": 38,
+        "rect": [
+          91.0,
+          67.0,
+          292.0,
+          99.0
+        ],
+        "header": "05-01 CANTILEVER BEAMS",
+        "app": 5,
+        "id": "me-06"
+      },
+      {
+        "page": 44,
+        "rect": [
+          82.0,
+          68.0,
+          284.0,
+          100.0
+        ],
+        "header": "06-01 SIMPLY SUPPORTED BEAMS",
+        "app": 6,
+        "id": "me-07"
+      },
+      {
+        "page": 50,
+        "rect": [
+          81.0,
+          68.0,
+          283.0,
+          101.0
+        ],
+        "header": "07-01 BEAMS FIXED AT BOTH ENDS",
+        "app": 7,
+        "id": "me-08"
+      },
+      {
+        "page": 56,
+        "rect": [
+          82.0,
+          69.0,
+          283.0,
+          102.0
+        ],
+        "header": "08-01 PROPPED CANTILEVER BEAMS",
+        "app": 8,
+        "id": "me-09"
+      },
+      {
+        "page": 62,
+        "rect": [
+          89.0,
+          68.0,
+          291.0,
+          100.0
+        ],
+        "header": "09-01 HELICAL SPRING DESIGN",
+        "app": 9,
+        "id": "me-10"
+      },
+      {
+        "page": 74,
+        "rect": [
+          83.0,
+          66.0,
+          285.0,
+          98.0
+        ],
+        "header": "10-01 FOUR BAR FUNCTION GENERATOR",
+        "app": 10,
+        "id": "me-11"
+      },
+      {
+        "page": 74,
+        "rect": [
+          84.0,
+          111.0,
+          285.0,
+          143.0
+        ],
+        "header": "10-01 FOUR BAR FUNCTION GENERATOR",
+        "app": 10,
+        "id": "me-12"
+      },
+      {
+        "page": 80,
+        "rect": [
+          80.0,
+          70.0,
+          282.0,
+          102.0
+        ],
+        "header": "11-01 PROGRESSION OF FOUR BAR SYSTEM",
+        "app": 11,
+        "id": "me-13"
+      },
+      {
+        "page": 88,
+        "rect": [
+          81.0,
+          71.0,
+          283.0,
+          104.0
+        ],
+        "header": "12-01 PROGRESSION OF SLIDER CRANK",
+        "app": 12,
+        "id": "me-14"
+      },
+      {
+        "page": 96,
+        "rect": [
+          87.0,
+          66.0,
+          289.0,
+          98.0
+        ],
+        "header": "13-01 CIRCULAR CAMS",
+        "app": 13,
+        "id": "me-15"
+      },
+      {
+        "page": 108,
+        "rect": [
+          80.0,
+          69.0,
+          282.0,
+          101.0
+        ],
+        "header": "14-01 LINEAR CAMS",
+        "app": 14,
+        "id": "me-16"
+      },
+      {
+        "page": 116,
+        "rect": [
+          84.0,
+          69.0,
+          285.0,
+          101.0
+        ],
+        "header": "15-01 GEAR FORCES",
+        "app": 15,
+        "id": "me-17"
+      },
+      {
+        "page": 122,
+        "rect": [
+          84.0,
+          78.0,
+          286.0,
+          110.0
+        ],
+        "header": "16-01 STANDARD EXTERNAL",
+        "app": 16,
+        "id": "me-18"
+      },
+      {
+        "page": 126,
+        "rect": [
+          87.0,
+          65.0,
+          289.0,
+          98.0
+        ],
+        "header": "17-01 BELT LENGTH",
+        "app": 17,
+        "id": "me-19"
+      },
+      {
+        "page": 132,
+        "rect": [
+          84.0,
+          64.0,
+          286.0,
+          96.0
+        ],
+        "header": "18-01 FREE VIBRATIONS",
+        "app": 18,
+        "id": "me-20"
+      },
+      {
+        "page": 144,
+        "rect": [
+          83.0,
+          70.0,
+          281.0,
+          101.0
+        ],
+        "header": "19-01 VIBRATION FORCED BY F, cos ot",
+        "app": 19,
+        "id": "me-21"
+      },
+      {
+        "page": 150,
+        "rect": [
+          78.0,
+          68.0,
+          281.0,
+          100.0
+        ],
+        "header": "20-01 EQUATIONS OF STATE",
+        "app": 20,
+        "id": "me-22"
+      },
+      {
+        "page": 154,
+        "rect": [
+          83.0,
+          69.0,
+          286.0,
+          101.0
+        ],
+        "header": "21-01 ISENTROPIC FLOW FOR IDEAL GASES",
+        "app": 21,
+        "id": "me-23"
+      },
+      {
+        "page": 158,
+        "rect": [
+          89.0,
+          70.0,
+          291.0,
+          102.0
+        ],
+        "header": "22-01 CONDUIT FLOW",
+        "app": 22,
+        "id": "me-24"
+      },
+      {
+        "page": 164,
+        "rect": [
+          86.0,
+          65.0,
+          288.0,
+          97.0
+        ],
+        "header": "23-01 PARALLEL & COUNTER FLOW HEAT EXCHANGERS",
+        "app": 23,
+        "id": "me-25"
+      },
+      {
+        "page": 164,
+        "rect": [
+          86.0,
+          110.0,
+          287.0,
+          142.0
+        ],
+        "header": "23-01 PARALLEL & COUNTER FLOW HEAT EXCHANGERS",
+        "app": 23,
+        "id": "me-26"
+      }
+    ]
+  },
+  "surveying": {
+    "file": "hp6797-pac-surveying-en.pdf",
+    "sha256": "0616c6a1df86bf2b2d2a94973fb8220725268dd46bf670d17d91c98c86207b9e",
+    "rows": [
+      {
+        "page": 8,
+        "rect": [
+          88.0,
+          73.0,
+          290.0,
+          105.0
+        ],
+        "header": "01-01 TRAVERSE, INVERSE AND SIDESHOTS",
+        "app": 1,
+        "id": "surveying-01"
+      },
+      {
+        "page": 28,
+        "rect": [
+          87.0,
+          69.0,
+          289.0,
+          102.0
+        ],
+        "header": "02-01 TRAVERSE ADJUSTMENT",
+        "app": 2,
+        "id": "surveying-02"
+      },
+      {
+        "page": 34,
+        "rect": [
+          86.0,
+          68.0,
+          287.0,
+          100.0
+        ],
+        "header": "03-01 INTERSECTIONS",
+        "app": 3,
+        "id": "surveying-03"
+      },
+      {
+        "page": 38,
+        "rect": [
+          89.0,
+          73.0,
+          291.0,
+          106.0
+        ],
+        "header": "04-01 CURVE SOLUTIONS",
+        "app": 4,
+        "id": "surveying-04"
+      },
+      {
+        "page": 42,
+        "rect": [
+          90.0,
+          70.0,
+          292.0,
+          102.0
+        ],
+        "header": "05-01 HORIZONTAL CURVE LAYOUT",
+        "app": 5,
+        "id": "surveying-05"
+      },
+      {
+        "page": 50,
+        "rect": [
+          93.0,
+          73.0,
+          296.0,
+          105.0
+        ],
+        "header": "06-01 SPIRAL CURVE LAYOUT",
+        "app": 6,
+        "id": "surveying-06"
+      },
+      {
+        "page": 58,
+        "rect": [
+          89.0,
+          69.0,
+          290.0,
+          101.0
+        ],
+        "header": "07-01 VERTICAL CURVES AND GRADES",
+        "app": 7,
+        "id": "surveying-07"
+      },
+      {
+        "page": 64,
+        "rect": [
+          92.0,
+          62.0,
+          286.0,
+          93.0
+        ],
+        "header": "08-01 RESECTION",
+        "app": 8,
+        "id": "surveying-08"
+      },
+      {
+        "page": 68,
+        "rect": [
+          89.0,
+          65.0,
+          291.0,
+          98.0
+        ],
+        "header": "09-01 TWO INSTRUMENT RADIAL SURVEY",
+        "app": 9,
+        "id": "surveying-09"
+      },
+      {
+        "page": 72,
+        "rect": [
+          86.0,
+          71.0,
+          287.0,
+          101.0
+        ],
+        "header": "10-01 EDM SLOPE REDUCTION",
+        "app": 10,
+        "id": "surveying-10"
+      },
+      {
+        "page": 76,
+        "rect": [
+          89.0,
+          69.0,
+          291.0,
+          101.0
+        ],
+        "header": "11-01 STADIA RED./3-WIRE LEVEL",
+        "app": 11,
+        "id": "surveying-11"
+      },
+      {
+        "page": 82,
+        "rect": [
+          90.0,
+          70.0,
+          292.0,
+          102.0
+        ],
+        "header": "12-01 TAPING REDUCTION/FIELD ANGLE CHECK",
+        "app": 12,
+        "id": "surveying-12"
+      },
+      {
+        "page": 86,
+        "rect": [
+          93.0,
+          66.0,
+          295.0,
+          99.0
+        ],
+        "header": "13-01 AZIMUTH OF THE SUN",
+        "app": 13,
+        "id": "surveying-13"
+      },
+      {
+        "page": 90,
+        "rect": [
+          93.0,
+          66.0,
+          295.0,
+          98.0
+        ],
+        "header": "14-01 PREDETERMINED AREA",
+        "app": 14,
+        "id": "surveying-14"
+      },
+      {
+        "page": 96,
+        "rect": [
+          95.0,
+          62.0,
+          294.0,
+          93.0
+        ],
+        "header": "15-01 EARTHWORK",
+        "app": 15,
+        "id": "surveying-15"
+      },
+      {
+        "page": 102,
+        "rect": [
+          92.0,
+          69.0,
+          293.0,
+          101.0
+        ],
+        "header": "16-01 COORDINATE TRANSFORMATION",
+        "app": 16,
+        "id": "surveying-16"
+      },
+      {
+        "page": 106,
+        "rect": [
+          88.0,
+          67.0,
+          290.0,
+          100.0
+        ],
+        "header": "17-01 STATE PLANE COORDINATES\u2014LAMBERT",
+        "app": 17,
+        "id": "surveying-17"
+      },
+      {
+        "page": 106,
+        "rect": [
+          89.0,
+          113.0,
+          289.0,
+          145.0
+        ],
+        "header": "17-01 STATE PLANE COORDINATES\u2014LAMBERT",
+        "app": 17,
+        "id": "surveying-18"
+      },
+      {
+        "page": 106,
+        "rect": [
+          88.0,
+          158.0,
+          290.0,
+          191.0
+        ],
+        "header": "17-01 STATE PLANE COORDINATES\u2014LAMBERT",
+        "app": 17,
+        "id": "surveying-19"
+      },
+      {
+        "page": 116,
+        "rect": [
+          92.0,
+          69.0,
+          293.0,
+          101.0
+        ],
+        "header": "18-01 STATE PLANE COORDINATES\u2014TRANSVERSE MERCATOR",
+        "app": 18,
+        "id": "surveying-20"
+      },
+      {
+        "page": 116,
+        "rect": [
+          90.0,
+          115.0,
+          292.0,
+          146.0
+        ],
+        "header": "18-01 STATE PLANE COORDINATES\u2014TRANSVERSE MERCATOR",
+        "app": 18,
+        "id": "surveying-21"
+      },
+      {
+        "page": 116,
+        "rect": [
+          91.0,
+          158.0,
+          293.0,
+          190.0
+        ],
+        "header": "18-01 STATE PLANE COORDINATES\u2014TRANSVERSE MERCATOR",
+        "app": 18,
+        "id": "surveying-22"
+      },
+      {
+        "page": 124,
+        "rect": [
+          89.0,
+          65.0,
+          290.0,
+          97.0
+        ],
+        "header": "19-01 STATE PLANE COORDINATES\u2014ALASKA ZONES 2-9",
+        "app": 19,
+        "id": "surveying-23"
+      },
+      {
+        "page": 124,
+        "rect": [
+          89.0,
+          111.0,
+          290.0,
+          142.0
+        ],
+        "header": "19-01 STATE PLANE COORDINATES\u2014ALASKA ZONES 2-9",
+        "app": 19,
+        "id": "surveying-24"
+      },
+      {
+        "page": 124,
+        "rect": [
+          90.0,
+          158.0,
+          291.0,
+          189.0
+        ],
+        "header": "19-01 STATE PLANE COORDINATES\u2014ALASKA ZONES 2-9",
+        "app": 19,
+        "id": "surveying-25"
+      },
+      {
+        "page": 124,
+        "rect": [
+          90.0,
+          204.0,
+          291.0,
+          236.0
+        ],
+        "header": "19-01 STATE PLANE COORDINATES\u2014ALASKA ZONES 2-9",
+        "app": 19,
+        "id": "surveying-26"
+      }
+    ]
+  },
+  "navigation": {
+    "file": "hp6797-pac-navigation-en.pdf",
+    "sha256": "9cb296eea72544623992d47f3c5490de06b2e5d0abbdc143238ac3acfcbe33d3",
+    "rows": [
+      {
+        "page": 10,
+        "rect": [
+          93.0,
+          62.0,
+          289.0,
+          93.0
+        ],
+        "header": "01-01 ESTIMATED TIME OF ARRIVAL",
+        "app": 1,
+        "id": "navigation-01"
+      },
+      {
+        "page": 12,
+        "rect": [
+          93.0,
+          62.0,
+          288.0,
+          93.0
+        ],
+        "header": "02-01 GREAT CIRCLE AND RHUMBLINE NAVIGATION",
+        "app": 2,
+        "id": "navigation-02"
+      },
+      {
+        "page": 22,
+        "rect": [
+          90.0,
+          59.0,
+          284.0,
+          90.0
+        ],
+        "header": "03-01 DEAD RECKONING",
+        "app": 3,
+        "id": "navigation-03"
+      },
+      {
+        "page": 28,
+        "rect": [
+          91.0,
+          62.0,
+          287.0,
+          93.0
+        ],
+        "header": "04-01 VELOCITY TRIANGLE and COURSE TO STEER",
+        "app": 4,
+        "id": "navigation-04"
+      },
+      {
+        "page": 32,
+        "rect": [
+          97.0,
+          62.0,
+          291.0,
+          93.0
+        ],
+        "header": "05-01 STAR SIGHT PLANNING",
+        "app": 5,
+        "id": "navigation-05"
+      },
+      {
+        "page": 32,
+        "rect": [
+          97.0,
+          115.0,
+          291.0,
+          145.0
+        ],
+        "header": "05-01 STAR SIGHT PLANNING",
+        "app": 5,
+        "id": "navigation-06"
+      },
+      {
+        "page": 42,
+        "rect": [
+          91.0,
+          65.0,
+          288.0,
+          96.0
+        ],
+        "header": "06-01 ALMANAC INTERPOLATOR",
+        "app": 6,
+        "id": "navigation-07"
+      },
+      {
+        "page": 46,
+        "rect": [
+          97.0,
+          66.0,
+          290.0,
+          96.0
+        ],
+        "header": "07-01 SUN LINE OF POSITION",
+        "app": 7,
+        "id": "navigation-08"
+      },
+      {
+        "page": 50,
+        "rect": [
+          95.0,
+          63.0,
+          289.0,
+          94.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-09"
+      },
+      {
+        "page": 50,
+        "rect": [
+          95.0,
+          105.0,
+          290.0,
+          136.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-10"
+      },
+      {
+        "page": 50,
+        "rect": [
+          96.0,
+          150.0,
+          289.0,
+          180.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-11"
+      },
+      {
+        "page": 50,
+        "rect": [
+          95.0,
+          194.0,
+          289.0,
+          225.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-12"
+      },
+      {
+        "page": 50,
+        "rect": [
+          96.0,
+          237.0,
+          289.0,
+          268.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-13"
+      },
+      {
+        "page": 50,
+        "rect": [
+          96.0,
+          282.0,
+          289.0,
+          313.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-14"
+      },
+      {
+        "page": 50,
+        "rect": [
+          96.0,
+          327.0,
+          289.0,
+          358.0
+        ],
+        "header": "08-01 STAR LINE OF POSITION",
+        "app": 8,
+        "id": "navigation-15"
+      },
+      {
+        "page": 54,
+        "rect": [
+          94.0,
+          60.0,
+          291.0,
+          90.0
+        ],
+        "header": "09-01 BEARING LINE OF POSITION",
+        "app": 9,
+        "id": "navigation-16"
+      },
+      {
+        "page": 58,
+        "rect": [
+          88.0,
+          63.0,
+          284.0,
+          94.0
+        ],
+        "header": "10-01 TWO-ANGLE LINE OF POSITION",
+        "app": 10,
+        "id": "navigation-17"
+      },
+      {
+        "page": 62,
+        "rect": [
+          99.0,
+          69.0,
+          295.0,
+          101.0
+        ],
+        "header": "11-01 FIX FROM TWO LINES OF POSITION",
+        "app": 11,
+        "id": "navigation-18"
+      },
+      {
+        "page": 72,
+        "rect": [
+          92.0,
+          63.0,
+          288.0,
+          94.0
+        ],
+        "header": "12-01 DISTANCE BY HORIZON ANGLE",
+        "app": 12,
+        "id": "navigation-19"
+      },
+      {
+        "page": 76,
+        "rect": [
+          90.0,
+          60.0,
+          287.0,
+          91.0
+        ],
+        "header": "13-01 CLOSEST POINT OF APPROACH",
+        "app": 13,
+        "id": "navigation-20"
+      },
+      {
+        "page": 80,
+        "rect": [
+          98.0,
+          62.0,
+          295.0,
+          92.0
+        ],
+        "header": "14-01 BEATING TO WINDWARD",
+        "app": 14,
+        "id": "navigation-21"
+      }
+    ]
+  },
+  "games": {
+    "file": "hp6797-pac-games-en.pdf",
+    "sha256": "95bbd7a707ab174e01b8d70694d44bede764653c0d449f1a60baa61a83431042",
+    "rows": [
+      {
+        "page": 10,
+        "rect": [
+          79.0,
+          189.0,
+          281.0,
+          221.0
+        ],
+        "header": "01-01",
+        "app": 1,
+        "id": "games-01"
+      },
+      {
+        "page": 14,
+        "rect": [
+          81.0,
+          195.0,
+          282.0,
+          227.0
+        ],
+        "header": "02-01",
+        "app": 2,
+        "id": "games-02"
+      },
+      {
+        "page": 18,
+        "rect": [
+          83.0,
+          177.0,
+          285.0,
+          209.0
+        ],
+        "header": "03-01",
+        "app": 3,
+        "id": "games-03"
+      },
+      {
+        "page": 20,
+        "rect": [
+          83.0,
+          125.0,
+          284.0,
+          157.0
+        ],
+        "header": "04-01",
+        "app": 4,
+        "id": "games-04"
+      },
+      {
+        "page": 28,
+        "rect": [
+          81.0,
+          156.0,
+          282.0,
+          187.0
+        ],
+        "header": "05-01",
+        "app": 5,
+        "id": "games-05"
+      },
+      {
+        "page": 34,
+        "rect": [
+          80.0,
+          154.0,
+          281.0,
+          185.0
+        ],
+        "header": "06-01 itit",
+        "app": 6,
+        "id": "games-06"
+      },
+      {
+        "page": 34,
+        "rect": [
+          79.0,
+          192.0,
+          281.0,
+          224.0
+        ],
+        "header": "06-01 itit",
+        "app": 6,
+        "id": "games-07"
+      },
+      {
+        "page": 46,
+        "rect": [
+          81.0,
+          119.0,
+          282.0,
+          151.0
+        ],
+        "header": "07-01",
+        "app": 7,
+        "id": "games-08"
+      },
+      {
+        "page": 50,
+        "rect": [
+          83.0,
+          125.0,
+          284.0,
+          156.0
+        ],
+        "header": "08-01",
+        "app": 8,
+        "id": "games-09"
+      },
+      {
+        "page": 56,
+        "rect": [
+          82.0,
+          71.0,
+          283.0,
+          103.0
+        ],
+        "header": "09-01",
+        "app": 9,
+        "id": "games-10"
+      },
+      {
+        "page": 58,
+        "rect": [
+          81.0,
+          71.0,
+          282.0,
+          103.0
+        ],
+        "header": "10-01",
+        "app": 10,
+        "id": "games-11"
+      },
+      {
+        "page": 66,
+        "rect": [
+          80.0,
+          69.0,
+          282.0,
+          101.0
+        ],
+        "header": "11-01",
+        "app": 11,
+        "id": "games-12"
+      },
+      {
+        "page": 72,
+        "rect": [
+          80.0,
+          71.0,
+          281.0,
+          103.0
+        ],
+        "header": "12-01",
+        "app": 12,
+        "id": "games-13"
+      },
+      {
+        "page": 82,
+        "rect": [
+          82.0,
+          73.0,
+          284.0,
+          104.0
+        ],
+        "header": "13-01",
+        "app": 13,
+        "id": "games-14"
+      },
+      {
+        "page": 92,
+        "rect": [
+          79.0,
+          71.0,
+          281.0,
+          103.0
+        ],
+        "header": "14-01",
+        "app": 14,
+        "id": "games-15"
+      },
+      {
+        "page": 96,
+        "rect": [
+          80.0,
+          67.0,
+          281.0,
+          99.0
+        ],
+        "header": "15-01",
+        "app": 15,
+        "id": "games-16"
+      },
+      {
+        "page": 114,
+        "rect": [
+          85.0,
+          180.0,
+          286.0,
+          212.0
+        ],
+        "header": "16-01",
+        "app": 16,
+        "id": "games-17"
+      },
+      {
+        "page": 120,
+        "rect": [
+          83.0,
+          142.0,
+          284.0,
+          173.0
+        ],
+        "header": "17-01",
+        "app": 17,
+        "id": "games-18"
+      },
+      {
+        "page": 126,
+        "rect": [
+          80.0,
+          70.0,
+          281.0,
+          102.0
+        ],
+        "header": "18-01",
+        "app": 18,
+        "id": "games-19"
+      },
+      {
+        "page": 132,
+        "rect": [
+          82.0,
+          69.0,
+          283.0,
+          102.0
+        ],
+        "header": "19-01",
+        "app": 19,
+        "id": "games-20"
+      }
+    ]
+  },
+  "stat": {
+    "file": "hp6797-pac-stat-en.pdf",
+    "sha256": "bad9a56dbddcec09319012650aa76f3a36f84c9a5ae5dcabe9e1e1cdb35f4650",
+    "rows": [
+      {
+        "page": 8,
+        "rect": [
+          84.0,
+          70.0,
+          286.0,
+          101.0
+        ],
+        "header": "01-01 BASIC STATISTICS FOR TWO VARIABLES",
+        "app": 1,
+        "id": "stat-01"
+      },
+      {
+        "page": 14,
+        "rect": [
+          86.0,
+          68.0,
+          287.0,
+          101.0
+        ],
+        "header": "02-01 FACTORIAL, PERMUTATION AND COMBINATION",
+        "app": 2,
+        "id": "stat-02"
+      },
+      {
+        "page": 18,
+        "rect": [
+          87.0,
+          79.0,
+          289.0,
+          112.0
+        ],
+        "header": "03-01 MOMENTS, SKEWNESS AND KURTOSIS",
+        "app": 3,
+        "id": "stat-03"
+      },
+      {
+        "page": 24,
+        "rect": [
+          81.0,
+          69.0,
+          282.0,
+          102.0
+        ],
+        "header": "04-01 RANDOM NUMBER GENERATOR",
+        "app": 4,
+        "id": "stat-04"
+      },
+      {
+        "page": 30,
+        "rect": [
+          88.0,
+          70.0,
+          289.0,
+          103.0
+        ],
+        "header": "05-01 HISTOGRAM",
+        "app": 5,
+        "id": "stat-05"
+      },
+      {
+        "page": 36,
+        "rect": [
+          81.0,
+          67.0,
+          285.0,
+          99.0
+        ],
+        "header": "06-01 ANALYSIS OF VARIANCE (ONE WAY)",
+        "app": 6,
+        "id": "stat-06"
+      },
+      {
+        "page": 42,
+        "rect": [
+          82.0,
+          82.0,
+          283.0,
+          115.0
+        ],
+        "header": "07-01 TWO WAY ANALYSIS OF VARIANCE (NO REPLICATIONS)",
+        "app": 7,
+        "id": "stat-07"
+      },
+      {
+        "page": 48,
+        "rect": [
+          87.0,
+          69.0,
+          289.0,
+          101.0
+        ],
+        "header": "08-01 ANALYSIS OF COVARIANCE (ONE WAY)",
+        "app": 8,
+        "id": "stat-08"
+      },
+      {
+        "page": 48,
+        "rect": [
+          87.0,
+          115.0,
+          290.0,
+          147.0
+        ],
+        "header": "08-01 ANALYSIS OF COVARIANCE (ONE WAY)",
+        "app": 8,
+        "id": "stat-09"
+      },
+      {
+        "page": 56,
+        "rect": [
+          82.0,
+          71.0,
+          284.0,
+          103.0
+        ],
+        "header": "09-01 NORMAL AND INVERSE NORMAL DISTRIBUTION",
+        "app": 9,
+        "id": "stat-10"
+      },
+      {
+        "page": 56,
+        "rect": [
+          82.0,
+          116.0,
+          283.0,
+          149.0
+        ],
+        "header": "09-01 NORMAL AND INVERSE NORMAL DISTRIBUTION",
+        "app": 9,
+        "id": "stat-11"
+      },
+      {
+        "page": 60,
+        "rect": [
+          84.0,
+          69.0,
+          286.0,
+          101.0
+        ],
+        "header": "10-01 CHI-SQUARE DISTRIBUTION",
+        "app": 10,
+        "id": "stat-12"
+      },
+      {
+        "page": 64,
+        "rect": [
+          87.0,
+          69.0,
+          289.0,
+          101.0
+        ],
+        "header": "11-01 t DISTRIBUTION",
+        "app": 11,
+        "id": "stat-13"
+      },
+      {
+        "page": 68,
+        "rect": [
+          83.0,
+          69.0,
+          285.0,
+          101.0
+        ],
+        "header": "12-01 F DISTRIBUTION",
+        "app": 12,
+        "id": "stat-14"
+      },
+      {
+        "page": 70,
+        "rect": [
+          80.0,
+          67.0,
+          280.0,
+          100.0
+        ],
+        "header": "13-01 MULTIPLE LINEAR REGRESSION",
+        "app": 13,
+        "id": "stat-15"
+      },
+      {
+        "page": 74,
+        "rect": [
+          82.0,
+          69.0,
+          283.0,
+          102.0
+        ],
+        "header": "14-01 POLYNOMIAL APPROXIMATION",
+        "app": 14,
+        "id": "stat-16"
+      },
+      {
+        "page": 74,
+        "rect": [
+          82.0,
+          115.0,
+          283.0,
+          147.0
+        ],
+        "header": "14-01 POLYNOMIAL APPROXIMATION",
+        "app": 14,
+        "id": "stat-17"
+      },
+      {
+        "page": 80,
+        "rect": [
+          89.0,
+          69.0,
+          291.0,
+          101.0
+        ],
+        "header": "15-01 t STATISTICS",
+        "app": 15,
+        "id": "stat-18"
+      },
+      {
+        "page": 86,
+        "rect": [
+          81.0,
+          68.0,
+          284.0,
+          100.0
+        ],
+        "header": "16-01 CHI-SQUARE EVALUATION",
+        "app": 16,
+        "id": "stat-19"
+      },
+      {
+        "page": 90,
+        "rect": [
+          84.0,
+          70.0,
+          285.0,
+          102.0
+        ],
+        "header": "17-01 CONTINGENCY TABLE",
+        "app": 17,
+        "id": "stat-20"
+      },
+      {
+        "page": 98,
+        "rect": [
+          85.0,
+          68.0,
+          287.0,
+          100.0
+        ],
+        "header": "18-01 SPEARMAN\u2019S RANK CORRELATION COEFFICIENT",
+        "app": 18,
+        "id": "stat-21"
+      },
+      {
+        "page": 104,
+        "rect": [
+          81.0,
+          71.0,
+          283.0,
+          103.0
+        ],
+        "header": "19-01 X AND R CONTROL CHARTS",
+        "app": 19,
+        "id": "stat-22"
+      },
+      {
+        "page": 110,
+        "rect": [
+          88.0,
+          70.0,
+          289.0,
+          102.0
+        ],
+        "header": "20-01 OPERATING CHARACTERISTIC CURVES",
+        "app": 20,
+        "id": "stat-23"
+      },
+      {
+        "page": 116,
+        "rect": [
+          84.0,
+          68.0,
+          285.0,
+          101.0
+        ],
+        "header": "21-01 SINGLE- AND MULTI-SERVER QUEUES",
+        "app": 21,
+        "id": "stat-24"
+      }
+    ]
+  },
+  "clinical": {
+    "file": "hp6797-pac-clinical-en.pdf",
+    "sha256": "c1b039315cf6908a0c574bcb8ad4d822942d2117e7dfb2d94c176eb430b9e768",
+    "rows": [
+      {
+        "page": 18,
+        "rect": [
+          85.0,
+          64.0,
+          287.0,
+          97.0
+        ],
+        "header": "01-01 BEER\u2019S LAW",
+        "app": 1,
+        "id": "clinical-01"
+      },
+      {
+        "page": 22,
+        "rect": [
+          84.0,
+          68.0,
+          285.0,
+          101.0
+        ],
+        "header": "02-01 PROTEIN ELECTROPHORESIS",
+        "app": 2,
+        "id": "clinical-02"
+      },
+      {
+        "page": 26,
+        "rect": [
+          85.0,
+          67.0,
+          286.0,
+          101.0
+        ],
+        "header": "03-01 LDH ISOENZYMES",
+        "app": 3,
+        "id": "clinical-03"
+      },
+      {
+        "page": 30,
+        "rect": [
+          82.0,
+          59.0,
+          283.0,
+          91.0
+        ],
+        "header": "04-01 BODY SURFACE AREA",
+        "app": 4,
+        "id": "clinical-04"
+      },
+      {
+        "page": 34,
+        "rect": [
+          83.0,
+          65.0,
+          285.0,
+          98.0
+        ],
+        "header": "05-01 UREA CLEARANCE",
+        "app": 5,
+        "id": "clinical-05"
+      },
+      {
+        "page": 38,
+        "rect": [
+          84.0,
+          65.0,
+          286.0,
+          96.0
+        ],
+        "header": "06-01 CREATININE CLEARANCE",
+        "app": 6,
+        "id": "clinical-06"
+      },
+      {
+        "page": 42,
+        "rect": [
+          81.0,
+          64.0,
+          283.0,
+          97.0
+        ],
+        "header": "07-01 AMNIOTIC FLUID ASSAY",
+        "app": 7,
+        "id": "clinical-07"
+      },
+      {
+        "page": 46,
+        "rect": [
+          84.0,
+          69.0,
+          286.0,
+          101.0
+        ],
+        "header": "08-01 BLOOD ACID-BASE STATUS",
+        "app": 8,
+        "id": "clinical-08"
+      },
+      {
+        "page": 50,
+        "rect": [
+          83.0,
+          66.0,
+          285.0,
+          99.0
+        ],
+        "header": "09-01 OXYGEN SATURATION AND CONTENT",
+        "app": 9,
+        "id": "clinical-09"
+      },
+      {
+        "page": 56,
+        "rect": [
+          84.0,
+          68.0,
+          286.0,
+          101.0
+        ],
+        "header": "10-01 RED CELL INDICES",
+        "app": 10,
+        "id": "clinical-10"
+      },
+      {
+        "page": 60,
+        "rect": [
+          83.0,
+          64.0,
+          285.0,
+          97.0
+        ],
+        "header": "11-01 TOTAL BLOOD VOLUME",
+        "app": 11,
+        "id": "clinical-11"
+      },
+      {
+        "page": 64,
+        "rect": [
+          81.0,
+          63.0,
+          282.0,
+          96.0
+        ],
+        "header": "12-01 SCHILLING TEST",
+        "app": 12,
+        "id": "clinical-12"
+      },
+      {
+        "page": 68,
+        "rect": [
+          85.0,
+          61.0,
+          286.0,
+          94.0
+        ],
+        "header": "13-01 THYROID UPTAKE",
+        "app": 13,
+        "id": "clinical-13"
+      },
+      {
+        "page": 74,
+        "rect": [
+          81.0,
+          64.0,
+          281.0,
+          96.0
+        ],
+        "header": "14-01 RADIOACTIVE DECAY CORRECTIONS",
+        "app": 14,
+        "id": "clinical-14"
+      },
+      {
+        "page": 78,
+        "rect": [
+          83.0,
+          67.0,
+          284.0,
+          99.0
+        ],
+        "header": "15-01 RADIOIMMUNOASSAY",
+        "app": 15,
+        "id": "clinical-15"
+      },
+      {
+        "page": 88,
+        "rect": [
+          86.0,
+          68.0,
+          287.0,
+          100.0
+        ],
+        "header": "16-01 BASIC STATISTICS",
+        "app": 16,
+        "id": "clinical-16"
+      },
+      {
+        "page": 92,
+        "rect": [
+          83.0,
+          64.0,
+          284.0,
+          97.0
+        ],
+        "header": "17-01 CHI-SQUARE EVALUATION AND DISTRIBUTION",
+        "app": 17,
+        "id": "clinical-17"
+      },
+      {
+        "page": 98,
+        "rect": [
+          82.0,
+          63.0,
+          283.0,
+          94.0
+        ],
+        "header": "18-01 t STATISTICS",
+        "app": 18,
+        "id": "clinical-18"
+      },
+      {
+        "page": 106,
+        "rect": [
+          86.0,
+          69.0,
+          286.0,
+          102.0
+        ],
+        "header": "19-01 t DISTRIBUTION",
+        "app": 19,
+        "id": "clinical-19"
+      }
+    ]
+  },
+  "math": {
+    "file": "hp6797-pac-math-en.pdf",
+    "sha256": "7f64927104070d8b2e4af8be60bb0d0cfb936634871262e9127a7d6994bb9d58",
+    "rows": [
+      {
+        "page": 8,
+        "rect": [
+          84.0,
+          72.0,
+          285.0,
+          105.0
+        ],
+        "header": "01-01 FACTORS AND PRIMES",
+        "app": 1,
+        "id": "math-01"
+      },
+      {
+        "page": 12,
+        "rect": [
+          83.0,
+          93.0,
+          284.0,
+          125.0
+        ],
+        "header": "02-01 GREATEST COMMON DIVISOR, LEAST COMMON MULTIPLE,",
+        "app": 2,
+        "id": "math-02"
+      },
+      {
+        "page": 18,
+        "rect": [
+          85.0,
+          70.0,
+          286.0,
+          102.0
+        ],
+        "header": "03-01 BASE CONVERSIONS",
+        "app": 3,
+        "id": "math-03"
+      },
+      {
+        "page": 22,
+        "rect": [
+          83.0,
+          70.0,
+          285.0,
+          103.0
+        ],
+        "header": "04-01 OPTIMAL SCALE FOR A GRAPH; PLOTTING",
+        "app": 4,
+        "id": "math-04"
+      },
+      {
+        "page": 28,
+        "rect": [
+          84.0,
+          73.0,
+          286.0,
+          105.0
+        ],
+        "header": "05-01 COMPLEX OPERATIONS",
+        "app": 5,
+        "id": "math-05"
+      },
+      {
+        "page": 34,
+        "rect": [
+          86.0,
+          73.0,
+          288.0,
+          106.0
+        ],
+        "header": "06-01 POLYNOMIAL SOLUTIONS",
+        "app": 6,
+        "id": "math-06"
+      },
+      {
+        "page": 38,
+        "rect": [
+          82.0,
+          70.0,
+          283.0,
+          102.0
+        ],
+        "header": "07-01 4x4 MATRIX OPERATIONS",
+        "app": 7,
+        "id": "math-07"
+      },
+      {
+        "page": 38,
+        "rect": [
+          83.0,
+          115.0,
+          284.0,
+          147.0
+        ],
+        "header": "07-01 4x4 MATRIX OPERATIONS",
+        "app": 7,
+        "id": "math-08"
+      },
+      {
+        "page": 46,
+        "rect": [
+          85.0,
+          71.0,
+          286.0,
+          104.0
+        ],
+        "header": "08-01 SOLUTION TO f(x)=0 ON AN INTERVAL",
+        "app": 8,
+        "id": "math-09"
+      },
+      {
+        "page": 50,
+        "rect": [
+          88.0,
+          69.0,
+          290.0,
+          102.0
+        ],
+        "header": "09-01 NUMERICAL INTEGRATION",
+        "app": 9,
+        "id": "math-10"
+      },
+      {
+        "page": 54,
+        "rect": [
+          82.0,
+          71.0,
+          284.0,
+          104.0
+        ],
+        "header": "10-01 GAUSSIAN QUADRATURE",
+        "app": 10,
+        "id": "math-11"
+      },
+      {
+        "page": 58,
+        "rect": [
+          82.0,
+          70.0,
+          284.0,
+          103.0
+        ],
+        "header": "11-01 DIFFERENTIAL EQUATIONS",
+        "app": 11,
+        "id": "math-12"
+      },
+      {
+        "page": 62,
+        "rect": [
+          86.0,
+          71.0,
+          288.0,
+          103.0
+        ],
+        "header": "12-01 INTERPOLATIONS",
+        "app": 12,
+        "id": "math-13"
+      },
+      {
+        "page": 66,
+        "rect": [
+          88.0,
+          71.0,
+          290.0,
+          103.0
+        ],
+        "header": "13-01 COORDINATE TRANSFORMATIONS",
+        "app": 13,
+        "id": "math-14"
+      },
+      {
+        "page": 72,
+        "rect": [
+          83.0,
+          94.0,
+          284.0,
+          127.0
+        ],
+        "header": "14-01 INTERSECTIONS OF LINES AND LINES, LINES AND CIRCLE",
+        "app": 14,
+        "id": "math-15"
+      },
+      {
+        "page": 80,
+        "rect": [
+          84.0,
+          71.0,
+          285.0,
+          104.0
+        ],
+        "header": "15-01 CIRCLE COMPUTATIONS",
+        "app": 15,
+        "id": "math-16"
+      },
+      {
+        "page": 88,
+        "rect": [
+          81.0,
+          69.0,
+          282.0,
+          103.0
+        ],
+        "header": "16-01 SPHERICAL TRIANGLES",
+        "app": 16,
+        "id": "math-17"
+      },
+      {
+        "page": 94,
+        "rect": [
+          84.0,
+          68.0,
+          285.0,
+          101.0
+        ],
+        "header": "17-01 GAMMA FUNCTION",
+        "app": 17,
+        "id": "math-18"
+      },
+      {
+        "page": 96,
+        "rect": [
+          87.0,
+          72.0,
+          288.0,
+          104.0
+        ],
+        "header": "18-01 BESSEL FUNCTIONS, ERROR FUNCTION",
+        "app": 18,
+        "id": "math-19"
+      },
+      {
+        "page": 102,
+        "rect": [
+          85.0,
+          73.0,
+          286.0,
+          105.0
+        ],
+        "header": "19-01 HYPERBOLICS",
+        "app": 19,
+        "id": "math-20"
+      }
+    ]
+  },
+  "business": {
+    "file": "hp6797-pac-business-en.pdf",
+    "sha256": "06a1318eb9dc0c1679851edf62309af82c32f7fb42ab9376767a853f3f8d4db6",
+    "rows": [
+      {
+        "page": 10,
+        "rect": [
+          85.0,
+          68.0,
+          286.0,
+          100.0
+        ],
+        "header": "01-01 INTERNAL RATE OF RETURN",
+        "app": 1,
+        "id": "business-01"
+      },
+      {
+        "page": 14,
+        "rect": [
+          86.0,
+          72.0,
+          287.0,
+          104.0
+        ],
+        "header": "02-01 INTERNAL RATE OF RETURN\u2014GROUPS OF CASH FLOWS",
+        "app": 2,
+        "id": "business-02"
+      },
+      {
+        "page": 18,
+        "rect": [
+          86.0,
+          77.0,
+          287.0,
+          109.0
+        ],
+        "header": "03-01 DISCOUNTED CASH FLOW ANALYSIS",
+        "app": 3,
+        "id": "business-03"
+      },
+      {
+        "page": 22,
+        "rect": [
+          88.0,
+          72.0,
+          290.0,
+          105.0
+        ],
+        "header": "04-01 DIRECT REDUCTION LOANS SINKING FUND",
+        "app": 4,
+        "id": "business-04"
+      },
+      {
+        "page": 28,
+        "rect": [
+          86.0,
+          68.0,
+          286.0,
+          101.0
+        ],
+        "header": "05-01 ACCUMULATED INTEREST/REMAINING BALANCE",
+        "app": 5,
+        "id": "business-05"
+      },
+      {
+        "page": 32,
+        "rect": [
+          86.0,
+          68.0,
+          288.0,
+          101.0
+        ],
+        "header": "06-01 WRAP-AROUND MORTGAGE",
+        "app": 6,
+        "id": "business-06"
+      },
+      {
+        "page": 36,
+        "rect": [
+          87.0,
+          77.0,
+          288.0,
+          109.0
+        ],
+        "header": "07-01 CONSTANT PAYMENT TO PRINCIPAL LOAN",
+        "app": 7,
+        "id": "business-07"
+      },
+      {
+        "page": 40,
+        "rect": [
+          87.0,
+          74.0,
+          288.0,
+          107.0
+        ],
+        "header": "08-01 ADD-ON RATE INSTALLMENT LOAN/ INTEREST REBATE\u2014RULE OF 78\u2019s",
+        "app": 8,
+        "id": "business-08"
+      },
+      {
+        "page": 42,
+        "rect": [
+          83.0,
+          69.0,
+          284.0,
+          102.0
+        ],
+        "header": "09-01 SAVINGS PLAN\u2014LEASES",
+        "app": 9,
+        "id": "business-09"
+      },
+      {
+        "page": 46,
+        "rect": [
+          82.0,
+          68.0,
+          284.0,
+          100.0
+        ],
+        "header": "10-01 ADVANCE PAYMENTS",
+        "app": 10,
+        "id": "business-10"
+      },
+      {
+        "page": 48,
+        "rect": [
+          85.0,
+          77.0,
+          286.0,
+          110.0
+        ],
+        "header": "11-01 SAVINGS-COMPOUNDING PERIODS",
+        "app": 11,
+        "id": "business-11"
+      },
+      {
+        "page": 50,
+        "rect": [
+          89.0,
+          66.0,
+          290.0,
+          98.0
+        ],
+        "header": "12-01 SIMPLE INTEREST/INTEREST CONVERSIONS",
+        "app": 12,
+        "id": "business-12"
+      },
+      {
+        "page": 54,
+        "rect": [
+          86.0,
+          62.0,
+          287.0,
+          95.0
+        ],
+        "header": "13-01 DEPRECIATION SCHEDULES",
+        "app": 13,
+        "id": "business-13"
+      },
+      {
+        "page": 62,
+        "rect": [
+          86.0,
+          70.0,
+          288.0,
+          103.0
+        ],
+        "header": "14-01 DAYS BETWEEN DATES",
+        "app": 14,
+        "id": "business-14"
+      },
+      {
+        "page": 64,
+        "rect": [
+          87.0,
+          68.0,
+          289.0,
+          100.0
+        ],
+        "header": "15-01 BOND PRICE AND YIELD",
+        "app": 15,
+        "id": "business-15"
+      },
+      {
+        "page": 70,
+        "rect": [
+          85.0,
+          66.0,
+          286.0,
+          98.0
+        ],
+        "header": "16-01 INTEREST AT MATURITY/DISCOUNTED SECURITIES",
+        "app": 16,
+        "id": "business-16"
+      },
+      {
+        "page": 74,
+        "rect": [
+          82.0,
+          80.0,
+          283.0,
+          112.0
+        ],
+        "header": "17-01 LINEAR REGRESSION\u2014EXPONENTIAL",
+        "app": 17,
+        "id": "business-17"
+      },
+      {
+        "page": 78,
+        "rect": [
+          86.0,
+          69.0,
+          288.0,
+          101.0
+        ],
+        "header": "18-01 MULTIPLE LINEAR REGRESSION",
+        "app": 18,
+        "id": "business-18"
+      },
+      {
+        "page": 82,
+        "rect": [
+          89.0,
+          65.0,
+          289.0,
+          97.0
+        ],
+        "header": "19-01 BREAK-EVEN ANALYSIS",
+        "app": 19,
+        "id": "business-19"
+      },
+      {
+        "page": 86,
+        "rect": [
+          85.0,
+          66.0,
+          286.0,
+          98.0
+        ],
+        "header": "20-01 INVOICING",
+        "app": 20,
+        "id": "business-20"
+      },
+      {
+        "page": 90,
+        "rect": [
+          83.0,
+          68.0,
+          284.0,
+          100.0
+        ],
+        "header": "21-01 PAYROLL",
+        "app": 21,
+        "id": "business-21"
+      },
+      {
+        "page": 96,
+        "rect": [
+          88.0,
+          68.0,
+          289.0,
+          100.0
+        ],
+        "header": "22-01 INVENTORY",
+        "app": 22,
+        "id": "business-22"
+      }
+    ]
+  },
+  "standard": {
+    "file": "hp67-pac-standard-en.pdf",
+    "sha256": "cb6003c270100f04848457acdf415722aef48a9ea5cd45cb7adfeaccf0540027",
+    "rows": [
+      {
+        "page": 14,
+        "rect": [
+          81.0,
+          72.0,
+          282.0,
+          104.0
+        ],
+        "header": "01-01 MOVING AVERAGE",
+        "app": 1,
+        "id": "standard-01"
+      },
+      {
+        "page": 18,
+        "rect": [
+          85.0,
+          68.0,
+          286.0,
+          100.0
+        ],
+        "header": "02-01 TABULATOR",
+        "app": 2,
+        "id": "standard-02"
+      },
+      {
+        "page": 22,
+        "rect": [
+          87.0,
+          74.0,
+          287.0,
+          106.0
+        ],
+        "header": "03-01 CURVE FITTING",
+        "app": 3,
+        "id": "standard-03"
+      },
+      {
+        "page": 30,
+        "rect": [
+          82.0,
+          68.0,
+          283.0,
+          99.0
+        ],
+        "header": "04-01 CALENDAR FUNCTIONS",
+        "app": 4,
+        "id": "standard-04"
+      },
+      {
+        "page": 34,
+        "rect": [
+          83.0,
+          70.0,
+          283.0,
+          101.0
+        ],
+        "header": "05-01 ANNUITIES AND COMPOUND AMOUNTS",
+        "app": 5,
+        "id": "standard-05"
+      },
+      {
+        "page": 42,
+        "rect": [
+          84.0,
+          71.0,
+          284.0,
+          103.0
+        ],
+        "header": "06-01 FOLLOW ME",
+        "app": 6,
+        "id": "standard-06"
+      },
+      {
+        "page": 48,
+        "rect": [
+          85.0,
+          72.0,
+          285.0,
+          104.0
+        ],
+        "header": "07-01 TRIANGLE SOLUTIONS",
+        "app": 7,
+        "id": "standard-07"
+      },
+      {
+        "page": 54,
+        "rect": [
+          85.0,
+          72.0,
+          285.0,
+          104.0
+        ],
+        "header": "08-01 VECTOR OPERATIONS",
+        "app": 8,
+        "id": "standard-08"
+      },
+      {
+        "page": 60,
+        "rect": [
+          82.0,
+          67.0,
+          283.0,
+          99.0
+        ],
+        "header": "09-01 POLYNOMIAL EVALUATION",
+        "app": 9,
+        "id": "standard-09"
+      },
+      {
+        "page": 64,
+        "rect": [
+          83.0,
+          72.0,
+          283.0,
+          104.0
+        ],
+        "header": "10-01 3 X 3 MATRIX OPERATIONS",
+        "app": 10,
+        "id": "standard-10"
+      },
+      {
+        "page": 72,
+        "rect": [
+          83.0,
+          73.0,
+          283.0,
+          104.0
+        ],
+        "header": "11-01 CALCULUS AND ROOTS OF f(X)",
+        "app": 11,
+        "id": "standard-11"
+      },
+      {
+        "page": 82,
+        "rect": [
+          83.0,
+          67.0,
+          284.0,
+          101.0
+        ],
+        "header": "12-01 ENGLISH-SI CONVERSIONS",
+        "app": 12,
+        "id": "standard-12"
+      },
+      {
+        "page": 86,
+        "rect": [
+          85.0,
+          70.0,
+          285.0,
+          102.0
+        ],
+        "header": "13-01 ARITHMETIC TEACHER",
+        "app": 13,
+        "id": "standard-13"
+      },
+      {
+        "page": 90,
+        "rect": [
+          86.0,
+          71.0,
+          286.0,
+          103.0
+        ],
+        "header": "14-01 MOON ROCKET LANDER",
+        "app": 14,
+        "id": "standard-14"
+      },
+      {
+        "page": 92,
+        "rect": [
+          79.0,
+          68.0,
+          280.0,
+          100.0
+        ],
+        "header": "15-01 DIAGNOSTIC PROGRAM",
+        "app": 15,
+        "id": "standard-15"
+      }
+    ]
+  },
+  "civil": {
+    "file": "hp6797-pac-civileng-en.pdf",
+    "sha256": "06cadc80728c2d639af6ff93c4d995411e897dc0b93b9dc71b144ee3070cd84a",
+    "rows": [
+      {
+        "page": 8,
+        "rect": [
+          90.0,
+          74.0,
+          284.0,
+          106.0
+        ],
+        "header": "01-01 VECTOR STATICS",
+        "app": 1,
+        "id": "civil-01"
+      },
+      {
+        "page": 16,
+        "rect": [
+          89.0,
+          73.0,
+          283.0,
+          103.0
+        ],
+        "header": "02-01 SECTION PROPERTIES",
+        "app": 2,
+        "id": "civil-02"
+      },
+      {
+        "page": 16,
+        "rect": [
+          90.0,
+          118.0,
+          282.0,
+          149.0
+        ],
+        "header": "02-01 SECTION PROPERTIES",
+        "app": 2,
+        "id": "civil-03"
+      },
+      {
+        "page": 26,
+        "rect": [
+          91.0,
+          73.0,
+          285.0,
+          104.0
+        ],
+        "header": "03-01 PROPERTIES OF SPECIAL SECTIONS",
+        "app": 3,
+        "id": "civil-04"
+      },
+      {
+        "page": 30,
+        "rect": [
+          89.0,
+          74.0,
+          283.0,
+          105.0
+        ],
+        "header": "04-01 STRESS ON AN ELEMENT",
+        "app": 4,
+        "id": "civil-05"
+      },
+      {
+        "page": 36,
+        "rect": [
+          92.0,
+          71.0,
+          286.0,
+          101.0
+        ],
+        "header": "05-01 BENDING OR TORSIONAL STRESS",
+        "app": 5,
+        "id": "civil-06"
+      },
+      {
+        "page": 40,
+        "rect": [
+          90.0,
+          74.0,
+          285.0,
+          106.0
+        ],
+        "header": "06-01 LINEAR OR ANGULAR DEFORMATION",
+        "app": 6,
+        "id": "civil-07"
+      },
+      {
+        "page": 44,
+        "rect": [
+          89.0,
+          74.0,
+          283.0,
+          105.0
+        ],
+        "header": "07-01 CANTILEVER BEAMS",
+        "app": 7,
+        "id": "civil-08"
+      },
+      {
+        "page": 50,
+        "rect": [
+          91.0,
+          74.0,
+          284.0,
+          105.0
+        ],
+        "header": "08-01 CANTILEVER BEAMS\u2014TRAPEZOIDAL LOADING",
+        "app": 8,
+        "id": "civil-09"
+      },
+      {
+        "page": 54,
+        "rect": [
+          95.0,
+          73.0,
+          287.0,
+          104.0
+        ],
+        "header": "09-01 SIMPLY SUPPORTED BEAMS",
+        "app": 9,
+        "id": "civil-10"
+      },
+      {
+        "page": 60,
+        "rect": [
+          88.0,
+          74.0,
+          281.0,
+          104.0
+        ],
+        "header": "10-01 SIMPLY SUPPORTED BEAMS\u2014TRAPEZOIDAL LOADING",
+        "app": 10,
+        "id": "civil-11"
+      },
+      {
+        "page": 64,
+        "rect": [
+          91.0,
+          74.0,
+          284.0,
+          104.0
+        ],
+        "header": "11-01 BEAMS FIXED AT BOTH ENDS",
+        "app": 11,
+        "id": "civil-12"
+      },
+      {
+        "page": 70,
+        "rect": [
+          94.0,
+          73.0,
+          286.0,
+          104.0
+        ],
+        "header": "12-01 BEAMS FIXED AT BOTH ENDS\u2014TRAPEZOIDAL LOADING",
+        "app": 12,
+        "id": "civil-13"
+      },
+      {
+        "page": 74,
+        "rect": [
+          89.0,
+          75.0,
+          282.0,
+          106.0
+        ],
+        "header": "13-01 PROPPED CANTILEVER BEAMS",
+        "app": 13,
+        "id": "civil-14"
+      },
+      {
+        "page": 80,
+        "rect": [
+          92.0,
+          74.0,
+          285.0,
+          104.0
+        ],
+        "header": "14-01 PROPPED CANTILEVER BEAMS\u2014TRAPEZOIDAL LOADING",
+        "app": 14,
+        "id": "civil-15"
+      },
+      {
+        "page": 84,
+        "rect": [
+          91.0,
+          69.0,
+          283.0,
+          100.0
+        ],
+        "header": "15-01 SIX-SPAN CONTINUOUS BEAMS",
+        "app": 15,
+        "id": "civil-16"
+      },
+      {
+        "page": 90,
+        "rect": [
+          89.0,
+          73.0,
+          283.0,
+          104.0
+        ],
+        "header": "16-01 STEEL COLUMN FORMULA",
+        "app": 16,
+        "id": "civil-17"
+      },
+      {
+        "page": 94,
+        "rect": [
+          88.0,
+          74.0,
+          282.0,
+          105.0
+        ],
+        "header": "17-01 REINFORCED CONCRETE BEAMS",
+        "app": 17,
+        "id": "civil-18"
+      },
+      {
+        "page": 100,
+        "rect": [
+          90.0,
+          72.0,
+          282.0,
+          103.0
+        ],
+        "header": "18-01 BOLT TORQUE",
+        "app": 18,
+        "id": "civil-19"
+      }
+    ]
+  },
+  "ee": {
+    "file": "hp6797-pac-eleceng-en.pdf",
+    "sha256": "3e79cf55901f5ebb8542445410e085285f829c478a469b680d10236e61d7a5e6",
+    "rows": [
+      {
+        "page": 10,
+        "rect": [
+          84.0,
+          64.0,
+          287.0,
+          96.0
+        ],
+        "header": "01-01 NETWORK TRANSFER FUNCTIONS",
+        "app": 1,
+        "id": "ee-01"
+      },
+      {
+        "page": 10,
+        "rect": [
+          85.0,
+          111.0,
+          286.0,
+          144.0
+        ],
+        "header": "01-01 NETWORK TRANSFER FUNCTIONS",
+        "app": 1,
+        "id": "ee-02"
+      },
+      {
+        "page": 16,
+        "rect": [
+          81.0,
+          65.0,
+          283.0,
+          97.0
+        ],
+        "header": "02-01 2. REACTIVE L-NETWORK IMPEDANCE MATCHING",
+        "app": 2,
+        "id": "ee-03"
+      },
+      {
+        "page": 20,
+        "rect": [
+          84.0,
+          67.0,
+          286.0,
+          100.0
+        ],
+        "header": "03-01 3. CLASS A TRANSISTOR AMPLIFIER BIAS OPTIMIZATION",
+        "app": 3,
+        "id": "ee-04"
+      },
+      {
+        "page": 26,
+        "rect": [
+          85.0,
+          70.0,
+          287.0,
+          102.0
+        ],
+        "header": "04-01 4. TRANSISTOR AMPLIFIER PERFORMANCE",
+        "app": 4,
+        "id": "ee-05"
+      },
+      {
+        "page": 30,
+        "rect": [
+          83.0,
+          69.0,
+          285.0,
+          101.0
+        ],
+        "header": "05-01 5. TRANSISTOR CONFIGURATION CONVERSION",
+        "app": 5,
+        "id": "ee-06"
+      },
+      {
+        "page": 34,
+        "rect": [
+          82.0,
+          64.0,
+          284.0,
+          96.0
+        ],
+        "header": "06-01 6. PARAMETER CONVERSION",
+        "app": 6,
+        "id": "ee-07"
+      },
+      {
+        "page": 38,
+        "rect": [
+          82.0,
+          68.0,
+          284.0,
+          100.0
+        ],
+        "header": "07-01 7. FOURIER SERIES",
+        "app": 7,
+        "id": "ee-08"
+      },
+      {
+        "page": 42,
+        "rect": [
+          84.0,
+          68.0,
+          285.0,
+          100.0
+        ],
+        "header": "08-01 8. ACTIVE FILTER DESIGN",
+        "app": 8,
+        "id": "ee-09"
+      },
+      {
+        "page": 46,
+        "rect": [
+          86.0,
+          65.0,
+          288.0,
+          97.0
+        ],
+        "header": "09-01 9. BUTTERWORTH OR CHEBYSHEYVFILTER DESIGN",
+        "app": 9,
+        "id": "ee-10"
+      },
+      {
+        "page": 46,
+        "rect": [
+          86.0,
+          109.0,
+          288.0,
+          141.0
+        ],
+        "header": "09-01 9. BUTTERWORTH OR CHEBYSHEYVFILTER DESIGN",
+        "app": 9,
+        "id": "ee-11"
+      },
+      {
+        "page": 52,
+        "rect": [
+          87.0,
+          79.0,
+          289.0,
+          111.0
+        ],
+        "header": "10-01 10. BODE PLOT OF BUTTERWORTH",
+        "app": 10,
+        "id": "ee-12"
+      },
+      {
+        "page": 58,
+        "rect": [
+          80.0,
+          67.0,
+          282.0,
+          99.0
+        ],
+        "header": "11-01 11. RESISTIVE ATTENUATOR DESIGN",
+        "app": 11,
+        "id": "ee-13"
+      },
+      {
+        "page": 62,
+        "rect": [
+          84.0,
+          67.0,
+          285.0,
+          100.0
+        ],
+        "header": "12-01 12. SMITH CHART CONVERSIONS",
+        "app": 12,
+        "id": "ee-14"
+      },
+      {
+        "page": 66,
+        "rect": [
+          88.0,
+          67.0,
+          290.0,
+          99.0
+        ],
+        "header": "13-01 13. TRANSMISSION LINE IMPEDANCE",
+        "app": 13,
+        "id": "ee-15"
+      },
+      {
+        "page": 70,
+        "rect": [
+          83.0,
+          64.0,
+          285.0,
+          97.0
+        ],
+        "header": "14-01 14. MICROSTRIP CALCULATIONS",
+        "app": 14,
+        "id": "ee-16"
+      },
+      {
+        "page": 74,
+        "rect": [
+          86.0,
+          70.0,
+          288.0,
+          102.0
+        ],
+        "header": "15-01 15. TRANSMISSION LINE CALCULATIONS",
+        "app": 15,
+        "id": "ee-17"
+      },
+      {
+        "page": 80,
+        "rect": [
+          82.0,
+          84.0,
+          284.0,
+          117.0
+        ],
+        "header": "16-01 16. UNILATERAL DESIGN: FIGURE OF MERIT,",
+        "app": 16,
+        "id": "ee-18"
+      },
+      {
+        "page": 84,
+        "rect": [
+          84.0,
+          81.0,
+          286.0,
+          113.0
+        ],
+        "header": "17-01 17. BILATERAL DESIGN: STABILITY FACTOR,",
+        "app": 17,
+        "id": "ee-19"
+      },
+      {
+        "page": 88,
+        "rect": [
+          86.0,
+          92.0,
+          288.0,
+          127.0
+        ],
+        "header": "18-01 18. BILATERAL DESIGN:",
+        "app": 18,
+        "id": "ee-20"
+      }
+    ]
+  }
+}

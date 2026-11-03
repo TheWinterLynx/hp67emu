@@ -74,3 +74,6 @@ WASM Program Library selection no longer forces the listing view. Selecting a pr
 
 
 M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M14T. ROM0 E/G shared signs route to physical G emitters, and slot 15 replaces slot 1 under the existing structural compatibility policy. The renderer selects lit geometry from nonzero dwell; artwork gain remains unchanged because current/radiant-energy conversion is not proven. Partial scans remain private. DISPLAY disable and power reset blank the optical snapshot immediately. Diagnostic immediate masks remain available to tests and firmware prompt detection.
+
+
+PAC import v2.0: all imported media use native HP67CARD; reviewed first-level PDFs provide 600-DPI faces, with explicit app/card mappings and recorded source editions. The SD-15C face belongs to SD-15C, not SD1-15A. Atlas/catalog invariants are updated to the complete imported corpus.
