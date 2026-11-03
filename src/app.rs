@@ -1605,14 +1605,10 @@ impl eframe::App for Hp67App {
                     let started = Instant::now();
                     let mut result = Ok(());
                     while started.elapsed() < UNLIMITED_SLICE_BUDGET {
-                        let reader_elapsed = take_reader_elapsed(
-                            &mut self.last_reader_tick,
-                            Instant::now(),
-                        );
-                        result = machine.advance_processing_batch(
-                            UNLIMITED_BATCH_WORDS,
-                            reader_elapsed,
-                        );
+                        let reader_elapsed =
+                            take_reader_elapsed(&mut self.last_reader_tick, Instant::now());
+                        result =
+                            machine.advance_processing_batch(UNLIMITED_BATCH_WORDS, reader_elapsed);
                         if result.is_err() {
                             break;
                         }
@@ -1685,11 +1681,26 @@ mod tests {
         let start = Instant::now();
         let mut anchor = None;
         assert_eq!(take_reader_elapsed(&mut anchor, start), Duration::ZERO);
-        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(700)), Duration::ZERO);
-        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(1400)), Duration::from_micros(1));
-        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(2100)), Duration::from_micros(1));
-        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(2100)), Duration::ZERO);
-        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_micros(28_000)), Duration::from_micros(27_998));
+        assert_eq!(
+            take_reader_elapsed(&mut anchor, start + Duration::from_nanos(700)),
+            Duration::ZERO
+        );
+        assert_eq!(
+            take_reader_elapsed(&mut anchor, start + Duration::from_nanos(1400)),
+            Duration::from_micros(1)
+        );
+        assert_eq!(
+            take_reader_elapsed(&mut anchor, start + Duration::from_nanos(2100)),
+            Duration::from_micros(1)
+        );
+        assert_eq!(
+            take_reader_elapsed(&mut anchor, start + Duration::from_nanos(2100)),
+            Duration::ZERO
+        );
+        assert_eq!(
+            take_reader_elapsed(&mut anchor, start + Duration::from_micros(28_000)),
+            Duration::from_micros(27_998)
+        );
     }
 
     #[test]

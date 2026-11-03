@@ -1423,7 +1423,12 @@ impl Hp67LiveMachine {
         Ok(executed)
     }
 
-    fn advance_crc_transport(&mut self, cycle: u64, motor_on: bool, elapsed_us: u64) -> Result<(), String> {
+    fn advance_crc_transport(
+        &mut self,
+        cycle: u64,
+        motor_on: bool,
+        elapsed_us: u64,
+    ) -> Result<(), String> {
         if let Some(data) = self.owned_crc_data.as_mut() {
             // Compare the observer only while actual transport can change media.
             // Inactive firmware idle never clones a physical card.
@@ -1437,20 +1442,11 @@ impl Hp67LiveMachine {
                 .crc_control_mut()
                 .expect("owned CRC control");
             let result = if let Some(reader) = self.crc_reader_gate.as_ref() {
-                self.card_transport.advance_us_owned_with_reader(
-                    elapsed_us,
-                    motor_on,
-                    data,
-                    control,
-                    reader,
-                )
+                self.card_transport
+                    .advance_us_owned_with_reader(elapsed_us, motor_on, data, control, reader)
             } else {
-                self.card_transport.advance_us_owned(
-                    elapsed_us,
-                    motor_on,
-                    data,
-                    control,
-                )
+                self.card_transport
+                    .advance_us_owned(elapsed_us, motor_on, data, control)
             };
             if let Some((mut transport, mut crc)) = observer {
                 let expected = transport.advance_us(elapsed_us, motor_on, &mut crc);
@@ -2347,7 +2343,8 @@ mod tests {
         while !matches!(live.phase, LiveBootPhase::Idle) {
             live.step_firmware_cycle().unwrap();
         }
-        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1).unwrap();
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+            .unwrap();
         let mut ready = false;
         for _ in 0..8192 {
             live.advance_processing_batch(1, Duration::ZERO).unwrap();
@@ -2363,13 +2360,16 @@ mod tests {
         live.advance_processing_batch(1024, Duration::ZERO).unwrap();
         assert_eq!(live.boot_cycle - before, 1024);
         assert_eq!(live.card_transport.next_record(), 0);
-        live.advance_processing_batch(1024, Duration::from_micros(27_999)).unwrap();
+        live.advance_processing_batch(1024, Duration::from_micros(27_999))
+            .unwrap();
         assert_eq!(live.card_transport.next_record(), 0);
-        live.advance_processing_batch(64, Duration::from_micros(1)).unwrap();
+        live.advance_processing_batch(64, Duration::from_micros(1))
+            .unwrap();
         assert_eq!(live.card_transport.next_record(), 1);
         live.advance_processing_batch(2048, Duration::ZERO).unwrap();
         assert_eq!(live.card_transport.next_record(), 1);
-        live.advance_processing_batch(64, Duration::from_micros(28_000)).unwrap();
+        live.advance_processing_batch(64, Duration::from_micros(28_000))
+            .unwrap();
         assert_eq!(live.card_transport.next_record(), 2);
         // CPU time and all PHI transitions continued throughout the physical wait.
         assert_eq!(live.backplane.tick().get(), live.boot_cycle * 224);
@@ -2382,10 +2382,17 @@ mod tests {
         // Include a partial word and reset hold before changing pacing.
         unlimited.advance(Duration::from_micros(123)).unwrap();
         paced.advance(Duration::from_micros(123)).unwrap();
-        unlimited.advance_processing_batch(0, Duration::ZERO).unwrap();
+        unlimited
+            .advance_processing_batch(0, Duration::ZERO)
+            .unwrap();
         assert_eq!(unlimited.boot_cycle, 0);
         for _ in 0..64 {
-            unlimited.advance_processing_batch(64, Duration::from_micros(64 * HP67_OBSERVED_WORD_TIME_US)).unwrap();
+            unlimited
+                .advance_processing_batch(
+                    64,
+                    Duration::from_micros(64 * HP67_OBSERVED_WORD_TIME_US),
+                )
+                .unwrap();
         }
         paced
             .advance(Duration::from_micros(4096 * HP67_OBSERVED_WORD_TIME_US))
