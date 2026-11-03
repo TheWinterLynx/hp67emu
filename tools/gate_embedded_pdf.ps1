@@ -9,6 +9,8 @@ try {
     if ([int]$Matches[1] -eq 1 -and [int]$Matches[2] -lt 92) { throw 'Requires Rust 1.92 or newer; run rustup update stable first.' }
     & py -3 tools/generate_embedded_pdf.py --check
     if ($LASTEXITCODE -ne 0) { throw 'EMBEDDED DOCUMENT CATALOG KO' }
+    & py -3 tools/generate_embedded_card_artwork.py --check
+    if ($LASTEXITCODE -ne 0) { throw 'HIRES ARTWORK CATALOG KO' }
     & cargo fmt --all
     if ($LASTEXITCODE -ne 0) { throw 'FMT KO' }
     & cargo fmt --all -- --check
@@ -18,6 +20,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'DOCUMENTATION TESTS KO' }
     & cargo test --locked --bin hp67emu pdf_viewer::tests -- --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'PDF VIEWER TESTS KO' }
+    & cargo test --locked --bin hp67emu embedded_source_artwork -- --nocapture
+    if ($LASTEXITCODE -ne 0) { throw 'HIRES ARTWORK TESTS KO' }
     & cargo test --locked --all-targets
     if ($LASTEXITCODE -ne 0) { throw 'ALL TARGETS KO' }
     & cargo build --locked --release --bins

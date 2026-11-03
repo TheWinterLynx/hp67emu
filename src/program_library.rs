@@ -6,6 +6,8 @@ use hp67emu::machines::hp67::{
 
 use crate::ui::program_card::ProgramCardArtwork;
 
+include!("../assets/embedded-card-artwork.rs");
+
 macro_rules! hpp {
     ($path:literal) => {
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), $path))
