@@ -77,3 +77,6 @@ M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M1
 
 
 PAC import v2.0: all imported media use native HP67CARD; reviewed first-level PDFs provide 600-DPI faces, with explicit app/card mappings and recorded source editions. The SD-15C face belongs to SD-15C, not SD1-15A. Atlas/catalog invariants are updated to the complete imported corpus.
+
+
+Documentation v2.3 adds Help/Documentation and selected-PAC PDF access, separate from machine execution.

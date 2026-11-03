@@ -26,3 +26,5 @@ The 15 Standard Pac and 20 Games Pac physical cards are backed by source-faithfu
 PAC import v2.0: all imported media use native HP67CARD; reviewed first-level PDFs provide 600-DPI faces, with explicit app/card mappings and recorded source editions. The SD-15C face belongs to SD-15C, not SD1-15A. Atlas/catalog invariants are updated to the complete imported corpus.
 
 PAC library v2.2: all displayed packs use full HP-67 names; legacy media paths/references remain stable.
+
+PAC library v2.2: all displayed packs use full HP-67 names; legacy media paths/references remain stable.

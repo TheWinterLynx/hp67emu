@@ -34,3 +34,12 @@ Requires the already installed v2.0 import on `agent/import-all-pacs-local-v2`, 
 Source crops always come from first-level PDF extraction. Repair v2.2 uses the preserved crops and fits the whole card into the output canvas uniformly. It restricts boundary cleanup to long thin lines; merely being near a border does not authorize deletion of a glyph. Historical scan wear remains. The repair backs up installed image/atlas bytes and creates a separate review-v2.2 gallery. Programs and original PDFs are unchanged.
 
 GitHub Actions is limited to Rust formatting/check/save on the two feature branches. Compilation and tests are owner local gates. Native checksum validation is not a claim that every application has been executed against its manual.
+
+
+## Documentation UI v2.3
+
+Help → Documentation lists the Spanish HP-67 owner handbook and all eleven full PAC manuals. Each selected card also offers its PAC manual in desktop, wide browser and compact browser views, including source-linked diagnostic entries. The desktop opens the existing PDF reader; web builds open a new tab. Missing documents are disabled. Availability is cached in UI memory and explicitly refreshed, so opening the library adds no filesystem scan to every frame. No machine/core code or PDF rendering engine is added.
+
+The publisher now requires `hp67-oh-es.pdf` directly in the original source root and all eleven hash-verified imported PAC PDFs. It validates all twelve and the source patch anchors before changing the local branch. Files are packaged in `documentation/`; keep this folder beside a portable executable. Trunk copies it into the web distribution. The initial tools branch deliberately advertises no web PDFs until local validated files are published.
+
+For an already imported or published corpus, pass `-DocumentationOnly` to the publisher to package manuals and install their UI without rerunning artwork extraction/repair. Existing v2.2 artwork backups are preserved. The same local gate and scoped commit/push still apply.

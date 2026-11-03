@@ -4,6 +4,7 @@
 )]
 
 mod app;
+mod documentation;
 mod hp67;
 mod panel;
 #[cfg(not(target_arch = "wasm32"))]
