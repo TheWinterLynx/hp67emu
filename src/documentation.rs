@@ -257,7 +257,9 @@ mod tests {
             assert!(files.contains(*file));
         }
         assert_eq!(MANUALS.len(), 12);
-        assert!(MANUALS[1..].windows(2).all(|pair| pair[0].title.to_lowercase() <= pair[1].title.to_lowercase()));
+        assert!(MANUALS[1..]
+            .windows(2)
+            .all(|pair| pair[0].title.to_lowercase() <= pair[1].title.to_lowercase()));
         assert!(manual_for_pack("HP-67 Electrical Engineering Pac I").is_some());
         assert!(manual_for_pack("HP-67 Custom Diagnostic Pac").is_none());
     }
@@ -277,4 +279,3 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
-

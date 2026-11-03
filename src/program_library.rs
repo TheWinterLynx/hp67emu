@@ -470,7 +470,12 @@ pub fn program_library_display_order() -> &'static [usize] {
         let mut order: Vec<_> = (0..PROGRAM_LIBRARY.len()).collect();
         order.sort_by_cached_key(|&index| {
             let entry = &PROGRAM_LIBRARY[index];
-            (entry.pack.to_lowercase(), entry.title.to_lowercase(), entry.reference, index)
+            (
+                entry.pack.to_lowercase(),
+                entry.title.to_lowercase(),
+                entry.reference,
+                index,
+            )
         });
         order
     })
@@ -1280,8 +1285,10 @@ mod tests {
         for pair in order.windows(2) {
             let a = &PROGRAM_LIBRARY[pair[0]];
             let b = &PROGRAM_LIBRARY[pair[1]];
-            assert!((a.pack.to_lowercase(), a.title.to_lowercase(), a.reference)
-                <= (b.pack.to_lowercase(), b.title.to_lowercase(), b.reference));
+            assert!(
+                (a.pack.to_lowercase(), a.title.to_lowercase(), a.reference)
+                    <= (b.pack.to_lowercase(), b.title.to_lowercase(), b.reference)
+            );
         }
     }
 
@@ -1601,4 +1608,3 @@ mod tests {
         }
     }
 }
-

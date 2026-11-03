@@ -1431,7 +1431,6 @@ impl eframe::App for Hp67App {
                 ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
             }
             egui::menu::bar(ui, |ui| {
-
                 ui.menu_button("Cards", |ui| {
                     if web_compact {
                         ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
@@ -1784,4 +1783,3 @@ mod tests {
         ));
     }
 }
-
