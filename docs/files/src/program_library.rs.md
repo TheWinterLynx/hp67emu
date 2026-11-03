@@ -28,3 +28,5 @@ PAC import v2.0: all imported media use native HP67CARD; reviewed first-level PD
 PAC library v2.2: all displayed packs use full HP-67 names; legacy media paths/references remain stable.
 
 PAC library v2.2: all displayed packs use full HP-67 names; legacy media paths/references remain stable.
+
+PAC library v2.2: all displayed packs use full HP-67 names; legacy media paths/references remain stable.

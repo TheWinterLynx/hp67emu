@@ -19,3 +19,7 @@ Preserve magnetic media, original source references and user work; fail on inval
 ## Implementation
 
 This file retains the local import/repair implementation or provides the full-name catalog/publication adapter. Rust compilation and tests run only in the owner local gate.
+
+
+
+Also installs the cached alphabetical display permutation and applies it to desktop, wide-web and compact-web card lists. Existing Help access is right-aligned without introducing a documentation module into older checkouts.

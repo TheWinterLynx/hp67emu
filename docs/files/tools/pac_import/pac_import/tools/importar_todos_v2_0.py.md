@@ -19,3 +19,7 @@ Preserve magnetic media, original source references and user work; fail on inval
 ## Implementation
 
 This file retains the local import/repair implementation or provides the full-name catalog/publication adapter. Rust compilation and tests run only in the owner local gate.
+
+
+
+Fresh imports now apply the same sorted presentation indices when building app.rs, so the cached catalog display helper is always used. This does not add documentation module references to older checkouts.
