@@ -8,6 +8,8 @@ mod documentation;
 mod hp67;
 mod panel;
 #[cfg(not(target_arch = "wasm32"))]
+mod pdf_viewer;
+#[cfg(not(target_arch = "wasm32"))]
 mod pin_trace_cli;
 mod program_library;
 mod ui;
@@ -126,6 +128,23 @@ fn decode_trace_file(args: &[String]) -> Result<(), String> {
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--verify-embedded-pdfs") {
+        match pdf_viewer::verify_embedded() {
+            Ok(count) if args.len() == 1 => {
+                println!("EMBEDDED PDFS OK: {count}/12; sections in range; representative pages rendered");
+                return Ok(());
+            }
+            Ok(_) => {
+                eprintln!("usage: hp67emu --verify-embedded-pdfs");
+                std::process::exit(2);
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     if pin_trace_cli::handles(args.first().map(String::as_str)) {
         match pin_trace_cli::run(&args) {
             Ok(0) => return Ok(()),

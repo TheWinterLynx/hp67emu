@@ -49,6 +49,8 @@ def patch_sources(repo,module):
     return {app:text,main:maintext,index:html,repo/'src/documentation.rs':module}
 
 def install(repo,work,check=False):
+    if (repo/'src/pdf_viewer.rs').exists():
+        raise ValueError('Integrated PDF viewer already installed. Update this checkout with Git and run tools/gate_embedded_pdf.ps1; do not reinstall the legacy documentation template.')
     plan=json.loads((work/'plan.json').read_text(encoding='utf-8'))
     base=repo/'programs/HP67/ImportedPACs'
     manifest=json.loads((base/'import_manifest.json').read_text(encoding='utf-8'))

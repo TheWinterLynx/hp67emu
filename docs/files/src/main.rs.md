@@ -42,3 +42,7 @@ Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.m
 
 
 Documentation v2.3 adds Help/Documentation and selected-PAC PDF access, separate from machine execution.
+
+
+
+The native binary includes pdf_viewer and --verify-embedded-pdfs for an isolated executable smoke check; this does not start or alter the calculator.

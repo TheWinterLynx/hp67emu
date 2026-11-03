@@ -80,3 +80,7 @@ PAC import v2.0: all imported media use native HP67CARD; reviewed first-level PD
 
 
 Documentation v2.3 adds Help/Documentation and selected-PAC PDF access, separate from machine execution.
+
+
+
+Native PDF viewing is owned by a presentation-only PdfViewer field. Selected-card details pass the stable reference to the documentation section lookup; the viewer is polled after normal UI work and renders on its own worker.

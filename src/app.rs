@@ -52,6 +52,8 @@ fn web_select_program(selected: &mut Option<usize>, listing_visible: &mut bool, 
 }
 
 pub struct Hp67App {
+    #[cfg(not(target_arch = "wasm32"))]
+    pdf_viewer: crate::pdf_viewer::PdfViewer,
     state: Hp67State,
     photo: TextureHandle,
     card_logo: TextureHandle,
@@ -152,6 +154,8 @@ impl Hp67App {
         };
 
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            pdf_viewer: crate::pdf_viewer::PdfViewer::default(),
             state: Hp67State::default(),
             photo,
             card_logo,
@@ -523,7 +527,12 @@ impl Hp67App {
                             ui.label(format!("Reference: {}", entry.reference));
                         }
                         ui.label(format!("Pack: {}", entry.pack));
-                        crate::documentation::pack_manual_button(ui, entry.pack, entry.source_pdf);
+                        crate::documentation::pack_manual_button(
+                            ui,
+                            entry.pack,
+                            entry.source_pdf,
+                            entry.reference,
+                        );
                         ui.label(format!("Magnetic tracks supplied: {}", entry.track_count()));
                         if let Some(pdf) = entry.source_pdf {
                             let source = if entry.artwork_atlas_row().is_some() {
@@ -699,7 +708,7 @@ impl Hp67App {
                                     ui.label(format!("Reference: {}", entry.reference));
                                 }
                                 ui.label(format!("Pack: {}", entry.pack));
-                        crate::documentation::pack_manual_button(ui, entry.pack, entry.source_pdf);
+                        crate::documentation::pack_manual_button(ui, entry.pack, entry.source_pdf, entry.reference);
                                 ui.label(format!(
                                     "Magnetic tracks supplied: {}",
                                     entry.track_count()
@@ -850,7 +859,7 @@ impl Hp67App {
                                     ui.label(format!("Reference: {}", entry.reference));
                                 }
                                 ui.label(format!("Pack: {}", entry.pack));
-                        crate::documentation::pack_manual_button(ui, entry.pack, entry.source_pdf);
+                        crate::documentation::pack_manual_button(ui, entry.pack, entry.source_pdf, entry.reference);
                                 ui.label(format!(
                                     "Magnetic tracks supplied: {}",
                                     entry.track_count()
@@ -1582,6 +1591,8 @@ impl eframe::App for Hp67App {
         self.show_card_save_dialog(ctx);
         self.show_program_library(ctx);
         crate::documentation::show(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.pdf_viewer.show(ctx);
 
         if ctx.input(|i| i.pointer.any_down()) {
             ctx.request_repaint();

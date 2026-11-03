@@ -59,6 +59,12 @@ pub const MANUALS: &[Manual] = &[
 
 #[cfg(any(target_arch = "wasm32", test))]
 include!("../documentation/available.rs");
+include!("../documentation/sections.rs");
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn program_sections() -> &'static [(&'static str, &'static str, usize)] {
+    PROGRAM_SECTIONS
+}
 
 fn window_id() -> egui::Id {
     egui::Id::new("hp67-documentation-window")
@@ -104,7 +110,10 @@ pub fn show(ctx: &egui::Context) {
                     }
                 });
             ui.separator();
-            ui.label("Los documentos se abren en tu lector de PDF habitual.");
+            #[cfg(not(target_arch = "wasm32"))]
+            ui.label("Visor PDF integrado · Documentación incluida en el ejecutable");
+            #[cfg(target_arch = "wasm32")]
+            ui.label("Los manuales se abren en otra pestaña del navegador.");
             if let Some(status) =
                 ctx.data(|data| data.get_temp::<String>(window_id().with("status")))
             {
@@ -118,20 +127,45 @@ fn manual_for_pack(pack: &str) -> Option<&'static Manual> {
     MANUALS.iter().skip(1).find(|manual| manual.title == pack)
 }
 
-pub fn pack_manual_button(ui: &mut egui::Ui, pack: &str, source_pdf: Option<&str>) {
+pub fn pack_manual_button(
+    ui: &mut egui::Ui,
+    pack: &str,
+    source_pdf: Option<&str>,
+    reference: &str,
+) {
     let manual = manual_for_pack(pack).or_else(|| {
         let name = source_pdf?.rsplit('/').next()?;
         MANUALS.iter().find(|manual| manual.file == name)
     });
     if let Some(manual) = manual {
+        let section = PROGRAM_SECTIONS
+            .iter()
+            .find(|(card, file, _)| *card == reference && *file == manual.file);
+        let label = if section.is_some() {
+            "Ver instrucciones del programa"
+        } else {
+            "Ver manual completo del PAC"
+        };
         if ui
-            .add_enabled(
-                cached_available(ui.ctx(), manual),
-                egui::Button::new("Abrir manual del PAC"),
-            )
+            .add_enabled(cached_available(ui.ctx(), manual), egui::Button::new(label))
             .clicked()
         {
-            request_open(ui.ctx(), manual);
+            let page = section
+                .map(|(_, _, page)| page.saturating_sub(1))
+                .unwrap_or(0);
+            #[cfg(not(target_arch = "wasm32"))]
+            crate::pdf_viewer::request(
+                ui.ctx(),
+                manual.file,
+                format!("{} · {}", manual.title, reference),
+                page,
+            );
+            #[cfg(target_arch = "wasm32")]
+            ui.ctx().open_url(egui::OpenUrl::new_tab(format!(
+                "documentation/{}#page={}",
+                manual.file,
+                page + 1
+            )));
         }
     }
 }
@@ -197,48 +231,17 @@ fn open_manual(ctx: &egui::Context, manual: &Manual) -> Result<(), String> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn path_in(root: &std::path::Path, manual: &Manual) -> Option<std::path::PathBuf> {
-    use std::io::Read;
-    let path = root.join("documentation").join(manual.file);
-    let mut signature = [0u8; 5];
-    std::fs::File::open(&path)
-        .ok()?
-        .read_exact(&mut signature)
-        .ok()?;
-    (signature == *b"%PDF-").then_some(path)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn manual_path(manual: &Manual) -> Option<std::path::PathBuf> {
-    // A portable distribution carries documentation beside its executable.
-    // Development runs can use the same folder in the source checkout.
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().and_then(|root| path_in(root, manual)))
-        .or_else(|| path_in(std::path::Path::new(env!("CARGO_MANIFEST_DIR")), manual))
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 fn available(manual: &Manual) -> bool {
-    manual_path(manual).is_some()
+    crate::pdf_viewer::has_pdf(manual.file)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn open_manual(_ctx: &egui::Context, manual: &Manual) -> Result<(), String> {
-    let path = manual_path(manual)
-        .ok_or_else(|| "Este manual no está incluido en esta distribución.".to_owned())?;
-    #[cfg(target_os = "windows")]
-    let mut command = std::process::Command::new("explorer.exe");
-    #[cfg(target_os = "macos")]
-    let mut command = std::process::Command::new("open");
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let mut command = std::process::Command::new("xdg-open");
-    // Direct argv: never interpret document paths through a command shell.
-    command
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("No se pudo abrir el lector de PDF: {error}"))
+fn open_manual(ctx: &egui::Context, manual: &Manual) -> Result<(), String> {
+    if !available(manual) {
+        return Err("Este manual no está incluido en el ejecutable".to_owned());
+    }
+    crate::pdf_viewer::request(ctx, manual.file, manual.title.to_owned(), 0);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -264,18 +267,23 @@ mod tests {
         assert!(manual_for_pack("HP-67 Custom Diagnostic Pac").is_none());
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn missing_or_non_pdf_documents_are_not_offered_as_available() {
-        let root = std::env::temp_dir().join(format!("hp67-manual-test-{}", std::process::id()));
-        std::fs::create_dir_all(root.join("documentation")).unwrap();
-        let path = root.join("documentation").join(MANUALS[0].file);
-        assert!(path_in(&root, &MANUALS[0]).is_none());
-        std::fs::write(&path, b"not a PDF").unwrap();
-        assert!(path_in(&root, &MANUALS[0]).is_none());
-        std::fs::write(&path, b"%PDF-1.7\n").unwrap();
-        assert_eq!(path_in(&root, &MANUALS[0]), Some(path.clone()));
-        std::fs::remove_file(path).unwrap();
-        std::fs::remove_dir_all(root).unwrap();
+    fn program_sections_reference_known_manuals_and_real_page_numbers() {
+        let mut references = std::collections::HashSet::new();
+        for (reference, file, page) in PROGRAM_SECTIONS {
+            assert!(references.insert(reference));
+            assert!(*page > 0);
+            assert!(MANUALS.iter().any(|manual| manual.file == *file));
+        }
+        let moving_average = PROGRAM_SECTIONS
+            .iter()
+            .find(|(reference, _, _)| *reference == "SD1-01A")
+            .unwrap();
+        assert_eq!(moving_average.2, 10);
+        let bilateral = PROGRAM_SECTIONS
+            .iter()
+            .find(|(reference, _, _)| *reference == "EE1-18A")
+            .unwrap();
+        assert_eq!(bilateral.2, 88);
     }
 }
