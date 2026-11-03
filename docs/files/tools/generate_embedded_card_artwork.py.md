@@ -6,7 +6,7 @@ Generate the embedded full-resolution PNG lookup for scanned program cards.
 
 ## Why it exists
 
-A 499 × 80 atlas face discards fine lettering present in the canonical 1679 × 269 source. Embed the original PNGs so portable executables can retain that detail.
+A 499 × 80 atlas face discards fine lettering present in the canonical 1680 × 269 source. Embed the original PNGs so portable executables can retain that detail.
 
 ## Relationships
 

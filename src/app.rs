@@ -1651,6 +1651,7 @@ mod tests {
 
     #[test]
     fn embedded_source_artwork_keeps_600_dpi_and_covers_every_scanned_card() {
+        // Canonical extractor: round(71.1 * 600 / 25.4) x round(11.4 * 600 / 25.4).
         for entry in PROGRAM_LIBRARY
             .iter()
             .filter(|entry| entry.artwork_path.is_some())
@@ -1665,7 +1666,7 @@ mod tests {
             );
             assert_eq!(
                 reader.into_dimensions().unwrap(),
-                (1679, 269),
+                (1680, 269),
                 "{}",
                 entry.reference
             );
@@ -1677,7 +1678,7 @@ mod tests {
         let image = decode_embedded_full_resolution_artwork(artillery)
             .unwrap()
             .unwrap();
-        assert_eq!(image.dimensions(), (1679, 269));
+        assert_eq!(image.dimensions(), (1680, 269));
         assert!(image.width() > CARD_ARTWORK_ATLAS_WIDTH * 3);
         assert!(image.height() > CARD_ARTWORK_ATLAS_ROW_HEIGHT * 3);
     }
