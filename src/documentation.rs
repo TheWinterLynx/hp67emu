@@ -279,7 +279,8 @@ mod tests {
             .iter()
             .find(|(reference, _, _)| *reference == "SD1-01A")
             .unwrap();
-        assert_eq!(moving_average.2, 10);
+        // PDF page 14 is printed section 01-01; page 10 is the generic user-instruction guide.
+        assert_eq!(moving_average.2, 14);
         let bilateral = PROGRAM_SECTIONS
             .iter()
             .find(|(reference, _, _)| *reference == "EE1-18A")
