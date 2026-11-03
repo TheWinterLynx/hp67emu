@@ -789,16 +789,29 @@ impl Hp67LiveMachine {
         Ok(self.card_transport.take_unstarted_card())
     }
 
-    /// Spend virtual time through the normal live path without host pacing.
-    /// Reset hold, PHI transitions and card transport retain simulated timing.
-    pub fn advance_word_budget(&mut self, words: u32) -> Result<(), String> {
-        self.advance(Duration::from_micros(
-            u64::from(words) * HP67_OBSERVED_WORD_TIME_US,
-        ))
+    /// Accelerate processor words while advancing the reader by its own elapsed time.
+    /// This optional host speed mode is not a hardware clock-frequency claim.
+    pub fn advance_processing_batch(
+        &mut self,
+        words: u32,
+        reader_elapsed: Duration,
+    ) -> Result<(), String> {
+        let reader_us = reader_elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+        // Never jump several physical records in one CPU word after a stalled UI.
+        let processor_us = (u64::from(words) * HP67_OBSERVED_WORD_TIME_US).max(reader_us);
+        self.advance_with_reader_time(processor_us, Some(reader_us))
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+        self.advance_with_reader_time(elapsed_us, None)
+    }
+
+    fn advance_with_reader_time(
+        &mut self,
+        elapsed_us: u64,
+        mut reader_us: Option<u64>,
+    ) -> Result<(), String> {
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
 
         if self.phase == LiveBootPhase::ResetHold {
@@ -809,11 +822,21 @@ impl Hp67LiveMachine {
             self.phase = LiveBootPhase::Firmware;
         }
 
+        let mut words_left = self.pending_us / HP67_OBSERVED_WORD_TIME_US;
         while self.phase != LiveBootPhase::ResetHold
             && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
         {
             self.pending_us -= HP67_OBSERVED_WORD_TIME_US;
-            self.step_firmware_cycle()?;
+            if let Some(remaining) = reader_us.as_mut() {
+                // Integer distribution preserves every supplied microsecond;
+                // extra processor words do not create extra mechanical time.
+                let word_reader_us = *remaining / words_left;
+                *remaining -= word_reader_us;
+                self.step_firmware_cycle_with_reader_time(None, word_reader_us)?;
+            } else {
+                self.step_firmware_cycle()?;
+            }
+            words_left -= 1;
         }
         Ok(())
     }
@@ -830,7 +853,15 @@ impl Hp67LiveMachine {
 
     fn step_firmware_cycle_with_trace(
         &mut self,
+        trace: Option<&mut StructuralBusTrace>,
+    ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
+        self.step_firmware_cycle_with_reader_time(trace, HP67_OBSERVED_WORD_TIME_US)
+    }
+
+    fn step_firmware_cycle_with_reader_time(
+        &mut self,
         mut trace: Option<&mut StructuralBusTrace>,
+        reader_elapsed_us: u64,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
         self.backplane
@@ -1365,7 +1396,7 @@ impl Hp67LiveMachine {
                 .publish(crc, &mut self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC MOTOR publication: {error:?}"))?;
         }
-        self.advance_crc_transport(cycle, card_motor_was_on)?;
+        self.advance_crc_transport(cycle, card_motor_was_on, reader_elapsed_us)?;
 
         // Only a changed logical transport handshake enters the device.
         if buffer_status_before_transport
@@ -1392,7 +1423,7 @@ impl Hp67LiveMachine {
         Ok(executed)
     }
 
-    fn advance_crc_transport(&mut self, cycle: u64, motor_on: bool) -> Result<(), String> {
+    fn advance_crc_transport(&mut self, cycle: u64, motor_on: bool, elapsed_us: u64) -> Result<(), String> {
         if let Some(data) = self.owned_crc_data.as_mut() {
             // Compare the observer only while actual transport can change media.
             // Inactive firmware idle never clones a physical card.
@@ -1407,7 +1438,7 @@ impl Hp67LiveMachine {
                 .expect("owned CRC control");
             let result = if let Some(reader) = self.crc_reader_gate.as_ref() {
                 self.card_transport.advance_us_owned_with_reader(
-                    HP67_OBSERVED_WORD_TIME_US,
+                    elapsed_us,
                     motor_on,
                     data,
                     control,
@@ -1415,14 +1446,14 @@ impl Hp67LiveMachine {
                 )
             } else {
                 self.card_transport.advance_us_owned(
-                    HP67_OBSERVED_WORD_TIME_US,
+                    elapsed_us,
                     motor_on,
                     data,
                     control,
                 )
             };
             if let Some((mut transport, mut crc)) = observer {
-                let expected = transport.advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut crc);
+                let expected = transport.advance_us(elapsed_us, motor_on, &mut crc);
                 if result != expected || self.card_transport != transport {
                     return Err(format!("live cycle {cycle} owned CRC transport mismatch: actual={result:?} expected={expected:?}"));
                 }
@@ -1436,7 +1467,7 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} {error}"))?;
         } else {
             self.card_transport
-                .advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut self.machine.crc)
+                .advance_us(elapsed_us, motor_on, &mut self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
         }
         Ok(())
@@ -2310,16 +2341,51 @@ mod official_pac_tests;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn unlimited_processing_advances_cpu_while_card_waits_for_physical_time() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.phase = LiveBootPhase::Firmware;
+        while !matches!(live.phase, LiveBootPhase::Idle) {
+            live.step_firmware_cycle().unwrap();
+        }
+        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1).unwrap();
+        let mut ready = false;
+        for _ in 0..8192 {
+            live.advance_processing_batch(1, Duration::ZERO).unwrap();
+            if live.card_motor_on() && live.card_transport.head_active() {
+                ready = true;
+                break;
+            }
+        }
+        assert!(ready, "firmware must start the real reader path");
+        // Let firmware acknowledge startup with the mechanical clock stopped.
+        live.advance_processing_batch(1024, Duration::ZERO).unwrap();
+        let before = live.boot_cycle;
+        live.advance_processing_batch(1024, Duration::ZERO).unwrap();
+        assert_eq!(live.boot_cycle - before, 1024);
+        assert_eq!(live.card_transport.next_record(), 0);
+        live.advance_processing_batch(1024, Duration::from_micros(27_999)).unwrap();
+        assert_eq!(live.card_transport.next_record(), 0);
+        live.advance_processing_batch(64, Duration::from_micros(1)).unwrap();
+        assert_eq!(live.card_transport.next_record(), 1);
+        live.advance_processing_batch(2048, Duration::ZERO).unwrap();
+        assert_eq!(live.card_transport.next_record(), 1);
+        live.advance_processing_batch(64, Duration::from_micros(28_000)).unwrap();
+        assert_eq!(live.card_transport.next_record(), 2);
+        // CPU time and all PHI transitions continued throughout the physical wait.
+        assert_eq!(live.backplane.tick().get(), live.boot_cycle * 224);
+    }
+
+    #[test]
     fn unlimited_word_budget_preserves_live_cycles_and_realtime_resume() {
         let mut unlimited = Hp67LiveMachine::power_on_default().unwrap();
         let mut paced = Hp67LiveMachine::power_on_default().unwrap();
         // Include a partial word and reset hold before changing pacing.
         unlimited.advance(Duration::from_micros(123)).unwrap();
         paced.advance(Duration::from_micros(123)).unwrap();
-        unlimited.advance_word_budget(0).unwrap();
+        unlimited.advance_processing_batch(0, Duration::ZERO).unwrap();
         assert_eq!(unlimited.boot_cycle, 0);
         for _ in 0..64 {
-            unlimited.advance_word_budget(64).unwrap();
+            unlimited.advance_processing_batch(64, Duration::from_micros(64 * HP67_OBSERVED_WORD_TIME_US)).unwrap();
         }
         paced
             .advance(Duration::from_micros(4096 * HP67_OBSERVED_WORD_TIME_US))

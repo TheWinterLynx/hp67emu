@@ -65,6 +65,7 @@ pub struct Hp67App {
     card_import_name: Option<String>,
     card_insertion_end: CardInsertionEnd,
     last_live_tick: Option<Instant>,
+    last_reader_tick: Option<Instant>,
     unlimited_speed: bool,
     card_phase: ProgramCardPhase,
     card_phase_started: Option<Instant>,
@@ -182,6 +183,7 @@ impl Hp67App {
             card_import_name: None,
             card_insertion_end: CardInsertionEnd::End1,
             last_live_tick: None,
+            last_reader_tick: None,
             unlimited_speed: false,
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
@@ -1327,6 +1329,7 @@ impl Hp67App {
             self.state.handle(event);
             if matches!(event, UiEvent::TogglePower) {
                 self.last_live_tick = None;
+                self.last_reader_tick = None;
                 if was_power_on && !self.state.power_on {
                     if let Some(machine) = self.live_machine.as_mut() {
                         match machine.take_magnetic_card_for_power_off() {
@@ -1378,18 +1381,15 @@ impl Hp67App {
     }
 }
 
-// The reader and firmware handshake share simulation time. Keep their normal
-// wall-clock pacing while a card is moving instead of accelerating transport
-// or making its image lag behind already-completed media operations.
-fn unlimited_processing_allowed(enabled: bool, phase: ProgramCardPhase, reader_busy: bool) -> bool {
-    enabled
-        && !reader_busy
-        && !matches!(
-            phase,
-            ProgramCardPhase::WaitingAtReader
-                | ProgramCardPhase::ReadingFromRight
-                | ProgramCardPhase::InsertingWindowFromRight
-        )
+// Retain sub-microsecond time at the host boundary instead of rounding it away
+// on every accelerated batch. The machine receives deterministic integer time.
+fn take_reader_elapsed(anchor: &mut Option<Instant>, now: Instant) -> Duration {
+    let previous = anchor.get_or_insert(now);
+    let elapsed = now.saturating_duration_since(*previous);
+    let whole_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+    let elapsed = Duration::from_micros(whole_us);
+    *previous += elapsed;
+    elapsed
 }
 
 fn card_insertion_allowed(power_on: bool) -> bool {
@@ -1500,6 +1500,7 @@ impl eframe::App for Hp67App {
                     {
                         // Do not replay host time when switching pacing modes.
                         self.last_live_tick = None;
+                        self.last_reader_tick = None;
                     }
                     ui.label(if self.unlimited_speed {
                         "Unlimited calculations; card handling stays at 1x"
@@ -1598,40 +1599,27 @@ impl eframe::App for Hp67App {
 
         let mut live_error = None;
         let mut live_card_active = false;
-        let mut unlimited_active = false;
         if self.state.power_on {
             if let Some(machine) = self.live_machine.as_mut() {
-                unlimited_active = unlimited_processing_allowed(
-                    self.unlimited_speed,
-                    self.card_phase,
-                    machine.magnetic_card_inserted()
-                        || machine.card_motor_on()
-                        || machine.card_record_stream_active(),
-                );
-                let result = if unlimited_active {
+                let result = if self.unlimited_speed {
                     let started = Instant::now();
                     let mut result = Ok(());
-                    // Bound UI occupancy, not simulated speed. Sample contacts
-                    // again between slices; check host time once per batch.
                     while started.elapsed() < UNLIMITED_SLICE_BUDGET {
-                        result = machine.advance_word_budget(UNLIMITED_BATCH_WORDS);
+                        let reader_elapsed = take_reader_elapsed(
+                            &mut self.last_reader_tick,
+                            Instant::now(),
+                        );
+                        result = machine.advance_processing_batch(
+                            UNLIMITED_BATCH_WORDS,
+                            reader_elapsed,
+                        );
                         if result.is_err() {
-                            break;
-                        }
-                        // Firmware may assert motor-on during this batch.
-                        if !unlimited_processing_allowed(
-                            self.unlimited_speed,
-                            self.card_phase,
-                            machine.magnetic_card_inserted()
-                                || machine.card_motor_on()
-                                || machine.card_record_stream_active(),
-                        ) {
-                            unlimited_active = false;
                             break;
                         }
                     }
                     result
                 } else {
+                    self.last_reader_tick = Some(now);
                     machine.advance(elapsed)
                 };
                 if let Err(error) = result {
@@ -1670,7 +1658,7 @@ impl eframe::App for Hp67App {
             // Keep the physical firmware machine advancing after boot idle as well
             // as during startup. The same cadence also samples held/released key
             // contacts without introducing host-side calculator semantics.
-            if unlimited_active {
+            if self.unlimited_speed {
                 ctx.request_repaint();
             } else {
                 ctx.request_repaint_after(Duration::from_micros(4_800));
@@ -1693,26 +1681,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unlimited_processing_keeps_card_motion_and_reader_at_realtime() {
-        // A waiting card must remain at 1x even before firmware starts motor-on.
-        for phase in [
-            ProgramCardPhase::WaitingAtReader,
-            ProgramCardPhase::ReadingFromRight,
-            ProgramCardPhase::InsertingWindowFromRight,
-        ] {
-            assert!(!unlimited_processing_allowed(true, phase, false));
-            assert!(!unlimited_processing_allowed(true, phase, true));
-        }
-        // Reader occupancy/motor/stream protect timing independently of UI phase.
-        for phase in [
-            ProgramCardPhase::Idle,
-            ProgramCardPhase::ParkedLeft,
-            ProgramCardPhase::InWindow,
-        ] {
-            assert!(!unlimited_processing_allowed(true, phase, true));
-            assert!(unlimited_processing_allowed(true, phase, false));
-            assert!(!unlimited_processing_allowed(false, phase, false));
-        }
+    fn unlimited_reader_clock_preserves_submicroseconds_and_does_not_charge_time_twice() {
+        let start = Instant::now();
+        let mut anchor = None;
+        assert_eq!(take_reader_elapsed(&mut anchor, start), Duration::ZERO);
+        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(700)), Duration::ZERO);
+        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(1400)), Duration::from_micros(1));
+        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(2100)), Duration::from_micros(1));
+        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_nanos(2100)), Duration::ZERO);
+        assert_eq!(take_reader_elapsed(&mut anchor, start + Duration::from_micros(28_000)), Duration::from_micros(27_998));
     }
 
     #[test]

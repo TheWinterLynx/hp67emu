@@ -22,6 +22,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'PDF VIEWER TESTS KO' }
     & cargo test --locked --bin hp67emu embedded_source_artwork -- --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'HIRES ARTWORK TESTS KO' }
+    & cargo test --locked --bin hp67emu unlimited_ -- --nocapture
+    if ($LASTEXITCODE -ne 0) { throw 'UNLIMITED PROCESSOR / READER CLOCK TESTS KO' }
     & cargo test --locked --all-targets
     if ($LASTEXITCODE -ne 0) { throw 'ALL TARGETS KO' }
     & cargo build --locked --release --bins
