@@ -380,6 +380,8 @@ pub struct Hp67LiveMachine {
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
+    reader_pending_us: u64,
+    reader_poll_wait: bool,
     boot_cycle: u64,
     saw_display_init: bool,
     main_wait_visits: u64,
@@ -432,6 +434,8 @@ impl Hp67LiveMachine {
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
+            reader_pending_us: 0,
+            reader_poll_wait: false,
             boot_cycle: 0,
             saw_display_init: false,
             main_wait_visits: 0,
@@ -559,6 +563,8 @@ impl Hp67LiveMachine {
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
+        self.reader_pending_us = 0;
+        self.reader_poll_wait = false;
         self.boot_cycle = 0;
         self.saw_display_init = false;
         self.main_wait_visits = 0;
@@ -789,7 +795,7 @@ impl Hp67LiveMachine {
         Ok(self.card_transport.take_unstarted_card())
     }
 
-    /// Accelerate processor words while advancing the reader by its own elapsed time.
+    /// Accelerate useful processing; yield to real reader time on an empty CRC poll.
     /// This optional host speed mode is not a hardware clock-frequency claim.
     pub fn advance_processing_batch(
         &mut self,
@@ -797,13 +803,28 @@ impl Hp67LiveMachine {
         reader_elapsed: Duration,
     ) -> Result<(), String> {
         let reader_us = reader_elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
-        // Never jump several physical records in one CPU word after a stalled UI.
-        let processor_us = (u64::from(words) * HP67_OBSERVED_WORD_TIME_US).max(reader_us);
-        self.advance_with_reader_time(processor_us, Some(reader_us))
+        self.reader_pending_us = self.reader_pending_us.saturating_add(reader_us);
+        for _ in 0..words {
+            let waiting = self.reader_poll_wait
+                && self.card_motor_on()
+                && self.magnetic_card_inserted()
+                && self.machine.crc.flag(CRC_FLAG_BUFFER_READY) == Some(false);
+            // A failed buffer-ready poll is an I/O wait, not more work to rush.
+            // Preserve the ROM's instruction-counted timeout at its normal rate.
+            if waiting && self.reader_pending_us < HP67_OBSERVED_WORD_TIME_US {
+                break;
+            }
+            let reader_step_us = self.reader_pending_us.min(HP67_OBSERVED_WORD_TIME_US);
+            self.reader_pending_us -= reader_step_us;
+            self.advance_with_reader_time(HP67_OBSERVED_WORD_TIME_US, Some(reader_step_us))?;
+        }
+        Ok(())
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
         let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+        // Settle queued reader time once if the user returns to normal pacing.
+        let elapsed_us = elapsed_us.saturating_add(std::mem::take(&mut self.reader_pending_us));
         self.advance_with_reader_time(elapsed_us, None)
     }
 
@@ -1414,6 +1435,21 @@ impl Hp67LiveMachine {
                 format!("live cycle {cycle} card exit contact failed: {error:?}")
             })?;
             self.set_reader_head_contact(false)?;
+        }
+
+        if let Some(Hp67ArchitecturalExecution {
+            operation: Hp67ArchitecturalOperation::CrcControl {
+                instruction: CrcInstruction::TestFlagAndClear { flag },
+                condition: Some(ready),
+            },
+            ..
+        }) = &executed {
+            if usize::from(*flag) == CRC_FLAG_BUFFER_READY {
+                self.reader_poll_wait = !*ready && self.card_transport.head_active();
+            }
+        }
+        if !self.card_motor_on() || !self.magnetic_card_inserted() {
+            self.reader_poll_wait = false;
         }
 
         self.boot_cycle = cycle.saturating_add(1);
@@ -2338,41 +2374,77 @@ mod official_pac_tests;
 mod tests {
     #[test]
     fn unlimited_processing_advances_cpu_while_card_waits_for_physical_time() {
+        let imported = TeenixHppImport::from_bytes(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/programs/HP67/HP-67 Standard Pac/SD1-14A_1 Moon Rocket Lander.hpp"
+        ))).unwrap();
+        let card = imported.into_card();
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.phase = LiveBootPhase::Firmware;
         while !matches!(live.phase, LiveBootPhase::Idle) {
             live.step_firmware_cycle().unwrap();
         }
-        live.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
-            .unwrap();
-        let mut ready = false;
-        for _ in 0..8192 {
-            live.advance_processing_batch(1, Duration::ZERO).unwrap();
-            if live.card_motor_on() && live.card_transport.head_active() {
-                ready = true;
-                break;
-            }
-        }
-        assert!(ready, "firmware must start the real reader path");
-        // Let firmware acknowledge startup with the mechanical clock stopped.
-        live.advance_processing_batch(1024, Duration::ZERO).unwrap();
         let before = live.boot_cycle;
         live.advance_processing_batch(1024, Duration::ZERO).unwrap();
         assert_eq!(live.boot_cycle - before, 1024);
-        assert_eq!(live.card_transport.next_record(), 0);
-        live.advance_processing_batch(1024, Duration::from_micros(27_999))
-            .unwrap();
-        assert_eq!(live.card_transport.next_record(), 0);
-        live.advance_processing_batch(64, Duration::from_micros(1))
-            .unwrap();
-        assert_eq!(live.card_transport.next_record(), 1);
-        live.advance_processing_batch(2048, Duration::ZERO).unwrap();
-        assert_eq!(live.card_transport.next_record(), 1);
-        live.advance_processing_batch(64, Duration::from_micros(28_000))
-            .unwrap();
-        assert_eq!(live.card_transport.next_record(), 2);
-        // CPU time and all PHI transitions continued throughout the physical wait.
+        live.insert_magnetic_card(card.clone(), CardInsertionEnd::End1).unwrap();
+        // Real firmware performs startup, then yields on its empty CRC poll.
+        live.advance_processing_batch(8192, Duration::ZERO).unwrap();
+        assert!(live.card_motor_on());
+        assert!(live.card_record_stream_active());
+        assert!(live.reader_poll_wait);
+        assert_eq!(live.card_record_position(), 0);
+        let waiting_cycle = live.boot_cycle;
+        live.advance_processing_batch(8192, Duration::ZERO).unwrap();
+        assert_eq!(live.boot_cycle, waiting_cycle, "empty I/O poll must yield");
+        assert_eq!(live.card_record_position(), 0);
+
+        let mut processing_burst = false;
+        for tick in 1u64..=4096 {
+            let before = live.boot_cycle;
+            live.advance_processing_batch(256, Duration::from_micros(320)).unwrap();
+            let position = live.card_record_position();
+            // Independent reader time cannot be manufactured by processor bursts.
+            assert!(position as u64 * 28_000 <= tick * 320);
+            if position > 0 && live.boot_cycle - before > 1 {
+                processing_burst = true;
+            }
+            if tick == 87 {
+                assert_eq!(position, 0);
+            }
+            if tick == 88 {
+                assert_eq!(position, 1);
+            }
+            if live.card_transport_complete() {
+                break;
+            }
+            assert!(live.card_motor_on(), "ROM timed out before card exit at tick {tick}");
+        }
+        assert!(live.card_transport_complete(), "all 34 records must cross the head");
+        assert!(processing_burst, "CPU must accelerate actual processing between I/O waits");
+        assert_eq!(live.take_completed_magnetic_card(), Some(card.clone()));
         assert_eq!(live.backplane.tick().get(), live.boot_cycle * 224);
+
+        // Compare the actual restored program with the existing real-time path.
+        let mut paced = Hp67LiveMachine::power_on_default().unwrap();
+        paced.phase = LiveBootPhase::Firmware;
+        while !matches!(paced.phase, LiveBootPhase::Idle) {
+            paced.step_firmware_cycle().unwrap();
+        }
+        paced.insert_magnetic_card(card, CardInsertionEnd::End1).unwrap();
+        for _ in 0..8192 {
+            paced.step_firmware_cycle().unwrap();
+            if paced.card_transport_complete() { break; }
+        }
+        assert!(paced.card_transport_complete());
+        for _ in 0..512 {
+            live.advance_processing_batch(64, Duration::from_micros(320)).unwrap();
+            paced.step_firmware_cycle().unwrap();
+        }
+        for address in 0x20..=0x2f {
+            assert_eq!(live.machine.ram.read(address), paced.machine.ram.read(address),
+                "restored program RAM differs at {address:02x}");
+        }
     }
 
     #[test]
