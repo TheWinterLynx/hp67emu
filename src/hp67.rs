@@ -1438,12 +1438,14 @@ impl Hp67LiveMachine {
         }
 
         if let Some(Hp67ArchitecturalExecution {
-            operation: Hp67ArchitecturalOperation::CrcControl {
-                instruction: CrcInstruction::TestFlagAndClear { flag },
-                condition: Some(ready),
-            },
+            operation:
+                Hp67ArchitecturalOperation::CrcControl {
+                    instruction: CrcInstruction::TestFlagAndClear { flag },
+                    condition: Some(ready),
+                },
             ..
-        }) = &executed {
+        }) = &executed
+        {
             if usize::from(*flag) == CRC_FLAG_BUFFER_READY {
                 self.reader_poll_wait = !*ready && self.card_transport.head_active();
             }
@@ -2377,7 +2379,8 @@ mod tests {
         let imported = TeenixHppImport::from_bytes(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/programs/HP67/HP-67 Standard Pac/SD1-14A_1 Moon Rocket Lander.hpp"
-        ))).unwrap();
+        )))
+        .unwrap();
         let card = imported.into_card();
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
         live.phase = LiveBootPhase::Firmware;
@@ -2387,7 +2390,8 @@ mod tests {
         let before = live.boot_cycle;
         live.advance_processing_batch(1024, Duration::ZERO).unwrap();
         assert_eq!(live.boot_cycle - before, 1024);
-        live.insert_magnetic_card(card.clone(), CardInsertionEnd::End1).unwrap();
+        live.insert_magnetic_card(card.clone(), CardInsertionEnd::End1)
+            .unwrap();
         // Real firmware performs startup, then yields on its empty CRC poll.
         live.advance_processing_batch(8192, Duration::ZERO).unwrap();
         assert!(live.card_motor_on());
@@ -2402,7 +2406,8 @@ mod tests {
         let mut processing_burst = false;
         for tick in 1u64..=4096 {
             let before = live.boot_cycle;
-            live.advance_processing_batch(256, Duration::from_micros(320)).unwrap();
+            live.advance_processing_batch(256, Duration::from_micros(320))
+                .unwrap();
             let position = live.card_record_position();
             // Independent reader time cannot be manufactured by processor bursts.
             assert!(position as u64 * 28_000 <= tick * 320);
@@ -2418,10 +2423,19 @@ mod tests {
             if live.card_transport_complete() {
                 break;
             }
-            assert!(live.card_motor_on(), "ROM timed out before card exit at tick {tick}");
+            assert!(
+                live.card_motor_on(),
+                "ROM timed out before card exit at tick {tick}"
+            );
         }
-        assert!(live.card_transport_complete(), "all 34 records must cross the head");
-        assert!(processing_burst, "CPU must accelerate actual processing between I/O waits");
+        assert!(
+            live.card_transport_complete(),
+            "all 34 records must cross the head"
+        );
+        assert!(
+            processing_burst,
+            "CPU must accelerate actual processing between I/O waits"
+        );
         assert_eq!(live.take_completed_magnetic_card(), Some(card.clone()));
         assert_eq!(live.backplane.tick().get(), live.boot_cycle * 224);
 
@@ -2431,19 +2445,27 @@ mod tests {
         while !matches!(paced.phase, LiveBootPhase::Idle) {
             paced.step_firmware_cycle().unwrap();
         }
-        paced.insert_magnetic_card(card, CardInsertionEnd::End1).unwrap();
+        paced
+            .insert_magnetic_card(card, CardInsertionEnd::End1)
+            .unwrap();
         for _ in 0..8192 {
             paced.step_firmware_cycle().unwrap();
-            if paced.card_transport_complete() { break; }
+            if paced.card_transport_complete() {
+                break;
+            }
         }
         assert!(paced.card_transport_complete());
         for _ in 0..512 {
-            live.advance_processing_batch(64, Duration::from_micros(320)).unwrap();
+            live.advance_processing_batch(64, Duration::from_micros(320))
+                .unwrap();
             paced.step_firmware_cycle().unwrap();
         }
         for address in 0x20..=0x2f {
-            assert_eq!(live.machine.ram.read(address), paced.machine.ram.read(address),
-                "restored program RAM differs at {address:02x}");
+            assert_eq!(
+                live.machine.ram.read(address),
+                paced.machine.ram.read(address),
+                "restored program RAM differs at {address:02x}"
+            );
         }
     }
 
