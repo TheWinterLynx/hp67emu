@@ -60,3 +60,4 @@ Compact browser touch targets: `ProgramCardView::minimum_touch_target` lets the 
 
 Touch-only recovery also removes a mouse-specific dead end: while a card is in `WaitingAtReader`, compact browser mode accepts a normal tap to withdraw it, while desktop retains the existing right-click withdrawal gesture. Both paths call the same app/live-machine withdrawal API; this changes only how the physical action is requested.
 
+Scanned artwork is selected by verified catalog identity. The Crd tooltip describes an explicit rotate/reinsert gesture without reading media or classifying it as a valid continuation.

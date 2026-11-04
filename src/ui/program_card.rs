@@ -28,7 +28,6 @@ const CARD_PHYSICAL_WIDTH: f32 = CARD_WIDTH_MM * SOURCE_PX_PER_MM;
 const CARD_PHYSICAL_HEIGHT: f32 = CARD_HEIGHT_MM * SOURCE_PX_PER_MM;
 const CARD_LEFT_VISIBLE_WIDTH: f32 = 10.5 * SOURCE_PX_PER_MM;
 const CARD_LABEL_X_FRACTIONS: [f32; 5] = [0.133_918, 0.316_600, 0.499_281, 0.681_962, 0.864_643];
-const MOON_ROCKET_LANDER_TOP_MARKS: &[f32] = &[0.095, 0.224, 0.310];
 const CARD_TOP_MARK_WIDTH_MM: f32 = 0.9;
 const CARD_TOP_MARK_HEIGHT_MM: f32 = 0.75;
 const CARD_TITLE_Y_FRACTION: f32 = 0.31;
@@ -59,15 +58,6 @@ pub const GENERIC_MAGNETIC_CARD: ProgramCardArtwork = ProgramCardArtwork {
     show_hp_logo: false,
 };
 
-pub const MOON_ROCKET_LANDER_CARD: ProgramCardArtwork = ProgramCardArtwork {
-    title: "MOON ROCKET LANDER",
-    reference: "SD-14A",
-    primary_labels: ["CNTRL", "RESTART", "", "", ""],
-    shifted_labels: ["", "", "", "", ""],
-    top_marks: MOON_ROCKET_LANDER_TOP_MARKS,
-    show_hp_logo: true,
-};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramCardPhase {
     Idle,
@@ -94,7 +84,7 @@ pub struct ProgramCardView<'a> {
     pub face_texture: Option<&'a TextureHandle>,
     pub phase: ProgramCardPhase,
     pub phase_progress: f32,
-    pub opposite_track_requested: bool,
+    pub card_prompt: bool,
     pub rotated_180: bool,
     pub reader_enabled: bool,
     pub reader_free_for_new_blank: bool,
@@ -221,7 +211,7 @@ pub fn paint(
                 view.minimum_touch_target,
             )
             .intersect(ui.clip_rect());
-            let hover_text = if view.opposite_track_requested {
+            let hover_text = if view.card_prompt {
                 "Crd: click to rotate the same card 180° and reinsert the opposite end"
             } else {
                 "Click: move card to the holder above A-E. Double-click: rotate 180° and select the opposite end"
@@ -887,21 +877,6 @@ mod tests {
     const A_E_KEY_CENTERS_X: [f32; 5] = [211.0, 338.0, 465.0, 592.0, 719.0];
 
     #[test]
-    fn moon_rocket_lander_artwork_maps_a_and_b_without_changing_key_identity() {
-        assert_eq!(MOON_ROCKET_LANDER_CARD.primary_labels[0], "CNTRL");
-        assert_eq!(MOON_ROCKET_LANDER_CARD.primary_labels[1], "RESTART");
-        assert_eq!(MOON_ROCKET_LANDER_CARD.reference, "SD-14A");
-        assert_eq!(
-            MOON_ROCKET_LANDER_CARD.top_marks,
-            MOON_ROCKET_LANDER_TOP_MARKS
-        );
-        assert!(MOON_ROCKET_LANDER_CARD.show_hp_logo);
-        assert!(MOON_ROCKET_LANDER_CARD.primary_labels[2..]
-            .iter()
-            .all(|label| label.is_empty()));
-    }
-
-    #[test]
     fn card_window_is_inside_the_photographed_holder_frame() {
         assert_eq!(CARD_WINDOW.x0, 138.0);
         assert_eq!(CARD_WINDOW.x1, 796.0);
@@ -985,7 +960,6 @@ mod tests {
         );
         assert!((CARD_END_CHAMFER_MM - 4.2).abs() < 0.0001);
         assert!(CARD_END_CHAMFER_MM < CARD_HEIGHT_MM * 0.5);
-        assert_eq!(MOON_ROCKET_LANDER_CARD.top_marks.len(), 3);
     }
 
     #[test]

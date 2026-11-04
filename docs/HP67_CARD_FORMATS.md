@@ -282,3 +282,5 @@ against SD-15C, and listing -> native against CD-01:
 ```powershell
 py .\tools\convert_hp67_card.py self-test
 ```
+
+Desktop: each drop is independent. Drop both complementary HPP files together to assemble one physical card. For independent same-header sides, use the converter with explicit --track1 and --track2 and load its native output.

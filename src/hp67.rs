@@ -382,6 +382,7 @@ pub struct Hp67LiveMachine {
     pending_us: u64,
     reader_pending_us: u64,
     reader_poll_wait: bool,
+    last_empty_reader_poll: Option<(u8, u16)>,
     boot_cycle: u64,
     saw_display_init: bool,
     main_wait_visits: u64,
@@ -436,6 +437,7 @@ impl Hp67LiveMachine {
             pending_us: 0,
             reader_pending_us: 0,
             reader_poll_wait: false,
+            last_empty_reader_poll: None,
             boot_cycle: 0,
             saw_display_init: false,
             main_wait_visits: 0,
@@ -565,6 +567,7 @@ impl Hp67LiveMachine {
         self.pending_us = 0;
         self.reader_pending_us = 0;
         self.reader_poll_wait = false;
+        self.last_empty_reader_poll = None;
         self.boot_cycle = 0;
         self.saw_display_init = false;
         self.main_wait_visits = 0;
@@ -742,6 +745,7 @@ impl Hp67LiveMachine {
         self.machine.crc.flag(CRC_FLAG_MOTOR_ON) == Some(true)
     }
 
+    #[cfg(test)]
     pub fn card_write_mode(&self) -> bool {
         self.machine.crc.flag(CRC_FLAG_WRITE_MODE) == Some(true)
     }
@@ -797,11 +801,12 @@ impl Hp67LiveMachine {
 
     /// Accelerate useful processing; yield to real reader time on an empty CRC poll.
     /// This optional host speed mode is not a hardware clock-frequency claim.
+    /// Returns false when the UI should yield until more reader time is available.
     pub fn advance_processing_batch(
         &mut self,
         words: u32,
         reader_elapsed: Duration,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let reader_us = reader_elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
         self.reader_pending_us = self.reader_pending_us.saturating_add(reader_us);
         for _ in 0..words {
@@ -812,13 +817,13 @@ impl Hp67LiveMachine {
             // A failed buffer-ready poll is an I/O wait, not more work to rush.
             // Preserve the ROM's instruction-counted timeout at its normal rate.
             if waiting && self.reader_pending_us < HP67_OBSERVED_WORD_TIME_US {
-                break;
+                return Ok(false);
             }
             let reader_step_us = self.reader_pending_us.min(HP67_OBSERVED_WORD_TIME_US);
             self.reader_pending_us -= reader_step_us;
             self.advance_with_reader_time(HP67_OBSERVED_WORD_TIME_US, Some(reader_step_us))?;
         }
-        Ok(())
+        Ok(true)
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
@@ -885,6 +890,7 @@ impl Hp67LiveMachine {
         reader_elapsed_us: u64,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
+        let execution_bank = self.machine.bank();
         self.backplane
             .validate_clock()
             .map_err(|error| format!("live cycle {cycle} invalid PHI image: {error:?}"))?;
@@ -1437,21 +1443,22 @@ impl Hp67LiveMachine {
             self.set_reader_head_contact(false)?;
         }
 
-        if let Some(Hp67ArchitecturalExecution {
-            operation:
-                Hp67ArchitecturalOperation::CrcControl {
-                    instruction: CrcInstruction::TestFlagAndClear { flag },
-                    condition: Some(ready),
-                },
-            ..
-        }) = &executed
-        {
-            if usize::from(*flag) == CRC_FLAG_BUFFER_READY {
-                self.reader_poll_wait = !*ready && self.card_transport.head_active();
-            }
-        }
-        if !self.card_motor_on() || !self.magnetic_card_inserted() {
+        // The ROM also tests-and-clears ready once during initialization.
+        // Only a repeated empty test at the same site is evidence of polling.
+        if !self.card_transport.head_active() || !self.card_motor_on()
+            || self.machine.crc.flag(CRC_FLAG_BUFFER_READY) == Some(true) {
+            self.last_empty_reader_poll = None;
             self.reader_poll_wait = false;
+        } else if let Some(Hp67ArchitecturalExecution { pc,
+            operation: Hp67ArchitecturalOperation::CrcControl {
+                instruction: CrcInstruction::TestFlagAndClear { flag }, condition: Some(ready),
+            }, ..
+        }) = &executed {
+            if usize::from(*flag) == CRC_FLAG_BUFFER_READY {
+                let site = (!*ready).then_some((execution_bank, *pc));
+                self.reader_poll_wait = site.is_some() && self.last_empty_reader_poll == site;
+                self.last_empty_reader_poll = site;
+            }
         }
 
         self.boot_cycle = cycle.saturating_add(1);
@@ -2399,7 +2406,7 @@ mod tests {
         assert!(live.reader_poll_wait);
         assert_eq!(live.card_record_position(), 0);
         let waiting_cycle = live.boot_cycle;
-        live.advance_processing_batch(8192, Duration::ZERO).unwrap();
+        assert!(!live.advance_processing_batch(8192, Duration::ZERO).unwrap());
         assert_eq!(live.boot_cycle, waiting_cycle, "empty I/O poll must yield");
         assert_eq!(live.card_record_position(), 0);
 

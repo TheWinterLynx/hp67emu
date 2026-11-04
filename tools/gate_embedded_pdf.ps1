@@ -11,8 +11,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'EMBEDDED DOCUMENT CATALOG KO' }
     & py -3 tools/generate_embedded_card_artwork.py --check
     if ($LASTEXITCODE -ne 0) { throw 'HIRES ARTWORK CATALOG KO' }
-    & cargo fmt --all
-    if ($LASTEXITCODE -ne 0) { throw 'FMT KO' }
     & cargo fmt --all -- --check
     if ($LASTEXITCODE -ne 0) { throw 'FMT CHECK KO' }
     $env:RUSTFLAGS='-Dwarnings'

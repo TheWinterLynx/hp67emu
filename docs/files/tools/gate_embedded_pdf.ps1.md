@@ -18,6 +18,8 @@ Preserve PDF bytes, program references and deterministic machine behavior; keep 
 
 ## Implementation
 
-Requires Rust 1.92+, checks generated metadata, formats, runs focused and all-target tests, builds release and runs custom diagnostics. Copies only hp67emu.exe into a fresh temporary folder; executes --verify-embedded-pdfs there and opens that same EXE after success. Restores RUSTFLAGS and working directory. This gate has not been executed in the agent Linux environment.
+Requires Rust 1.92+, checks generated metadata and Rust formatting, runs focused and all-target tests, builds release and runs custom diagnostics. Copies only hp67emu.exe into a fresh temporary folder; executes --verify-embedded-pdfs there and opens that same EXE after success. Restores RUSTFLAGS and working directory. This gate has not been executed in the agent Linux environment.
 
 The gate also runs `cargo test --locked --bin hp67emu unlimited_ -- --nocapture` before the full suite. This covers independent host reader-time accounting, complete production CPU/PHI execution while the reader waits for physical time, and real-time resume equivalence. A failure stops before release or launch.
+
+The gate runs rustfmt in check-only mode; it never rewrites sources to make its own formatting check pass.
