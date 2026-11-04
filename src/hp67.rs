@@ -766,6 +766,12 @@ impl Hp67LiveMachine {
         self.display.shows_card_prompt()
     }
 
+    /// Transfer ownership of retained media when discarding a faulted machine.
+    /// This cannot resume the machine, synthesize an ejection or finish a write.
+    pub fn into_retained_card(mut self) -> Option<Hp67MagneticCard> {
+        self.card_transport.take_card_for_power_off()
+    }
+
     pub fn take_completed_magnetic_card(&mut self) -> Option<Hp67MagneticCard> {
         self.card_transport.take_completed_card()
     }
@@ -3954,6 +3960,16 @@ mod tests {
             live.machine.crc.external_flag(CRC_FLAG_CARD_PRESENT),
             Some(false)
         );
+    }
+
+    #[test]
+    fn stopping_machine_retains_inserted_media_without_completing_the_pass() {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        let card = track1_card(Hp67MagneticTrack::from_words([0x1234567; HP67_CARD_RECORDS_PER_TRACK]).unwrap())
+            .with_track(Hp67CardTrack::Track2, Hp67MagneticTrack::default().with_write_protected(true));
+        live.insert_magnetic_card(card.clone(), CardInsertionEnd::End2).unwrap();
+        assert!(!live.card_transport_complete());
+        assert_eq!(live.into_retained_card(), Some(card));
     }
 
     #[test]

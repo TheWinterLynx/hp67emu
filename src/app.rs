@@ -59,6 +59,7 @@ pub struct Hp67App {
     card_logo: TextureHandle,
     card_artwork_atlas: Option<image::RgbaImage>,
     live_machine: Option<Hp67LiveMachine>,
+    live_fault: Option<String>,
     card_media: Option<Hp67MagneticCard>,
     card_insertion_end: CardInsertionEnd,
     last_live_tick: Option<Instant>,
@@ -160,12 +161,9 @@ impl Hp67App {
         // Decode a full-resolution face only when selected; keep the small atlas lazy.
         let card_artwork_atlas = None;
 
-        let live_machine = match Hp67LiveMachine::power_on_default() {
-            Ok(machine) => Some(machine),
-            Err(error) => {
-                eprintln!("HP-67 live display disabled: {error}");
-                None
-            }
+        let (live_machine, live_fault) = match Hp67LiveMachine::power_on_default() {
+            Ok(machine) => (Some(machine), None),
+            Err(error) => (None, Some(format!("Power-on failed: {error}"))),
         };
 
         Self {
@@ -176,6 +174,7 @@ impl Hp67App {
             card_logo,
             card_artwork_atlas,
             live_machine,
+            live_fault,
             card_media: None,
             card_insertion_end: CardInsertionEnd::End1,
             last_live_tick: None,
@@ -199,6 +198,17 @@ impl Hp67App {
 }
 
 impl Hp67App {
+    fn stop_on_fault(&mut self, error: String) {
+        eprintln!("HP-67 emulation stopped: {error}");
+        if let Some(card) = self.live_machine.take().and_then(Hp67LiveMachine::into_retained_card) {
+            self.card_media = Some(card);
+            self.card_phase = ProgramCardPhase::Idle;
+            self.card_phase_started = None;
+            self.card_read_progress = 0.0;
+        }
+        self.live_fault = Some(error);
+    }
+
     fn import_dropped_card_files(&mut self, ctx: &egui::Context) {
         let paths = ctx.input(|input| {
             input
@@ -1253,7 +1263,7 @@ impl Hp67App {
                             }
                             Ok(None) => {}
                             Err(error) => {
-                                eprintln!("HP-67 power-off card recovery failed: {error}");
+                                self.stop_on_fault(format!("Power-off card recovery failed: {error}"));
                             }
                         }
                     }
@@ -1266,8 +1276,9 @@ impl Hp67App {
                         })
                     };
                     if let Err(error) = reset_result {
-                        eprintln!("HP-67 live power-on reset failed: {error}");
-                        self.live_machine = None;
+                        self.stop_on_fault(format!("Power-on reset failed: {error}"));
+                    } else {
+                        self.live_fault = None;
                     }
                 }
             }
@@ -1279,8 +1290,7 @@ impl Hp67App {
                 .err()
         });
         if let Some(error) = mode_error {
-            eprintln!("HP-67 live program-mode update failed: {error}");
-            self.live_machine = None;
+            self.stop_on_fault(format!("Program selector failed: {error}"));
         }
 
         if let Some(machine) = self.live_machine.as_mut() {
@@ -1466,6 +1476,12 @@ impl eframe::App for Hp67App {
                 });
             });
         });
+        if let Some(error) = &self.live_fault {
+            egui::TopBottomPanel::top("hp67-machine-fault").show(ctx, |ui| {
+                ui.label(format!("Emulation stopped: {error}"));
+                ui.label("Switch OFF and ON to retry.");
+            });
+        }
         if open_program_library {
             self.program_library_open = true;
             self.program_library_status = None;
@@ -1601,8 +1617,8 @@ impl eframe::App for Hp67App {
             }
         }
         if let Some(error) = live_error {
-            eprintln!("HP-67 live machine disabled: {error}");
-            self.live_machine = None;
+            self.stop_on_fault(error);
+            ctx.request_repaint();
         }
 
         if self.card_phase.is_animating() || live_card_active {
