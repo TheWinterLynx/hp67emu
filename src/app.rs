@@ -12,9 +12,7 @@ use crate::{
     panel::Hp67Panel,
     program_library::PROGRAM_LIBRARY,
     ui::{
-        program_card::{
-            ProgramCardPhase, ProgramCardView, GENERIC_MAGNETIC_CARD,
-        },
+        program_card::{ProgramCardPhase, ProgramCardView, GENERIC_MAGNETIC_CARD},
         sliders, top_keys,
     },
 };
@@ -220,8 +218,16 @@ impl Hp67App {
         }
     }
 
-    fn load_card_files(&mut self, ctx: &egui::Context, paths: &[std::path::PathBuf]) -> Result<(), String> {
-        if self.live_machine.as_ref().is_some_and(Hp67LiveMachine::magnetic_card_inserted) {
+    fn load_card_files(
+        &mut self,
+        ctx: &egui::Context,
+        paths: &[std::path::PathBuf],
+    ) -> Result<(), String> {
+        if self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
+        {
             return Err("cannot replace card media while a card is inside the reader".into());
         }
         let (card, end) = decode_dropped_media(paths)?;
@@ -237,7 +243,10 @@ impl Hp67App {
         self.card_phase = ProgramCardPhase::Idle;
         self.card_phase_started = None;
         self.card_read_progress = 0.0;
-        self.card_save_path = paths[0].with_extension("hp67card").to_string_lossy().into_owned();
+        self.card_save_path = paths[0]
+            .with_extension("hp67card")
+            .to_string_lossy()
+            .into_owned();
         self.card_save_status = None;
         Ok(())
     }
@@ -271,8 +280,12 @@ impl Hp67App {
         Ok(())
     }
 
-    fn library_face_texture(&mut self, ctx: &egui::Context, index: usize,
-        entry: &crate::program_library::ProgramLibraryEntry) -> Result<Option<TextureHandle>, String> {
+    fn library_face_texture(
+        &mut self,
+        ctx: &egui::Context,
+        index: usize,
+        entry: &crate::program_library::ProgramLibraryEntry,
+    ) -> Result<Option<TextureHandle>, String> {
         let decoded_artwork = if let Some(image) = decode_embedded_full_resolution_artwork(entry)? {
             Some(image)
         } else if let Some(row) = entry.artwork_atlas_row() {
@@ -1127,8 +1140,12 @@ impl Hp67App {
             return false;
         }
 
-        let Some(machine) = self.live_machine.as_mut() else { return false; };
-        if let Err(error) = machine.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1) {
+        let Some(machine) = self.live_machine.as_mut() else {
+            return false;
+        };
+        if let Err(error) =
+            machine.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+        {
             eprintln!("HP-67 blank card insertion failed: {error}");
             return false;
         }
@@ -1156,7 +1173,10 @@ impl Hp67App {
             HardwareDisplayFrame::BLANK,
             Hp67LiveMachine::optical_display_frame,
         );
-        let card_prompt = self.live_machine.as_ref().is_some_and(Hp67LiveMachine::card_prompt_visible);
+        let card_prompt = self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::card_prompt_visible);
         let card_artwork = if let Some(entry) = self
             .card_library_entry
             .and_then(|index| PROGRAM_LIBRARY.get(index))
@@ -1197,8 +1217,7 @@ impl Hp67App {
         if panel.card_waiting_reader_clicked {
             self.withdraw_waiting_card();
         }
-        if card_prompt
-            && (panel.card_parked_left_clicked || panel.card_parked_left_double_clicked)
+        if card_prompt && (panel.card_parked_left_clicked || panel.card_parked_left_double_clicked)
         {
             self.insert_current_card(self.card_insertion_end.opposite());
         } else if panel.card_parked_left_double_clicked {
@@ -1322,12 +1341,22 @@ fn serialize_card_for_extension(
 }
 
 // Only files in the current drop can contribute tracks to a new card.
-fn decode_dropped_media(paths: &[std::path::PathBuf]) -> Result<(Hp67MagneticCard, CardInsertionEnd), String> {
-    let extension = |p: &Path| p.extension().and_then(|v| v.to_str()).unwrap_or_default().to_ascii_lowercase();
+fn decode_dropped_media(
+    paths: &[std::path::PathBuf],
+) -> Result<(Hp67MagneticCard, CardInsertionEnd), String> {
+    let extension = |p: &Path| {
+        p.extension()
+            .and_then(|v| v.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+    };
     let read = |p: &Path| fs::read(p).map_err(|e| format!("cannot read {}: {e}", p.display()));
     let hpp = |p: &Path| -> Result<TeenixHppImport, String> {
-        let part = TeenixHppImport::from_bytes(&read(p)?).map_err(|e| format!("{}: {e:?}", p.display()))?;
-        if !part.length_matches { eprintln!("Teenix length mismatch: {}", p.display()); }
+        let part = TeenixHppImport::from_bytes(&read(p)?)
+            .map_err(|e| format!("{}: {e:?}", p.display()))?;
+        if !part.length_matches {
+            eprintln!("Teenix length mismatch: {}", p.display());
+        }
         Ok(part)
     };
     match paths {
@@ -1338,19 +1367,32 @@ fn decode_dropped_media(paths: &[std::path::PathBuf]) -> Result<(Hp67MagneticCar
                 Ok((part.into_card(), end))
             }
             "hp67raw" => Hp67MagneticCard::from_hp67raw_bytes(&read(p)?)
-                .map(|c| (c, CardInsertionEnd::End1)).map_err(|e| format!("{}: {e:?}", p.display())),
+                .map(|c| (c, CardInsertionEnd::End1))
+                .map_err(|e| format!("{}: {e:?}", p.display())),
             "hp67card" => Hp67MagneticCard::from_hp67card_bytes(&read(p)?)
-                .map(|c| (c, CardInsertionEnd::End1)).map_err(|e| format!("{}: {e:?}", p.display())),
+                .map(|c| (c, CardInsertionEnd::End1))
+                .map_err(|e| format!("{}: {e:?}", p.display())),
             _ => Err("Expected .hpp, .hp67raw or .hp67card".into()),
         },
-        [a,b] if extension(a) == "hpp" && extension(b) == "hpp" => join_hpp_parts(hpp(a)?, hpp(b)?),
+        [a, b] if extension(a) == "hpp" && extension(b) == "hpp" => {
+            join_hpp_parts(hpp(a)?, hpp(b)?)
+        }
         _ => Err("Drop one card, or both matching .hpp parts together.".into()),
     }
 }
 
-fn join_hpp_parts(a: TeenixHppImport, b: TeenixHppImport) -> Result<(Hp67MagneticCard, CardInsertionEnd), String> {
-    if a.bitmap_name.is_empty() || a.bitmap_name != b.bitmap_name || a.calculator_id != b.calculator_id
-        || !matches!((a.header_id,b.header_id), (1,2)|(2,1)|(3,4)|(4,3)) {
+fn join_hpp_parts(
+    a: TeenixHppImport,
+    b: TeenixHppImport,
+) -> Result<(Hp67MagneticCard, CardInsertionEnd), String> {
+    if a.bitmap_name.is_empty()
+        || a.bitmap_name != b.bitmap_name
+        || a.calculator_id != b.calculator_id
+        || !matches!(
+            (a.header_id, b.header_id),
+            (1, 2) | (2, 1) | (3, 4) | (4, 3)
+        )
+    {
         return Err("Incompatible HPP pair. For independent sides use the converter with explicit --track1 and --track2.".into());
     }
     let mut card = a.into_card();
@@ -1516,9 +1558,15 @@ impl eframe::App for Hp67App {
                 let result = if self.unlimited_speed {
                     let started = Instant::now();
                     loop {
-                        let reader_elapsed = take_reader_elapsed(&mut self.last_reader_tick, Instant::now());
-                        match machine.advance_processing_batch(UNLIMITED_BATCH_WORDS, reader_elapsed) {
-                            Ok(false) => { yielded_for_reader = true; break Ok(()); }
+                        let reader_elapsed =
+                            take_reader_elapsed(&mut self.last_reader_tick, Instant::now());
+                        match machine
+                            .advance_processing_batch(UNLIMITED_BATCH_WORDS, reader_elapsed)
+                        {
+                            Ok(false) => {
+                                yielded_for_reader = true;
+                                break Ok(());
+                            }
                             Ok(true) if started.elapsed() < UNLIMITED_SLICE_BUDGET => {}
                             Ok(true) => break Ok(()),
                             Err(error) => break Err(error),
@@ -1746,7 +1794,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn new_blank_is_allowed_when_reader_is_physically_free() {
         assert!(reader_free_for_new_blank(ProgramCardPhase::Idle));
@@ -1789,19 +1836,28 @@ mod tests {
 
     #[test]
     fn explicit_hpp_pair_restores_catalog_media_in_either_order() {
-        let a = TeenixHppImport::from_bytes(include_bytes!("../programs/HP67/HP-67 Games Pac 1/GA1-05A_1 Artillery.hpp")).unwrap();
-        let b = TeenixHppImport::from_bytes(include_bytes!("../programs/HP67/HP-67 Games Pac 1/GA1-05A_2 Artillery.hpp")).unwrap();
-        let i = PROGRAM_LIBRARY.iter().position(|e| e.reference == "GA1-05A").unwrap();
+        let a = TeenixHppImport::from_bytes(include_bytes!(
+            "../programs/HP67/HP-67 Games Pac 1/GA1-05A_1 Artillery.hpp"
+        ))
+        .unwrap();
+        let b = TeenixHppImport::from_bytes(include_bytes!(
+            "../programs/HP67/HP-67 Games Pac 1/GA1-05A_2 Artillery.hpp"
+        ))
+        .unwrap();
+        let i = PROGRAM_LIBRARY
+            .iter()
+            .position(|e| e.reference == "GA1-05A")
+            .unwrap();
         let expected = PROGRAM_LIBRARY[i].load_card().unwrap().card;
-        for (x,y) in [(a.clone(),b.clone()),(b.clone(),a.clone())] {
-            let (card,end) = join_hpp_parts(x,y).unwrap();
+        for (x, y) in [(a.clone(), b.clone()), (b.clone(), a.clone())] {
+            let (card, end) = join_hpp_parts(x, y).unwrap();
             assert_eq!(end, CardInsertionEnd::End1);
             assert_eq!(card, expected);
             assert_eq!(scanned_card_index(&card), Some(i));
         }
-        assert!(join_hpp_parts(a.clone(),a.clone()).is_err());
+        assert!(join_hpp_parts(a.clone(), a.clone()).is_err());
         let mut other = b;
         other.bitmap_name.push('X');
-        assert!(join_hpp_parts(a,other).is_err());
+        assert!(join_hpp_parts(a, other).is_err());
     }
 }

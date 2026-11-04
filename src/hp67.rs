@@ -1445,15 +1445,22 @@ impl Hp67LiveMachine {
 
         // The ROM also tests-and-clears ready once during initialization.
         // Only a repeated empty test at the same site is evidence of polling.
-        if !self.card_transport.head_active() || !self.card_motor_on()
-            || self.machine.crc.flag(CRC_FLAG_BUFFER_READY) == Some(true) {
+        if !self.card_transport.head_active()
+            || !self.card_motor_on()
+            || self.machine.crc.flag(CRC_FLAG_BUFFER_READY) == Some(true)
+        {
             self.last_empty_reader_poll = None;
             self.reader_poll_wait = false;
-        } else if let Some(Hp67ArchitecturalExecution { pc,
-            operation: Hp67ArchitecturalOperation::CrcControl {
-                instruction: CrcInstruction::TestFlagAndClear { flag }, condition: Some(ready),
-            }, ..
-        }) = &executed {
+        } else if let Some(Hp67ArchitecturalExecution {
+            pc,
+            operation:
+                Hp67ArchitecturalOperation::CrcControl {
+                    instruction: CrcInstruction::TestFlagAndClear { flag },
+                    condition: Some(ready),
+                },
+            ..
+        }) = &executed
+        {
             if usize::from(*flag) == CRC_FLAG_BUFFER_READY {
                 let site = (!*ready).then_some((execution_bank, *pc));
                 self.reader_poll_wait = site.is_some() && self.last_empty_reader_poll == site;
