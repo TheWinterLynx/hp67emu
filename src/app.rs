@@ -200,7 +200,11 @@ impl Hp67App {
 impl Hp67App {
     fn stop_on_fault(&mut self, error: String) {
         eprintln!("HP-67 emulation stopped: {error}");
-        if let Some(card) = self.live_machine.take().and_then(Hp67LiveMachine::into_retained_card) {
+        if let Some(card) = self
+            .live_machine
+            .take()
+            .and_then(Hp67LiveMachine::into_retained_card)
+        {
             self.card_media = Some(card);
             self.card_phase = ProgramCardPhase::Idle;
             self.card_phase_started = None;
@@ -1263,7 +1267,9 @@ impl Hp67App {
                             }
                             Ok(None) => {}
                             Err(error) => {
-                                self.stop_on_fault(format!("Power-off card recovery failed: {error}"));
+                                self.stop_on_fault(format!(
+                                    "Power-off card recovery failed: {error}"
+                                ));
                             }
                         }
                     }

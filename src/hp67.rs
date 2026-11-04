@@ -3965,9 +3965,15 @@ mod tests {
     #[test]
     fn stopping_machine_retains_inserted_media_without_completing_the_pass() {
         let mut live = Hp67LiveMachine::power_on_default().unwrap();
-        let card = track1_card(Hp67MagneticTrack::from_words([0x1234567; HP67_CARD_RECORDS_PER_TRACK]).unwrap())
-            .with_track(Hp67CardTrack::Track2, Hp67MagneticTrack::default().with_write_protected(true));
-        live.insert_magnetic_card(card.clone(), CardInsertionEnd::End2).unwrap();
+        let card = track1_card(
+            Hp67MagneticTrack::from_words([0x1234567; HP67_CARD_RECORDS_PER_TRACK]).unwrap(),
+        )
+        .with_track(
+            Hp67CardTrack::Track2,
+            Hp67MagneticTrack::default().with_write_protected(true),
+        );
+        live.insert_magnetic_card(card.clone(), CardInsertionEnd::End2)
+            .unwrap();
         assert!(!live.card_transport_complete());
         assert_eq!(live.into_retained_card(), Some(card));
     }
