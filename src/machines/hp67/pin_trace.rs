@@ -165,27 +165,30 @@ fn parse_level(value: &str) -> Result<Option<LogicLevel>, String> {
     }
 }
 fn validate_row_coordinate(
-    domain: PinTimeDomain, previous: Option<&PinRow>, at: u64, order: u32,
+    domain: PinTimeDomain,
+    previous: Option<&PinRow>,
+    at: u64,
+    order: u32,
 ) -> Result<(), String> {
-            if domain == PinTimeDomain::Nanoseconds && order != 0 {
-                return Err("physical rows require unique timestamps/order=0; unresolved simultaneous ordering must not be invented".into());
-            }
-            if let Some(previous) = previous {
-                if at < previous.at
-                    || (at == previous.at
-                        && (domain != PinTimeDomain::Ordinal
-                            || order
-                                != previous
-                                    .order
-                                    .checked_add(1)
-                                    .ok_or("delta order overflow")?))
-                    || (at > previous.at && order != 0)
-                {
-                    return Err("non-monotonic capture coordinates".into());
-                }
-            } else if order != 0 {
-                return Err("first row requires order=0".into());
-            }
+    if domain == PinTimeDomain::Nanoseconds && order != 0 {
+        return Err("physical rows require unique timestamps/order=0; unresolved simultaneous ordering must not be invented".into());
+    }
+    if let Some(previous) = previous {
+        if at < previous.at
+            || (at == previous.at
+                && (domain != PinTimeDomain::Ordinal
+                    || order
+                        != previous
+                            .order
+                            .checked_add(1)
+                            .ok_or("delta order overflow")?))
+            || (at > previous.at && order != 0)
+        {
+            return Err("non-monotonic capture coordinates".into());
+        }
+    } else if order != 0 {
+        return Err("first row requires order=0".into());
+    }
     Ok(())
 }
 
@@ -359,6 +362,9 @@ mod core_audit_coordinates {
         assert!(import_pin_trace(&invalid.to_tsv().unwrap()).is_err());
         invalid.rows[3].order = 1;
         assert!(analyze_pin_trace(&invalid).is_ok());
-        assert_eq!(import_pin_trace(&invalid.to_tsv().unwrap()).unwrap(), invalid);
+        assert_eq!(
+            import_pin_trace(&invalid.to_tsv().unwrap()).unwrap(),
+            invalid
+        );
     }
 }

@@ -35,15 +35,22 @@ fn parse_blocks(blocks: [&str; 10]) -> Result<[u16; FIRMWARE_WORDS], String> {
     let mut image = [0u16; FIRMWARE_WORDS];
     for (block_index, block) in blocks.into_iter().enumerate() {
         let mut count = 0;
-        for token in block.split(|ch: char| ch == ',' || ch.is_whitespace())
-            .filter(|token| !token.is_empty()) {
+        for token in block
+            .split(|ch: char| ch == ',' || ch.is_whitespace())
+            .filter(|token| !token.is_empty())
+        {
             if count == BLOCK_WORDS {
-                return Err(format!("HP-67 firmware block {block_index:02} exceeds {BLOCK_WORDS} words"));
+                return Err(format!(
+                    "HP-67 firmware block {block_index:02} exceeds {BLOCK_WORDS} words"
+                ));
             }
-            let word = u16::from_str_radix(token, 8)
-                .map_err(|_| format!("invalid HP-67 firmware word {token} in block {block_index:02} at {count}"))?;
+            let word = u16::from_str_radix(token, 8).map_err(|_| {
+                format!("invalid HP-67 firmware word {token} in block {block_index:02} at {count}")
+            })?;
             if word > WORD_MASK {
-                return Err(format!("HP-67 firmware word exceeds 10 bits in block {block_index:02} at {count}"));
+                return Err(format!(
+                    "HP-67 firmware word exceeds 10 bits in block {block_index:02} at {count}"
+                ));
             }
             image[block_index * BLOCK_WORDS + count] = word;
             count += 1;
@@ -187,8 +194,11 @@ mod tests {
     #[test]
     fn core_audit_firmware_block_boundaries_cannot_shift_while_total_stays_valid() {
         let mut blocks: Vec<String> = BLOCKS.iter().map(|block| block.to_string()).collect();
-        let tokens: Vec<_> = blocks[0].split(|ch: char| ch == ',' || ch.is_whitespace())
-            .filter(|token| !token.is_empty()).map(str::to_owned).collect();
+        let tokens: Vec<_> = blocks[0]
+            .split(|ch: char| ch == ',' || ch.is_whitespace())
+            .filter(|token| !token.is_empty())
+            .map(str::to_owned)
+            .collect();
         let moved = tokens.last().unwrap().clone();
         blocks[0] = tokens[..511].join(",");
         blocks[1] = format!("{moved},{}", blocks[1]);
@@ -198,7 +208,12 @@ mod tests {
 
     #[test]
     fn core_audit_firmware_rejects_invalid_tokens_counts_and_words() {
-        for bad in ["0,".repeat(513), "0,".repeat(511), format!("2000,{}", "0,".repeat(511)), format!("8,{}", "0,".repeat(511))] {
+        for bad in [
+            "0,".repeat(513),
+            "0,".repeat(511),
+            format!("2000,{}", "0,".repeat(511)),
+            format!("8,{}", "0,".repeat(511)),
+        ] {
             let mut blocks = BLOCKS;
             blocks[9] = &bad;
             assert!(parse_blocks(blocks).is_err());
@@ -219,5 +234,4 @@ mod tests {
         assert_eq!(rom.read_word_in_bank(1, 0x800), None);
         assert_eq!(rom.read_word_in_bank(2, 0x400), None);
     }
-
 }
