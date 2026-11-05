@@ -2,7 +2,7 @@ name: M16L cargo fmt only
 
 on:
   push:
-    branches: [agent/m16l-pin-integrity, agent/core-integrity-audit]
+    branches: [agent/m16l-pin-integrity, agent/core-integrity-audit, agent/scheduler-driver-ownership]
     paths-ignore:
       - '**/*.md'
 
