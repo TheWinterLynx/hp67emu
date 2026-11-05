@@ -180,17 +180,20 @@ fn native_window_is_resizable_without_a_maximum_size() {
     assert_eq!(options.multisampling, 4);
 }
 
-
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod core_audit_trace_files {
     use super::*;
     struct Temporary(std::path::PathBuf);
     impl Drop for Temporary {
-        fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); }
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
     #[test]
     fn core_audit_is_reports_preserve_existing_files_and_hard_linked_inputs() {
-        let temp = Temporary(std::env::temp_dir().join(format!("hp67-core-is-write-{}", std::process::id())));
+        let temp = Temporary(
+            std::env::temp_dir().join(format!("hp67-core-is-write-{}", std::process::id())),
+        );
         std::fs::create_dir(&temp.0).unwrap();
         let input = temp.0.join("input.tsv");
         let alias = temp.0.join("alias.tsv");
@@ -202,11 +205,25 @@ mod core_audit_trace_files {
         let alias = alias.to_str().unwrap().to_owned();
         let report = report.to_str().unwrap().to_owned();
         for output in [&input, &alias] {
-            assert!(decode_trace_file(&["--decode-is".into(), input.clone(), output.clone()]).is_err());
-            assert!(compare_trace_files(&["--compare-is".into(), input.clone(), input.clone(), output.clone()]).is_err());
+            assert!(
+                decode_trace_file(&["--decode-is".into(), input.clone(), output.clone()]).is_err()
+            );
+            assert!(compare_trace_files(&[
+                "--compare-is".into(),
+                input.clone(),
+                input.clone(),
+                output.clone()
+            ])
+            .is_err());
             assert_eq!(std::fs::read_to_string(&input).unwrap(), original);
         }
-        assert!(compare_trace_files(&["--compare-is".into(), input.clone(), input.clone(), report.clone()]).unwrap());
+        assert!(compare_trace_files(&[
+            "--compare-is".into(),
+            input.clone(),
+            input.clone(),
+            report.clone()
+        ])
+        .unwrap());
         let saved = std::fs::read(&report).unwrap();
         assert!(decode_trace_file(&["--decode-is".into(), input.clone(), report.clone()]).is_err());
         assert_eq!(std::fs::read(&report).unwrap(), saved);
@@ -215,12 +232,17 @@ mod core_audit_trace_files {
     }
     #[test]
     fn core_audit_trace_reader_enforces_limit_on_open_stream() {
-        let temp = Temporary(std::env::temp_dir().join(format!("hp67-core-is-limit-{}", std::process::id())));
+        let temp = Temporary(
+            std::env::temp_dir().join(format!("hp67-core-is-limit-{}", std::process::id())),
+        );
         std::fs::create_dir(&temp.0).unwrap();
         let file = temp.0.join("input");
         std::fs::write(&file, b"123456789").unwrap();
         let path = file.to_str().unwrap();
         assert!(pin_trace_cli::read_text_limited(path, 8).is_err());
-        assert_eq!(pin_trace_cli::read_text_limited(path, 9).unwrap(), "123456789");
+        assert_eq!(
+            pin_trace_cli::read_text_limited(path, 9).unwrap(),
+            "123456789"
+        );
     }
 }
