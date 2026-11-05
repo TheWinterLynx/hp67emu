@@ -39,3 +39,5 @@ Native `--decode-is input.tsv report.txt [start_row words]` decodes an explicit 
 
 Dispatches --trace-pins, --audit-pins and --compare-pins to a native-only CLI module before GUI startup. Exit 0 is resolved scoped equality/success, 2 differences, 3 unresolved selected observations and 1 input/argument/output failure. Legacy IS commands and WASM startup are unchanged.
 Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.
+
+IS capture/comparison/decoding now share pin_trace_cli create-new output handling. Existing outputs, including hard links to inputs, are never truncated. Users must choose a new output path or explicitly remove an old report. Reads use the bounded open-stream helper rather than metadata followed by an unbounded read. Regressions cover same-path/hard-link input protection, existing report preservation, fresh comparison/decode output and byte limits.

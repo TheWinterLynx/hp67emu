@@ -135,8 +135,8 @@ impl Hp67MagneticTrack {
     }
 
     pub(crate) fn write_word(&mut self, index: usize, word: u32) {
-        debug_assert!(index < HP67_CARD_RECORDS_PER_TRACK);
-        debug_assert!(word <= CRC_CARD_WORD_MASK);
+        assert!(index < HP67_CARD_RECORDS_PER_TRACK, "card record index out of range");
+        assert!(word <= CRC_CARD_WORD_MASK, "card record exceeds 28 bits");
 
         if matches!(self.media, TrackMedia::Unrecorded) {
             self.media = TrackMedia::Recorded([0; HP67_CARD_RECORDS_PER_TRACK]);
@@ -710,4 +710,16 @@ mod tests {
             ))
         );
     }
+    #[test]
+    fn core_audit_invalid_internal_card_write_never_materializes_or_changes_media() {
+        for mut track in [Hp67MagneticTrack::default(), Hp67MagneticTrack::from_words(sample_words(1)).unwrap()] {
+            for (index, word) in [(HP67_CARD_RECORDS_PER_TRACK, 0), (0, CRC_CARD_WORD_MASK + 1)] {
+                let before = track.clone();
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| track.write_word(index, word)));
+                assert!(result.is_err());
+                assert_eq!(track, before);
+            }
+        }
+    }
+
 }

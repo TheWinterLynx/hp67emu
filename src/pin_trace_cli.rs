@@ -11,15 +11,22 @@ use std::{
     io::{Read, Write},
     path::Path,
 };
-fn read(path: &str) -> Result<Hp67PinTrace, String> {
+pub(crate) fn read_text_limited(path: &str, limit: usize) -> Result<String, String> {
     let file = File::open(path).map_err(|error| format!("{path}: {error}"))?;
     let mut text = String::new();
-    file.take(MAX_PIN_BYTES as u64 + 1)
+    file.take(limit as u64 + 1)
         .read_to_string(&mut text)
         .map_err(|error| format!("{path}: {error}"))?;
+    if text.len() > limit {
+        return Err(format!("{path}: input exceeds byte limit"));
+    }
+    Ok(text)
+}
+fn read(path: &str) -> Result<Hp67PinTrace, String> {
+    let text = read_text_limited(path, MAX_PIN_BYTES)?;
     import_pin_trace(&text).map_err(|error| format!("{path}: {error}"))
 }
-fn write_new(path: &str, content: &str) -> Result<(), String> {
+pub(crate) fn write_new(path: &str, content: &str) -> Result<(), String> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)

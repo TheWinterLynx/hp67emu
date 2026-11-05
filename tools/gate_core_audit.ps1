@@ -7,6 +7,8 @@ try {
     $env:RUSTFLAGS = '-Dwarnings'
     & cargo test --locked --lib core_audit_ -- --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT FOCUSED KO' }
+    & cargo test --release --locked --lib core_audit_ -- --nocapture
+    if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT RELEASE INVARIANTS KO' }
     & cargo test --locked --all-targets
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT TESTS KO' }
     & cargo test --locked --all-targets --features pin-capture

@@ -36,22 +36,9 @@ fn compare_trace_files(args: &[String]) -> Result<bool, String> {
         return Err("usage: hp67emu --compare-is <expected.tsv> <actual.tsv> <report.txt> [expected_start actual_start]".to_owned());
     }
     let read = |path: &str| -> Result<_, String> {
-        let size = std::fs::metadata(path)
-            .map_err(|error| format!("{path}: {error}"))?
-            .len();
-        if size > MAX_TRACE_BYTES as u64 {
-            return Err(format!("{path}: trace exceeds byte limit"));
-        }
-        let content = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
+        let content = pin_trace_cli::read_text_limited(path, MAX_TRACE_BYTES)?;
         import_bus_trace(&content).map_err(|error| format!("{path}: {error}"))
     };
-    if let Ok(output) = std::fs::canonicalize(&args[3]) {
-        for path in [&args[1], &args[2]] {
-            if std::fs::canonicalize(path).ok().as_ref() == Some(&output) {
-                return Err("report must not overwrite either input trace".to_owned());
-            }
-        }
-    }
     let (expected_start, actual_start) = if args.len() == 6 {
         (
             args[4]
@@ -74,7 +61,7 @@ fn compare_trace_files(args: &[String]) -> Result<bool, String> {
         "expected_file={}\nactual_file={}\n{}",
         args[1], args[2], result.report
     );
-    std::fs::write(&args[3], report)
+    pin_trace_cli::write_new(&args[3], &report)
         .map_err(|error| format!("comparison report failed: {error}"))?;
     Ok(result.matches)
 }
@@ -89,19 +76,7 @@ fn decode_trace_file(args: &[String]) -> Result<(), String> {
             "usage: hp67emu --decode-is <input.tsv> <report.txt> [start_row words]".to_owned(),
         );
     }
-    if let Ok(output) = std::fs::canonicalize(&args[2]) {
-        if std::fs::canonicalize(&args[1]).ok().as_ref() == Some(&output) {
-            return Err("decode report must not overwrite input trace".to_owned());
-        }
-    }
-    let size = std::fs::metadata(&args[1])
-        .map_err(|error| format!("trace input: {error}"))?
-        .len();
-    if size > MAX_TRACE_BYTES as u64 {
-        return Err("trace exceeds byte limit".to_owned());
-    }
-    let input =
-        std::fs::read_to_string(&args[1]).map_err(|error| format!("trace read: {error}"))?;
+    let input = pin_trace_cli::read_text_limited(&args[1], MAX_TRACE_BYTES)?;
     let trace = import_bus_trace(&input)?;
     let (start, words) = if args.len() == 5 {
         (
@@ -119,7 +94,7 @@ fn decode_trace_file(args: &[String]) -> Result<(), String> {
         args[1],
         decode_bus_report(&trace, start, words)?
     );
-    std::fs::write(&args[2], report).map_err(|error| format!("decode report: {error}"))
+    pin_trace_cli::write_new(&args[2], &report).map_err(|error| format!("decode report: {error}"))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -144,7 +119,7 @@ fn main() -> eframe::Result<()> {
                 .parse::<usize>()
                 .map_err(|_| "invalid trace word count".to_owned())?;
             let output = hp67::capture_live_bus_tsv(words)?;
-            std::fs::write(&args[2], output)
+            pin_trace_cli::write_new(&args[2], &output)
                 .map_err(|error| format!("trace export failed: {error}"))?;
             Ok(())
         })();
@@ -203,4 +178,49 @@ fn native_window_is_resizable_without_a_maximum_size() {
     );
     assert!(options.viewport.max_inner_size.is_none());
     assert_eq!(options.multisampling, 4);
+}
+
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod core_audit_trace_files {
+    use super::*;
+    struct Temporary(std::path::PathBuf);
+    impl Drop for Temporary {
+        fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); }
+    }
+    #[test]
+    fn core_audit_is_reports_preserve_existing_files_and_hard_linked_inputs() {
+        let temp = Temporary(std::env::temp_dir().join(format!("hp67-core-is-write-{}", std::process::id())));
+        std::fs::create_dir(&temp.0).unwrap();
+        let input = temp.0.join("input.tsv");
+        let alias = temp.0.join("alias.tsv");
+        let report = temp.0.join("report.txt");
+        let original = hp67::capture_live_bus_tsv(16).unwrap();
+        std::fs::write(&input, &original).unwrap();
+        std::fs::hard_link(&input, &alias).unwrap();
+        let input = input.to_str().unwrap().to_owned();
+        let alias = alias.to_str().unwrap().to_owned();
+        let report = report.to_str().unwrap().to_owned();
+        for output in [&input, &alias] {
+            assert!(decode_trace_file(&["--decode-is".into(), input.clone(), output.clone()]).is_err());
+            assert!(compare_trace_files(&["--compare-is".into(), input.clone(), input.clone(), output.clone()]).is_err());
+            assert_eq!(std::fs::read_to_string(&input).unwrap(), original);
+        }
+        assert!(compare_trace_files(&["--compare-is".into(), input.clone(), input.clone(), report.clone()]).unwrap());
+        let saved = std::fs::read(&report).unwrap();
+        assert!(decode_trace_file(&["--decode-is".into(), input.clone(), report.clone()]).is_err());
+        assert_eq!(std::fs::read(&report).unwrap(), saved);
+        let decoded = temp.0.join("decoded.txt").to_str().unwrap().to_owned();
+        decode_trace_file(&["--decode-is".into(), input, decoded]).unwrap();
+    }
+    #[test]
+    fn core_audit_trace_reader_enforces_limit_on_open_stream() {
+        let temp = Temporary(std::env::temp_dir().join(format!("hp67-core-is-limit-{}", std::process::id())));
+        std::fs::create_dir(&temp.0).unwrap();
+        let file = temp.0.join("input");
+        std::fs::write(&file, b"123456789").unwrap();
+        let path = file.to_str().unwrap();
+        assert!(pin_trace_cli::read_text_limited(path, 8).is_err());
+        assert_eq!(pin_trace_cli::read_text_limited(path, 9).unwrap(), "123456789");
+    }
 }

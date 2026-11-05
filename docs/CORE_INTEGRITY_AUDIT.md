@@ -85,3 +85,38 @@ checks are offline. Address bounds add a branch to provider lookup; performance
 has not been measured and no speed claim is made.
 Formatting is checked by the authorized formatting-only action. Rust compilation,
 tests and diagnostics for this new set remain pending the owner-local gate.
+
+
+## Follow-up: media and diagnostic output integrity
+
+Firmware/trace validation head 2880b833 passed the owner full gate and is integrated
+into main. This follow-up is based on that validated head.
+
+Confirmed findings and corrections:
+- Internal track writes used debug_assert for index and 28-bit data bounds.
+  In release, an oversized word could enter media and later lose high bits when
+  serialized; an out-of-range index on blank media materialized it before the
+  bounds panic. Release-enabled preconditions now fail before any media change.
+  Existing CRC producers already validate their words; this is defense of the
+  internal media invariant, not evidence of an observed firmware corruption.
+- Legacy IS diagnostics used canonical path comparisons followed by truncating
+  writes. Different hard links to one input bypassed that protection. Capture,
+  compare and decode now all create new outputs exclusively, as pin diagnostics
+  already do. Existing reports must be explicitly removed or given a new name.
+- Legacy IS reads checked file metadata then read without a stream bound.
+  They now share the bounded reader used by pin diagnostics.
+
+Reviewed without semantic changes: native card version/length/reserved/flag checks,
+HPP checksum mirror and declared-length warning, CRC range/FIFO checks and physical
+write-permission gate. HPP dummy nibbles and unrecorded native payloads are ignored
+by documented format policy; they were not reclassified as corruption.
+Partial physical writes remain physical writes: no host rollback of a real card
+pass was added. Magnetic sense timing and record serialization remain source-blocked.
+The separate PAC branch's title-based pairing fixes remain pending integration;
+this branch does not duplicate them.
+
+Validation: static diff review and whitespace check completed. Rust tests remain
+owner-local; formatting-only GitHub action is authorized. The gate now also runs
+focused library tests under release to exercise production assertions.
+Performance impact is two invariant checks per written 28-bit card record, outside
+the CPU per-cell path, plus diagnostic-only I/O changes. No benchmark claim.

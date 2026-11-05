@@ -32,3 +32,5 @@ See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md
 ## M16L ownership audit
 
 Adds --integrity-pins <input.tsv> [new-report.txt] in all native builds, strict input and create_new output behavior, with scoped 0/2/3 statuses. It audits production source contracts, not complete physical accuracy. Malformed input remains an error. Scope and source-blocked limits are included in every report.
+
+read_text_limited is shared with legacy IS diagnostics and applies the byte limit to the open stream, not a prior metadata snapshot. write_new is crate-visible so all diagnostic commands use the same no-overwrite policy. Neither helper affects the emulation cycle.
