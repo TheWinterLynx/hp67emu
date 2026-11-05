@@ -114,7 +114,10 @@ pub enum SerialFetchError {
         word_bit: u8,
         driver_mask: u16,
     },
-    RomWordOutOfRange { address: u16, word: u16 },
+    RomWordOutOfRange {
+        address: u16,
+        word: u16,
+    },
     MissingRomWord {
         address: u16,
     },
@@ -1248,7 +1251,8 @@ impl RomFetchEndpoint {
                 });
             }
             let address = next.received_address & ROM_ADDRESS_MASK;
-            let word = source.read_word(address)
+            let word = source
+                .read_word(address)
                 .ok_or(SerialFetchError::MissingRomWord { address })?;
             if word > ROM_WORD_MASK {
                 return Err(SerialFetchError::RomWordOutOfRange { address, word });
@@ -4135,22 +4139,39 @@ mod core_audit_rom_tests {
     use super::*;
     struct Source(Option<u16>);
     impl Hp67RomWordSource for Source {
-        fn read_word(&self, _: u16) -> Option<u16> { self.0 }
+        fn read_word(&self, _: u16) -> Option<u16> {
+            self.0
+        }
     }
     #[test]
     fn core_audit_rom_rejects_corrupt_provider_without_publishing_final_address() {
-        for mut receiver in [RomFetchEndpoint::default(), RomFetchEndpoint::physical_roms(), RomFetchEndpoint::autonomous_roms()] {
+        for mut receiver in [
+            RomFetchEndpoint::default(),
+            RomFetchEndpoint::physical_roms(),
+            RomFetchEndpoint::autonomous_roms(),
+        ] {
             for bit in 16..27 {
-                receiver.sample_for_bit(bit, LogicLevel::Low, &Source(Some(0))).unwrap();
+                receiver
+                    .sample_for_bit(bit, LogicLevel::Low, &Source(Some(0)))
+                    .unwrap();
             }
             let before = receiver;
-            assert_eq!(receiver.sample_for_bit(27, LogicLevel::Low, &Source(None)),
-                Err(SerialFetchError::MissingRomWord { address: 0 }));
+            assert_eq!(
+                receiver.sample_for_bit(27, LogicLevel::Low, &Source(None)),
+                Err(SerialFetchError::MissingRomWord { address: 0 })
+            );
             assert_eq!(receiver, before);
-            assert_eq!(receiver.sample_for_bit(27, LogicLevel::Low, &Source(Some(0x400))),
-                Err(SerialFetchError::RomWordOutOfRange { address: 0, word: 0x400 }));
+            assert_eq!(
+                receiver.sample_for_bit(27, LogicLevel::Low, &Source(Some(0x400))),
+                Err(SerialFetchError::RomWordOutOfRange {
+                    address: 0,
+                    word: 0x400
+                })
+            );
             assert_eq!(receiver, before);
-            receiver.sample_for_bit(27, LogicLevel::Low, &Source(Some(0x3ff))).unwrap();
+            receiver
+                .sample_for_bit(27, LogicLevel::Low, &Source(Some(0x3ff)))
+                .unwrap();
             assert_eq!(receiver.received_address(), Ok(0));
         }
     }

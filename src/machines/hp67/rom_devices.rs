@@ -236,11 +236,11 @@ impl Hp67RomChipSet {
         for chip in &mut next.chips {
             if chip.selected {
                 let word = (if next.autonomous {
-                        source.read_word_in_bank(chip.profile.bank, chip.received_address()?)
-                    } else {
-                        source.read_word(chip.received_address()?)
-                    })
-                    .ok_or(SerialFetchError::MissingRomWord { address })?;
+                    source.read_word_in_bank(chip.profile.bank, chip.received_address()?)
+                } else {
+                    source.read_word(chip.received_address()?)
+                })
+                .ok_or(SerialFetchError::MissingRomWord { address })?;
                 if word > ROM_WORD_MASK {
                     return Err(SerialFetchError::RomWordOutOfRange { address, word });
                 }

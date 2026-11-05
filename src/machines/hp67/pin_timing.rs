@@ -198,11 +198,13 @@ impl PinTimingAudit {
     /// Incomplete/coincident observations are distinct from successful analysis.
     /// Neither status claims conformance to undocumented silicon requirements.
     pub fn exit_code(&self) -> i32 {
-        if self.partial_trailing_phase != 0 || self.pins.iter().any(|pin| {
-            pin.phases
-                .iter()
-                .any(|phase| phase.resolved == 0 || phase.unresolved != 0 || phase.coincident_changes != 0)
-        }) {
+        if self.partial_trailing_phase != 0
+            || self.pins.iter().any(|pin| {
+                pin.phases.iter().any(|phase| {
+                    phase.resolved == 0 || phase.unresolved != 0 || phase.coincident_changes != 0
+                })
+            })
+        {
             3
         } else {
             0

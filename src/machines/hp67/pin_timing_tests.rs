@@ -112,5 +112,10 @@ fn core_audit_partial_clock_capture_cannot_report_success() {
     }
     let mut trace = fixture();
     trace.rows.retain(|row| row.at <= 20);
-    assert_eq!(audit_pin_timing(&trace, &[Hp67Net::Sync]).unwrap().exit_code(), 0);
+    assert_eq!(
+        audit_pin_timing(&trace, &[Hp67Net::Sync])
+            .unwrap()
+            .exit_code(),
+        0
+    );
 }

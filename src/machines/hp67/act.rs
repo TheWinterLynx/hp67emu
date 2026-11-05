@@ -218,14 +218,19 @@ impl Default for ActRamImage {
 impl ActRamImage {
     pub fn hp67() -> Self {
         let mut ram = Self::default();
-        ram.install_range(0x00, 0x40).expect("valid HP-67 RAM topology");
+        ram.install_range(0x00, 0x40)
+            .expect("valid HP-67 RAM topology");
         ram
     }
 
     pub fn install_range(&mut self, start: u8, count: usize) -> Result<(), String> {
         let first = usize::from(start);
-        let end = first.checked_add(count).filter(|end| *end <= ACT_RAM_WORDS)
-            .ok_or_else(|| format!("RAM installation exceeds address space: start={start}, count={count}"))?;
+        let end = first
+            .checked_add(count)
+            .filter(|end| *end <= ACT_RAM_WORDS)
+            .ok_or_else(|| {
+                format!("RAM installation exceeds address space: start={start}, count={count}")
+            })?;
         for slot in &mut self.slots[first..end] {
             slot.get_or_insert([0; ACT_WORD_DIGITS]);
         }
