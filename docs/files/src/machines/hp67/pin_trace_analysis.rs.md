@@ -27,3 +27,5 @@ See `docs/PIN_CAPTURE_v1.0.md`. No timing profile is installed and no hardware a
 
 Retains all four PHI edge observations with their original row indices and bit/word coordinates, in addition to the established PHI1-rising decoded cells. This offline metadata enables phase-sensitive analysis without resampling or changing production edges.
 See `docs/PIN_CAPTURE_v1.1.md` and `docs/research/M16A_PHI_WINDOWS_2026-10-24.md`. The owner gate tests both feature configurations.
+
+Core audit: validates the same row-coordinate invariants as TSV import before analysis, including first-row order and missing delta-order events. This closes an in-memory bypass without interpolating omitted observations or inventing physical order.

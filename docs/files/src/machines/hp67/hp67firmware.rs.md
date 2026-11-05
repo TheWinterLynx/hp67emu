@@ -45,3 +45,5 @@ to `read_word()` compatibility; it is not a physical fallback claim. Live chip
 selection never calls the reference bank bridge. Firmware bytes are unchanged.
 
 See `docs/research/M15K_AUTONOMOUS_ROM_BANKS_2026-10-16.md`.
+
+Core audit: parse_blocks validates exactly 512 octal ten-bit words in each of the ten blocks before publishing the image. Compensating short/long blocks cannot shift addresses while preserving the total count. Both word lookup methods return None for addresses beyond 0xfff instead of wrapping. Valid-bank reference fallback and firmware data remain unchanged. Tests cover malformed blocks and address boundaries.

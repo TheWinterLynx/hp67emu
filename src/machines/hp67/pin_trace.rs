@@ -164,6 +164,31 @@ fn parse_level(value: &str) -> Result<Option<LogicLevel>, String> {
         _ => Err(format!("invalid pin level {value:?}")),
     }
 }
+fn validate_row_coordinate(
+    domain: PinTimeDomain, previous: Option<&PinRow>, at: u64, order: u32,
+) -> Result<(), String> {
+            if domain == PinTimeDomain::Nanoseconds && order != 0 {
+                return Err("physical rows require unique timestamps/order=0; unresolved simultaneous ordering must not be invented".into());
+            }
+            if let Some(previous) = previous {
+                if at < previous.at
+                    || (at == previous.at
+                        && (domain != PinTimeDomain::Ordinal
+                            || order
+                                != previous
+                                    .order
+                                    .checked_add(1)
+                                    .ok_or("delta order overflow")?))
+                    || (at > previous.at && order != 0)
+                {
+                    return Err("non-monotonic capture coordinates".into());
+                }
+            } else if order != 0 {
+                return Err("first row requires order=0".into());
+            }
+    Ok(())
+}
+
 /// Canonical TSV: explicit domain, source, b0..b55 anchor and provenance.
 /// Physical inputs may omit ownership and unobserved pin columns; no CSV vendor
 /// defaults, time rounding, interpolation or automatic alignment are applied.
@@ -252,25 +277,7 @@ pub fn import_pin_trace(input: &str) -> Result<Hp67PinTrace, String> {
                 .parse::<u64>()
                 .map_err(|_| "invalid integer timestamp")?;
             let order = cells[1].parse::<u32>().map_err(|_| "invalid delta order")?;
-            if domain == PinTimeDomain::Nanoseconds && order != 0 {
-                return Err("physical rows require unique timestamps/order=0; unresolved simultaneous ordering must not be invented".into());
-            }
-            if let Some(previous) = trace.rows.last() {
-                if at < previous.at
-                    || (at == previous.at
-                        && (domain != PinTimeDomain::Ordinal
-                            || order
-                                != previous
-                                    .order
-                                    .checked_add(1)
-                                    .ok_or("delta order overflow")?))
-                    || (at > previous.at && order != 0)
-                {
-                    return Err("non-monotonic capture coordinates".into());
-                }
-            } else if order != 0 {
-                return Err("first row requires order=0".into());
-            }
+            validate_row_coordinate(domain, trace.rows.last(), at, order)?;
             let mut row = PinRow {
                 at,
                 order,
@@ -329,3 +336,29 @@ pub use analysis::{
 #[cfg(all(test, feature = "pin-capture"))]
 #[path = "pin_trace_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod core_audit_coordinates {
+    use super::*;
+    fn trace() -> Hp67PinTrace {
+        import_pin_trace("# hp67-pins-v1 domain=ordinal source=emulator first_bit=0\n# provenance=coordinate test\nat\torder\tPHI1\tPHI2\n0\t0\t1\t1\n1\t0\t0\t1\n2\t0\t1\t1\n3\t0\t1\t0\n4\t0\t1\t1\n").unwrap()
+    }
+    #[test]
+    fn core_audit_trace_coordinates_are_identical_in_memory_and_on_import() {
+        for index in [0, 2] {
+            let mut invalid = trace();
+            invalid.rows[index].order = 1;
+            assert!(analyze_pin_trace(&invalid).is_err());
+            assert!(import_pin_trace(&invalid.to_tsv().unwrap()).is_err());
+        }
+        let mut invalid = trace();
+        let mut delta = invalid.rows[2].clone();
+        delta.order = 2;
+        invalid.rows.insert(3, delta);
+        assert!(analyze_pin_trace(&invalid).is_err());
+        assert!(import_pin_trace(&invalid.to_tsv().unwrap()).is_err());
+        invalid.rows[3].order = 1;
+        assert!(analyze_pin_trace(&invalid).is_ok());
+        assert_eq!(import_pin_trace(&invalid.to_tsv().unwrap()).unwrap(), invalid);
+    }
+}

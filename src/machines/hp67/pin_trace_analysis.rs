@@ -77,6 +77,9 @@ pub fn analyze_pin_trace(trace: &Hp67PinTrace) -> Result<PinAnalysis, String> {
     {
         return Err("physical observations require distinct timestamps without invented delta order or internal owners".into());
     }
+    for (i, row) in trace.rows.iter().enumerate() {
+        validate_row_coordinate(trace.domain, i.checked_sub(1).map(|p| &trace.rows[p]), row.at, row.order)?;
+    }
     if clocks(&trace.rows[0])? != (true, true) {
         return Err("capture must start with both PHI pins high before PHI1 falling".into());
     }

@@ -56,3 +56,32 @@ No physical timing assumptions are changed.
 Previous correction set: owner reported CORE INTEGRITY AUDIT FULL GATE GREEN,
 12/12 diagnostics, and validated head ce4b6565 is now integrated into main.
 Follow-up: formatting automation only; Rust tests remain owner-local.
+
+
+## Follow-up: firmware layout and trace coordinate validation
+
+Scheduler ownership follow-up: owner reported the full gate green, including
+12/12 firmware diagnostics. Validated head 5c6f6e0f is integrated into main.
+
+New findings:
+- Firmware initialization checked only aggregate length. A short block followed
+  by a compensating long block could shift ROM addresses without rejecting the
+  image. Initialization now requires exactly 512 words per block.
+- ROM provider lookups masked oversized addresses into the 12-bit space. Both
+  lookup methods now reject out-of-range addresses with None.
+- In-memory pin analysis required monotonic pairs but accepted missing ordinal
+  events or nonzero order at a new timestamp, unlike TSV import. Both paths now
+  share the same coordinate validator.
+
+Regressions exercise compensating block sizes, short/long final blocks, invalid
+octal/oversized words, out-of-range addresses in both bank views, and malformed
+in-memory event sequences alongside import rejection and a valid delta control.
+Canonical firmware blocks were independently counted with Python: 10 x 512;
+no firmware data changes. Existing exhaustive valid-address serial ROM tests
+remain in the gate.
+
+Performance: block validation runs once during firmware initialization; trace
+checks are offline. Address bounds add a branch to provider lookup; performance
+has not been measured and no speed claim is made.
+Formatting is checked by the authorized formatting-only action. Rust compilation,
+tests and diagnostics for this new set remain pending the owner-local gate.

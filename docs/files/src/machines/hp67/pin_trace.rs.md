@@ -37,3 +37,5 @@ M16H appends MTRS to sixteen exported named pins. Existing named-column imports 
 M16I appends HDS/WPS at indices 16/17, giving eighteen named columns. Old optional-column traces retain unknown level/ownership for omitted contacts, and prior net/driver indices remain unchanged.
 
 M16J appends PGMSW to nineteen named pins. Legacy/sparse capture import leaves absent level/ownership unknown, and prior names/indices stay stable.
+
+Core audit: import and in-memory analysis share validate_row_coordinate. First and new-timestamp rows require order zero; same-tick ordinal rows require the next consecutive order; physical rows cannot invent delta ordering. Export remains a representation of observations, not a certification; malformed diagnostic fixtures may still be serialized and are rejected on import/analysis.

@@ -30,34 +30,33 @@ const BLOCKS: [&str; 10] = [
 
 static WORDS: OnceLock<[u16; FIRMWARE_WORDS]> = OnceLock::new();
 
-fn words() -> &'static [u16; FIRMWARE_WORDS] {
-    WORDS.get_or_init(|| {
-        let mut image = [0u16; FIRMWARE_WORDS];
-        let mut index = 0usize;
-
-        for block in BLOCKS {
-            for token in block
-                .split(|ch: char| ch == ',' || ch.is_whitespace())
-                .filter(|token| !token.is_empty())
-            {
-                assert!(
-                    index < FIRMWARE_WORDS,
-                    "HP-67 firmware contains too many words"
-                );
-                let word = u16::from_str_radix(token, 8)
-                    .unwrap_or_else(|_| panic!("invalid HP-67 firmware word {token}"));
-                assert!(word <= WORD_MASK, "HP-67 firmware word exceeds 10 bits");
-                image[index] = word;
-                index += 1;
+fn parse_blocks(blocks: [&str; 10]) -> Result<[u16; FIRMWARE_WORDS], String> {
+    const BLOCK_WORDS: usize = 512;
+    let mut image = [0u16; FIRMWARE_WORDS];
+    for (block_index, block) in blocks.into_iter().enumerate() {
+        let mut count = 0;
+        for token in block.split(|ch: char| ch == ',' || ch.is_whitespace())
+            .filter(|token| !token.is_empty()) {
+            if count == BLOCK_WORDS {
+                return Err(format!("HP-67 firmware block {block_index:02} exceeds {BLOCK_WORDS} words"));
             }
+            let word = u16::from_str_radix(token, 8)
+                .map_err(|_| format!("invalid HP-67 firmware word {token} in block {block_index:02} at {count}"))?;
+            if word > WORD_MASK {
+                return Err(format!("HP-67 firmware word exceeds 10 bits in block {block_index:02} at {count}"));
+            }
+            image[block_index * BLOCK_WORDS + count] = word;
+            count += 1;
         }
+        if count != BLOCK_WORDS {
+            return Err(format!("HP-67 firmware block {block_index:02} contains {count} words; expected {BLOCK_WORDS}"));
+        }
+    }
+    Ok(image)
+}
 
-        assert_eq!(
-            index, FIRMWARE_WORDS,
-            "HP-67 firmware contains {index} words; expected {FIRMWARE_WORDS}"
-        );
-        image
-    })
+fn words() -> &'static [u16; FIRMWARE_WORDS] {
+    WORDS.get_or_init(|| parse_blocks(BLOCKS).unwrap_or_else(|error| panic!("{error}")))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -81,7 +80,10 @@ impl Hp67Firmware {
 
 impl Hp67RomWordSource for Hp67Firmware {
     fn read_word_in_bank(&self, bank: u8, address: u16) -> Option<u16> {
-        let pc = usize::from(address & 0x0fff);
+        let pc = usize::from(address);
+        if pc >= BANK0_WORDS {
+            return None;
+        }
         match bank {
             0 => Some(words()[pc]),
             1 if (BANK1_BASE_PC..BANK1_BASE_PC + BANK1_WORDS).contains(&pc) => {
@@ -102,7 +104,10 @@ impl Hp67RomWordSource for Hp67Firmware {
     }
 
     fn read_word(&self, address: u16) -> Option<u16> {
-        let pc = usize::from(address & 0x0fff);
+        let pc = usize::from(address);
+        if pc >= BANK0_WORDS {
+            return None;
+        }
         let image = words();
 
         if self.requested_bank.get() & 1 != 0
@@ -179,4 +184,40 @@ mod tests {
         assert_ne!(rom.read_word(0x400), bank0_page1);
         assert_eq!(rom.read_word(0x800), Some(words()[0x800]));
     }
+    #[test]
+    fn core_audit_firmware_block_boundaries_cannot_shift_while_total_stays_valid() {
+        let mut blocks: Vec<String> = BLOCKS.iter().map(|block| block.to_string()).collect();
+        let tokens: Vec<_> = blocks[0].split(|ch: char| ch == ',' || ch.is_whitespace())
+            .filter(|token| !token.is_empty()).map(str::to_owned).collect();
+        let moved = tokens.last().unwrap().clone();
+        blocks[0] = tokens[..511].join(",");
+        blocks[1] = format!("{moved},{}", blocks[1]);
+        assert!(parse_blocks(std::array::from_fn(|i| blocks[i].as_str())).is_err());
+        assert_eq!(parse_blocks(BLOCKS).unwrap(), *words());
+    }
+
+    #[test]
+    fn core_audit_firmware_rejects_invalid_tokens_counts_and_words() {
+        for bad in ["0,".repeat(513), "0,".repeat(511), format!("2000,{}", "0,".repeat(511)), format!("8,{}", "0,".repeat(511))] {
+            let mut blocks = BLOCKS;
+            blocks[9] = &bad;
+            assert!(parse_blocks(blocks).is_err());
+        }
+    }
+
+    #[test]
+    fn core_audit_firmware_addresses_never_wrap_into_valid_rom() {
+        let rom = Hp67Firmware::default();
+        for address in [0x1000, 0x1400, u16::MAX] {
+            for bank in [0, 1] {
+                rom.select_bank(bank);
+                assert_eq!(rom.read_word(address), None);
+                assert_eq!(rom.read_word_in_bank(bank, address), None);
+            }
+        }
+        assert!(rom.read_word(0xfff).is_some());
+        assert_eq!(rom.read_word_in_bank(1, 0x800), None);
+        assert_eq!(rom.read_word_in_bank(2, 0x400), None);
+    }
+
 }
