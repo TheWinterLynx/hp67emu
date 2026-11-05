@@ -189,30 +189,35 @@ impl Hp67RomChipSet {
             LogicLevel::Floating => return Err(SerialFetchError::FloatingIsa { word_bit }),
             LogicLevel::Contention => return Err(SerialFetchError::IsaContention { word_bit }),
         };
-        for chip in &mut self.chips {
-            chip.sample_address_bit(serial_bit, high);
-        }
-        self.received_address_bits += 1;
         if serial_bit + 1 != ROM_ADDRESS_BITS {
+            for chip in &mut self.chips {
+                chip.sample_address_bit(serial_bit, high);
+            }
+            self.received_address_bits += 1;
             return Ok(());
         }
-        let address = self.chips[0].received_address()?;
+        let mut next = *self;
+        for chip in &mut next.chips {
+            chip.sample_address_bit(serial_bit, high);
+        }
+        next.received_address_bits += 1;
+        let address = next.chips[0].received_address()?;
         // Teenix printed p71: addressing ROM0 restores bank 0 in all chips.
         // Commit only after the complete resolved address, before selection.
-        if self.autonomous && address < 0x400 {
-            for chip in &mut self.chips {
+        if next.autonomous && address < 0x400 {
+            for chip in &mut next.chips {
                 chip.bank_latch = 0;
             }
         }
-        let bank = if self.autonomous {
-            self.chips[0].bank_latch
+        let bank = if next.autonomous {
+            next.chips[0].bank_latch
         } else {
             source.selected_rom_bank(address)
         };
         let mut selected = 0;
-        for chip in &mut self.chips {
+        for chip in &mut next.chips {
             let local_address = chip.received_address()?;
-            let active_bank = if self.autonomous {
+            let active_bank = if next.autonomous {
                 chip.bank_latch
             } else {
                 bank
@@ -228,19 +233,21 @@ impl Hp67RomChipSet {
                 selected,
             });
         }
-        for chip in &mut self.chips {
+        for chip in &mut next.chips {
             if chip.selected {
-                chip.response_word = Some(
-                    (if self.autonomous {
+                let word = (if next.autonomous {
                         source.read_word_in_bank(chip.profile.bank, chip.received_address()?)
                     } else {
                         source.read_word(chip.received_address()?)
                     })
-                    .ok_or(SerialFetchError::MissingRomWord { address })?
-                        & ROM_WORD_MASK,
-                );
+                    .ok_or(SerialFetchError::MissingRomWord { address })?;
+                if word > ROM_WORD_MASK {
+                    return Err(SerialFetchError::RomWordOutOfRange { address, word });
+                }
+                chip.response_word = Some(word);
             }
         }
+        *self = next;
         Ok(())
     }
 

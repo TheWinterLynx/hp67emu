@@ -385,3 +385,5 @@ M16E adds strict ACT source validation on SYNC reception and preflight at all si
 M16F checks the actual IS High conductor against the bit-cell role before display/address/instruction/RAM/CRC consumers. Display/address require ACT, return requires the ROM selected from received address/bank latches, idle cells admit no active High. Passive Low remains valid release; no invisible output-enable or exact PHI timing is inferred. Normal/traced/DATA/prefix paths share the check. Scalar reference helpers retain their explicit role.
 
 M16F selects the word-local expected return owner once after received b27, avoiding a per-return-bit chip scan. Clocked b0/b1 prefix has only an ACT display source and no return owner.
+
+Core integrity audit: ROM providers must return a ten-bit word. Missing or oversized words reject the final address sample without publishing an address or response. The regression covers aggregate, five-chip reference and autonomous receivers, including successful retry after rejection.

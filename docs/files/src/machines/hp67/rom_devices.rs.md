@@ -98,3 +98,5 @@ remains. This is a simulator receive-order contract, not a silicon glitch filter
 or proof of any new PHI edge.
 
 See `docs/research/M15M_ROM_RECEIVER_ORDER_2026-10-18.md`.
+
+Core integrity audit: The final address bit, bank reset, chip selection and provider response are staged together and committed only after validation. Earlier address bits retain the direct path; no full-chip staging copy is introduced per ordinary bit. Oversized provider values are errors, not masked instructions.

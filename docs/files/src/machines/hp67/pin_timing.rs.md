@@ -21,3 +21,5 @@ Preserve source/time domains, ordered observations and strict failure/coverage r
 Uses validated PinClockObservation row indices to find nearest observed binary changes with partition-point lookup. Unknown/uncaptured boundaries remain censored; a pin and clock change in one publication is explicitly ambiguous. Each pin reports all four edge margins, unresolved coverage, PHI1 interior/boundary changes and phase-value disagreements. Ordinal delta ordering is retained without conversion to nanoseconds. These are observed separations, never chip timing requirements or causal propagation delays.
 
 See `docs/PIN_CAPTURE_v1.1.md`. Default and diagnostic builds both pass through the owner local gate before integration.
+
+Core integrity audit: Exit code 3 also covers partial trailing PHI sequences and requested phases without any resolved observation. Censored setup/hold bounds for a constant signal remain valid observations, not fabricated zero durations.

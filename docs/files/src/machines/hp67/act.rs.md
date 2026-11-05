@@ -22,3 +22,5 @@ Maintain all architecturally visible ACT state needed by HP-67 firmware and impl
 
 
 M12 display audit: `ActDisplaySerialError` now includes `UnsupportedModifier { scan_slot, b_nibble }`. This keeps undocumented HP-67 B-register display formats as hard structural failures rather than silently treating B as a raw ROM0 high nibble. The legacy `ActDisplayWordSerializer` remains a bring-up helper and is explicitly not the final Woodstock B-recoding implementation.
+
+Core integrity audit: RAM topology installation validates the entire range before mutation, reports overflow, and initializes only absent slots. Overlapping installation preserves existing contents; explicit clear operations remain separate.

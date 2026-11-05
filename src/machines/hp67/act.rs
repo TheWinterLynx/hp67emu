@@ -218,16 +218,18 @@ impl Default for ActRamImage {
 impl ActRamImage {
     pub fn hp67() -> Self {
         let mut ram = Self::default();
-        ram.install_range(0x00, 0x40);
+        ram.install_range(0x00, 0x40).expect("valid HP-67 RAM topology");
         ram
     }
 
-    pub fn install_range(&mut self, start: u8, count: usize) {
+    pub fn install_range(&mut self, start: u8, count: usize) -> Result<(), String> {
         let first = usize::from(start);
-        let end = first.saturating_add(count).min(ACT_RAM_WORDS);
+        let end = first.checked_add(count).filter(|end| *end <= ACT_RAM_WORDS)
+            .ok_or_else(|| format!("RAM installation exceeds address space: start={start}, count={count}"))?;
         for slot in &mut self.slots[first..end] {
-            *slot = Some([0; ACT_WORD_DIGITS]);
+            slot.get_or_insert([0; ACT_WORD_DIGITS]);
         }
+        Ok(())
     }
 
     pub fn read(&self, address: u8) -> Option<ActRegister> {
@@ -1015,5 +1017,23 @@ mod tests {
         act.state.bank = 1;
         assert_eq!(act.prepare_hp67_fetch(), 0);
         assert_eq!(act.bank(), 0);
+    }
+}
+
+#[cfg(test)]
+mod core_audit_ram_tests {
+    use super::*;
+    #[test]
+    fn core_audit_ram_installation_preserves_contents_and_rejects_overflow_atomically() {
+        let mut ram = ActRamImage::hp67();
+        assert!(ram.write(0x3f, [7; ACT_WORD_DIGITS]));
+        ram.install_range(0x3f, 2).unwrap();
+        assert_eq!(ram.read(0x3f), Some([7; ACT_WORD_DIGITS]));
+        assert_eq!(ram.read(0x40), Some([0; ACT_WORD_DIGITS]));
+        for count in [2, usize::MAX] {
+            let before = ram.clone();
+            assert!(ram.install_range(0xff, count).is_err());
+            assert_eq!(ram, before);
+        }
     }
 }

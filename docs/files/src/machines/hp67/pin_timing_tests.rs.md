@@ -21,3 +21,5 @@ Preserve source/time domains, ordered observations and strict failure/coverage r
 Four tests use explicit nonuniform clock and pin events to verify all setup/hold ranges, censored constant signals, unobserved DATA, same-publication ambiguity, PHI1-window transitions, ordinal same-tick order, anchors and invalid clock/input rejection. No synthetic value is asserted as HP-67 hardware timing.
 
 See `docs/PIN_CAPTURE_v1.1.md`. Default and diagnostic builds both pass through the owner local gate before integration.
+
+Core integrity audit: Core audit regressions truncate captures after PHI1 rise and after the next PHI1 fall, and retain a complete-cell control. Partial captures cannot report success.

@@ -2,7 +2,7 @@ name: M16L cargo fmt only
 
 on:
   push:
-    branches: [agent/m16l-pin-integrity]
+    branches: [agent/m16l-pin-integrity, agent/core-integrity-audit]
     paths-ignore:
       - '**/*.md'
 
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/m16l-pin-integrity
+          ref: ${{ github.ref_name }}
       - name: Format Rust only
         run: cargo fmt --all
       - name: Verify Rust formatting only
@@ -26,6 +26,6 @@ jobs:
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add -- '*.rs'
-            git commit -m 'Style: apply cargo fmt to M16L production pin integrity audit'
-            git push origin HEAD:agent/m16l-pin-integrity
+            git commit -m 'Style: apply cargo fmt to integrity audit'
+            git push origin HEAD:${{ github.ref_name }}
           fi

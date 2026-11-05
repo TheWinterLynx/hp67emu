@@ -196,7 +196,7 @@ mod tests {
             image.restore(&mut machine.act.state);
             assert_eq!(machine.act.state.c, [9; 14]);
             let mut changed_ram = machine.ram.clone();
-            changed_ram.install_range(address, 1);
+            changed_ram.install_range(address, 1).unwrap();
             assert!(image.commit(&mut machine.act.state, &changed_ram).is_err());
             assert_eq!(machine.act.state.c, [9; 14]);
             image.commit(&mut machine.act.state, &machine.ram).unwrap();
@@ -253,7 +253,7 @@ mod tests {
             let mut machine = Hp67ArchitecturalMachine::default();
             machine.ram = ActRamImage::default();
             for start in [0u8, 15, 32, 127, 240, 255] {
-                machine.ram.install_range(start, 1);
+                machine.ram.install_range(start, 1).unwrap();
             }
             for address in 0u8..=255 {
                 machine.ram.write(address, [9; ACT_WORD_DIGITS]);

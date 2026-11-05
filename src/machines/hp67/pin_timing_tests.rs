@@ -101,3 +101,16 @@ fn m16a_clock_anchor_validation_and_observation_indices_cover_all_four_edges() {
     trace.rows[2].levels[Hp67Net::Phi2.index()] = Some(LogicLevel::Low);
     assert!(audit_pin_timing(&trace, &[Hp67Net::Isa]).is_err());
 }
+
+#[test]
+fn core_audit_partial_clock_capture_cannot_report_success() {
+    for end in [12, 25] {
+        let mut trace = fixture();
+        trace.rows.retain(|row| row.at <= end);
+        let audit = audit_pin_timing(&trace, &[Hp67Net::Sync]).unwrap();
+        assert_eq!(audit.exit_code(), 3);
+    }
+    let mut trace = fixture();
+    trace.rows.retain(|row| row.at <= 20);
+    assert_eq!(audit_pin_timing(&trace, &[Hp67Net::Sync]).unwrap().exit_code(), 0);
+}

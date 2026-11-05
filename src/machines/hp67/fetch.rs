@@ -114,6 +114,7 @@ pub enum SerialFetchError {
         word_bit: u8,
         driver_mask: u16,
     },
+    RomWordOutOfRange { address: u16, word: u16 },
     MissingRomWord {
         address: u16,
     },
@@ -1233,27 +1234,28 @@ impl RomFetchEndpoint {
             return Ok(());
         };
 
+        let mut next = *self;
         if sample_isa(level, word_bit)? {
-            self.received_address |= 1u16 << serial_bit;
+            next.received_address |= 1u16 << serial_bit;
         } else {
-            self.received_address &= !(1u16 << serial_bit);
+            next.received_address &= !(1u16 << serial_bit);
         }
-        self.received_mask |= 1u16 << serial_bit;
-
+        next.received_mask |= 1u16 << serial_bit;
         if serial_bit + 1 == ROM_ADDRESS_BITS {
-            if self.received_mask != COMPLETE_ADDRESS_MASK {
+            if next.received_mask != COMPLETE_ADDRESS_MASK {
                 return Err(SerialFetchError::IncompleteAddress {
-                    received_mask: self.received_mask,
+                    received_mask: next.received_mask,
                 });
             }
-            let address = self.received_address & ROM_ADDRESS_MASK;
-            self.response_word = Some(
-                source
-                    .read_word(address)
-                    .ok_or(SerialFetchError::MissingRomWord { address })?
-                    & ROM_WORD_MASK,
-            );
+            let address = next.received_address & ROM_ADDRESS_MASK;
+            let word = source.read_word(address)
+                .ok_or(SerialFetchError::MissingRomWord { address })?;
+            if word > ROM_WORD_MASK {
+                return Err(SerialFetchError::RomWordOutOfRange { address, word });
+            }
+            next.response_word = Some(word);
         }
+        *self = next;
 
         Ok(())
     }
@@ -4127,3 +4129,29 @@ mod display_circuit_transport_tests {
 #[cfg(test)]
 #[path = "is_owner_tests.rs"]
 mod is_owner_tests;
+
+#[cfg(test)]
+mod core_audit_rom_tests {
+    use super::*;
+    struct Source(Option<u16>);
+    impl Hp67RomWordSource for Source {
+        fn read_word(&self, _: u16) -> Option<u16> { self.0 }
+    }
+    #[test]
+    fn core_audit_rom_rejects_corrupt_provider_without_publishing_final_address() {
+        for mut receiver in [RomFetchEndpoint::default(), RomFetchEndpoint::physical_roms(), RomFetchEndpoint::autonomous_roms()] {
+            for bit in 16..27 {
+                receiver.sample_for_bit(bit, LogicLevel::Low, &Source(Some(0))).unwrap();
+            }
+            let before = receiver;
+            assert_eq!(receiver.sample_for_bit(27, LogicLevel::Low, &Source(None)),
+                Err(SerialFetchError::MissingRomWord { address: 0 }));
+            assert_eq!(receiver, before);
+            assert_eq!(receiver.sample_for_bit(27, LogicLevel::Low, &Source(Some(0x400))),
+                Err(SerialFetchError::RomWordOutOfRange { address: 0, word: 0x400 }));
+            assert_eq!(receiver, before);
+            receiver.sample_for_bit(27, LogicLevel::Low, &Source(Some(0x3ff))).unwrap();
+            assert_eq!(receiver.received_address(), Ok(0));
+        }
+    }
+}
