@@ -153,3 +153,13 @@ or any source-blocked timing claim. The roadmap remains open.
 Runtime cost: host remainder arithmetic per advance call, one reset precondition,
 and duplicate detection only when configuring the generic scheduler. No new work
 is inserted into the production per-bit electrical path. No speed measurement made.
+
+## Read-only causal audit, 2026-11-06
+
+The owner's current instruction is audit-only until they return to their PC.
+[Findings v1.1](WHOLE_EMULATOR_AUDIT_FINDINGS_v1.1.md) follows startup/input,
+frame pacing, unlimited policy, FIFO transport, retry budgets and ownership
+provenance. It includes eight findings/limitations with exact inspected revisions,
+source paths, counterexamples, existing-test scope and future reproduction plans.
+No source/tests/scripts/workflows change in this documentation update. No Rust
+execution or new hardware evidence is claimed. Existing fixes remain pending.
