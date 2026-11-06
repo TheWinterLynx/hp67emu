@@ -21,3 +21,9 @@ Own installed nets and electrical devices, capture one immutable resolved input 
 `ElectricalScheduler` intentionally stores nets in a `BTreeMap` and devices in a boxed vector because arbitrary model-independent topology and auditability are its priorities, not HP-67 hot-path throughput. `step()` first rejects pre-existing contention, snapshots all resolved levels, evaluates every device against that snapshot into per-device drive buffers, merges those buffers while checking driver identity collisions, commits the complete pending drive set, advances the tick, and verifies the resulting nets are contention-free. Tests prove one-tick propagation, device-order independence, deterministic contention diagnostics and collision rejection before commit.
 
 Persistent output ownership is scoped to (net, driver), assigned to a stable device index or the external-input domain. High-Z releases the electrical drive but not its identity. Cross-tick reuse and external/device aliasing fail before net/tick/trace commit. The external setter now returns Result. Repeated changes by the same owner remain valid. Device evaluation may already have mutated internal device state when an error is detected: this is fail-stop validation, not device rollback or permission to retry a failed machine. Existing contention semantics remain unchanged.
+
+Topology installation now returns `Result` and rejects duplicate net IDs with
+`DuplicateNet` before changing bias, drives or ownership. A duplicate is not an
+implicit reset. Regression coverage retains active external/device drives, passive
+bias after release, ownership, tick and trace. All in-repository callers handle the
+result. This is configuration-time generic infrastructure, not production PHI work.

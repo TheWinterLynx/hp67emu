@@ -380,6 +380,7 @@ pub struct Hp67LiveMachine {
     display: HardwareDisplayFrame,
     phase: LiveBootPhase,
     pending_us: u64,
+    pending_submicro_ns: u32,
     boot_cycle: u64,
     saw_display_init: bool,
     main_wait_visits: u64,
@@ -432,6 +433,7 @@ impl Hp67LiveMachine {
             display: HardwareDisplayFrame::BLANK,
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
+            pending_submicro_ns: 0,
             boot_cycle: 0,
             saw_display_init: false,
             main_wait_visits: 0,
@@ -472,7 +474,12 @@ impl Hp67LiveMachine {
         self.display_circuit.exposure()
     }
 
+    /// Reset electronics only after the caller has recovered any physical card.
+    /// Rejection leaves the complete machine untouched, including pacing debt.
     pub fn reset_power_on(&mut self) -> Result<(), String> {
+        if self.card_transport.card().is_some() {
+            return Err("cannot reset electronics while magnetic media remains in the reader".to_owned());
+        }
         // Electronic reset cannot move the physical RUN/W-PRGM selector.
         let program_before_reset = self.program_switch.as_ref().map_or_else(
             || {
@@ -559,6 +566,7 @@ impl Hp67LiveMachine {
         self.display = HardwareDisplayFrame::BLANK;
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
+        self.pending_submicro_ns = 0;
         self.boot_cycle = 0;
         self.saw_display_init = false;
         self.main_wait_visits = 0;
@@ -790,7 +798,12 @@ impl Hp67LiveMachine {
     }
 
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
-        let elapsed_us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+        // Quantize accumulated host time, not each call independently. The
+        // remainder belongs to pacing; it does not define physical PHI edges.
+        let fractional_ns = elapsed.subsec_nanos() % 1000 + self.pending_submicro_ns;
+        let elapsed_us = (elapsed.as_micros() + u128::from(fractional_ns / 1000))
+            .min(u128::from(u64::MAX)) as u64;
+        self.pending_submicro_ns = fractional_ns % 1000;
         self.pending_us = self.pending_us.saturating_add(elapsed_us);
 
         if self.phase == LiveBootPhase::ResetHold {
@@ -4577,3 +4590,7 @@ mod reader_contacts_tests;
 #[cfg(test)]
 #[path = "hp67/program_switch_tests.rs"]
 mod program_switch_tests;
+
+#[cfg(test)]
+#[path = "hp67/pacing_integrity_tests.rs"]
+mod pacing_integrity_tests;

@@ -9,6 +9,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT FOCUSED KO' }
     & cargo test --release --locked --lib core_audit_ -- --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT RELEASE INVARIANTS KO' }
+    & cargo test --locked --bin hp67emu core_audit_ -- --nocapture
+    if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT LIVE FOCUSED KO' }
+    & cargo test --release --locked --bin hp67emu core_audit_ -- --nocapture
+    if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT LIVE RELEASE KO' }
     & cargo test --locked --all-targets
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT TESTS KO' }
     & cargo test --locked --all-targets --features pin-capture

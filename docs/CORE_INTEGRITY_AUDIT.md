@@ -129,3 +129,27 @@ substantial follow-up packages. Historical pending statuses above describe each
 entry when written; the new revision table is the current status reference.
 The media/trace source batch still awaits the owner gate. This follow-up changes
 documentation only and does not certify Rust execution or hardware equivalence.
+
+## Implementation follow-up: duration, reset and topology boundaries
+
+Based on roadmap checkpoint `6c1de947`. Added source corrections for A02 (normal
+live pacing), A04 (public reset API) and A05 (generic topology installation):
+
+- Accumulate submicrosecond host time instead of dropping it per call. Compare a
+  whole duration with 500 ns and irregular partitions through real firmware.
+- Reject reset before mutation while a physical card remains in the transport.
+  Compare rejected-reset execution with an untouched control, then recover the
+  card explicitly and reset. Existing selector/contact-only reset fixtures remain
+  valid; contact assertion alone is not an owned physical card.
+- Reject duplicate generic net IDs instead of clearing drives while retaining old
+  ownership. Cover device/external sources, passive bias, ownership, tick and trace.
+
+Four new regression tests; focused binary checks added in debug and release.
+Static caller/type/whitespace review performed. Rust compilation and execution
+remain pending the owner's gate; formatting-only automation is permitted.
+These additions do not close A02 for the separate PAC unlimited implementation,
+A03 for main UI fault recovery, A04's complete mechanical/electrical reset model,
+or any source-blocked timing claim. The roadmap remains open.
+Runtime cost: host remainder arithmetic per advance call, one reset precondition,
+and duplicate detection only when configuring the generic scheduler. No new work
+is inserted into the production per-bit electrical path. No speed measurement made.

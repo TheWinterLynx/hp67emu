@@ -253,3 +253,13 @@ main; reconcile PAC changes explicitly without overwriting newer core fixes.
 - [ ] Pending branch Rust compilation and full owner gate.
 - [ ] Windows persistence/fault reproductions and controlled performance campaign.
 - [ ] Remaining implementation packages and physical evidence closure.
+
+## Implementation update after checkpoint 6c1de947
+
+Source changes are now prepared on the same pending branch for A02 normal live
+pacing (fractional remainder), A04 reset API (reject occupied transport before
+mutation), and A05 topology (reject duplicate nets). Four new regressions and
+focused binary debug/release gate steps accompany them. See the latest section of
+`CORE_INTEGRITY_AUDIT.md`. Their status is **implemented, owner gate pending**, not
+validated/closed. PAC unlimited pacing and UI fault retention still require
+explicit integration; the broad audit and the remaining packages remain open.

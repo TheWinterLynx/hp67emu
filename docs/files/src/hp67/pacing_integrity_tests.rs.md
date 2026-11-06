@@ -1,0 +1,25 @@
+# Live pacing and reset integrity regressions
+
+## Purpose
+Prove partition-independent host duration accumulation and non-destructive reset rejection.
+
+## Why it exists
+Quantizing each host call independently loses fractional time. Resetting an occupied
+transport must not silently destroy physical media.
+
+## Relationships
+Child test module of `src/hp67.rs`, using actual embedded firmware, the production
+live pipeline, card/contact APIs and the focused `core_audit_` gate.
+
+## Responsibilities
+Compare whole-duration and fragmented-duration execution, reset the fractional
+pacing debt explicitly, and prove a rejected reset leaves a machine able to follow
+an untouched control through subsequent firmware words.
+
+## Implementation
+500 ns and irregular partitions span reset hold and 400 actual firmware words.
+Assertions compare tick/cycle counts, timing debt, ACT/reference/serial state, CRC,
+autonomous RAM, media and display. Reset tests compare with a fresh instance just
+below the reset-hold threshold. Occupied-reader tests cover both insertion ends,
+retained key contact and subsequent execution, then explicit physical-card recovery
+followed by successful electronic reset. They do not certify physical reset edges.
