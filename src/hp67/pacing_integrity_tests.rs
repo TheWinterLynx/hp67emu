@@ -17,8 +17,8 @@ fn assert_same_machine(left: &Hp67LiveMachine, right: &Hp67LiveMachine) {
 
 #[test]
 fn core_audit_duration_partitions_preserve_real_firmware_and_reset_hold() {
-    let total_ns = (HP67_OBSERVED_POWER_ON_SYNC_DELAY_US
-        + 400 * HP67_OBSERVED_WORD_TIME_US) * 1000 + 731;
+    let total_ns =
+        (HP67_OBSERVED_POWER_ON_SYNC_DELAY_US + 400 * HP67_OBSERVED_WORD_TIME_US) * 1000 + 731;
     let mut whole = Hp67LiveMachine::power_on_default().unwrap();
     whole.advance(Duration::from_nanos(total_ns)).unwrap();
     assert_eq!(whole.boot_cycle, 400);
@@ -63,16 +63,23 @@ fn core_audit_reset_rejects_retained_card_before_any_electronic_mutation() {
             machine.set_program_mode(true).unwrap();
             machine.set_key_contact(Some(Hp67Key::Digit1));
             machine.advance(Duration::from_nanos(731)).unwrap();
-            machine.insert_magnetic_card(Hp67MagneticCard::default(), end).unwrap();
+            machine
+                .insert_magnetic_card(Hp67MagneticCard::default(), end)
+                .unwrap();
         }
-        assert!(live.reset_power_on().unwrap_err().contains("magnetic media"));
+        assert!(live
+            .reset_power_on()
+            .unwrap_err()
+            .contains("magnetic media"));
         assert_same_machine(&live, &control);
         assert_eq!(live.keyboard.pressed(), Some(Hp67Key::Digit1));
         // A rejected reset must also preserve hidden receiver state: subsequent
         // real words must remain identical to a machine that was never reset.
         for _ in 0..32 {
-            assert_eq!(live.step_firmware_cycle_with_execution().unwrap(),
-                control.step_firmware_cycle_with_execution().unwrap());
+            assert_eq!(
+                live.step_firmware_cycle_with_execution().unwrap(),
+                control.step_firmware_cycle_with_execution().unwrap()
+            );
         }
         assert_same_machine(&live, &control);
         let card = live.take_magnetic_card_for_power_off().unwrap();

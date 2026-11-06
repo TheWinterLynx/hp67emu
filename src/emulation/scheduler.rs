@@ -414,7 +414,9 @@ mod tests {
     #[test]
     fn contention_fails_with_tick_net_and_stable_driver_names() {
         let mut scheduler = ElectricalScheduler::new();
-        scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+        scheduler
+            .install_net(TestNet::Output, Bias::Floating)
+            .unwrap();
         scheduler.add_device(ConstantDrive {
             name: "high-source",
             net: TestNet::Output,
@@ -442,7 +444,9 @@ mod tests {
     #[test]
     fn duplicate_driver_identity_across_devices_is_rejected_before_commit() {
         let mut scheduler = ElectricalScheduler::new();
-        scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+        scheduler
+            .install_net(TestNet::Output, Bias::Floating)
+            .unwrap();
         scheduler.add_device(ConstantDrive {
             name: "source-one",
             net: TestNet::Output,
@@ -492,7 +496,9 @@ mod tests {
         for first in [Drive::High, Drive::HighZ] {
             for reverse in [false, true] {
                 let mut scheduler = ElectricalScheduler::new();
-                scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+                scheduler
+                    .install_net(TestNet::Output, Bias::Floating)
+                    .unwrap();
                 scheduler.add_trace_probe(TestNet::Output);
                 for tick in if reverse { [2, 1] } else { [1, 2] } {
                     scheduler.add_device(ScheduledDrive {
@@ -521,7 +527,9 @@ mod tests {
     fn core_audit_external_and_device_driver_identity_cannot_alias_in_either_order() {
         for external_first in [false, true] {
             let mut scheduler = ElectricalScheduler::new();
-            scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+            scheduler
+                .install_net(TestNet::Output, Bias::Floating)
+                .unwrap();
             scheduler.add_device(ScheduledDrive {
                 tick: 1,
                 drive: Drive::High,
@@ -558,7 +566,9 @@ mod tests {
     #[test]
     fn core_audit_same_external_owner_can_drive_release_and_drive_again() {
         let mut scheduler = ElectricalScheduler::new();
-        scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+        scheduler
+            .install_net(TestNet::Output, Bias::Floating)
+            .unwrap();
         for (drive, expected) in [
             (Drive::High, LogicLevel::High),
             (Drive::HighZ, LogicLevel::Floating),
@@ -575,33 +585,51 @@ mod tests {
     fn core_audit_duplicate_net_preserves_drives_bias_ownership_tick_and_trace() {
         for external in [false, true] {
             let mut scheduler = ElectricalScheduler::new();
-            scheduler.install_net(TestNet::Output, Bias::PullDown).unwrap();
+            scheduler
+                .install_net(TestNet::Output, Bias::PullDown)
+                .unwrap();
             if external {
-                scheduler.set_external_drive(TestNet::Output, A, Drive::High).unwrap();
+                scheduler
+                    .set_external_drive(TestNet::Output, A, Drive::High)
+                    .unwrap();
             } else {
-                scheduler.add_device(ScheduledDrive { tick: 1, drive: Drive::High });
+                scheduler.add_device(ScheduledDrive {
+                    tick: 1,
+                    drive: Drive::High,
+                });
             }
             scheduler.add_trace_probe(TestNet::Output);
             scheduler.step().unwrap();
             let tick = scheduler.tick();
             let trace = scheduler.trace().clone();
             let owners = scheduler.owners.clone();
-            assert_eq!(scheduler.install_net(TestNet::Output, Bias::PullUp),
-                Err(SchedulerError::DuplicateNet { net: TestNet::Output }));
+            assert_eq!(
+                scheduler.install_net(TestNet::Output, Bias::PullUp),
+                Err(SchedulerError::DuplicateNet {
+                    net: TestNet::Output
+                })
+            );
             assert_eq!(scheduler.tick(), tick);
             assert_eq!(scheduler.trace().samples(), trace.samples());
             assert_eq!(scheduler.owners, owners);
             assert_eq!(scheduler.level(TestNet::Output), LogicLevel::High);
             if external {
-                scheduler.set_external_drive(TestNet::Output, A, Drive::HighZ).unwrap();
+                scheduler
+                    .set_external_drive(TestNet::Output, A, Drive::HighZ)
+                    .unwrap();
                 assert_eq!(scheduler.level(TestNet::Output), LogicLevel::Low);
             } else {
-                assert_eq!(scheduler.set_external_drive(TestNet::Output, A, Drive::Low),
-                    Err(SchedulerError::DriverCollision { tick, net: TestNet::Output, driver: A }));
+                assert_eq!(
+                    scheduler.set_external_drive(TestNet::Output, A, Drive::Low),
+                    Err(SchedulerError::DriverCollision {
+                        tick,
+                        net: TestNet::Output,
+                        driver: A
+                    })
+                );
                 scheduler.step().unwrap();
                 assert_eq!(scheduler.level(TestNet::Output), LogicLevel::High);
             }
         }
     }
-
 }

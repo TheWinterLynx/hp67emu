@@ -478,7 +478,9 @@ impl Hp67LiveMachine {
     /// Rejection leaves the complete machine untouched, including pacing debt.
     pub fn reset_power_on(&mut self) -> Result<(), String> {
         if self.card_transport.card().is_some() {
-            return Err("cannot reset electronics while magnetic media remains in the reader".to_owned());
+            return Err(
+                "cannot reset electronics while magnetic media remains in the reader".to_owned(),
+            );
         }
         // Electronic reset cannot move the physical RUN/W-PRGM selector.
         let program_before_reset = self.program_switch.as_ref().map_or_else(
