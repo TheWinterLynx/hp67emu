@@ -120,3 +120,12 @@ owner-local; formatting-only GitHub action is authorized. The gate now also runs
 focused library tests under release to exercise production assertions.
 Performance impact is two invariant checks per written 28-bit card record, outside
 the CPU per-cell path, plus diagnostic-only I/O changes. No benchmark claim.
+
+## Whole-emulator resumption checkpoint (2026-11-06)
+
+See [the versioned audit roadmap](WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md) for exact
+main/pending/PAC heads, confirmed host/API findings, evidence boundaries and
+substantial follow-up packages. Historical pending statuses above describe each
+entry when written; the new revision table is the current status reference.
+The media/trace source batch still awaits the owner gate. This follow-up changes
+documentation only and does not certify Rust execution or hardware equivalence.

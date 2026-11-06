@@ -1,5 +1,9 @@
 # Cycle-accurate HP-67 roadmap
 
+> Current audit checkpoint (2026-11-06): [WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md](WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md).
+> Its exact revision/status table supersedes historical milestone status below.
+> Earlier milestones are retained as development history, not current absence claims.
+
 ## Integration milestone track — current
 
 This is the active vertical integration track used by the current implementation work. The older electrical roadmap below remains the hardware-fidelity workstream and its historical M-numbers are retained for provenance; where the two tracks use the same milestone number, the integration track is authoritative for current branch/work naming.

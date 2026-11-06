@@ -1,5 +1,9 @@
 # TODO — cycle-accurate HP-67
 
+> Current audit checkpoint (2026-11-06): [docs/WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md](docs/WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md).
+> Its exact revision/status table supersedes historical milestone status below.
+> Earlier milestones are retained as development history, not current absence claims.
+
 This file is the operational checklist. Architectural rationale lives in `docs/ARCHITECTURE.md`; milestone sequencing lives in `docs/ROADMAP.md`.
 
 ## Foundation
@@ -16,7 +20,7 @@ This file is the operational checklist. Architectural rationale lives in `docs/A
 - [x] Add per-source documentation regression.
 - [x] Define the local regression command with compiler warnings denied.
 - [x] Remove stale vector-rendering comparison tooling.
-- [ ] Normalize inherited photographic UI files with rustfmt, then add `cargo fmt --check` to the local regression command.
+- [x] Enforce `cargo fmt --all -- --check` before tests/builds in the current local gate (historical formatting migration complete).
 
 ## Semantic/reference implementations
 
