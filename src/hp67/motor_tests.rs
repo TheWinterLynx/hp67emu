@@ -145,6 +145,26 @@ fn m16g_real_firmware_motor_contact_start_reset_and_reference_composition() {
     }
     assert!(started, "real card-present firmware must start the motor");
     assert_eq!(live.backplane.level(Hp67Net::Motor), LogicLevel::Low);
+    // Electronic reset must not silently discard the physical card. Exercise
+    // rejection while the motor is on, then the explicit power-off recovery.
+    for machine in [&mut live, &mut reference] {
+        let transport = machine.card_transport.clone();
+        let tick = machine.backplane.tick();
+        assert!(machine
+            .reset_power_on()
+            .unwrap_err()
+            .contains("magnetic media"));
+        assert_eq!(machine.card_transport, transport);
+        assert_eq!(machine.backplane.tick(), tick);
+        assert!(machine.card_motor_on());
+        assert_eq!(
+            machine.take_magnetic_card_for_power_off().unwrap(),
+            Some(Hp67MagneticCard::default())
+        );
+        assert!(!machine.magnetic_card_inserted());
+    }
+    // Recovering media alone must not manufacture a CRC motor-off command.
+    assert_eq!(sample_motor(&live.backplane), Ok(true));
     live.reset_power_on().unwrap();
     reference.reset_power_on().unwrap();
     assert_eq!(sample_motor(&live.backplane), Ok(false));
