@@ -5,7 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-struct TemporaryCard { path: PathBuf, remove: bool }
+struct TemporaryCard {
+    path: PathBuf,
+    remove: bool,
+}
 
 impl Drop for TemporaryCard {
     fn drop(&mut self) {
@@ -23,32 +26,52 @@ fn replace_with(path: &Path, write: impl FnOnce(&mut File) -> io::Result<()>) ->
     let permissions = match fs::symlink_metadata(path) {
         Ok(metadata) => {
             if !metadata.is_file() || metadata.permissions().readonly() {
-                return Err(io::Error::new(io::ErrorKind::PermissionDenied,
-                    "card destination must be a writable regular file, not a link or directory"));
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "card destination must be a writable regular file, not a link or directory",
+                ));
             }
             Some(metadata.permissions())
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error),
     };
-    let filename = path.file_name().ok_or_else(||
-        io::Error::new(io::ErrorKind::InvalidInput, "card destination has no filename"))?;
+    let filename = path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "card destination has no filename",
+        )
+    })?;
     let mut temporary = None;
     for attempt in 0..100 {
         let mut name = filename.to_os_string();
         name.push(format!(".hp67-tmp-{}-{attempt}", std::process::id()));
         let candidate = path.with_file_name(name);
-        match OpenOptions::new().write(true).create_new(true).open(&candidate) {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
             Ok(file) => {
-                temporary = Some((TemporaryCard { path: candidate, remove: true }, file));
+                temporary = Some((
+                    TemporaryCard {
+                        path: candidate,
+                        remove: true,
+                    },
+                    file,
+                ));
                 break;
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
         }
     }
-    let (mut temporary, mut file) = temporary.ok_or_else(||
-        io::Error::new(io::ErrorKind::AlreadyExists, "no free card temporary filename"))?;
+    let (mut temporary, mut file) = temporary.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "no free card temporary filename",
+        )
+    })?;
     // Always close before cleanup/rename, including errors, for Windows handles.
     let result = write(&mut file).and_then(|()| {
         if let Some(permissions) = permissions {
@@ -77,7 +100,10 @@ mod tests {
         save(&path, b"old card").unwrap();
         let result = replace_with(&path, |file| {
             file.write_all(b"partial new card")?;
-            Err(io::Error::new(io::ErrorKind::Other, "injected write failure"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "injected write failure",
+            ))
         });
         assert!(result.is_err());
         assert_eq!(fs::read(&path).unwrap(), b"old card");
@@ -92,7 +118,8 @@ mod tests {
         assert!(replace_with(&failed_destination, |file| {
             file.write_all(b"complete")?;
             fs::create_dir(&failed_destination)
-        }).is_err());
+        })
+        .is_err());
         assert!(failed_destination.is_dir());
         assert_eq!(fs::read(&path).unwrap(), b"complete new card");
         assert_eq!(fs::read_dir(&root).unwrap().count(), 3);

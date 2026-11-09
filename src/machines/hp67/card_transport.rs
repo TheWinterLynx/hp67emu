@@ -784,7 +784,9 @@ mod tests {
         for percent in [95, 100, 105] {
             let mut whole = Hp67CardTransport::default();
             whole.speed = Hp67CardSpeed::from_percent(percent).unwrap();
-            whole.insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End2).unwrap();
+            whole
+                .insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End2)
+                .unwrap();
             whole.set_head_active(true);
             let mut crc = CrcArchitecturalCore::default();
             crc.execute_opcode(0o660).unwrap();

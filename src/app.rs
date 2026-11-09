@@ -118,9 +118,7 @@ impl Hp67App {
         .to_rgba8();
         let size = [decoded.width() as usize, decoded.height() as usize];
         let color = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
-        let photo =
-            ctx
-                .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
+        let photo = ctx.load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
 
         let card_logo_decoded = image::load_from_memory_with_format(
             include_bytes!("../assets/hp67-card-logo.png"),
@@ -1221,7 +1219,11 @@ impl Hp67App {
 
     fn stop_on_fault(&mut self, error: String) {
         eprintln!("HP-67 machine stopped: {error}");
-        if let Some((card, end)) = self.live_machine.take().and_then(Hp67LiveMachine::into_retained_card) {
+        if let Some((card, end)) = self
+            .live_machine
+            .take()
+            .and_then(Hp67LiveMachine::into_retained_card)
+        {
             self.card_media = Some(card);
             self.card_insertion_end = end;
             self.reset_card_presentation_after_power_off();
@@ -1264,9 +1266,9 @@ impl Hp67App {
         let Some(machine) = self.live_machine.as_mut() else {
             return false;
         };
-        if let Err(error) = machine.insert_magnetic_card(
-            Hp67MagneticCard::default(), CardInsertionEnd::End1,
-        ) {
+        if let Err(error) =
+            machine.insert_magnetic_card(Hp67MagneticCard::default(), CardInsertionEnd::End1)
+        {
             self.program_library_status = Some(format!("Cannot insert blank card: {error}"));
             return false;
         }
@@ -1601,7 +1603,6 @@ impl eframe::App for Hp67App {
                 let minimum_touch_target = if web_compact { WEB_TOUCH_TARGET } else { 0.0 };
                 self.show_calculator_surface(ui, now, card_phase_progress, minimum_touch_target);
             });
-
 
         if self.card_phase.is_animating() || live_card_active {
             ctx.request_repaint_after(Duration::from_millis(16));

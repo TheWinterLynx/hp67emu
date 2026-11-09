@@ -791,7 +791,9 @@ impl Hp67LiveMachine {
     /// This deliberately does not execute contact transitions on invalid nets.
     pub fn into_retained_card(mut self) -> Option<(Hp67MagneticCard, CardInsertionEnd)> {
         let end = self.card_transport.insertion_end()?;
-        self.card_transport.take_card_for_power_off().map(|card| (card, end))
+        self.card_transport
+            .take_card_for_power_off()
+            .map(|card| (card, end))
     }
 
     pub fn withdraw_unstarted_magnetic_card(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
