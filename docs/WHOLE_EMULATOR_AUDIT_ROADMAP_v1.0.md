@@ -263,3 +263,7 @@ focused binary debug/release gate steps accompany them. See the latest section o
 `CORE_INTEGRITY_AUDIT.md`. Their status is **implemented, owner gate pending**, not
 validated/closed. PAC unlimited pacing and UI fault retention still require
 explicit integration; the broad audit and the remaining packages remain open.
+
+## Implementation follow-up — 2026-11-09
+Implementation is now authorized. The [fix ledger](AUDIT_FIXES_2026-11-09.md)
+tracks the current correction batch without claiming the remaining audit closed.

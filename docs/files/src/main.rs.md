@@ -41,3 +41,6 @@ Dispatches --trace-pins, --audit-pins and --compare-pins to a native-only CLI mo
 Ordinal ticks are never converted to physical time. See `docs/PIN_CAPTURE_v1.0.md` and `docs/research/M15Z_ELECTRICAL_CAPTURE_2026-10-23.md`.
 
 IS capture/comparison/decoding now share pin_trace_cli create-new output handling. Existing outputs, including hard links to inputs, are never truncated. Users must choose a new output path or explicitly remove an old report. Reads use the bounded open-stream helper rather than metadata followed by an unbounded read. Regressions cover same-path/hard-link input protection, existing report preservation, fresh comparison/decode output and byte limits.
+
+Native builds include `card_persistence`, a host-only save adapter used by the UI.
+It is excluded from wasm alongside the existing native save surface.

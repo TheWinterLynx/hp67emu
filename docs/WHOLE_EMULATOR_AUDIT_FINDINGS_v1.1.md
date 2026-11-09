@@ -251,3 +251,9 @@ A complete audit still needs the remaining ACT field/authority ledger, instructi
 edge-case campaign, corpus/tooling provenance checks, rendering/PDF checks and
 measured performance review. This report advances the audit with explicit causal
 findings; it does not close those unreviewed areas.
+
+## Implementation follow-up — 2026-11-09
+The owner has now explicitly requested implementation, superseding the audit-only
+instruction above. See [fix status](AUDIT_FIXES_2026-11-09.md) for implemented
+changes, remaining limitations and the exact pending validation boundary. The
+historical findings above remain the pre-fix record.

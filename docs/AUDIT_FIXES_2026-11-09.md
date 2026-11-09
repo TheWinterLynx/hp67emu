@@ -1,0 +1,42 @@
+# Audit corrections — implementation ledger
+
+Baseline: pending `agent/media-trace-write-integrity` at `43edd37f14327f407a9391212bdefc205612fe7b`.
+Owner request: implement the audit fixes. No integration into stable main yet.
+
+| Finding | Implemented change | Validation boundary |
+|---|---|---|
+| A01 | Complete temporary sibling write + sync + rename; no truncate/delete of destination | Added injected write/replace error tests; Windows gate pending |
+| A03/B08 | Consuming fault recovery preserves card, dirty records and insertion end; UI reports error | Added API partial-write/contact-fault and UI recovery tests |
+| B01 | No-input checkpoint timeout restricted to diagnostic fixtures | Held/released early-key real-firmware regression beyond 2,000 words |
+| B02 | Advance old state before current frame inputs; power anchor at event boundary | Added card boundary regression; no sub-frame OS replay claim |
+| B04/B07 | Empty FIFO phase policy consistent at entry and exhaustion | Independent expected write timeline and partition tests at 95/100/105 percent |
+| B05 | Public pacing is terminal on error until explicit reset | Fault, no-retry/no-new-debt, reset-to-fresh regression |
+| UI replacement | Failed new-blank insertion preserves prepared card | Included in UI fault recovery regression |
+
+Existing fractional pacing, occupied-reset and duplicate-net corrections remain
+in this branch and still require the owner's gate. The write-underrun rule is an
+existing logical approximation, now internally consistent; actual mechanical
+underrun remains source-blocked. The shared CRC observer is retained and not
+misrepresented as independent transport timing evidence.
+
+## Remaining work
+
+- A07: explicit HPP pairing/import identity and bounded host file input.
+- B03/A02: reconcile the separate PAC unlimited-clock branch, its heuristic and
+  fractional budget. This batch does not merge that branch or certify its policy.
+- B06: composition-bound dense driver capabilities; no per-edge maps/global ID
+  introduced to disguise the ownership boundary.
+- A06: document/cover other scheduler and device post-publication error contracts.
+- A08: extend documentation coverage to conversion tools.
+- Broader ACT authority/edge-case campaign, physical trace validation, corpus,
+  PDF/artwork and performance audit remain open. No percentage completion claim.
+
+## Validation
+
+No Rust compiler/cargo is installed in this workspace; no compile, tests, release
+build, GUI run or benchmark result is claimed. The existing GitHub workflow is
+used only for rustfmt. The existing `tools/gate_core_audit.ps1` selects new
+`core_audit_` regressions in debug/release, all targets, pin-capture, release binaries
+and the ignored real-firmware diagnostic PAC. Owner must run it on the published
+head before merge. No measured performance delta is available; no per-bit tracing,
+map, allocation or new oracle was added by these fixes.

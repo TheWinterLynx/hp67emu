@@ -68,6 +68,8 @@ pub fn capture_live_pin_tsv(words: usize) -> Result<String, String> {
 const DISPLAY_INIT_PC: u16 = 0o0161;
 const MAIN_WAIT_PC: u16 = 0o0167;
 const CARD_POLL_PC: u16 = 0o0206;
+// Bound diagnostic fixtures only; never abort a production machine for key input.
+#[cfg(test)]
 const BOOT_CYCLE_LIMIT: u64 = 2_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -381,6 +383,7 @@ pub struct Hp67LiveMachine {
     phase: LiveBootPhase,
     pending_us: u64,
     pending_submicro_ns: u32,
+    pacing_fault: Option<String>,
     boot_cycle: u64,
     saw_display_init: bool,
     main_wait_visits: u64,
@@ -434,6 +437,7 @@ impl Hp67LiveMachine {
             phase: LiveBootPhase::ResetHold,
             pending_us: 0,
             pending_submicro_ns: 0,
+            pacing_fault: None,
             boot_cycle: 0,
             saw_display_init: false,
             main_wait_visits: 0,
@@ -569,6 +573,7 @@ impl Hp67LiveMachine {
         self.phase = LiveBootPhase::ResetHold;
         self.pending_us = 0;
         self.pending_submicro_ns = 0;
+        self.pacing_fault = None;
         self.boot_cycle = 0;
         self.saw_display_init = false;
         self.main_wait_visits = 0;
@@ -782,6 +787,13 @@ impl Hp67LiveMachine {
         Ok(self.card_transport.take_card_for_power_off())
     }
 
+    /// Recover host-owned media when abandoning a faulted electronic machine.
+    /// This deliberately does not execute contact transitions on invalid nets.
+    pub fn into_retained_card(mut self) -> Option<(Hp67MagneticCard, CardInsertionEnd)> {
+        let end = self.card_transport.insertion_end()?;
+        self.card_transport.take_card_for_power_off().map(|card| (card, end))
+    }
+
     pub fn withdraw_unstarted_magnetic_card(&mut self) -> Result<Option<Hp67MagneticCard>, String> {
         self.check_reader_contacts()?;
         if self.card_motor_on()
@@ -799,7 +811,12 @@ impl Hp67LiveMachine {
         Ok(self.card_transport.take_unstarted_card())
     }
 
+    /// Public pacing is fail-stop: a failed word may have published partial state.
+    /// Only an explicit electronic reset permits subsequent advancement.
     pub fn advance(&mut self, elapsed: Duration) -> Result<(), String> {
+        if let Some(error) = &self.pacing_fault {
+            return Err(error.clone());
+        }
         // Quantize accumulated host time, not each call independently. The
         // remainder belongs to pacing; it does not define physical PHI edges.
         let fractional_ns = elapsed.subsec_nanos() % 1000 + self.pending_submicro_ns;
@@ -820,7 +837,10 @@ impl Hp67LiveMachine {
             && self.pending_us >= HP67_OBSERVED_WORD_TIME_US
         {
             self.pending_us -= HP67_OBSERVED_WORD_TIME_US;
-            self.step_firmware_cycle()?;
+            if let Err(error) = self.step_firmware_cycle() {
+                self.pacing_fault = Some(error.clone());
+                return Err(error);
+            }
         }
         Ok(())
     }
@@ -892,11 +912,8 @@ impl Hp67LiveMachine {
         } else {
             expected_motor
         };
-        if self.phase != LiveBootPhase::Idle && cycle >= BOOT_CYCLE_LIMIT {
-            return Err(format!(
-                "HP-67 live boot did not reach the no-key idle checkpoint within {BOOT_CYCLE_LIMIT} cycles"
-            ));
-        }
+        // Idle is a no-input diagnostic milestone, not a production watchdog.
+        // A retained key code can legitimately prevent that checkpoint forever.
 
         let mut idle_after_word = false;
         let mut executed = None;

@@ -466,6 +466,13 @@ impl Hp67CardTransport {
             }
         }
 
+        // The existing logical empty-FIFO policy stalls record movement. Apply
+        // it at exhaustion as well as entry: time before a future enqueue must
+        // never be credited to that future payload. Physical underrun is unknown.
+        if crc.queued_write_words() == 0 {
+            self.record_phase_units = 0;
+        }
+
         Ok(written)
     }
 }
@@ -770,6 +777,41 @@ mod tests {
             transport.active_track().unwrap().media(),
             TrackMedia::Recorded(_)
         ));
+    }
+
+    #[test]
+    fn core_audit_write_exhaustion_does_not_credit_time_to_future_payload() {
+        for percent in [95, 100, 105] {
+            let mut whole = Hp67CardTransport::default();
+            whole.speed = Hp67CardSpeed::from_percent(percent).unwrap();
+            whole.insert_card(Hp67MagneticCard::default(), CardInsertionEnd::End2).unwrap();
+            whole.set_head_active(true);
+            let mut crc = CrcArchitecturalCore::default();
+            crc.execute_opcode(0o660).unwrap();
+            complete_startup_handshake(&mut whole, &mut crc);
+            crc.queue_write_word(0x0111_1111).unwrap();
+            crc.queue_write_word(0x0222_2222).unwrap();
+            let mut split = whole.clone();
+            let mut split_crc = crc.clone();
+            whole.advance_us(84_000, true, &mut crc).unwrap();
+            for _ in 0..3 {
+                split.advance_us(28_000, true, &mut split_crc).unwrap();
+            }
+            assert_eq!(whole, split);
+            assert_eq!(crc, split_crc);
+            assert_eq!(whole.next_record(), 2);
+            crc.queue_write_word(0x0333_3333).unwrap();
+            split_crc.queue_write_word(0x0333_3333).unwrap();
+            assert_eq!(whole.advance_us(0, true, &mut crc).unwrap(), 0);
+            assert_eq!(split.advance_us(0, true, &mut split_crc).unwrap(), 0);
+            let interval = whole.record_interval_us();
+            assert_eq!(whole.advance_us(interval - 1, true, &mut crc).unwrap(), 0);
+            assert_eq!(whole.advance_us(1, true, &mut crc).unwrap(), 1);
+            assert_eq!(split.advance_us(interval, true, &mut split_crc).unwrap(), 1);
+            assert_eq!(whole, split);
+            assert_eq!(crc, split_crc);
+            assert_eq!(whole.active_track().unwrap().word(2), Some(0x0333_3333));
+        }
     }
 
     #[test]

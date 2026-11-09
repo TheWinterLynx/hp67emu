@@ -23,3 +23,10 @@ autonomous RAM, media and display. Reset tests compare with a fresh instance jus
 below the reset-hold threshold. Occupied-reader tests cover both insertion ends,
 retained key contact and subsequent execution, then explicit physical-card recovery
 followed by successful electronic reset. They do not certify physical reset edges.
+
+## Audit regressions, 2026-11-09
+Early held/released keys run beyond 2,000 words while retaining the key latch.
+Public pacing rejects all further elapsed time after an injected PHI failure until
+reset. Recovery writes an actual transport record, faults reader contacts, rejects
+normal recovery/reset, then checks exact media, dirty state and insertion end via
+the consuming recovery API. These tests are added, not claimed executed here.

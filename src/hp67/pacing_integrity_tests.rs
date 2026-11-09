@@ -90,3 +90,74 @@ fn core_audit_reset_rejects_retained_card_before_any_electronic_mutation() {
         assert_same_machine(&live, &control);
     }
 }
+
+#[test]
+fn core_audit_early_key_is_not_a_boot_watchdog_failure() {
+    for release in [false, true] {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.advance(Duration::from_micros(HP67_OBSERVED_POWER_ON_SYNC_DELAY_US
+            + 2 * HP67_OBSERVED_WORD_TIME_US)).unwrap();
+        live.set_key_contact(Some(Hp67Key::Digit1));
+        live.advance(Duration::from_micros(HP67_OBSERVED_WORD_TIME_US)).unwrap();
+        if release {
+            live.set_key_contact(None);
+        }
+        live.advance(Duration::from_micros(2100 * HP67_OBSERVED_WORD_TIME_US)).unwrap();
+        assert_eq!(live.boot_cycle, 2103);
+        assert_eq!(live.backplane.tick().get(), 2103 * 224);
+        assert!(live.machine.act.state.key_buffer.is_some());
+        assert_eq!(live.keyboard.pressed(), if release { None } else { Some(Hp67Key::Digit1) });
+    }
+}
+
+#[test]
+fn core_audit_public_pacing_fault_is_terminal_until_reset() {
+    use hp67emu::emulation::Drive;
+    use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
+    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    live.advance(Duration::from_millis(200)).unwrap();
+    let tick = live.backplane.tick();
+    live.backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::High);
+    let error = live.advance(Duration::from_micros(320)).unwrap_err();
+    assert!(error.contains("invalid PHI image"));
+    assert_eq!(live.backplane.tick(), tick);
+    live.backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::HighZ);
+    let debt = (live.pending_us, live.pending_submicro_ns);
+    for elapsed in [Duration::ZERO, Duration::from_secs(1)] {
+        assert_eq!(live.advance(elapsed), Err(error.clone()));
+        assert_eq!(live.backplane.tick(), tick);
+        assert_eq!((live.pending_us, live.pending_submicro_ns), debt);
+    }
+    live.reset_power_on().unwrap();
+    let mut fresh = Hp67LiveMachine::power_on_default().unwrap();
+    live.advance(Duration::from_millis(200)).unwrap();
+    fresh.advance(Duration::from_millis(200)).unwrap();
+    assert_same_machine(&live, &fresh);
+}
+
+#[test]
+fn core_audit_fault_recovery_keeps_partial_write_and_insertion_end() {
+    use hp67emu::emulation::Drive;
+    use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
+    for end in [CardInsertionEnd::End1, CardInsertionEnd::End2] {
+        let mut live = Hp67LiveMachine::power_on_default().unwrap();
+        live.insert_magnetic_card(Hp67MagneticCard::default(), end).unwrap();
+        // Exercise the actual transport write path independently of firmware
+        // startup, then fault electronics before attempting power-off recovery.
+        let mut crc = hp67emu::machines::hp67::CrcArchitecturalCore::default();
+        crc.execute_opcode(0o660).unwrap();
+        live.card_transport.set_head_active(true);
+        live.card_transport.advance_us(0, true, &mut crc).unwrap();
+        crc.execute_opcode(0o100).unwrap();
+        live.card_transport.advance_us(0, true, &mut crc).unwrap();
+        crc.queue_write_word(0x0123_4567).unwrap();
+        live.card_transport.advance_us(28_000, true, &mut crc).unwrap();
+        let expected = live.card_transport.card().unwrap().clone();
+        assert!(expected.track(end.track()).dirty());
+        assert_eq!(expected.track(end.track()).word(0), Some(0x0123_4567));
+        live.backplane.drive(Hp67Net::Hds, Hp67Driver::CardReaderController1820_1751, Drive::High);
+        assert!(live.take_magnetic_card_for_power_off().is_err());
+        assert!(live.reset_power_on().is_err());
+        assert_eq!(live.into_retained_card(), Some((expected, end)));
+    }
+}

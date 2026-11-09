@@ -57,6 +57,7 @@ pub struct Hp67App {
     card_logo: TextureHandle,
     card_artwork_atlas: Option<image::RgbaImage>,
     live_machine: Option<Hp67LiveMachine>,
+    live_fault: Option<String>,
     card_media: Option<Hp67MagneticCard>,
     card_import_name: Option<String>,
     card_insertion_end: CardInsertionEnd,
@@ -100,10 +101,14 @@ fn decode_embedded_card_artwork_atlas() -> Result<image::RgbaImage, String> {
 
 impl Hp67App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        Self::from_context(&cc.egui_ctx)
+    }
+
+    fn from_context(ctx: &egui::Context) -> Self {
         let mut visuals = egui::Visuals::dark();
         visuals.panel_fill = Color32::from_rgb(17, 18, 16);
         visuals.window_fill = Color32::from_rgb(17, 18, 16);
-        cc.egui_ctx.set_visuals(visuals);
+        ctx.set_visuals(visuals);
 
         let decoded = image::load_from_memory_with_format(
             include_bytes!("../assets/hp67.png"),
@@ -114,7 +119,7 @@ impl Hp67App {
         let size = [decoded.width() as usize, decoded.height() as usize];
         let color = ColorImage::from_rgba_unmultiplied(size, decoded.as_raw());
         let photo =
-            cc.egui_ctx
+            ctx
                 .load_texture("hp67-photorealistic-body", color, TextureOptions::LINEAR);
 
         let card_logo_decoded = image::load_from_memory_with_format(
@@ -129,7 +134,7 @@ impl Hp67App {
         ];
         let card_logo_color =
             ColorImage::from_rgba_unmultiplied(card_logo_size, card_logo_decoded.as_raw());
-        let card_logo = cc.egui_ctx.load_texture(
+        let card_logo = ctx.load_texture(
             "hp67-program-card-logo",
             card_logo_color,
             TextureOptions::LINEAR,
@@ -157,6 +162,7 @@ impl Hp67App {
             card_logo,
             card_artwork_atlas,
             live_machine,
+            live_fault: None,
             card_media: None,
             card_import_name: None,
             card_insertion_end: CardInsertionEnd::End1,
@@ -320,7 +326,7 @@ impl Hp67App {
             .unwrap_or_default()
             .to_ascii_lowercase();
         let bytes = serialize_card_for_extension(card, &extension)?;
-        fs::write(path, bytes)
+        crate::card_persistence::save(path, &bytes)
             .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
 
         if let Some(card) = self.card_media.as_mut() {
@@ -1168,11 +1174,65 @@ impl Hp67App {
         true
     }
 
+    fn advance_to_frame(&mut self, now: Instant) -> bool {
+        // Untimestamped UI events take effect at this frame boundary. Settle
+        // prior elapsed time with the previous contacts before handling events.
+        let elapsed = self
+            .last_live_tick
+            .replace(now)
+            .map_or(Duration::ZERO, |previous| {
+                now.saturating_duration_since(previous)
+            });
+
+        let mut live_error = None;
+        let mut live_card_active = false;
+        if self.state.power_on {
+            if let Some(machine) = self.live_machine.as_mut() {
+                if let Err(error) = machine.advance(elapsed) {
+                    live_error = Some(error);
+                } else {
+                    live_card_active =
+                        machine.card_motor_on() || machine.card_record_stream_active();
+                    if machine.magnetic_card_inserted() {
+                        if self.card_phase == ProgramCardPhase::WaitingAtReader
+                            && machine.card_motor_on()
+                        {
+                            self.card_phase = ProgramCardPhase::ReadingFromRight;
+                        }
+                        self.card_read_progress = (machine.card_record_position() as f32
+                            / HP67_CARD_RECORDS_PER_TRACK as f32)
+                            .clamp(0.0, 1.0);
+                    }
+                    if machine.card_transport_complete() && self.card_media.is_none() {
+                        self.card_read_progress = 1.0;
+                        self.card_media = machine.take_completed_magnetic_card();
+                        self.card_phase = ProgramCardPhase::ParkedLeft;
+                        self.card_phase_started = None;
+                    }
+                }
+            }
+        }
+        if let Some(error) = live_error {
+            self.stop_on_fault(error);
+        }
+
+        live_card_active
+    }
+
+    fn stop_on_fault(&mut self, error: String) {
+        eprintln!("HP-67 machine stopped: {error}");
+        if let Some((card, end)) = self.live_machine.take().and_then(Hp67LiveMachine::into_retained_card) {
+            self.card_media = Some(card);
+            self.card_insertion_end = end;
+            self.reset_card_presentation_after_power_off();
+        }
+        self.live_fault = Some(error);
+    }
+
     fn reset_card_presentation_after_power_off(&mut self) {
         self.card_phase = ProgramCardPhase::Idle;
         self.card_phase_started = None;
         self.card_read_progress = 0.0;
-        self.card_insertion_end = CardInsertionEnd::End1;
     }
 
     fn opposite_track_requested(&self) -> bool {
@@ -1201,19 +1261,27 @@ impl Hp67App {
             return false;
         }
 
-        self.card_media = Some(Hp67MagneticCard::default());
+        let Some(machine) = self.live_machine.as_mut() else {
+            return false;
+        };
+        if let Err(error) = machine.insert_magnetic_card(
+            Hp67MagneticCard::default(), CardInsertionEnd::End1,
+        ) {
+            self.program_library_status = Some(format!("Cannot insert blank card: {error}"));
+            return false;
+        }
+        // Publish replacement only after the reader has accepted it.
+        self.card_media = None;
         self.card_import_name = None;
         self.card_library_entry = None;
         self.card_artwork_texture = None;
         self.card_insertion_end = CardInsertionEnd::End1;
+        self.card_phase = ProgramCardPhase::WaitingAtReader;
+        self.card_phase_started = None;
+        self.card_read_progress = 0.0;
         self.card_save_path = "hp67-card.hp67card".to_owned();
         self.card_save_status = None;
-        if self.insert_current_card(CardInsertionEnd::End1) {
-            return true;
-        }
-
-        self.card_media = None;
-        false
+        true
     }
 
     fn show_calculator_surface(
@@ -1295,14 +1363,14 @@ impl Hp67App {
             let was_power_on = self.state.power_on;
             self.state.handle(event);
             if matches!(event, UiEvent::TogglePower) {
-                self.last_live_tick = None;
+                self.last_live_tick = Some(now);
                 if was_power_on && !self.state.power_on {
                     if let Some(machine) = self.live_machine.as_mut() {
                         match machine.take_magnetic_card_for_power_off() {
                             Ok(Some(card)) => self.card_media = Some(card),
                             Ok(None) => {}
                             Err(error) => {
-                                eprintln!("HP-67 power-off card recovery failed: {error}");
+                                self.stop_on_fault(error);
                             }
                         }
                     }
@@ -1316,8 +1384,9 @@ impl Hp67App {
                         })
                     };
                     if let Err(error) = reset_result {
-                        eprintln!("HP-67 live power-on reset failed: {error}");
-                        self.live_machine = None;
+                        self.stop_on_fault(error);
+                    } else {
+                        self.live_fault = None;
                     }
                 }
             }
@@ -1329,8 +1398,7 @@ impl Hp67App {
                 .err()
         });
         if let Some(error) = mode_error {
-            eprintln!("HP-67 live program-mode update failed: {error}");
-            self.live_machine = None;
+            self.stop_on_fault(error);
         }
 
         if let Some(machine) = self.live_machine.as_mut() {
@@ -1414,6 +1482,7 @@ fn filename_track_hint(path: &Path) -> Option<hp67emu::machines::hp67::Hp67CardT
 impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
+        let live_card_active = self.advance_to_frame(now);
         self.import_dropped_card_files(ctx);
         if ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S)) {
             self.card_save_dialog_open = true;
@@ -1450,6 +1519,12 @@ impl eframe::App for Hp67App {
                 });
             });
         });
+        if let Some(error) = &self.live_fault {
+            egui::TopBottomPanel::bottom("hp67-machine-fault").show(ctx, |ui| {
+                ui.colored_label(Color32::LIGHT_RED, format!("Machine stopped: {error}"));
+                ui.label("Retained card data can be saved. Power-cycle to reset electronics.");
+            });
+        }
         if open_program_library {
             self.program_library_open = true;
             self.program_library_status = None;
@@ -1527,45 +1602,6 @@ impl eframe::App for Hp67App {
                 self.show_calculator_surface(ui, now, card_phase_progress, minimum_touch_target);
             });
 
-        let elapsed = self
-            .last_live_tick
-            .replace(now)
-            .map_or(Duration::ZERO, |previous| {
-                now.saturating_duration_since(previous)
-            });
-
-        let mut live_error = None;
-        let mut live_card_active = false;
-        if self.state.power_on {
-            if let Some(machine) = self.live_machine.as_mut() {
-                if let Err(error) = machine.advance(elapsed) {
-                    live_error = Some(error);
-                } else {
-                    live_card_active =
-                        machine.card_motor_on() || machine.card_record_stream_active();
-                    if machine.magnetic_card_inserted() {
-                        if self.card_phase == ProgramCardPhase::WaitingAtReader
-                            && machine.card_motor_on()
-                        {
-                            self.card_phase = ProgramCardPhase::ReadingFromRight;
-                        }
-                        self.card_read_progress = (machine.card_record_position() as f32
-                            / HP67_CARD_RECORDS_PER_TRACK as f32)
-                            .clamp(0.0, 1.0);
-                    }
-                    if machine.card_transport_complete() && self.card_media.is_none() {
-                        self.card_read_progress = 1.0;
-                        self.card_media = machine.take_completed_magnetic_card();
-                        self.card_phase = ProgramCardPhase::ParkedLeft;
-                        self.card_phase_started = None;
-                    }
-                }
-            }
-        }
-        if let Some(error) = live_error {
-            eprintln!("HP-67 live machine disabled: {error}");
-            self.live_machine = None;
-        }
 
         if self.card_phase.is_animating() || live_card_active {
             ctx.request_repaint_after(Duration::from_millis(16));
@@ -1588,6 +1624,51 @@ impl eframe::App for Hp67App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn core_audit_ui_fault_preserves_media_orientation_and_visible_error() {
+        let ctx = egui::Context::default();
+        let mut app = Hp67App::from_context(&ctx);
+        app.state.power_on = true;
+        let card = Hp67MagneticCard::default();
+        app.card_media = Some(card.clone());
+        assert!(app.insert_current_card(CardInsertionEnd::End2));
+        app.stop_on_fault("injected contact failure".to_owned());
+        assert!(app.live_machine.is_none());
+        assert_eq!(app.card_media, Some(card.clone()));
+        assert_eq!(app.card_insertion_end, CardInsertionEnd::End2);
+        assert_eq!(app.card_phase, ProgramCardPhase::Idle);
+        assert_eq!(app.live_fault.as_deref(), Some("injected contact failure"));
+        // A further failed blank insertion must not erase the recovered card.
+        assert!(!app.insert_new_blank_card());
+        assert_eq!(app.card_media, Some(card));
+        assert_eq!(app.card_insertion_end, CardInsertionEnd::End2);
+        app.stop_on_fault("second failure".to_owned());
+        assert!(app.card_media.is_some());
+    }
+
+    #[test]
+    fn core_audit_frame_boundary_does_not_age_a_newly_inserted_card() {
+        let ctx = egui::Context::default();
+        let mut app = Hp67App::from_context(&ctx);
+        app.state.power_on = true;
+        let start = Instant::now();
+        app.advance_to_frame(start);
+        // Previous time is settled before the boundary's new card event.
+        let boundary = start + Duration::from_millis(200);
+        app.advance_to_frame(boundary);
+        app.card_media = Some(Hp67MagneticCard::default());
+        assert!(app.insert_current_card(CardInsertionEnd::End1));
+        assert!(!app.live_machine.as_ref().unwrap().card_motor_on());
+        app.advance_to_frame(boundary);
+        let machine = app.live_machine.as_ref().unwrap();
+        assert!(!machine.card_motor_on());
+        assert_eq!(machine.card_record_position(), 0);
+        // Real subsequent time still reaches firmware; it has not been capped.
+        app.advance_to_frame(boundary + Duration::from_millis(200));
+        assert!(app.live_fault.is_none());
+        assert!(app.live_machine.as_ref().unwrap().card_motor_on());
+    }
 
     #[test]
     fn web_program_library_uses_compact_flow_for_phone_sized_viewports() {

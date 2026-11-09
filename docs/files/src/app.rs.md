@@ -74,3 +74,13 @@ WASM Program Library selection no longer forces the listing view. Selecting a pr
 
 
 M14U: the panel consumes a complete-scan physical-emitter dwell snapshot from M14T. ROM0 E/G shared signs route to physical G emitters, and slot 15 replaces slot 1 under the existing structural compatibility policy. The renderer selects lit geometry from nonzero dwell; artwork gain remains unchanged because current/radiant-energy conversion is not proven. Partial scans remain private. DISPLAY disable and power reset blank the optical snapshot immediately. Diagnostic immediate masks remain available to tests and firmware prompt detection.
+
+## Audit corrections, 2026-11-09
+`advance_to_frame` settles the previous interval before drop/menu/panel actions.
+Untimestamped events belong to the current frame boundary; power transitions reset
+the anchor to that boundary, not to an uninitialized clock. This does not reconstruct
+sub-frame OS event timestamps. Fault handling preserves owned media and orientation,
+stores a visible error, and disables electronic advancement. A failed blank-card
+insertion leaves prepared media/metadata untouched. Saving delegates to the native
+transactional persistence module and marks media clean only after replacement.
+The constructor's context-only helper allows recovery tests without a renderer.

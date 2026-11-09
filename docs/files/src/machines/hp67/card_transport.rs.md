@@ -41,3 +41,12 @@ A private narrow CardCrcPort serves two concrete storage owners. advance_us reta
 This closes logical storage ownership, not physical CRC DATA serialization or PHI timing. See `docs/research/M15X_CRC_OWNED_DATA_2026-10-23.md`.
 
 M16I adds advance_us_owned_with_reader. It rejects receiver/transport head mismatch before synchronizing CRC buffers; production head gating and write inhibit consume the independent CRC receiver. Legacy advance_us and advance_us_owned remain explicit metadata-driven reference fixtures. Production does not consult track.write_protected() for permission; resolved grounded WPS can permit the documented service bypass. Startup READY/F7 timing, FIFO behavior, 34-record cadence and media writes remain otherwise unchanged.
+
+## Empty write FIFO policy and partition regression
+The logical model stalls write position when no payload is queued. At exhaustion
+as well as empty entry, unused phase is discarded so elapsed time before a future
+enqueue cannot write that future payload retroactively. This makes the documented
+84 ms two-record counterexample partition-independent at 95/100/105 percent.
+This is consistency of an existing WORKING APPROXIMATION, not physical underrun
+fidelity. Actual motor/head movement and magnetic output during FIFO starvation
+remain SOURCE-BLOCKED and require measured evidence to replace this policy.

@@ -4,6 +4,8 @@
 )]
 
 mod app;
+#[cfg(not(target_arch = "wasm32"))]
+mod card_persistence;
 mod hp67;
 mod panel;
 #[cfg(not(target_arch = "wasm32"))]
