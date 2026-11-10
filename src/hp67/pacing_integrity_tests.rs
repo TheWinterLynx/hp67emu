@@ -258,9 +258,11 @@ fn core_audit_unlimited_fault_stops_both_clock_inputs() {
     let mut live = Hp67LiveMachine::power_on_default().unwrap();
     live.advance(Duration::from_millis(200)).unwrap();
     let tick = live.backplane.tick();
-    live.backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::High);
+    live.backplane
+        .drive(Hp67Net::Phi1, Hp67Driver::External, Drive::High);
     let error = live.advance_processing_words(64).unwrap_err();
-    live.backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::HighZ);
+    live.backplane
+        .drive(Hp67Net::Phi1, Hp67Driver::External, Drive::HighZ);
     assert_eq!(live.advance_processing_words(64), Err(error.clone()));
     assert_eq!(live.advance(Duration::from_secs(1)), Err(error));
     assert_eq!(live.backplane.tick(), tick);

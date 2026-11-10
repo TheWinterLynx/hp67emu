@@ -1445,7 +1445,12 @@ impl Hp67LiveMachine {
         Ok(executed)
     }
 
-    fn advance_crc_transport(&mut self, cycle: u64, motor_on: bool, reader_elapsed_us: u64) -> Result<(), String> {
+    fn advance_crc_transport(
+        &mut self,
+        cycle: u64,
+        motor_on: bool,
+        reader_elapsed_us: u64,
+    ) -> Result<(), String> {
         if let Some(data) = self.owned_crc_data.as_mut() {
             // Compare the observer only while actual transport can change media.
             // Inactive firmware idle never clones a physical card.
@@ -1467,12 +1472,8 @@ impl Hp67LiveMachine {
                     reader,
                 )
             } else {
-                self.card_transport.advance_us_owned(
-                    reader_elapsed_us,
-                    motor_on,
-                    data,
-                    control,
-                )
+                self.card_transport
+                    .advance_us_owned(reader_elapsed_us, motor_on, data, control)
             };
             if let Some((mut transport, mut crc)) = observer {
                 let expected = transport.advance_us(reader_elapsed_us, motor_on, &mut crc);
