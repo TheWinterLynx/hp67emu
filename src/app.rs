@@ -3,9 +3,7 @@ use std::{path::Path, time::Duration};
 use web_time::Instant;
 
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
-use hp67emu::machines::hp67::{
-    CardInsertionEnd, Hp67MagneticCard, HP67_CARD_RECORDS_PER_TRACK,
-};
+use hp67emu::machines::hp67::{CardInsertionEnd, Hp67MagneticCard, HP67_CARD_RECORDS_PER_TRACK};
 
 use crate::{
     hp67::{HardwareDisplayFrame, Hp67LiveMachine, Hp67State, KeyAction, RunMode, UiEvent},
@@ -203,7 +201,11 @@ impl Hp67App {
     }
 
     fn load_card_files(&mut self, paths: &[std::path::PathBuf]) -> Result<(), String> {
-        if self.live_machine.as_ref().is_some_and(Hp67LiveMachine::magnetic_card_inserted) {
+        if self
+            .live_machine
+            .as_ref()
+            .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
+        {
             return Err("cannot replace card media while a card is inside the reader".to_owned());
         }
         // Decode the entire operation before replacing media or presentation.
@@ -216,7 +218,10 @@ impl Hp67App {
         self.card_read_progress = 0.0;
         self.card_library_entry = None;
         self.card_artwork_texture = None;
-        self.card_save_path = paths[0].with_extension("hp67card").to_string_lossy().into_owned();
+        self.card_save_path = paths[0]
+            .with_extension("hp67card")
+            .to_string_lossy()
+            .into_owned();
         self.card_save_status = None;
         self.program_library_status = if imported.warnings.is_empty() {
             None
@@ -1547,7 +1552,10 @@ mod tests {
         app.card_library_entry = Some(0);
         for paths in [
             Vec::new(),
-            vec![std::path::PathBuf::from("a.hp67card"), std::path::PathBuf::from("b.hpp")],
+            vec![
+                std::path::PathBuf::from("a.hp67card"),
+                std::path::PathBuf::from("b.hpp"),
+            ],
         ] {
             assert!(app.load_card_files(&paths).is_err());
             assert_eq!(app.card_media, Some(card.clone()));

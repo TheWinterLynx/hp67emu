@@ -1,8 +1,6 @@
 //! Bounded host imports. HPP titles are presentation, never physical identity.
+use hp67emu::machines::hp67::{CardInsertionEnd, Hp67MagneticCard, TeenixHppImport};
 use std::{fs::File, io::Read, path::PathBuf};
-use hp67emu::machines::hp67::{
-    CardInsertionEnd, Hp67MagneticCard, TeenixHppImport,
-};
 
 const MAX_HPP_BYTES: usize = 1024 * 1024;
 
@@ -14,12 +12,17 @@ pub struct ImportedCard {
 }
 
 fn extension(path: &std::path::Path) -> String {
-    path.extension().and_then(|x| x.to_str()).unwrap_or_default().to_ascii_lowercase()
+    path.extension()
+        .and_then(|x| x.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
 }
 
 fn read_bounded(reader: impl Read, limit: usize) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
-    reader.take(limit as u64 + 1).read_to_end(&mut bytes)
+    reader
+        .take(limit as u64 + 1)
+        .read_to_end(&mut bytes)
         .map_err(|error| format!("cannot read card: {error}"))?;
     if bytes.len() > limit {
         return Err(format!("card file exceeds {limit} bytes"));
@@ -41,23 +44,35 @@ fn decode(kind: &str, bytes: &[u8]) -> Result<ImportedCard, String> {
             (card, Some(imported.card_name), end)
         }
         "hp67card" => (
-            Hp67MagneticCard::from_hp67card_bytes(bytes).map_err(|e| format!("invalid .hp67card: {e:?}"))?,
-            None, CardInsertionEnd::End1,
+            Hp67MagneticCard::from_hp67card_bytes(bytes)
+                .map_err(|e| format!("invalid .hp67card: {e:?}"))?,
+            None,
+            CardInsertionEnd::End1,
         ),
         "hp67raw" => (
-            Hp67MagneticCard::from_hp67raw_bytes(bytes).map_err(|e| format!("invalid .hp67raw: {e:?}"))?,
-            None, CardInsertionEnd::End1,
+            Hp67MagneticCard::from_hp67raw_bytes(bytes)
+                .map_err(|e| format!("invalid .hp67raw: {e:?}"))?,
+            None,
+            CardInsertionEnd::End1,
         ),
         _ => return Err("expected .hpp, .hp67raw or .hp67card".to_owned()),
     };
-    Ok(ImportedCard { card, name, end, warnings })
+    Ok(ImportedCard {
+        card,
+        name,
+        end,
+        warnings,
+    })
 }
 
 fn pair(mut first: ImportedCard, second: ImportedCard) -> Result<ImportedCard, String> {
     if first.end == second.end {
         return Err("Both HPP files identify the same track. Convert with explicit --track1/--track2 placement before importing.".to_owned());
     }
-    first.card.set_track(second.end.track(), second.card.track(second.end.track()).clone());
+    first.card.set_track(
+        second.end.track(),
+        second.card.track(second.end.track()).clone(),
+    );
     first.warnings.extend(second.warnings);
     if first.name != second.name {
         first.name = None;
@@ -70,10 +85,14 @@ fn pair(mut first: ImportedCard, second: ImportedCard) -> Result<ImportedCard, S
 /// explicitly request pairing; neither names nor previous UI media are consulted.
 pub fn load(paths: &[PathBuf]) -> Result<ImportedCard, String> {
     if paths.is_empty() || paths.len() > 2 {
-        return Err("Drop one card file, or exactly two HPP files together to pair tracks.".to_owned());
+        return Err(
+            "Drop one card file, or exactly two HPP files together to pair tracks.".to_owned(),
+        );
     }
     if paths.len() == 2 && paths.iter().any(|p| extension(p) != "hpp") {
-        return Err("Only two HPP files can be paired. Import native/raw cards separately.".to_owned());
+        return Err(
+            "Only two HPP files can be paired. Import native/raw cards separately.".to_owned(),
+        );
     }
     let mut imports = Vec::new();
     for path in paths {
@@ -82,7 +101,12 @@ pub fn load(paths: &[PathBuf]) -> Result<ImportedCard, String> {
             "hpp" => MAX_HPP_BYTES,
             "hp67card" => 250,
             "hp67raw" => 238,
-            _ => return Err(format!("{}: expected .hpp, .hp67raw or .hp67card", path.display())),
+            _ => {
+                return Err(format!(
+                    "{}: expected .hpp, .hp67raw or .hp67card",
+                    path.display()
+                ))
+            }
         };
         let file = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let bytes = read_bounded(file, limit).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -110,7 +134,10 @@ mod tests {
             }
         }
         let body = format!("67\ncard.bmp\n{name}\n{data}\n");
-        format!("NeWe\n{}\n{body}", body.len()).bytes().map(|b| b ^ 0x55).collect()
+        format!("NeWe\n{}\n{body}", body.len())
+            .bytes()
+            .map(|b| b ^ 0x55)
+            .collect()
     }
 
     #[test]
@@ -138,18 +165,29 @@ mod tests {
         assert!(pair(
             decode("hpp", &hpp(0x03000222, "A")).unwrap(),
             decode("hpp", &hpp(0x03000222, "A")).unwrap(),
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
     fn core_audit_card_reader_limits_actual_bytes_and_rejects_ambiguous_batches() {
         for limit in [238, 250, MAX_HPP_BYTES] {
-            assert_eq!(read_bounded(std::io::repeat(0).take(limit as u64), limit).unwrap().len(), limit);
+            assert_eq!(
+                read_bounded(std::io::repeat(0).take(limit as u64), limit)
+                    .unwrap()
+                    .len(),
+                limit
+            );
             assert!(read_bounded(std::io::repeat(0), limit).is_err());
         }
         assert!(load(&[]).is_err());
         assert!(load(&[PathBuf::from("a.hp67card"), PathBuf::from("b.hpp")]).is_err());
-        assert!(load(&[PathBuf::from("a.hpp"), PathBuf::from("b.hpp"), PathBuf::from("c.hpp")]).is_err());
+        assert!(load(&[
+            PathBuf::from("a.hpp"),
+            PathBuf::from("b.hpp"),
+            PathBuf::from("c.hpp")
+        ])
+        .is_err());
         assert!(decode("hp67card", &[0; 249]).is_err());
         assert!(decode("hp67raw", &[0; 237]).is_err());
     }
@@ -177,5 +215,4 @@ mod tests {
         assert!(load(&[native]).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
-
 }
