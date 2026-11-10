@@ -847,6 +847,25 @@ impl Hp67LiveMachine {
         Ok(())
     }
 
+    /// Execute extra CPU words without consuming elapsed reader time.
+    /// Reset hold still requires real elapsed time. Instruction-counted firmware
+    /// timeouts may expire earlier relative to card movement in this host mode.
+    pub fn advance_processing_words(&mut self, words: u32) -> Result<u32, String> {
+        if let Some(error) = &self.pacing_fault {
+            return Err(error.clone());
+        }
+        if self.phase == LiveBootPhase::ResetHold {
+            return Ok(0);
+        }
+        for _ in 0..words {
+            if let Err(error) = self.step_firmware_cycle_with_reader_time(None, 0) {
+                self.pacing_fault = Some(error.clone());
+                return Err(error);
+            }
+        }
+        Ok(words)
+    }
+
     fn step_firmware_cycle(&mut self) -> Result<(), String> {
         self.step_firmware_cycle_with_execution().map(|_| ())
     }
@@ -859,7 +878,15 @@ impl Hp67LiveMachine {
 
     fn step_firmware_cycle_with_trace(
         &mut self,
+        trace: Option<&mut StructuralBusTrace>,
+    ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
+        self.step_firmware_cycle_with_reader_time(trace, HP67_OBSERVED_WORD_TIME_US)
+    }
+
+    fn step_firmware_cycle_with_reader_time(
+        &mut self,
         mut trace: Option<&mut StructuralBusTrace>,
+        reader_elapsed_us: u64,
     ) -> Result<Option<Hp67ArchitecturalExecution>, String> {
         let cycle = self.boot_cycle;
         self.backplane
@@ -1391,7 +1418,7 @@ impl Hp67LiveMachine {
                 .publish(crc, &mut self.backplane)
                 .map_err(|error| format!("live cycle {cycle} CRC MOTOR publication: {error:?}"))?;
         }
-        self.advance_crc_transport(cycle, card_motor_was_on)?;
+        self.advance_crc_transport(cycle, card_motor_was_on, reader_elapsed_us)?;
 
         // Only a changed logical transport handshake enters the device.
         if buffer_status_before_transport
@@ -1418,7 +1445,7 @@ impl Hp67LiveMachine {
         Ok(executed)
     }
 
-    fn advance_crc_transport(&mut self, cycle: u64, motor_on: bool) -> Result<(), String> {
+    fn advance_crc_transport(&mut self, cycle: u64, motor_on: bool, reader_elapsed_us: u64) -> Result<(), String> {
         if let Some(data) = self.owned_crc_data.as_mut() {
             // Compare the observer only while actual transport can change media.
             // Inactive firmware idle never clones a physical card.
@@ -1433,7 +1460,7 @@ impl Hp67LiveMachine {
                 .expect("owned CRC control");
             let result = if let Some(reader) = self.crc_reader_gate.as_ref() {
                 self.card_transport.advance_us_owned_with_reader(
-                    HP67_OBSERVED_WORD_TIME_US,
+                    reader_elapsed_us,
                     motor_on,
                     data,
                     control,
@@ -1441,14 +1468,14 @@ impl Hp67LiveMachine {
                 )
             } else {
                 self.card_transport.advance_us_owned(
-                    HP67_OBSERVED_WORD_TIME_US,
+                    reader_elapsed_us,
                     motor_on,
                     data,
                     control,
                 )
             };
             if let Some((mut transport, mut crc)) = observer {
-                let expected = transport.advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut crc);
+                let expected = transport.advance_us(reader_elapsed_us, motor_on, &mut crc);
                 if result != expected || self.card_transport != transport {
                     return Err(format!("live cycle {cycle} owned CRC transport mismatch: actual={result:?} expected={expected:?}"));
                 }
@@ -1462,7 +1489,7 @@ impl Hp67LiveMachine {
                 .map_err(|error| format!("live cycle {cycle} {error}"))?;
         } else {
             self.card_transport
-                .advance_us(HP67_OBSERVED_WORD_TIME_US, motor_on, &mut self.machine.crc)
+                .advance_us(reader_elapsed_us, motor_on, &mut self.machine.crc)
                 .map_err(|error| format!("live cycle {cycle} card transport failed: {error:?}"))?;
         }
         Ok(())

@@ -17,6 +17,9 @@ use crate::{
     },
 };
 
+const UNLIMITED_SLICE_BUDGET: Duration = Duration::from_millis(8);
+const UNLIMITED_BATCH_WORDS: u32 = 64;
+
 const PROGRAM_CARD_WINDOW_INSERT_DURATION: Duration = Duration::from_millis(700);
 #[cfg(not(target_arch = "wasm32"))]
 const PROGRAM_LIBRARY_VIEWPORT_KEY: &str = "hp67-program-library-viewport";
@@ -60,6 +63,7 @@ pub struct Hp67App {
     card_import_name: Option<String>,
     card_insertion_end: CardInsertionEnd,
     last_live_tick: Option<Instant>,
+    unlimited_speed: bool,
     card_phase: ProgramCardPhase,
     card_phase_started: Option<Instant>,
     card_read_progress: f32,
@@ -163,6 +167,7 @@ impl Hp67App {
             card_import_name: None,
             card_insertion_end: CardInsertionEnd::End1,
             last_live_tick: None,
+            unlimited_speed: false,
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
             card_read_progress: 0.0,
@@ -1145,6 +1150,22 @@ impl Hp67App {
         live_card_active
     }
 
+    fn advance_processing_batch(&mut self) -> u32 {
+        if !self.state.power_on || !self.unlimited_speed {
+            return 0;
+        }
+        let Some(machine) = self.live_machine.as_mut() else {
+            return 0;
+        };
+        match machine.advance_processing_words(UNLIMITED_BATCH_WORDS) {
+            Ok(words) => words,
+            Err(error) => {
+                self.stop_on_fault(error);
+                0
+            }
+        }
+    }
+
     fn stop_on_fault(&mut self, error: String) {
         eprintln!("HP-67 machine stopped: {error}");
         if let Some((card, end)) = self
@@ -1396,8 +1417,19 @@ fn opposite_track_can_continue(
 
 impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let now = Instant::now();
-        let live_card_active = self.advance_to_frame(now);
+        let mut now = Instant::now();
+        let started = now;
+        let mut live_card_active = self.advance_to_frame(now);
+        let mut accelerated = false;
+        while self.advance_processing_batch() != 0 {
+            accelerated = true;
+            now = Instant::now();
+            // One anchor accounts for elapsed time before and during CPU batches.
+            live_card_active |= self.advance_to_frame(now);
+            if now.saturating_duration_since(started) >= UNLIMITED_SLICE_BUDGET {
+                break;
+            }
+        }
         self.import_dropped_card_files(ctx);
         if ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S)) {
             self.card_save_dialog_open = true;
@@ -1432,6 +1464,11 @@ impl eframe::App for Hp67App {
                         save_from_menu = true;
                         ui.close_menu();
                     }
+                });
+                ui.menu_button("Speed", |ui| {
+                    ui.checkbox(&mut self.unlimited_speed, "Unlimited CPU");
+                    ui.label("Reader and card animations keep real elapsed time.");
+                    ui.label("Accelerated firmware may time out on card I/O. Use 1x for original timing.");
                 });
             });
         });
@@ -1525,7 +1562,11 @@ impl eframe::App for Hp67App {
             // Keep the physical firmware machine advancing after boot idle as well
             // as during startup. The same cadence also samples held/released key
             // contacts without introducing host-side calculator semantics.
-            ctx.request_repaint_after(Duration::from_micros(4_800));
+            if accelerated {
+                ctx.request_repaint();
+            } else {
+                ctx.request_repaint_after(Duration::from_micros(4_800));
+            }
         }
         self.show_card_save_dialog(ctx);
         self.show_program_library(ctx);
@@ -1539,6 +1580,31 @@ impl eframe::App for Hp67App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn core_audit_speed_switch_preserves_clock_anchor_and_animation() {
+        let ctx = egui::Context::default();
+        let mut app = Hp67App::from_context(&ctx);
+        app.state.power_on = true;
+        let start = Instant::now();
+        app.advance_to_frame(start);
+        let boundary = start + Duration::from_millis(200);
+        app.advance_to_frame(boundary);
+        app.card_phase_started = Some(boundary);
+        app.unlimited_speed = true;
+        assert_eq!(app.advance_processing_batch(), 64);
+        assert_eq!(app.last_live_tick, Some(boundary));
+        assert_eq!(app.card_phase_started, Some(boundary));
+        app.unlimited_speed = false;
+        assert_eq!(app.advance_processing_batch(), 0);
+        assert_eq!(app.last_live_tick, Some(boundary));
+        app.advance_to_frame(boundary + Duration::from_nanos(731));
+        assert_eq!(app.card_phase_started, Some(boundary));
+        assert!(app.live_fault.is_none());
+        app.state.power_on = false;
+        app.unlimited_speed = true;
+        assert_eq!(app.advance_processing_batch(), 0);
+    }
 
     #[test]
     fn core_audit_failed_card_import_preserves_prepared_media_and_metadata() {

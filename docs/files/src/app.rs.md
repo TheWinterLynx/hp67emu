@@ -91,3 +91,7 @@ in the same drop explicitly request opposite-track pairing. Titles and filename
 hints never merge media with a previous import. Invalid batches leave prepared
 media, orientation and metadata unchanged and surface the error in the library.
 The Cards menu explains the gesture. Parsing/limits live in card_import.rs.
+
+## Independent processor clock (2026-11-10)
+
+Unlimited CPU uses batches of 64 words and an 8 ms UI slice. The same last_live_tick settles real elapsed time before and during batches. Speed changes do not reset that anchor. Reader time and card animation duration are not multiplied. Firmware instruction-counted I/O timeouts can expire earlier; the menu explains this host-mode limitation.

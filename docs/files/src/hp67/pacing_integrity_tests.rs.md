@@ -30,3 +30,7 @@ Public pacing rejects all further elapsed time after an injected PHI failure unt
 reset. Recovery writes an actual transport record, faults reader contacts, rejects
 normal recovery/reset, then checks exact media, dirty state and insertion end via
 the consuming recovery API. These tests are added, not claimed executed here.
+
+## Independent processor clock (2026-11-10)
+
+Independent-clock regressions cover reset hold, nanosecond debt, full PHI word counts, batch partitioning, real firmware with inserted media in both orientations and modes, and shared fail-stop handling. These test the optional host acceleration contract, not physical clock equivalence.

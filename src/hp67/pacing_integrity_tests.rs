@@ -177,3 +177,93 @@ fn core_audit_fault_recovery_keeps_partial_write_and_insertion_end() {
         assert_eq!(live.into_retained_card(), Some((expected, end)));
     }
 }
+
+#[test]
+fn core_audit_unlimited_preserves_reset_and_fractional_reader_time() {
+    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    let mut control = Hp67LiveMachine::power_on_default().unwrap();
+    assert_eq!(live.advance_processing_words(8192).unwrap(), 0);
+    assert_same_machine(&live, &control);
+    let reset_ns = HP67_OBSERVED_POWER_ON_SYNC_DELAY_US * 1000;
+    for machine in [&mut live, &mut control] {
+        machine.advance(Duration::from_nanos(reset_ns - 1)).unwrap();
+    }
+    assert_eq!(live.advance_processing_words(64).unwrap(), 0);
+    assert_same_machine(&live, &control);
+    for machine in [&mut live, &mut control] {
+        machine.advance(Duration::from_nanos(732)).unwrap();
+    }
+    assert_eq!(live.advance_processing_words(1024).unwrap(), 1024);
+    for _ in 0..1024 {
+        control.step_firmware_cycle().unwrap();
+    }
+    assert_same_machine(&live, &control);
+    assert_eq!(live.backplane.tick().get(), 1024 * 224);
+    for machine in [&mut live, &mut control] {
+        machine.advance(Duration::from_nanos(319_269)).unwrap();
+    }
+    assert_same_machine(&live, &control);
+    assert_eq!(live.boot_cycle, 1025);
+    assert_eq!((live.pending_us, live.pending_submicro_ns), (0, 0));
+}
+
+#[test]
+fn core_audit_unlimited_batch_partition_preserves_firmware_state() {
+    let mut whole = Hp67LiveMachine::power_on_default().unwrap();
+    let mut split = Hp67LiveMachine::power_on_default().unwrap();
+    for machine in [&mut whole, &mut split] {
+        machine.advance(Duration::from_millis(200)).unwrap();
+        machine.set_key_contact(Some(Hp67Key::Digit7));
+    }
+    whole.advance_processing_words(1024).unwrap();
+    for _ in 0..16 {
+        split.advance_processing_words(64).unwrap();
+    }
+    assert_same_machine(&whole, &split);
+    for machine in [&mut whole, &mut split] {
+        machine.set_key_contact(None);
+        machine.advance(Duration::from_nanos(320_731)).unwrap();
+    }
+    assert_same_machine(&whole, &split);
+}
+
+#[test]
+fn core_audit_unlimited_does_not_manufacture_card_time_or_wait_for_poll() {
+    for program in [false, true] {
+        for end in [CardInsertionEnd::End1, CardInsertionEnd::End2] {
+            let mut live = Hp67LiveMachine::power_on_default().unwrap();
+            live.set_program_mode(program).unwrap();
+            live.advance(Duration::from_millis(200)).unwrap();
+            let card = Hp67MagneticCard::default();
+            live.insert_magnetic_card(card.clone(), end).unwrap();
+            let cycle = live.boot_cycle;
+            let debt = (live.pending_us, live.pending_submicro_ns);
+            assert_eq!(live.advance_processing_words(8192).unwrap(), 8192);
+            assert_eq!(live.boot_cycle, cycle + 8192);
+            assert_eq!(live.backplane.tick().get(), live.boot_cycle * 224);
+            assert_eq!(live.card_record_position(), 0);
+            assert_eq!(live.card_transport.card(), Some(&card));
+            assert_eq!((live.pending_us, live.pending_submicro_ns), debt);
+            assert_eq!(live.take_magnetic_card_for_power_off().unwrap(), Some(card));
+            live.reset_power_on().unwrap();
+            assert_eq!(live.advance_processing_words(64).unwrap(), 0);
+        }
+    }
+}
+
+#[test]
+fn core_audit_unlimited_fault_stops_both_clock_inputs() {
+    use hp67emu::emulation::Drive;
+    use hp67emu::machines::hp67::{Hp67Driver, Hp67Net};
+    let mut live = Hp67LiveMachine::power_on_default().unwrap();
+    live.advance(Duration::from_millis(200)).unwrap();
+    let tick = live.backplane.tick();
+    live.backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::High);
+    let error = live.advance_processing_words(64).unwrap_err();
+    live.backplane.drive(Hp67Net::Phi1, Hp67Driver::External, Drive::HighZ);
+    assert_eq!(live.advance_processing_words(64), Err(error.clone()));
+    assert_eq!(live.advance(Duration::from_secs(1)), Err(error));
+    assert_eq!(live.backplane.tick(), tick);
+    live.reset_power_on().unwrap();
+    assert_eq!(live.advance_processing_words(64).unwrap(), 0);
+}

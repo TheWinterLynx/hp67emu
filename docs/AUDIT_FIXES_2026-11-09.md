@@ -48,3 +48,20 @@ A07 implementation now removes title-based physical pairing, supports explicit
 same-drop HPP pairing and bounds host reads. Error and length-warning messages
 are visible. Added regression coverage is pending the owner gate; no local Rust
 execution is claimed. PAC unlimited policy and dense capability scope remain open.
+
+## Follow-up 2026-11-10 — independent processor clock
+A07 received the owner's green gate and is integrated through e37b3ba.
+This main-derived branch implements CPU acceleration without the separate PAC
+branch's repeated-empty-CRC-poll/PC heuristic. Extra words receive zero reader
+elapsed time; normal pacing alone owns elapsed time and fractional remainders.
+All 56 cells, 224 PHI transitions and reference comparisons remain.
+
+This optional host mode changes the ratio of CPU execution to transport time.
+Instruction-counted firmware timeouts may therefore expire before a physical
+card operation completes. No firmware patch or hidden 1x switch masks that fact.
+Use nominal speed for original I/O timing. The separate PAC branch is not merged;
+its old unlimited implementation must be replaced, not layered onto this API.
+
+Added focused core/UI regressions are pending the owner gate. Rust is unavailable
+locally. No runtime, benchmark or GUI validation is claimed. Existing electrical
+source-blocked boundaries and the other remaining audit items stay open.
