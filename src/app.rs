@@ -1,10 +1,10 @@
-use std::{fs, path::Path, time::Duration};
+use std::{path::Path, time::Duration};
 
 use web_time::Instant;
 
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 use hp67emu::machines::hp67::{
-    CardInsertionEnd, Hp67MagneticCard, TeenixHppImport, HP67_CARD_RECORDS_PER_TRACK,
+    CardInsertionEnd, Hp67MagneticCard, HP67_CARD_RECORDS_PER_TRACK,
 };
 
 use crate::{
@@ -193,114 +193,37 @@ impl Hp67App {
                 .collect::<Vec<_>>()
         });
 
-        for path in paths {
-            if let Err(error) = self.load_card_file(&path) {
-                eprintln!("HP-67 card import failed for {}: {error}", path.display());
-            }
+        if paths.is_empty() {
+            return;
+        }
+        if let Err(error) = self.load_card_files(&paths) {
+            self.program_library_open = true;
+            self.program_library_status = Some(format!("Card import failed: {error}"));
         }
     }
 
-    fn load_card_file(&mut self, path: &Path) -> Result<(), String> {
-        if self
-            .live_machine
-            .as_ref()
-            .is_some_and(Hp67LiveMachine::magnetic_card_inserted)
-        {
+    fn load_card_files(&mut self, paths: &[std::path::PathBuf]) -> Result<(), String> {
+        if self.live_machine.as_ref().is_some_and(Hp67LiveMachine::magnetic_card_inserted) {
             return Err("cannot replace card media while a card is inside the reader".to_owned());
         }
-
-        let extension = path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        let bytes =
-            fs::read(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-
-        match extension.as_str() {
-            "hpp" => {
-                let imported = TeenixHppImport::from_bytes(&bytes)
-                    .map_err(|error| format!("invalid Teenix .hpp: {error:?}"))?;
-                let card_track = imported.card_track;
-                let card_name = imported.card_name.clone();
-                let length_matches = imported.length_matches;
-
-                if let Some(filename_track) = filename_track_hint(path) {
-                    if filename_track != card_track {
-                        eprintln!(
-                            "Teenix filename hint {:?} disagrees with authoritative header {:?} for {}",
-                            filename_track,
-                            card_track,
-                            path.display()
-                        );
-                    }
-                }
-
-                let same_physical_card = self
-                    .card_import_name
-                    .as_deref()
-                    .is_some_and(|name| name == card_name);
-                let mut card = if same_physical_card {
-                    self.card_media.take().unwrap_or_default()
-                } else {
-                    Hp67MagneticCard::default()
-                };
-                card.set_track(card_track, imported.track);
-                self.card_media = Some(card);
-                self.card_import_name = Some(card_name.clone());
-                self.card_insertion_end = CardInsertionEnd::for_track(card_track);
-                self.card_phase = ProgramCardPhase::Idle;
-                self.card_phase_started = None;
-                self.card_read_progress = 0.0;
-
-                if !length_matches {
-                    eprintln!(
-                        "Teenix .hpp declared text length differs from decoded content for {}",
-                        path.display()
-                    );
-                }
-                eprintln!(
-                    "Loaded Teenix HP-{} card '{}' into {:?}",
-                    imported.calculator_id, card_name, card_track
-                );
-            }
-            "hp67raw" => {
-                self.card_media = Some(
-                    Hp67MagneticCard::from_hp67raw_bytes(&bytes)
-                        .map_err(|error| format!("invalid .hp67raw: {error:?}"))?,
-                );
-                self.card_import_name = None;
-                self.card_insertion_end = CardInsertionEnd::End1;
-                self.card_phase = ProgramCardPhase::Idle;
-                self.card_phase_started = None;
-                self.card_read_progress = 0.0;
-            }
-            "hp67card" => {
-                self.card_media = Some(
-                    Hp67MagneticCard::from_hp67card_bytes(&bytes)
-                        .map_err(|error| format!("invalid .hp67card: {error:?}"))?,
-                );
-                self.card_import_name = None;
-                self.card_insertion_end = CardInsertionEnd::End1;
-                self.card_phase = ProgramCardPhase::Idle;
-                self.card_phase_started = None;
-                self.card_read_progress = 0.0;
-            }
-            _ => {
-                return Err(format!(
-                    "unsupported card file extension '{}'; expected .hpp, .hp67raw or .hp67card",
-                    extension
-                ));
-            }
-        }
-
+        // Decode the entire operation before replacing media or presentation.
+        let imported = crate::card_import::load(paths)?;
+        self.card_media = Some(imported.card);
+        self.card_import_name = imported.name;
+        self.card_insertion_end = imported.end;
+        self.card_phase = ProgramCardPhase::Idle;
+        self.card_phase_started = None;
+        self.card_read_progress = 0.0;
         self.card_library_entry = None;
         self.card_artwork_texture = None;
-        self.card_save_path = path
-            .with_extension("hp67card")
-            .to_string_lossy()
-            .into_owned();
+        self.card_save_path = paths[0].with_extension("hp67card").to_string_lossy().into_owned();
         self.card_save_status = None;
+        self.program_library_status = if imported.warnings.is_empty() {
+            None
+        } else {
+            self.program_library_open = true;
+            Some(imported.warnings.join("; "))
+        };
         Ok(())
     }
 
@@ -372,7 +295,7 @@ impl Hp67App {
         } else {
             match entry.artwork_path {
                 Some(path) if Path::new(path).is_file() => {
-                    let bytes = fs::read(path)
+                    let bytes = std::fs::read(path)
                         .map_err(|error| format!("cannot read artwork {}: {error}", path))?;
                     let decoded =
                         image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
@@ -1466,21 +1389,6 @@ fn opposite_track_can_continue(
     }
 }
 
-fn filename_track_hint(path: &Path) -> Option<hp67emu::machines::hp67::Hp67CardTrack> {
-    use hp67emu::machines::hp67::Hp67CardTrack;
-
-    let stem = path.file_stem()?.to_str()?;
-    for token in stem.split_whitespace() {
-        if token.ends_with("_1") {
-            return Some(Hp67CardTrack::Track1);
-        }
-        if token.ends_with("_2") {
-            return Some(Hp67CardTrack::Track2);
-        }
-    }
-    None
-}
-
 impl eframe::App for Hp67App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
@@ -1503,6 +1411,7 @@ impl eframe::App for Hp67App {
             }
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Cards", |ui| {
+                    ui.label("Import: drop one card file, or two HPP tracks together.");
                     if web_compact {
                         ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
                     }
@@ -1625,6 +1534,29 @@ impl eframe::App for Hp67App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn core_audit_failed_card_import_preserves_prepared_media_and_metadata() {
+        let ctx = egui::Context::default();
+        let mut app = Hp67App::from_context(&ctx);
+        let card = Hp67MagneticCard::default();
+        app.card_media = Some(card.clone());
+        app.card_import_name = Some("Existing card".to_owned());
+        app.card_insertion_end = CardInsertionEnd::End2;
+        app.card_save_path = "existing.hp67card".to_owned();
+        app.card_library_entry = Some(0);
+        for paths in [
+            Vec::new(),
+            vec![std::path::PathBuf::from("a.hp67card"), std::path::PathBuf::from("b.hpp")],
+        ] {
+            assert!(app.load_card_files(&paths).is_err());
+            assert_eq!(app.card_media, Some(card.clone()));
+            assert_eq!(app.card_import_name.as_deref(), Some("Existing card"));
+            assert_eq!(app.card_insertion_end, CardInsertionEnd::End2);
+            assert_eq!(app.card_save_path, "existing.hp67card");
+            assert_eq!(app.card_library_entry, Some(0));
+        }
+    }
 
     #[test]
     fn core_audit_ui_fault_preserves_media_orientation_and_visible_error() {

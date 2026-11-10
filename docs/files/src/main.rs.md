@@ -44,3 +44,5 @@ IS capture/comparison/decoding now share pin_trace_cli create-new output handlin
 
 Native builds include `card_persistence`, a host-only save adapter used by the UI.
 It is excluded from wasm alongside the existing native save surface.
+
+Includes the host card_import module shared by the desktop import surface and its tests.

@@ -4,6 +4,7 @@
 )]
 
 mod app;
+mod card_import;
 #[cfg(not(target_arch = "wasm32"))]
 mod card_persistence;
 mod hp67;

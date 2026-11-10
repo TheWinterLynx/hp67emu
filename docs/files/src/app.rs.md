@@ -84,3 +84,10 @@ stores a visible error, and disables electronic advancement. A failed blank-card
 insertion leaves prepared media/metadata untouched. Saving delegates to the native
 transactional persistence module and marks media clean only after replacement.
 The constructor's context-only helper allows recovery tests without a renderer.
+
+## Bounded explicit card import, 2026-11-10
+Dropped files form one transaction. One file creates fresh media; two HPP files
+in the same drop explicitly request opposite-track pairing. Titles and filename
+hints never merge media with a previous import. Invalid batches leave prepared
+media, orientation and metadata unchanged and surface the error in the library.
+The Cards menu explains the gesture. Parsing/limits live in card_import.rs.

@@ -40,3 +40,11 @@ used only for rustfmt. The existing `tools/gate_core_audit.ps1` selects new
 and the ignored real-firmware diagnostic PAC. Owner must run it on the published
 head before merge. No measured performance delta is available; no per-bit tracing,
 map, allocation or new oracle was added by these fixes.
+
+## Follow-up 2026-11-10 — A07
+Prior fixes through c8f0a20 received owner CORE INTEGRITY AUDIT FULL GATE GREEN
+and were integrated into main. New branch agent/card-import-integrity starts there.
+A07 implementation now removes title-based physical pairing, supports explicit
+same-drop HPP pairing and bounds host reads. Error and length-warning messages
+are visible. Added regression coverage is pending the owner gate; no local Rust
+execution is claimed. PAC unlimited policy and dense capability scope remain open.
