@@ -55,7 +55,9 @@ impl PolynomialSampler {
                 }
                 live.step_firmware_cycle()?;
             }
-            card = live.take_completed_magnetic_card().ok_or("El lector no devolvió la tarjeta.")?;
+            card = live
+                .take_completed_magnetic_card()
+                .ok_or("El lector no devolvió la tarjeta.")?;
         }
         let mut sampler = Self(live);
         sampler.wait_for_idle()?;
@@ -76,7 +78,14 @@ impl PolynomialSampler {
         let initial = self.0.display_circuit.exposure().completed_scans();
         for _ in 0..1_024 {
             self.0.step_firmware_cycle()?;
-            if self.0.display_circuit.exposure().completed_scans().saturating_sub(initial) >= 2 {
+            if self
+                .0
+                .display_circuit
+                .exposure()
+                .completed_scans()
+                .saturating_sub(initial)
+                >= 2
+            {
                 return display_number(self.0.optical_display_frame()).map(|y| [entered, y]);
             }
         }
@@ -89,7 +98,8 @@ impl PolynomialSampler {
         for _ in 0..RESULT_LIMIT {
             live.step_firmware_cycle()?;
             let status = &live.machine.act.state.status;
-            if live.main_wait_visits > before && !status[15] && !status[2] && !live.card_motor_on() {
+            if live.main_wait_visits > before && !status[15] && !status[2] && !live.card_motor_on()
+            {
                 return Ok(());
             }
         }
@@ -157,13 +167,17 @@ impl PolynomialSampler {
                 self.press(digit_key(c))?;
             }
         }
-        format!("{mantissa}e{exponent}").parse().map_err(|_| "Entrada numérica no válida.".into())
+        format!("{mantissa}e{exponent}")
+            .parse()
+            .map_err(|_| "Entrada numérica no válida.".into())
     }
 }
 
 fn digit_key(c: char) -> Hp67Key {
     use Hp67Key::*;
-    [Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9][c as usize - '0' as usize]
+    [
+        Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9,
+    ][c as usize - '0' as usize]
 }
 
 fn number_entry(value: f64) -> Result<(String, i32), String> {
@@ -177,7 +191,13 @@ fn number_entry(value: f64) -> Result<(String, i32), String> {
     let (mantissa, exponent) = if (-4..=8).contains(&exponent) {
         let precision = (8 - exponent) as usize;
         fixed = format!("{value:.precision$}");
-        if fixed.trim_end_matches('0').chars().filter(char::is_ascii_digit).count() <= 10 {
+        if fixed
+            .trim_end_matches('0')
+            .chars()
+            .filter(char::is_ascii_digit)
+            .count()
+            <= 10
+        {
             (fixed.as_str(), 0)
         } else {
             (mantissa, exponent)
