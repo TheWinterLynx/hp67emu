@@ -144,3 +144,13 @@ M16E performance follow-up retains a committed sole-ACT SYNC occupancy boolean. 
 M16F retires the ineffective M16E SYNC occupancy cache. sync_drives_valid derives the same predicate directly from committed counts/ACT slot; the extra boolean and both maintenance paths are removed. All independent scan, staged-commit, bundle, clone/reset and mixed-update regressions remain. PHI metadata and net resolution are unchanged.
 
 M16I publishes HDS/WPS contributions jointly before backplane observation/capture. No time advances and no per-bit participant is added. The fixed staging capacity is 18 x 13 = 234 entries; a compile-time assertion now guards the u8 nonzero pending-marker bound against future inventory expansion.
+
+## Error visibility contract
+
+begin_evaluation rejects already committed contention before borrowing the
+snapshot/stager. Pending proposals remain pending on this preflight failure.
+commit_staged applies the complete batch, clears its pending markers, and then
+reports resulting contention; an Err does not roll back those outputs. Neither
+operation advances Tick. Explicit low-level drive recovery is supported for
+fixtures, but public live-machine pacing remains terminal on error until reset.
+tests/electrical_failure_contract.rs locks these distinctions in debug/release.

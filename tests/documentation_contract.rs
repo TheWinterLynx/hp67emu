@@ -20,6 +20,7 @@ fn every_source_has_a_companion_markdown_document() {
     collect_source_files(&root.join("src"), &mut sources, "rs");
     collect_source_files(&root.join("tests"), &mut sources, "rs");
     collect_source_files(&root.join("tools"), &mut sources, "ps1");
+    collect_source_files(&root.join("tools"), &mut sources, "py");
     sources.sort();
 
     assert!(

@@ -21,3 +21,5 @@ Focused `core_audit_` binary tests now run in both debug and release before the 
 suite, covering live pacing and reset contracts as well as diagnostic I/O. These
 checks complement the focused library tests; they do not replace full pin-capture
 coverage or the ignored firmware diagnostic suite.
+
+The dense-fabric failure contract also runs explicitly in release; full all-targets covers it in debug.

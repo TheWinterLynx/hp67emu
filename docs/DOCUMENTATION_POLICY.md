@@ -6,7 +6,7 @@ Every source file must explain not only *what* it contains, but *why* it exists,
 
 ## Companion-file rule
 
-Every Rust file under `src/` and `tests/`, and every PowerShell script under `tools/`, must have a Markdown companion under `docs/files/` using the complete repository-relative source path plus `.md`.
+Every Rust file under `src/` and `tests/`, and every PowerShell or Python script under `tools/`, must have a Markdown companion under `docs/files/` using the complete repository-relative source path plus `.md`.
 
 Examples:
 
@@ -28,13 +28,13 @@ Additional sections are encouraged for invariants, limitations, replacement crit
 
 ## Regression enforcement
 
-`tests/documentation_contract.rs` recursively enumerates all Rust files in `src/` and `tests/` and PowerShell scripts in `tools/` and fails when:
+`tests/documentation_contract.rs` recursively enumerates all Rust files in `src/` and `tests/` and PowerShell/Python scripts in `tools/` and fails when:
 
 - the companion Markdown file does not exist;
 - any mandatory section is missing;
 - any required project-level architecture document is missing.
 
-That means adding a new `.rs` file or tools `.ps1` script without documenting it makes `cargo test` fail immediately.
+That means adding a new `.rs` file or tools `.ps1` or `.py` script without documenting it makes `cargo test` fail immediately.
 
 `tests/architecture_contract.rs` separately protects the reusable core from GUI/image dependencies.
 
@@ -47,7 +47,7 @@ Generated/binary assets, Cargo metadata and top-level Markdown are documented ce
 - hardware evidence lives in `docs/HARDWARE_SOURCES.md`;
 - sequencing lives in `docs/ROADMAP.md` and `TODO.md`.
 
-If executable non-Rust source is added later (Python, WGSL, C, scripts, etc.), the regression must be extended in the same change so that the new source type is covered by this policy.
+If executable non-Rust source is added later (WGSL, C, other script languages, etc.), the regression must be extended in the same change so that the new source type is covered by this policy.
 
 ## Change rule
 

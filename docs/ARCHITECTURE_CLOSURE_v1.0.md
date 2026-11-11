@@ -49,12 +49,11 @@ This is a finite scope, not a promise that three prompts suffice. Add work only 
 a reproduced release-blocking defect or an unmet acceptance criterion. Do not reopen
 new chip/timing redesign or remove reference checks solely to improve speed.
 
-## Remaining integration work is real
+## Integration status
 
-The separate agent/hp67-pacs-imported branch is not part of the validated baseline.
-Its embedded PDFs, per-program sections and richer card assets must be reconciled
-selectively; blindly merging its old src/app.rs and src/hp67.rs would risk restoring
-fixed audit defects and repeated-empty-CRC-poll pacing.
+PAC/PDF/artwork integration received the owner automated release gate at 99db3e8
+and is integrated into main. Its older pacing/import implementations were not
+ported. Manual desktop acceptance remains pending.
 
 B06 and A06 are unresolved audit findings, not waived because the gate is green.
 For each, record whether production can reach it, the invariant, regression and
@@ -108,3 +107,22 @@ trees, 232 full-resolution artwork mappings checked, PDF section metadata compar
 with the reviewed profiles/manifest, diff whitespace checked. Asset Git objects
 are reused unchanged from the PAC branch. Compilation, raster smoke, UI and
 performance validation remain pending on the consolidated candidate.
+
+## Closure contracts follow-up (2026-11-11)
+
+Owner release gate 99db3e8 passed, including isolated embedded-PDF verification.
+Production idle median is 3.153 us/word versus 2.915 at 7544c45 (+8.16% time).
+Synthetic RAM is 2.512 versus 2.276 (+10.37%); CRC 2.305 versus 2.113 (+9.09%).
+Git comparison shows no changes to src/hp67.rs, src/hp67/, src/machines/ or
+src/emulation/ between those revisions. Dependencies, linked assets and desktop
+code changed. This excludes an added core source operation as the direct change,
+not compiler/link layout or host conditions. Causality remains unmeasured; a
+matched same-toolchain, same-host comparison is required before tuning the core.
+
+A08 documentation enforcement now includes every tools/*.py recursively; all five
+current Python tools already have companion docs. This closes the coverage gap,
+pending the owner Rust gate, not a semantic audit of every conversion algorithm.
+A06 dense-fabric publication/error behavior has two public-API regression tests,
+including release execution. Other scheduler/device error paths remain open.
+B06 cross-fabric ownership provenance and manual UI acceptance remain open.
+No production Rust or asset changes are included in this follow-up.
