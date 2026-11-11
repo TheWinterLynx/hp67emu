@@ -1,0 +1,48 @@
+// Original PDF bytes are linked into the desktop executable.
+const EMBEDDED_PDFS: &[(&str, &[u8])] = &[
+    ("hp67-oh-es.pdf", include_bytes!("hp67-oh-es.pdf")),
+    (
+        "hp67-pac-standard-en.pdf",
+        include_bytes!("hp67-pac-standard-en.pdf"),
+    ),
+    (
+        "hp6797-pac-business-en.pdf",
+        include_bytes!("hp6797-pac-business-en.pdf"),
+    ),
+    (
+        "hp6797-pac-civileng-en.pdf",
+        include_bytes!("hp6797-pac-civileng-en.pdf"),
+    ),
+    (
+        "hp6797-pac-clinical-en.pdf",
+        include_bytes!("hp6797-pac-clinical-en.pdf"),
+    ),
+    (
+        "hp6797-pac-eleceng-en.pdf",
+        include_bytes!("hp6797-pac-eleceng-en.pdf"),
+    ),
+    (
+        "hp6797-pac-games-en.pdf",
+        include_bytes!("hp6797-pac-games-en.pdf"),
+    ),
+    (
+        "hp6797-pac-math-en.pdf",
+        include_bytes!("hp6797-pac-math-en.pdf"),
+    ),
+    (
+        "hp6797-pac-mecheng-en.pdf",
+        include_bytes!("hp6797-pac-mecheng-en.pdf"),
+    ),
+    (
+        "hp6797-pac-navigation-en.pdf",
+        include_bytes!("hp6797-pac-navigation-en.pdf"),
+    ),
+    (
+        "hp6797-pac-stat-en.pdf",
+        include_bytes!("hp6797-pac-stat-en.pdf"),
+    ),
+    (
+        "hp6797-pac-surveying-en.pdf",
+        include_bytes!("hp6797-pac-surveying-en.pdf"),
+    ),
+];

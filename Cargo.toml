@@ -2,7 +2,7 @@
 name = "hp67emu"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.92"
 description = "Photorealistic HP-67 emulator front panel in Rust"
 repository = "https://github.com/TheWinterLynx/hp67emu"
 publish = false
@@ -25,3 +25,7 @@ wasm-bindgen-futures = "=0.4.78"
 lto = "thin"
 codegen-units = 1
 strip = true
+
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+hayro = "=0.7.1"

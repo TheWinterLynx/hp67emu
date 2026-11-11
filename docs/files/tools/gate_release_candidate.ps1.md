@@ -23,3 +23,7 @@ diagnostics. Then it explicitly runs three ignored release benchmarks with warni
 denied. It records timings without inventing a speed threshold. Existing benchmark
 scope labels distinguish production idle from synthetic reference workloads.
 A green automated gate still requires the documented manual desktop acceptance.
+
+## Desktop consolidation (2026-11-11)
+
+After the functional gate builds release, the wrapper copies only hp67emu.exe into a unique temporary directory and runs --verify-embedded-pdfs there. Cleanup occurs in finally. GUI acceptance remains manual.

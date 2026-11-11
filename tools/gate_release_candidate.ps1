@@ -3,6 +3,13 @@ Push-Location (Split-Path $PSScriptRoot -Parent)
 $PreviousRustFlags = $env:RUSTFLAGS
 $TranscriptStarted = $false
 try {
+    $RustVersion = & rustc --version
+    if ($LASTEXITCODE -ne 0 -or $RustVersion -notmatch 'rustc (\d+)\.(\d+)') {
+        throw 'RUST TOOLCHAIN UNAVAILABLE'
+    }
+    if ([int]$Matches[1] -eq 1 -and [int]$Matches[2] -lt 92) {
+        throw 'Desktop PDF rendering requires Rust 1.92 or newer. Update the stable toolchain first.'
+    }
     $Revision = & git rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'CANNOT IDENTIFY RELEASE CANDIDATE' }
     $Changes = & git status --porcelain --untracked-files=no
@@ -14,16 +21,30 @@ try {
     Start-Transcript -Path $LogPath | Out-Null
     $TranscriptStarted = $true
     Write-Host "Candidate: $Revision"
-    Write-Host '[1/4] Functional integrity, feature coverage, release build and diagnostics'
+    Write-Host '[1/5] Functional integrity, feature coverage, release build and diagnostics'
     & ./tools/gate_core_audit.ps1
+    Write-Host '[2/5] Embedded PDF verification from isolated executable'
+    $PortableDirectory = Join-Path ([IO.Path]::GetTempPath()) ('hp67-candidate-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $PortableDirectory | Out-Null
+    try {
+        $PortableExe = Join-Path $PortableDirectory 'hp67emu.exe'
+        Copy-Item -LiteralPath 'target/release/hp67emu.exe' -Destination $PortableExe
+        Push-Location -LiteralPath $PortableDirectory
+        try {
+            & $PortableExe --verify-embedded-pdfs
+            if ($LASTEXITCODE -ne 0) { throw 'PORTABLE EMBEDDED PDF KO' }
+        } finally { Pop-Location }
+    } finally {
+        Remove-Item -LiteralPath $PortableDirectory -Recurse -Force
+    }
     $env:RUSTFLAGS = '-Dwarnings'
-    Write-Host '[2/4] Current electrical/structural benchmark'
+    Write-Host '[3/5] Current electrical/structural benchmark'
     & cargo test --release --locked --test hp67_electrical_realtime_benchmark hp67_electrical_realtime_benchmark -- --ignored --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'ELECTRICAL BENCHMARK KO' }
-    Write-Host '[3/4] Historical DATA comparison benchmark'
+    Write-Host '[4/5] Historical DATA comparison benchmark'
     & cargo test --release --locked --test hp67_data_realtime_benchmark hp67_data_realtime_benchmark -- --ignored --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'DATA BENCHMARK KO' }
-    Write-Host '[4/4] Production live benchmark and labelled reference workloads'
+    Write-Host '[5/5] Production live benchmark and labelled reference workloads'
     & cargo test --release --locked --bin hp67emu m14o_live_authority_realtime_benchmark -- --ignored --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'LIVE BENCHMARK KO' }
     Write-Host "RELEASE CANDIDATE AUTOMATED GATE GREEN | $Revision"

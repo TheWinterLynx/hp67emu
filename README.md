@@ -26,6 +26,14 @@ The project is being split into two deliberate layers:
 
 Every Rust source file must have a companion Markdown document under `docs/files/`. `cargo test` contains a regression that fails when a source file is added without its documentation or when required documentation sections are missing.
 
+## Desktop manuals and cards
+
+The desktop build embeds the PAC media, card artwork and 12 manuals. Help opens
+the PDF viewer; program-library entries link to their manual section. PDF rendering
+uses a background worker. Build with Rust 1.92 or newer. The optional unlimited CPU
+mode keeps reader elapsed time separate; nominal speed is recommended for original
+card I/O timing.
+
 ## Build and regression suite
 
 Formatting is a hard regression gate. Do not continue to tests or release builds while `cargo fmt --all -- --check` reports any difference.

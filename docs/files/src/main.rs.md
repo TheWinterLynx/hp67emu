@@ -46,3 +46,7 @@ Native builds include `card_persistence`, a host-only save adapter used by the U
 It is excluded from wasm alongside the existing native save surface.
 
 Includes the host card_import module shared by the desktop import surface and its tests.
+
+## Desktop consolidation (2026-11-11)
+
+Desktop --verify-embedded-pdfs checks every embedded manual, program section bounds and a representative rasterized page. Invalid extra arguments fail before rendering. This CLI is a portable acceptance check and does not advance firmware.

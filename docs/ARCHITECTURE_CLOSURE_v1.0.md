@@ -41,7 +41,7 @@ evidence of more faithful emulation.
 
 | Batch | Work | Exit evidence |
 |---|---|---|
-| 1. Stable baseline and acceptance | Integrate validated core; correct stale architecture status; establish one logged candidate gate | Baseline integrated; new gate reviewed, owner execution pending |
+| 1. Stable baseline and acceptance | Integrate validated core; correct stale architecture status; establish one logged candidate gate | Baseline integrated; new gate reviewed, owner gate green at 7544c45 |
 | 2. One desktop product | Reconcile PAC/library/PDF/artwork features with the audited core; resolve B06 capability provenance and A06 error-contract exposure where reachable; finish conversion-tool documentation coverage (A08) | One main-derived branch; no reintroduction of PAC clock heuristic; focused tests and full gate green; every residual finding explicitly classified |
 | 3. Release candidate | Run desktop acceptance, compare performance against baseline on same hardware, correct release blockers, package/document one build | Exact commit, automated log, manual checklist, performance comparison and documented limitations |
 
@@ -90,3 +90,21 @@ fidelity certificate.
 Validation of this closure batch: documentation and script inspection only.
 No PowerShell/Rust runtime is available in the agent workspace; the new wrapper
 has not been executed here. No performance result is claimed.
+
+## Desktop consolidation (2026-11-11)
+
+Desktop consolidation branch now selectively imports PAC catalog/media, embedded manuals and high-resolution artwork from agent/hp67-pacs-imported. The production hp67.rs is byte-for-byte the validated baseline; bounded card_import and fail-stop recovery remain. PDF rendering raises the declared Rust minimum to 1.92 (existing PAC dependency contract). This integration is pending the owner gate and GUI acceptance. B06, A06 and A08 remain open; this delivery does not close them.
+
+## Validated performance baseline
+
+Owner gate 7544c45, 2026-11-11: production idle median 2.915 us/word
+(343100 words/s, 109.79x nominal reference); synthetic RAM reference 2.276 us/word;
+synthetic CRC reference 2.113 us/word. These are distinct workloads. Preserve the
+owner transcript as the comparison baseline; no delta for the desktop integration
+has yet been measured.
+
+Integration checks performed here: embedded file references resolved against Git
+trees, 232 full-resolution artwork mappings checked, PDF section metadata compared
+with the reviewed profiles/manifest, diff whitespace checked. Asset Git objects
+are reused unchanged from the PAC branch. Compilation, raster smoke, UI and
+performance validation remain pending on the consolidated candidate.
