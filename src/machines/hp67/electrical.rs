@@ -158,7 +158,8 @@ impl<'a> Hp67ElectricalStager<'a> {
     /// Panics before staging if the token was issued by a different fabric.
     pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
         assert!(
-            self.owner_domain.is_some_and(|domain| Arc::ptr_eq(domain, &owner.domain)),
+            self.owner_domain
+                .is_some_and(|domain| Arc::ptr_eq(domain, &owner.domain)),
             "HP-67 driver owner belongs to a different electrical fabric"
         );
         let driver = owner.driver;
