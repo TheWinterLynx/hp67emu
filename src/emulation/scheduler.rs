@@ -185,11 +185,14 @@ where
                 driver,
             });
         }
-        let output = self.nets.get_mut(&net).ok_or(SchedulerError::UnknownOutputNet {
-            tick: self.tick,
-            net,
-            driver,
-        })?;
+        let output = self
+            .nets
+            .get_mut(&net)
+            .ok_or(SchedulerError::UnknownOutputNet {
+                tick: self.tick,
+                net,
+                driver,
+            })?;
         output.set_drive(driver, drive);
         self.owners.insert((net, driver), OutputOwner::External);
         Ok(())
@@ -216,11 +219,19 @@ where
             for (key @ (net, driver), drive) in local.drives {
                 let owner = OutputOwner::Device(index);
                 let fault = if !self.nets.contains_key(&net) {
-                    SchedulerError::UnknownOutputNet { tick: next_tick, net, driver }
+                    SchedulerError::UnknownOutputNet {
+                        tick: next_tick,
+                        net,
+                        driver,
+                    }
                 } else if self.owners.get(&key).is_some_and(|prior| *prior != owner)
                     || pending.insert(key, (drive, owner)).is_some()
                 {
-                    SchedulerError::DriverCollision { tick: next_tick, net, driver }
+                    SchedulerError::DriverCollision {
+                        tick: next_tick,
+                        net,
+                        driver,
+                    }
                 } else {
                     continue;
                 };
@@ -460,7 +471,9 @@ mod tests {
         assert!(scheduler.trace().samples().is_empty());
         assert_eq!(scheduler.tick(), Tick::new(1));
         assert_eq!(scheduler.level(TestNet::Output), LogicLevel::Contention);
-        assert!(matches!(scheduler.step(), Err(SchedulerError::Contention { tick, .. }) if tick == Tick::new(1)));
+        assert!(
+            matches!(scheduler.step(), Err(SchedulerError::Contention { tick, .. }) if tick == Tick::new(1))
+        );
         assert_eq!(scheduler.tick(), Tick::new(1));
     }
 
@@ -519,7 +532,9 @@ mod tests {
         }
 
         let mut scheduler = ElectricalScheduler::new();
-        scheduler.install_net(TestNet::Input, Bias::Floating).unwrap();
+        scheduler
+            .install_net(TestNet::Input, Bias::Floating)
+            .unwrap();
         scheduler.add_trace_probe(TestNet::Input);
         let evaluations = Rc::new(Cell::new(0));
         scheduler.add_device(InvalidOnce(Rc::clone(&evaluations)));
@@ -534,7 +549,9 @@ mod tests {
         assert!(scheduler.owners.is_empty());
         assert!(scheduler.trace().samples().is_empty());
 
-        scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+        scheduler
+            .install_net(TestNet::Output, Bias::Floating)
+            .unwrap();
         assert_eq!(scheduler.step(), Err(fault));
         assert_eq!(evaluations.get(), 1);
     }
