@@ -135,3 +135,7 @@ The owner core gate for 2f1b357 passed (diagnostic PAC 12/12); A08 coverage and 
 ## Generic scheduler fault boundary
 
 The owner core gate at dca416a passed (diagnostic PAC 12/12), completing B06. The generic reference scheduler now rejects an output to an uninstalled net before publishing any output. Invalid device proposals latch a fault: device internals may have mutated, so a second step cannot retry a partially evaluated tick. Post-commit contention retains the published image and tick and emits no trace. Regressions cover both boundaries in the focused core gate. This A06 follow-up does not change the dense HP-67 path or claim hardware timing evidence. Final desktop acceptance and controlled performance comparison remain separate.
+
+## Controlled release performance comparison
+
+The owner core gate passed at 014d0f4 (diagnostic PAC 12/12), integrating the reference scheduler fault-boundary fix. Use tools/compare_live_performance.ps1 after the release candidate gate to compare the validated pre-desktop baseline (7544c45) with an exact candidate on the same Windows host and Rust toolchain. Both builds are prepared before the A–B–B–A measurements. The script records each run and reports idle, synthetic RAM and synthetic CRC independently. Inspect spread before attributing a delta to the candidate. This adds a local measurement tool; no change to emulation or benchmark workloads. Manual desktop acceptance is still required.
