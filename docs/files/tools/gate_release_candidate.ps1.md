@@ -27,3 +27,19 @@ A green automated gate still requires the documented manual desktop acceptance.
 ## Desktop consolidation (2026-11-11)
 
 After the functional gate builds release, the wrapper copies only hp67emu.exe into a unique temporary directory and runs --verify-embedded-pdfs there. Cleanup occurs in finally. GUI acceptance remains manual.
+
+## Windows GUI process lifetime correction (2026-11-11)
+
+The release executable declares the Windows GUI subsystem. The isolated check
+uses Start-Process -Wait -PassThru with an explicit working directory, redirects
+stdout/stderr into the persistent gate log directory, checks that process's
+ExitCode and requires the 12-manual success report. It never uses a stale
+LASTEXITCODE from a preceding command. The Process handle is disposed before
+temporary-file cleanup. A cleanup failure reports the retained path as a warning
+and cannot mask the original verifier exception. A failed verifier or absent
+success report still prevents benchmarks and the final green message.
+
+Owner evidence: the core gate and 12 diagnostics passed on b961dc4; the wrapper
+then failed deleting the temporary EXE. This correction changes only gate process
+management and documentation. Windows execution of the corrected wrapper remains
+pending; no Rust source or emulator semantics change.

@@ -29,13 +29,33 @@ try {
     try {
         $PortableExe = Join-Path $PortableDirectory 'hp67emu.exe'
         Copy-Item -LiteralPath 'target/release/hp67emu.exe' -Destination $PortableExe
-        Push-Location -LiteralPath $PortableDirectory
+        # Release uses the Windows GUI subsystem: explicitly wait for this
+        # process and inspect its exit code, never a previous LASTEXITCODE.
+        $PdfStdout = "$LogPath.pdf.stdout.txt"
+        $PdfStderr = "$LogPath.pdf.stderr.txt"
+        $PdfProcess = $null
         try {
-            & $PortableExe --verify-embedded-pdfs
-            if ($LASTEXITCODE -ne 0) { throw 'PORTABLE EMBEDDED PDF KO' }
-        } finally { Pop-Location }
+            $PdfProcess = Start-Process -FilePath $PortableExe -ArgumentList '--verify-embedded-pdfs' -WorkingDirectory $PortableDirectory -RedirectStandardOutput $PdfStdout -RedirectStandardError $PdfStderr -Wait -PassThru
+            $PdfOutput = Get-Content -LiteralPath $PdfStdout -Raw
+            $PdfErrors = Get-Content -LiteralPath $PdfStderr -Raw
+            if ($PdfOutput) { Write-Host $PdfOutput }
+            if ($PdfErrors) { Write-Host $PdfErrors }
+            if ($null -eq $PdfProcess.ExitCode -or $PdfProcess.ExitCode -ne 0) {
+                throw "PORTABLE EMBEDDED PDF KO: exit=$($PdfProcess.ExitCode); logs: $PdfStdout ; $PdfStderr"
+            }
+            if ($PdfOutput -notmatch '(?m)^EMBEDDED PDFS OK: 12;') {
+                throw "PORTABLE EMBEDDED PDF KO: success report missing; logs: $PdfStdout ; $PdfStderr"
+            }
+        } finally {
+            if ($null -ne $PdfProcess) { $PdfProcess.Dispose() }
+        }
     } finally {
-        Remove-Item -LiteralPath $PortableDirectory -Recurse -Force
+        try {
+            Remove-Item -LiteralPath $PortableDirectory -Recurse -Force -ErrorAction Stop
+        } catch {
+            # Cleanup must not replace a verifier error (or invalidate its result).
+            Write-Warning -WarningAction Continue ("Temporary EXE retained at {0}: {1}" -f $PortableDirectory, $_.Exception.Message)
+        }
     }
     $env:RUSTFLAGS = '-Dwarnings'
     Write-Host '[3/5] Current electrical/structural benchmark'
