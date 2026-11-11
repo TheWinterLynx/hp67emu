@@ -131,3 +131,7 @@ No production Rust or asset changes are included in this follow-up.
 ## Staged driver provenance follow-up
 
 The owner core gate for 2f1b357 passed (diagnostic PAC 12/12); A08 coverage and the dense A06 regressions are integrated. The B06 fix binds staged driver tokens to their issuing fabric, rejects foreign tokens before pending-state mutation, and makes clones copy electrical state without copying claims. The production direct bundle path is unchanged. The focused ownership regressions run through the existing core gate in debug and release. Windows validation of this follow-up, other A06 error paths, controlled performance comparison and desktop acceptance remain open.
+
+## Generic scheduler fault boundary
+
+The owner core gate at dca416a passed (diagnostic PAC 12/12), completing B06. The generic reference scheduler now rejects an output to an uninstalled net before publishing any output. Invalid device proposals latch a fault: device internals may have mutated, so a second step cannot retry a partially evaluated tick. Post-commit contention retains the published image and tick and emits no trace. Regressions cover both boundaries in the focused core gate. This A06 follow-up does not change the dense HP-67 path or claim hardware timing evidence. Final desktop acceptance and controlled performance comparison remain separate.

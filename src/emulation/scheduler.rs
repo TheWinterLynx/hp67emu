@@ -16,6 +16,11 @@ pub enum SchedulerError<N> {
     DuplicateNet {
         net: N,
     },
+    UnknownOutputNet {
+        tick: Tick,
+        net: N,
+        driver: DriverId,
+    },
     Contention {
         tick: Tick,
         net: N,
@@ -85,6 +90,7 @@ where
     owners: BTreeMap<(N, DriverId), OutputOwner>,
     trace_probes: BTreeSet<N>,
     trace: Trace<N>,
+    evaluation_fault: Option<SchedulerError<N>>,
 }
 
 impl<N> Default for ElectricalScheduler<N>
@@ -99,6 +105,7 @@ where
             owners: BTreeMap::new(),
             trace_probes: BTreeSet::new(),
             trace: Trace::default(),
+            evaluation_fault: None,
         }
     }
 }
@@ -178,16 +185,26 @@ where
                 driver,
             });
         }
-        self.nets
-            .get_mut(&net)
-            .expect("requested net is not installed in the scheduler")
-            .set_drive(driver, drive);
+        let output = self.nets.get_mut(&net).ok_or(SchedulerError::UnknownOutputNet {
+            tick: self.tick,
+            net,
+            driver,
+        })?;
+        output.set_drive(driver, drive);
         self.owners.insert((net, driver), OutputOwner::External);
         Ok(())
     }
 
     /// Advance one deterministic electrical tick.
+    ///
+    /// Invalid proposals discard all pending drives and permanently stop stepping:
+    /// devices may already have advanced internal state during evaluation.
+    /// Contention found after commit retains the drives and advanced tick but
+    /// emits no trace sample; subsequent steps check committed contention first.
     pub fn step(&mut self) -> Result<Tick, SchedulerError<N>> {
+        if let Some(fault) = &self.evaluation_fault {
+            return Err(fault.clone());
+        }
         self.ensure_no_contention(self.tick)?;
         let snapshot = self.snapshot();
         let next_tick = Tick::new(self.tick.get() + 1);
@@ -198,15 +215,17 @@ where
             device.evaluate(next_tick, &snapshot, &mut local);
             for (key @ (net, driver), drive) in local.drives {
                 let owner = OutputOwner::Device(index);
-                if self.owners.get(&key).is_some_and(|prior| *prior != owner)
+                let fault = if !self.nets.contains_key(&net) {
+                    SchedulerError::UnknownOutputNet { tick: next_tick, net, driver }
+                } else if self.owners.get(&key).is_some_and(|prior| *prior != owner)
                     || pending.insert(key, (drive, owner)).is_some()
                 {
-                    return Err(SchedulerError::DriverCollision {
-                        tick: next_tick,
-                        net,
-                        driver,
-                    });
-                }
+                    SchedulerError::DriverCollision { tick: next_tick, net, driver }
+                } else {
+                    continue;
+                };
+                self.evaluation_fault = Some(fault.clone());
+                return Err(fault);
             }
         }
 
@@ -412,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn contention_fails_with_tick_net_and_stable_driver_names() {
+    fn core_audit_contention_fails_with_tick_net_and_stable_driver_names() {
         let mut scheduler = ElectricalScheduler::new();
         scheduler
             .install_net(TestNet::Output, Bias::Floating)
@@ -439,6 +458,10 @@ mod tests {
             })
         );
         assert!(scheduler.trace().samples().is_empty());
+        assert_eq!(scheduler.tick(), Tick::new(1));
+        assert_eq!(scheduler.level(TestNet::Output), LogicLevel::Contention);
+        assert!(matches!(scheduler.step(), Err(SchedulerError::Contention { tick, .. }) if tick == Tick::new(1)));
+        assert_eq!(scheduler.tick(), Tick::new(1));
     }
 
     #[test]
@@ -471,6 +494,51 @@ mod tests {
         assert_eq!(scheduler.level(TestNet::Output), LogicLevel::Floating);
         assert_eq!(scheduler.tick(), Tick::ZERO);
     }
+    #[test]
+    fn core_audit_invalid_device_output_cannot_partially_commit_or_evaluate_again() {
+        use std::{cell::Cell, rc::Rc};
+
+        struct InvalidOnce(Rc<Cell<u32>>);
+        impl ElectricalDevice<TestNet> for InvalidOnce {
+            fn device_name(&self) -> &'static str {
+                "invalid-once"
+            }
+
+            fn evaluate(
+                &mut self,
+                _: Tick,
+                _: &dyn NetReader<TestNet>,
+                outputs: &mut dyn DriveSink<TestNet>,
+            ) {
+                self.0.set(self.0.get() + 1);
+                outputs.drive(TestNet::Input, A, Drive::High);
+                if self.0.get() == 1 {
+                    outputs.drive(TestNet::Output, B, Drive::High);
+                }
+            }
+        }
+
+        let mut scheduler = ElectricalScheduler::new();
+        scheduler.install_net(TestNet::Input, Bias::Floating).unwrap();
+        scheduler.add_trace_probe(TestNet::Input);
+        let evaluations = Rc::new(Cell::new(0));
+        scheduler.add_device(InvalidOnce(Rc::clone(&evaluations)));
+        let fault = SchedulerError::UnknownOutputNet {
+            tick: Tick::new(1),
+            net: TestNet::Output,
+            driver: B,
+        };
+        assert_eq!(scheduler.step(), Err(fault.clone()));
+        assert_eq!(scheduler.level(TestNet::Input), LogicLevel::Floating);
+        assert_eq!(scheduler.tick(), Tick::ZERO);
+        assert!(scheduler.owners.is_empty());
+        assert!(scheduler.trace().samples().is_empty());
+
+        scheduler.install_net(TestNet::Output, Bias::Floating).unwrap();
+        assert_eq!(scheduler.step(), Err(fault));
+        assert_eq!(evaluations.get(), 1);
+    }
+
     struct ScheduledDrive {
         tick: u64,
         drive: Drive,

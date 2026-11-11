@@ -27,3 +27,5 @@ Topology installation now returns `Result` and rejects duplicate net IDs with
 implicit reset. Regression coverage retains active external/device drives, passive
 bias after release, ownership, tick and trace. All in-repository callers handle the
 result. This is configuration-time generic infrastructure, not production PHI work.
+
+Invalid device output (an unknown net or a driver identity collision) is rejected before committing any drive, owner, tick or trace. Because device evaluation mutates private state that the scheduler cannot roll back, it retains the first such fault and refuses further steps. Reconstruct the scheduler to resume. An invalid external output is rejected before mutation and does not latch a fault. Post-commit contention retains the complete electrical image and advanced tick, emits no trace sample, and prevents further evaluation while the committed contention persists. Unknown input reads remain topology programming errors.
