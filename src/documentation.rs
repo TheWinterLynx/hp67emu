@@ -70,8 +70,17 @@ fn window_id() -> egui::Id {
     egui::Id::new("hp67-documentation-window")
 }
 
+fn usage_window_id() -> egui::Id {
+    egui::Id::new("hp67-usage-window")
+}
+
 pub fn help_menu(ui: &mut egui::Ui) {
     ui.menu_button("Ayuda", |ui| {
+        if ui.button("Uso del emulador…").clicked() {
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(usage_window_id(), true));
+            ui.close_menu();
+        }
         if ui.button("Documentación…").clicked() {
             ui.ctx()
                 .data_mut(|data| data.insert_temp(window_id(), true));
@@ -80,7 +89,29 @@ pub fn help_menu(ui: &mut egui::Ui) {
     });
 }
 
+fn show_usage(ctx: &egui::Context) {
+    let id = usage_window_id();
+    let mut open = ctx.data(|data| data.get_temp::<bool>(id).unwrap_or(false));
+    if !open {
+        return;
+    }
+    egui::Window::new("Uso del emulador")
+        .id(id)
+        .open(&mut open)
+        .default_width(360.0)
+        .show(ctx, |ui| {
+            ui.heading("Tarjetas");
+            ui.label("Arrastra un archivo de tarjeta a la ventana. Si el formato HPP viene en dos archivos, arrastra ambos a la vez.");
+            ui.separator();
+            ui.heading("Velocidad");
+            ui.label("Unlimited CPU acelera el firmware. El lector y las animaciones de tarjeta mantienen su ritmo habitual.");
+            ui.label("Si el firmware agota el tiempo de espera al leer o escribir una tarjeta, desactiva Unlimited CPU para volver a la velocidad original (1×).");
+        });
+    ctx.data_mut(|data| data.insert_temp(id, open));
+}
+
 pub fn show(ctx: &egui::Context) {
+    show_usage(ctx);
     let mut open = ctx.data(|data| data.get_temp::<bool>(window_id()).unwrap_or(false));
     if !open {
         return;

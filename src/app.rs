@@ -1483,7 +1483,6 @@ impl eframe::App for Hp67App {
             }
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Cards", |ui| {
-                    ui.label("Import: drop one card file, or two HPP tracks together.");
                     if web_compact {
                         ui.spacing_mut().interact_size.y = WEB_TOUCH_TARGET;
                     }
@@ -1502,8 +1501,6 @@ impl eframe::App for Hp67App {
                 });
                 ui.menu_button("Speed", |ui| {
                     ui.checkbox(&mut self.unlimited_speed, "Unlimited CPU");
-                    ui.label("Reader and card animations keep real elapsed time.");
-                    ui.label("Accelerated firmware may time out on card I/O. Use 1x for original timing.");
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.push_id("hp67-help-right", |ui| crate::documentation::help_menu(ui));
