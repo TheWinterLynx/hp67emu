@@ -1,5 +1,8 @@
 # Architecture
 
+> Active closure plan (2026-11-11): [functional release and acceptance](ARCHITECTURE_CLOSURE_v1.0.md).
+> Validated core baseline: `896cd66`. Older milestone/audit status below is historical.
+
 ## Goal
 
 The end state is not an instruction-level calculator reimplementation. The target is a **cycle-accurate, pin-level digital-electrical simulation** of the HP-67 that executes the original machine microcode and makes the front panel a consequence of the emulated electronics.

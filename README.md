@@ -11,10 +11,11 @@ The project is being split into two deliberate layers:
 - **Reusable emulation library** (`src/lib.rs`, `src/emulation/`, `src/machines/`) — deterministic timing, electrical nets, chip models and calculator compositions. It must stay independent of egui and image rendering.
 - **HP-67 desktop front end** (`src/main.rs`, `src/app.rs`, `src/panel.rs`, `src/ui/`) — photographed body, input hit regions, key/switch animation and LED optics.
 
-The current `src/hp67.rs` remains a temporary UI smoke-test state. It is explicitly not the future calculator core and will be removed once the electrical machine can boot real microcode and drive the panel.
+`src/hp67.rs` now hosts the live machine composition and pacing adapter used by the desktop: real firmware, structural device execution, reference comparisons and retained-card recovery. It is not a mock calculator. The reusable device/kernel layer remains GUI-independent. Exact physical timing still has documented source-blocked limits.
 
 ## Architecture and plan
 
+- [Release closure and acceptance](docs/ARCHITECTURE_CLOSURE_v1.0.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Current TODO](TODO.md)

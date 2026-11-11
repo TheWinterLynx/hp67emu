@@ -1,5 +1,10 @@
 # Audit corrections — implementation ledger
 
+> Status 2026-11-11: fixes through 896cd66 received the owner's full green gate
+> and are integrated in main. Earlier pending statements below record their
+> original delivery status. B06, A06, A08 and PAC integration remain open.
+> Active scope: [closure v1.0](ARCHITECTURE_CLOSURE_v1.0.md).
+
 Baseline: pending `agent/media-trace-write-integrity` at `43edd37f14327f407a9391212bdefc205612fe7b`.
 Owner request: implement the audit fixes. No integration into stable main yet.
 

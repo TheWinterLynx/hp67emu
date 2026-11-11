@@ -1,8 +1,7 @@
 # TODO — cycle-accurate HP-67
 
-> Current audit checkpoint (2026-11-06): [docs/WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md](docs/WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md).
-> Its exact revision/status table supersedes historical milestone status below.
-> Earlier milestones are retained as development history, not current absence claims.
+> Active closure plan (2026-11-11): [functional release and acceptance](docs/ARCHITECTURE_CLOSURE_v1.0.md).
+> Validated core baseline: `896cd66`. Older milestone/audit status below is historical.
 
 This file is the operational checklist. Architectural rationale lives in `docs/ARCHITECTURE.md`; milestone sequencing lives in `docs/ROADMAP.md`.
 

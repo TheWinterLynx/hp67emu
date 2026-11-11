@@ -1,8 +1,7 @@
 # Cycle-accurate HP-67 roadmap
 
-> Current audit checkpoint (2026-11-06): [WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md](WHOLE_EMULATOR_AUDIT_ROADMAP_v1.0.md).
-> Its exact revision/status table supersedes historical milestone status below.
-> Earlier milestones are retained as development history, not current absence claims.
+> Active closure plan (2026-11-11): [functional release and acceptance](ARCHITECTURE_CLOSURE_v1.0.md).
+> Validated core baseline: `896cd66`. Older milestone/audit status below is historical.
 
 ## Integration milestone track — current
 
