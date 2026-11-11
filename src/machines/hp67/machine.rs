@@ -288,6 +288,7 @@ impl Hp67ElectricalBackplane {
         self.fabric.claim_driver_owner(driver)
     }
 
+    /// Panics before staging if the owner belongs to another machine's fabric.
     pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
         self.fabric.stage_drive(owner, net, drive);
     }

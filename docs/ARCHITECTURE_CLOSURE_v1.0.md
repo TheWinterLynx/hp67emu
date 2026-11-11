@@ -127,3 +127,7 @@ A06 dense-fabric publication/error behavior has two public-API regression tests,
 including release execution. Other scheduler/device error paths remain open.
 B06 cross-fabric ownership provenance and manual UI acceptance remain open.
 No production Rust or asset changes are included in this follow-up.
+
+## Staged driver provenance follow-up
+
+The owner core gate for 2f1b357 passed (diagnostic PAC 12/12); A08 coverage and the dense A06 regressions are integrated. The B06 fix binds staged driver tokens to their issuing fabric, rejects foreign tokens before pending-state mutation, and makes clones copy electrical state without copying claims. The production direct bundle path is unchanged. The focused ownership regressions run through the existing core gate in debug and release. Windows validation of this follow-up, other A06 error paths, controlled performance comparison and desktop acceptance remain open.

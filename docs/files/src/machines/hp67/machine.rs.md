@@ -122,3 +122,5 @@ M16E performance follow-up forwards crate-private committed SYNC ownership metad
 M16F forwards direct committed SYNC ownership queries after cache retirement; no SYNC check, source policy or diagnostic is removed.
 
 M16I adds a crate-internal complete HDS/WPS source commit with one optional capture observation after both drives are installed. A logical atomic pair is a simulator integration boundary, not a claim of coincident physical contact edges.
+
+The public staged-drive wrapper enforces the issuing fabric's token identity. A token from another machine or an independent clone is rejected before staging; direct production bundles are unchanged.

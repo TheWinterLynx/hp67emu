@@ -6,6 +6,8 @@
 //! provides the same resolve -> snapshot -> evaluate/stage -> commit contract
 //! with compile-time HP-67 net/driver slots and no per-tick heap allocation.
 
+use std::sync::Arc;
+
 use crate::emulation::{Bias, Drive, LogicLevel, Tick};
 
 use super::{
@@ -102,12 +104,21 @@ pub enum Hp67ElectricalError {
 /// Opaque one-time ownership token for one HP-67 electrical output identity.
 ///
 /// A fabric issues at most one token for each Hp67Driver. Device composition
-/// keeps the token and reuses it across every later evaluation, so ownership is
-/// validated once rather than on every electrical edge.
-#[derive(Debug, PartialEq, Eq)]
+/// keeps the token and reuses it across evaluations. A token is valid only for
+/// the fabric that issued it, including after the fabric is moved.
+#[derive(Debug)]
 pub struct Hp67DriverOwner {
     driver: Hp67Driver,
+    domain: Arc<()>,
 }
+
+impl PartialEq for Hp67DriverOwner {
+    fn eq(&self, other: &Self) -> bool {
+        self.driver == other.driver && Arc::ptr_eq(&self.domain, &other.domain)
+    }
+}
+
+impl Eq for Hp67DriverOwner {}
 
 impl Hp67DriverOwner {
     pub const fn driver(&self) -> Hp67Driver {
@@ -137,13 +148,19 @@ impl<'a> Hp67ElectricalSnapshot<'a> {
 /// It deliberately has no access to committed nets, so publishing outputs cannot
 /// change what any device samples during the same evaluation interval.
 pub struct Hp67ElectricalStager<'a> {
+    owner_domain: Option<&'a Arc<()>>,
     pending_slot_markers: &'a mut [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
     pending_changes: &'a mut [Hp67PendingDrive; MAX_PENDING_DRIVES],
     pending_len: &'a mut usize,
 }
 
 impl<'a> Hp67ElectricalStager<'a> {
+    /// Panics before staging if the token was issued by a different fabric.
     pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
+        assert!(
+            self.owner_domain.is_some_and(|domain| Arc::ptr_eq(domain, &owner.domain)),
+            "HP-67 driver owner belongs to a different electrical fabric"
+        );
         let driver = owner.driver;
         let net_index = net.index();
         let driver_index = driver.index();
@@ -163,6 +180,29 @@ impl<'a> Hp67ElectricalStager<'a> {
     }
 }
 
+#[derive(Debug)]
+struct Hp67Ownership {
+    domain: Option<Arc<()>>,
+    claimed: [bool; Hp67Driver::COUNT],
+}
+
+impl Default for Hp67Ownership {
+    fn default() -> Self {
+        Self {
+            domain: None,
+            claimed: [false; Hp67Driver::COUNT],
+        }
+    }
+}
+
+impl Clone for Hp67Ownership {
+    fn clone(&self) -> Self {
+        // A cloned electrical image is an independent composition. Pending and
+        // committed drives are state; capability claims are not.
+        Self::default()
+    }
+}
+
 /// Fixed-topology HP-67 electrical state and staged drive commit buffer.
 ///
 /// Normal ticks allocate nothing. A fixed slot-marker matrix deduplicates
@@ -177,7 +217,7 @@ pub struct Hp67ElectricalFabric {
     pending_slot_markers: [[u8; Hp67Driver::COUNT]; Hp67Net::COUNT],
     pending_changes: [Hp67PendingDrive; MAX_PENDING_DRIVES],
     pending_len: usize,
-    owned_drivers: [bool; Hp67Driver::COUNT],
+    ownership: Hp67Ownership,
     contention_net_count: u8,
     // Bit 0/1: PHI1/PHI2 does not have sole ACT ownership. Polarity changes
     // preserve ownership, so normal clock edges do not rebuild this summary.
@@ -210,7 +250,7 @@ impl Default for Hp67ElectricalFabric {
             pending_slot_markers: [[0; Hp67Driver::COUNT]; Hp67Net::COUNT],
             pending_changes: [EMPTY_PENDING_DRIVE; MAX_PENDING_DRIVES],
             pending_len: 0,
-            owned_drivers: [false; Hp67Driver::COUNT],
+            ownership: Hp67Ownership::default(),
             contention_net_count: 0,
             clock_owner_faults: 0,
         }
@@ -379,17 +419,18 @@ impl Hp67ElectricalFabric {
     /// Claim one physical output identity once during machine composition.
     ///
     /// The returned token is intentionally non-Clone and non-Copy. Repeated
-    /// runtime evaluations reuse the same token without rechecking ownership.
+    /// runtime evaluations reuse the same token with a fabric identity check.
     pub fn claim_driver_owner(
         &mut self,
         driver: Hp67Driver,
     ) -> Result<Hp67DriverOwner, Hp67ElectricalError> {
-        let owned = &mut self.owned_drivers[driver.index()];
+        let owned = &mut self.ownership.claimed[driver.index()];
         if *owned {
             return Err(Hp67ElectricalError::DriverAlreadyOwned { driver });
         }
         *owned = true;
-        Ok(Hp67DriverOwner { driver })
+        let domain = Arc::clone(self.ownership.domain.get_or_insert_with(|| Arc::new(())));
+        Ok(Hp67DriverOwner { driver, domain })
     }
 
     /// Immediate committed drive used by the current M14A structural bridge.
@@ -429,6 +470,7 @@ impl Hp67ElectricalFabric {
             levels: &self.resolved_levels,
         };
         let stager = Hp67ElectricalStager {
+            owner_domain: self.ownership.domain.as_ref(),
             pending_slot_markers: &mut self.pending_slot_markers,
             pending_changes: &mut self.pending_changes,
             pending_len: &mut self.pending_len,
@@ -437,9 +479,11 @@ impl Hp67ElectricalFabric {
     }
 
     /// Convenience staging entry point for transitional callers that do not
-    /// need to hold a zero-copy resolved snapshot.
+    /// need to hold a zero-copy resolved snapshot. Panics before staging if
+    /// the token was issued by a different fabric.
     pub fn stage_drive(&mut self, owner: &Hp67DriverOwner, net: Hp67Net, drive: Drive) {
         let mut stager = Hp67ElectricalStager {
+            owner_domain: self.ownership.domain.as_ref(),
             pending_slot_markers: &mut self.pending_slot_markers,
             pending_changes: &mut self.pending_changes,
             pending_len: &mut self.pending_len,

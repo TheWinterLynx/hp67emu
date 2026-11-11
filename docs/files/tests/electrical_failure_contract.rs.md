@@ -20,3 +20,5 @@ Two regressions stage real driver contributions, cause contention and observe bo
 the faulting net and an independent net. Explicit external-drive release tests that
 old pending writes are not replayed. No mock timing or per-edge production checks
 are added. This covers the dense-fabric facet of A06, not all device error paths.
+
+Ownership regressions reject foreign tokens before changing pending outputs, and verify that moving a fabric retains claims while cloning copies electrical state into a fresh claim domain.

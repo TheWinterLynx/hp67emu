@@ -60,3 +60,51 @@ fn core_audit_rejected_evaluation_preserves_pending_outputs_until_explicit_recov
     assert_eq!(fabric.level(Hp67Net::Sync), LogicLevel::High);
     assert_eq!(fabric.tick(), Tick::ZERO);
 }
+
+#[test]
+fn core_audit_foreign_driver_cannot_replace_pending_output() {
+    let driver = Hp67Driver::Act1820_2530;
+    let mut first = Hp67ElectricalFabric::default();
+    let foreign = first.claim_driver_owner(driver).unwrap();
+    let mut second = Hp67ElectricalFabric::default();
+    let local = second.claim_driver_owner(driver).unwrap();
+    assert_ne!(foreign, local);
+
+    second.stage_drive(&local, Hp67Net::Sync, Drive::High);
+    {
+        let (snapshot, mut stager) = second.begin_evaluation().unwrap();
+        assert_eq!(snapshot.level(Hp67Net::Sync), LogicLevel::Floating);
+        let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            stager.stage_drive(&foreign, Hp67Net::Sync, Drive::Low);
+        }));
+        assert!(rejected.is_err());
+    }
+    second.commit_staged().unwrap();
+    assert_eq!(second.level(Hp67Net::Sync), LogicLevel::High);
+    assert_eq!(second.tick(), Tick::ZERO);
+}
+
+#[test]
+fn core_audit_cloned_fabric_keeps_electrical_state_but_requires_new_driver_claims() {
+    let driver = Hp67Driver::Act1820_2530;
+    let mut original = Hp67ElectricalFabric::default();
+    let owner = original.claim_driver_owner(driver).unwrap();
+    original.stage_drive(&owner, Hp67Net::Sync, Drive::High);
+
+    let mut cloned = original.clone();
+    let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        cloned.stage_drive(&owner, Hp67Net::Sync, Drive::Low);
+    }));
+    assert!(rejected.is_err());
+    cloned.commit_staged().unwrap();
+    assert_eq!(cloned.level(Hp67Net::Sync), LogicLevel::High);
+    let cloned_owner = cloned.claim_driver_owner(driver).unwrap();
+    cloned.stage_drive(&cloned_owner, Hp67Net::Sync, Drive::Low);
+    cloned.commit_staged().unwrap();
+
+    let mut moved = original;
+    moved.stage_drive(&owner, Hp67Net::Sync, Drive::High);
+    moved.commit_staged().unwrap();
+    assert_eq!(moved.level(Hp67Net::Sync), LogicLevel::High);
+    assert_eq!(cloned.level(Hp67Net::Sync), LogicLevel::Low);
+}
