@@ -4,14 +4,14 @@
 )]
 
 mod app;
-mod documentation;
-#[cfg(not(target_arch = "wasm32"))]
-mod pdf_viewer;
 mod card_import;
 #[cfg(not(target_arch = "wasm32"))]
 mod card_persistence;
+mod documentation;
 mod hp67;
 mod panel;
+#[cfg(not(target_arch = "wasm32"))]
+mod pdf_viewer;
 #[cfg(not(target_arch = "wasm32"))]
 mod pin_trace_cli;
 mod program_library;
@@ -113,7 +113,9 @@ fn main() -> eframe::Result<()> {
         }
         match pdf_viewer::verify_embedded() {
             Ok(count) => {
-                println!("EMBEDDED PDFS OK: {count}; sections in range; representative pages rendered");
+                println!(
+                    "EMBEDDED PDFS OK: {count}; sections in range; representative pages rendered"
+                );
                 return Ok(());
             }
             Err(error) => {
