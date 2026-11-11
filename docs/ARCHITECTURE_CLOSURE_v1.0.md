@@ -92,21 +92,20 @@ has not been executed here. No performance result is claimed.
 
 ## Desktop consolidation (2026-11-11)
 
-Desktop consolidation branch now selectively imports PAC catalog/media, embedded manuals and high-resolution artwork from agent/hp67-pacs-imported. The production hp67.rs is byte-for-byte the validated baseline; bounded card_import and fail-stop recovery remain. PDF rendering raises the declared Rust minimum to 1.92 (existing PAC dependency contract). This integration is pending the owner gate and GUI acceptance. B06, A06 and A08 remain open; this delivery does not close them.
+Desktop consolidation branch now selectively imports PAC catalog/media, embedded manuals and high-resolution artwork from agent/hp67-pacs-imported. The production hp67.rs is byte-for-byte the validated baseline; bounded card_import and fail-stop recovery remain. PDF rendering raises the declared Rust minimum to 1.92 (existing PAC dependency contract). The owner automated gate passed at 99db3e8; GUI acceptance remains pending. B06, A06 and A08 remain open; this delivery does not close them.
 
 ## Validated performance baseline
 
 Owner gate 7544c45, 2026-11-11: production idle median 2.915 us/word
 (343100 words/s, 109.79x nominal reference); synthetic RAM reference 2.276 us/word;
 synthetic CRC reference 2.113 us/word. These are distinct workloads. Preserve the
-owner transcript as the comparison baseline; no delta for the desktop integration
-has yet been measured.
+owner transcript as the comparison baseline; the measured desktop-integration delta is recorded below.
 
 Integration checks performed here: embedded file references resolved against Git
 trees, 232 full-resolution artwork mappings checked, PDF section metadata compared
 with the reviewed profiles/manifest, diff whitespace checked. Asset Git objects
-are reused unchanged from the PAC branch. Compilation, raster smoke, UI and
-performance validation remain pending on the consolidated candidate.
+are reused unchanged from the PAC branch. Compilation and isolated PDF verification passed in the owner gate at 99db3e8.
+UI acceptance and controlled performance attribution remain pending.
 
 ## Closure contracts follow-up (2026-11-11)
 
@@ -120,7 +119,9 @@ not compiler/link layout or host conditions. Causality remains unmeasured; a
 matched same-toolchain, same-host comparison is required before tuning the core.
 
 A08 documentation enforcement now includes every tools/*.py recursively; all five
-current Python tools already have companion docs. This closes the coverage gap,
+current Python tools have companions under the five-section contract. The extractor
+companion was corrected to describe the current CSV/candidate workflow instead of
+obsolete title matching and overrides.json behavior. This closes the coverage gap,
 pending the owner Rust gate, not a semantic audit of every conversion algorithm.
 A06 dense-fabric publication/error behavior has two public-API regression tests,
 including release execution. Other scheduler/device error paths remain open.
