@@ -2328,6 +2328,9 @@ impl Hp67LiveMachine {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod plot_sampler;
+
 #[cfg(test)]
 mod autonomous_ram_tests;
 

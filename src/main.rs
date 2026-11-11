@@ -14,6 +14,8 @@ mod panel;
 mod pdf_viewer;
 #[cfg(not(target_arch = "wasm32"))]
 mod pin_trace_cli;
+#[cfg(not(target_arch = "wasm32"))]
+mod plot_viewer;
 mod program_library;
 mod ui;
 

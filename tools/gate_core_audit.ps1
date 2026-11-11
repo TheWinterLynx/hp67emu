@@ -23,6 +23,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT RELEASE KO' }
     & cargo test --release --locked --bin hp67emu live_custom_diagnostic_pac_suite_reports_ok_ko -- --ignored --nocapture
     if ($LASTEXITCODE -ne 0) { throw 'CORE AUDIT DIAGNOSTICS KO' }
+    & cargo test --release --locked --bin hp67emu plot_official_polynomial_samples_match_standard_pac -- --ignored --nocapture
+    if ($LASTEXITCODE -ne 0) { throw 'FIRMWARE PLOT SAMPLE KO' }
     Write-Host 'CORE INTEGRITY AUDIT FULL GATE GREEN'
 } finally {
     $env:RUSTFLAGS = $PreviousRustFlags

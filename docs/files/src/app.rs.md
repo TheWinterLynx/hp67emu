@@ -99,3 +99,5 @@ Unlimited CPU uses batches of 64 words and an 8 ms UI slice. The same last_live_
 ## Desktop consolidation (2026-11-11)
 
 Desktop consolidation keeps the audited import, reset, fault recovery and single-anchor pacing unchanged. Program packs/programs use the catalog display order. Help is right-aligned; manual requests enter the desktop PDF worker. Selected card artwork decodes from embedded full-resolution PNG with lazy atlas fallback. This branch does not restore the former PAC clock heuristic.
+
+The desktop menu opens the firmware plot viewer as a separate presentation window. It does not access the active calculator session.

@@ -50,3 +50,5 @@ Includes the host card_import module shared by the desktop import surface and it
 ## Desktop consolidation (2026-11-11)
 
 Desktop --verify-embedded-pdfs checks every embedded manual, program section bounds and a representative rasterized page. Invalid extra arguments fail before rendering. This CLI is a portable acceptance check and does not advance firmware.
+
+The firmware plot viewer is compiled into the native desktop binary only.

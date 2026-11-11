@@ -23,3 +23,5 @@ checks complement the focused library tests; they do not replace full pin-captur
 coverage or the ignored firmware diagnostic suite.
 
 The dense-fabric failure contract also runs explicitly in release; full all-targets covers it in debug.
+
+The release gate also verifies three Standard Pac polynomial samples through the isolated plot sampler and original firmware.

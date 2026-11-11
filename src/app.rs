@@ -54,6 +54,8 @@ fn web_select_program(selected: &mut Option<usize>, listing_visible: &mut bool, 
 
 pub struct Hp67App {
     #[cfg(not(target_arch = "wasm32"))]
+    plot_viewer: crate::plot_viewer::PlotViewer,
+    #[cfg(not(target_arch = "wasm32"))]
     pdf_viewer: crate::pdf_viewer::PdfViewer,
     state: Hp67State,
     photo: TextureHandle,
@@ -185,6 +187,8 @@ impl Hp67App {
             card_insertion_end: CardInsertionEnd::End1,
             last_live_tick: None,
             unlimited_speed: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            plot_viewer: crate::plot_viewer::PlotViewer::default(),
             card_phase: ProgramCardPhase::Idle,
             card_phase_started: None,
             card_read_progress: 0.0,
@@ -1505,6 +1509,10 @@ impl eframe::App for Hp67App {
                     ui.label("Reader and card animations keep real elapsed time.");
                     ui.label("Accelerated firmware may time out on card I/O. Use 1x for original timing.");
                 });
+                #[cfg(not(target_arch = "wasm32"))]
+                if ui.button("Gráficos…").clicked() {
+                    self.plot_viewer.open = true;
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.push_id("hp67-help-right", |ui| crate::documentation::help_menu(ui));
                 });
@@ -1609,6 +1617,8 @@ impl eframe::App for Hp67App {
         self.show_card_save_dialog(ctx);
         self.show_program_library(ctx);
         crate::documentation::show(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.plot_viewer.show(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.pdf_viewer.show(ctx);
 
