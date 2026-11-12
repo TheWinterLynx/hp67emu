@@ -263,11 +263,11 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
         let p = map([x, y]);
         painter.line_segment(
             [Pos2::new(p.x, area.top()), Pos2::new(p.x, area.bottom())],
-            Stroke::new(1.0, GRID),
+            Stroke::new(1.0_f32, GRID),
         );
         painter.line_segment(
             [Pos2::new(area.left(), p.y), Pos2::new(area.right(), p.y)],
-            Stroke::new(1.0, GRID),
+            Stroke::new(1.0_f32, GRID),
         );
         painter.text(
             Pos2::new(p.x, area.bottom() + 8.0),
@@ -289,9 +289,9 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
         let line: Vec<_> = points.iter().copied().map(map).collect();
         plot.add(egui::Shape::line(
             line.clone(),
-            Stroke::new(5.0, CYAN.gamma_multiply(0.16)),
+            Stroke::new(5.0_f32, CYAN.gamma_multiply(0.16)),
         ));
-        plot.add(egui::Shape::line(line, Stroke::new(2.0, CYAN)));
+        plot.add(egui::Shape::line(line, Stroke::new(2.0_f32, CYAN)));
     } else if let Some(&point) = points.first() {
         plot.circle_filled(map(point), 3.0, CYAN);
     }
@@ -304,7 +304,7 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
     let p = map(nearest);
     plot.line_segment(
         [Pos2::new(p.x, area.top()), Pos2::new(p.x, area.bottom())],
-        Stroke::new(1.0, MUTED),
+        Stroke::new(1.0_f32, MUTED),
     );
     plot.circle_filled(p, 4.0, CYAN);
     Some(nearest)
