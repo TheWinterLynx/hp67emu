@@ -170,9 +170,11 @@ impl PlotViewer {
                             .zip(&mut self.coefficients)
                         {
                             ui.label(name);
-                            ui.add(egui::DragValue::new(value)
+                            ui.add(
+                                egui::DragValue::new(value)
                                     .custom_formatter(|value, _| coefficient_label(value))
-                                    .speed(0.01));
+                                    .speed(0.01),
+                            );
                         }
                     });
                     ui.horizontal_wrapped(|ui| {
