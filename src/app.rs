@@ -1475,11 +1475,20 @@ impl eframe::App for Hp67App {
             self.card_save_status = None;
         }
         #[cfg(not(target_arch = "wasm32"))]
-        let mut plot_requested = !ctx.wants_keyboard_input() && ctx.input(|input| {
-            input.events.iter().any(|event| matches!(event, egui::Event::Key {
-                key: egui::Key::F8, pressed: true, repeat: false, ..
-            }))
-        });
+        let mut plot_requested = !ctx.wants_keyboard_input()
+            && ctx.input(|input| {
+                input.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        egui::Event::Key {
+                            key: egui::Key::F8,
+                            pressed: true,
+                            repeat: false,
+                            ..
+                        }
+                    )
+                })
+            });
         let mut open_program_library = false;
         let mut new_blank_from_menu = false;
         let mut save_from_menu = false;
@@ -1630,8 +1639,13 @@ impl eframe::App for Hp67App {
         #[cfg(not(target_arch = "wasm32"))]
         {
             if plot_requested {
-                let frame = if self.state.power_on && self.state.mode == RunMode::Run && self.live_fault.is_none() {
-                    self.live_machine.as_ref().map(Hp67LiveMachine::optical_display_frame)
+                let frame = if self.state.power_on
+                    && self.state.mode == RunMode::Run
+                    && self.live_fault.is_none()
+                {
+                    self.live_machine
+                        .as_ref()
+                        .map(Hp67LiveMachine::optical_display_frame)
                 } else {
                     None
                 };

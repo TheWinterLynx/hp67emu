@@ -10,7 +10,6 @@ const MUTED: Color32 = Color32::from_rgb(146, 162, 180);
 const BG: Color32 = Color32::from_rgb(13, 19, 29);
 const GRID: Color32 = Color32::from_rgb(37, 50, 67);
 
-
 const MAX_POINTS: usize = 16_384;
 
 #[derive(Default)]
@@ -63,7 +62,12 @@ impl PlotViewer {
         use egui::TextStyle::{Body, Button, Heading, Monospace};
 
         let style = ui.style_mut();
-        for (role, size) in [(Body, 16.0), (Button, 16.0), (Heading, 23.0), (Monospace, 15.0)] {
+        for (role, size) in [
+            (Body, 16.0),
+            (Button, 16.0),
+            (Heading, 23.0),
+            (Monospace, 15.0),
+        ] {
             if let Some(font) = style.text_styles.get_mut(&role) {
                 font.size = size;
             }
@@ -71,16 +75,26 @@ impl PlotViewer {
         ui.spacing_mut().interact_size.y = 24.0;
         ui.horizontal_wrapped(|ui| {
             ui.heading("Gráfica");
-            ui.label(egui::RichText::new("PANTALLA HP-67").monospace().color(CYAN));
+            ui.label(
+                egui::RichText::new("PANTALLA HP-67")
+                    .monospace()
+                    .color(CYAN),
+            );
             let has_points = !self.points.is_empty();
-            if ui.add_enabled(has_points, egui::Button::new("Copiar CSV")).clicked() {
+            if ui
+                .add_enabled(has_points, egui::Button::new("Copiar CSV"))
+                .clicked()
+            {
                 let mut csv = String::from("muestra,valor\n");
                 for [x, y] in &self.points {
                     let _ = writeln!(csv, "{x},{y}");
                 }
                 ui.ctx().output_mut(|out| out.copied_text = csv);
             }
-            if ui.add_enabled(has_points, egui::Button::new("Limpiar")).clicked() {
+            if ui
+                .add_enabled(has_points, egui::Button::new("Limpiar"))
+                .clicked()
+            {
                 self.points.clear();
                 self.error = None;
             }
@@ -98,7 +112,10 @@ impl PlotViewer {
         } else if self.points.is_empty() {
             ui.label("Pulsa PLOT en la calculadora para añadir el valor de pantalla.");
         } else {
-            ui.label(format!("{} muestras · X: orden de captura", self.points.len()));
+            ui.label(format!(
+                "{} muestras · X: orden de captura",
+                self.points.len()
+            ));
         }
     }
 }
