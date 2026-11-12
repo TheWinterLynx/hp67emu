@@ -19,3 +19,5 @@ Offer editable cubic coefficients and an X interval, draw a dark chart with samp
 ## Implementation
 
 A native worker boots a separate machine and sends up to 201 points. The UI never reads or mutates the foreground machine. Dropping the receiver stops delivery and the worker exits no later than its next completed sample or error. Chart geometry and axis scaling are host presentation only. The WASM frontend does not expose this worker-based viewer.
+
+The chart window scales its text and controls locally and reserves space for larger tick labels. Very small or large coefficients use scientific notation to keep nonzero values visible.

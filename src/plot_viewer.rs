@@ -135,11 +135,26 @@ impl PlotViewer {
         let mut open = self.open;
         egui::Window::new("HP-67 · Visor gráfico")
             .open(&mut open)
-            .default_size([670.0, 455.0])
-            .min_width(310.0)
+            .default_size([720.0, 500.0])
+            .min_width(330.0)
             .vscroll(true)
             .frame(egui::Frame::window(&ctx.style()).fill(BG))
             .show(ctx, |ui| {
+                use egui::TextStyle::{Body, Button, Heading, Monospace, Small};
+
+                let style = ui.style_mut();
+                for (role, size) in [
+                    (Body, 16.0),
+                    (Button, 16.0),
+                    (Heading, 23.0),
+                    (Monospace, 15.0),
+                    (Small, 14.0),
+                ] {
+                    if let Some(font) = style.text_styles.get_mut(&role) {
+                        font.size = size;
+                    }
+                }
+                ui.spacing_mut().interact_size.y = 24.0;
                 ui.label(
                     egui::RichText::new("STANDARD PAC  /  SD1-09A")
                         .color(CYAN)
@@ -155,7 +170,9 @@ impl PlotViewer {
                             .zip(&mut self.coefficients)
                         {
                             ui.label(name);
-                            ui.add(egui::DragValue::new(value).max_decimals(16).speed(0.01));
+                            ui.add(egui::DragValue::new(value)
+                                    .custom_formatter(|value, _| coefficient_label(value))
+                                    .speed(0.01));
                         }
                     });
                     ui.horizontal_wrapped(|ui| {
@@ -212,6 +229,15 @@ impl PlotViewer {
     }
 }
 
+fn coefficient_label(value: f64) -> String {
+    let magnitude = value.abs();
+    if magnitude != 0.0 && !(0.001..1e6).contains(&magnitude) {
+        format!("{value:e}")
+    } else {
+        value.to_string()
+    }
+}
+
 fn axis_label(value: f64) -> String {
     let magnitude = value.abs();
     if magnitude != 0.0 && !(0.001..1e5).contains(&magnitude) {
@@ -230,8 +256,8 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
     let rect = response.rect;
     painter.rect_filled(rect, 7.0, Color32::from_rgb(8, 13, 22));
     let area = Rect::from_min_max(
-        rect.min + Vec2::new(82.0, 14.0),
-        rect.max - Vec2::new(30.0, 30.0),
+        rect.min + Vec2::new(110.0, 18.0),
+        rect.max - Vec2::new(42.0, 37.0),
     );
     let (mut y0, mut y1) = if points.is_empty() {
         (-1.0, 1.0)
@@ -255,9 +281,10 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
             area.bottom() - ((y - y0) / (y1 - y0)) as f32 * area.height(),
         )
     };
-    let font = FontId::monospace(10.0);
-    for index in 0..=4 {
-        let t = f64::from(index) / 4.0;
+    let font = FontId::monospace(14.0);
+    let divisions = if area.width() >= 420.0 { 4 } else { 2 };
+    for index in 0..=divisions {
+        let t = f64::from(index) / f64::from(divisions);
         let x = x0 + (x1 - x0) * t;
         let y = y0 + (y1 - y0) * t;
         let p = map([x, y]);
