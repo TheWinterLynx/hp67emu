@@ -1480,7 +1480,9 @@ impl eframe::App for Hp67App {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(machine) = &mut self.live_machine {
             let (frames, missed) = machine.take_print_frames();
-            if (missed || !frames.is_empty()) && !self.plot_viewer.receive_biorhythms(frames, missed) {
+            if (missed || !frames.is_empty())
+                && !self.plot_viewer.receive_biorhythms(frames, missed)
+            {
                 machine.set_print_tap(None);
             }
         }
@@ -1507,8 +1509,13 @@ impl eframe::App for Hp67App {
         #[cfg(not(target_arch = "wasm32"))]
         let biorhythms_ready = self.state.power_on
             && self.state.mode == RunMode::Run
-            && self.card_library_entry.and_then(|index| PROGRAM_LIBRARY.get(index)).is_some_and(|entry| entry.reference == "GA1-18A")
-            && self.live_machine.as_ref().is_some_and(|machine| !machine.magnetic_card_inserted() && !machine.card_prompt_visible());
+            && self
+                .card_library_entry
+                .and_then(|index| PROGRAM_LIBRARY.get(index))
+                .is_some_and(|entry| entry.reference == "GA1-18A")
+            && self.live_machine.as_ref().is_some_and(|machine| {
+                !machine.magnetic_card_inserted() && !machine.card_prompt_visible()
+            });
         #[cfg(not(target_arch = "wasm32"))]
         let mut bio_requested = false;
         let mut open_program_library = false;

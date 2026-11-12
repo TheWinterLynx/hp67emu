@@ -584,7 +584,9 @@ impl Hp67LiveMachine {
         self.card_poll_visits = 0;
         self.display_control_seen = false;
         #[cfg(not(target_arch = "wasm32"))]
-        { self.print_tap = None; }
+        {
+            self.print_tap = None;
+        }
         Ok(())
     }
 
@@ -2338,7 +2340,6 @@ impl Hp67LiveMachine {
     }
 }
 
-
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Default)]
 struct PrintTap {
@@ -2352,13 +2353,21 @@ struct PrintTap {
 #[cfg(not(target_arch = "wasm32"))]
 impl Hp67LiveMachine {
     pub(crate) fn set_print_tap(&mut self, step: Option<u16>) {
-        self.print_tap = step.map(|step| PrintTap { step, ..PrintTap::default() });
+        self.print_tap = step.map(|step| PrintTap {
+            step,
+            ..PrintTap::default()
+        });
     }
 
     pub(crate) fn take_print_frames(&mut self) -> (Vec<HardwareDisplayFrame>, bool) {
         self.print_tap.as_mut().map_or_else(
             || (Vec::new(), false),
-            |tap| (std::mem::take(&mut tap.frames), std::mem::take(&mut tap.missed)),
+            |tap| {
+                (
+                    std::mem::take(&mut tap.frames),
+                    std::mem::take(&mut tap.missed),
+                )
+            },
         )
     }
 
@@ -2370,7 +2379,9 @@ impl Hp67LiveMachine {
             self.machine.ram.read(0x3d).and_then(|pc| {
                 let address = u16::from(pc[0]) | (u16::from(pc[1]) << 4);
                 let offset = 6_u16.checked_sub(u16::from(pc[2]))?;
-                (0x10..=0x2f).contains(&address).then(|| (0x2f - address) * 7 + offset + 1)
+                (0x10..=0x2f)
+                    .contains(&address)
+                    .then(|| (0x2f - address) * 7 + offset + 1)
             })
         } else {
             None
@@ -4753,8 +4764,10 @@ fn plot_biorhythms_reads_games_pac_triplets() {
     let mut live = boot_live_machine().unwrap();
     load_physical_program_card(&mut live, card).unwrap();
     live.set_print_tap(Some(147));
-    for key in [Digit6, Decimal, Digit0, Digit7, Digit1, Digit9, Digit4, Digit8, A,
-        Digit5, Decimal, Digit3, Digit1, Digit1, Digit9, Digit7, Digit6, B] {
+    for key in [
+        Digit6, Decimal, Digit0, Digit7, Digit1, Digit9, Digit4, Digit8, A, Digit5, Decimal,
+        Digit3, Digit1, Digit1, Digit9, Digit7, Digit6, B,
+    ] {
         press_live_key_to_dispatch(&mut live, key);
         wait(&mut live);
     }
@@ -4771,6 +4784,9 @@ fn plot_biorhythms_reads_games_pac_triplets() {
             break;
         }
     }
-    let values: Vec<_> = frames.into_iter().map(|frame| plot_sampler::display_number(frame).unwrap()).collect();
+    let values: Vec<_> = frames
+        .into_iter()
+        .map(|frame| plot_sampler::display_number(frame).unwrap())
+        .collect();
     assert_eq!(values, [0.82, 0.0, -0.95, 0.63, 0.22, -0.99]);
 }
