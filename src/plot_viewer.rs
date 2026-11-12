@@ -17,10 +17,62 @@ pub(crate) struct PlotViewer {
     pub(crate) open: bool,
     points: Vec<[f64; 2]>,
     error: Option<&'static str>,
+    bio: Option<BioSeries>,
 }
 
+#[derive(Default)]
+struct BioSeries {
+    curves: [Vec<[f64; 2]>; 3],
+    pending: Vec<f64>,
+    active: bool,
+}
+
+const BIO_COLORS: [Color32; 3] = [CYAN, Color32::from_rgb(250, 178, 88), Color32::from_rgb(180, 155, 255)];
+
 impl PlotViewer {
+    pub(crate) fn start_biorhythms(&mut self) {
+        self.open = true;
+        self.error = None;
+        self.bio = Some(BioSeries { active: true, ..BioSeries::default() });
+    }
+
+    pub(crate) fn stop_biorhythms(&mut self) {
+        if let Some(bio) = &mut self.bio {
+            bio.active = false;
+            bio.pending.clear();
+        }
+    }
+
+    pub(crate) fn receive_biorhythms(&mut self, frames: Vec<HardwareDisplayFrame>, missed: bool) -> bool {
+        let Some(bio) = self.bio.as_mut().filter(|bio| bio.active) else { return false };
+        let mut invalid = missed;
+        if !missed {
+            for frame in frames {
+                let Ok(value) = display_number(frame) else { invalid = true; break };
+                if !(-1.0..=1.0).contains(&value) || bio.curves[0].len() == MAX_POINTS {
+                    invalid = true;
+                    break;
+                }
+                bio.pending.push(value);
+                if bio.pending.len() == 3 {
+                    let day = bio.curves[0].len() as f64;
+                    for (curve, value) in bio.curves.iter_mut().zip(bio.pending.drain(..)) {
+                        curve.push([day, value]);
+                    }
+                }
+            }
+        }
+        // Gaps are fatal to grouping, never silently shift P/S/C.
+        if invalid {
+            self.error = Some("Se perdió una salida. Inicia una captura nueva para conservar el orden de las curvas.");
+            self.stop_biorhythms();
+            return false;
+        }
+        true
+    }
+
     pub(crate) fn plot(&mut self, frame: Option<HardwareDisplayFrame>) {
+        self.bio = None;
         self.open = true;
         if self.points.len() == MAX_POINTS {
             self.error = Some("Serie completa. Copia el CSV o limpia la gráfica.");
@@ -73,6 +125,35 @@ impl PlotViewer {
             }
         }
         ui.spacing_mut().interact_size.y = 24.0;
+        if let Some(bio) = &mut self.bio {
+            ui.heading("Biorritmos · GA1-18A");
+            ui.horizontal_wrapped(|ui| {
+                for (label, color) in ["Físico", "Sensibilidad", "Cognitivo"].into_iter().zip(BIO_COLORS) {
+                    ui.colored_label(color, label);
+                }
+                if ui.add_enabled(!bio.curves[0].is_empty(), egui::Button::new("Copiar CSV")).clicked() {
+                    let mut csv = String::from("dia,fisico,sensibilidad,cognitivo\n");
+                    for (day, p) in bio.curves[0].iter().enumerate() {
+                        let _ = writeln!(csv, "{day},{},{},{}", p[1], bio.curves[1][day][1], bio.curves[2][day][1]);
+                    }
+                    ui.ctx().output_mut(|out| out.copied_text = csv);
+                }
+            });
+            let series = std::array::from_fn::<_, 3, _>(|i| (bio.curves[i].as_slice(), BIO_COLORS[i]));
+            let days = bio.curves[0].len();
+            let cursor = chart(ui, &series, [0.0, days.saturating_sub(1).max(1) as f64], Some([-1.0, 1.0]));
+            if let Some(error) = self.error {
+                ui.colored_label(Color32::LIGHT_RED, error);
+            } else if let Some([x, _]) = cursor {
+                let day = x as usize;
+                ui.monospace(format!("Día {day}   P: {:.2}   S: {:.2}   C: {:.2}", bio.curves[0][day][1], bio.curves[1][day][1], bio.curves[2][day][1]));
+            } else if bio.active {
+                ui.label(format!("{days} días · Capturando salidas de B y C · R/S para parar"));
+            } else {
+                ui.label(format!("{days} días completos · Captura detenida"));
+            }
+            return;
+        }
         ui.horizontal_wrapped(|ui| {
             ui.heading("Gráfica");
             ui.label(
@@ -104,7 +185,7 @@ impl PlotViewer {
         } else {
             [1.0, self.points.len().max(2) as f64]
         };
-        let cursor = chart(ui, &self.points, limits);
+        let cursor = chart(ui, &[(&self.points, CYAN)], limits, None);
         if let Some(error) = self.error {
             ui.colored_label(Color32::LIGHT_RED, error);
         } else if let Some([x, y]) = cursor {
@@ -129,7 +210,8 @@ fn axis_label(value: f64) -> String {
     }
 }
 
-fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[f64; 2]> {
+fn chart(ui: &mut egui::Ui, series: &[(&[[f64; 2]], Color32)], [x0, x1]: [f64; 2], fixed_y: Option<[f64; 2]>) -> Option<[f64; 2]> {
+    let points = series[0].0;
     let height = (ui.available_height() - 48.0).max(180.0);
     let (response, painter) = ui.allocate_painter(
         Vec2::new(ui.available_width(), height),
@@ -155,8 +237,13 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
     } else {
         (y1 - y0) * 0.08
     };
-    y0 -= pad;
-    y1 += pad;
+    if let Some([lo, hi]) = fixed_y {
+        y0 = lo;
+        y1 = hi;
+    } else {
+        y0 -= pad;
+        y1 += pad;
+    }
     let map = |[x, y]: [f64; 2]| {
         Pos2::new(
             area.left() + ((x - x0) / (x1 - x0)) as f32 * area.width(),
@@ -194,15 +281,17 @@ fn chart(ui: &mut egui::Ui, points: &[[f64; 2]], [x0, x1]: [f64; 2]) -> Option<[
         );
     }
     let plot = painter.with_clip_rect(area);
-    if points.len() >= 2 {
+    for &(points, color) in series {
+        if points.len() >= 2 {
         let line: Vec<_> = points.iter().copied().map(map).collect();
         plot.add(egui::Shape::line(
             line.clone(),
-            Stroke::new(5.0_f32, CYAN.gamma_multiply(0.16)),
+            Stroke::new(5.0_f32, color.gamma_multiply(0.16)),
         ));
-        plot.add(egui::Shape::line(line, Stroke::new(2.0_f32, CYAN)));
+        plot.add(egui::Shape::line(line, Stroke::new(2.0_f32, color)));
     } else if let Some(&point) = points.first() {
-        plot.circle_filled(map(point), 3.0, CYAN);
+        plot.circle_filled(map(point), 3.0, color);
+        }
     }
     let pointer = response.hover_pos().filter(|pos| area.contains(*pos))?;
     let nearest = points.iter().copied().min_by(|&a, &b| {

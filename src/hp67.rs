@@ -356,6 +356,8 @@ struct PendingSerialModeLatchAuthority {
 /// consumes downstream STR/RCD control events. Exact intra-word ACT write edges
 /// remain source-blocked.
 pub struct Hp67LiveMachine {
+    #[cfg(not(target_arch = "wasm32"))]
+    print_tap: Option<PrintTap>,
     source: Hp67Firmware,
     backplane: Hp67ElectricalBackplane,
     act_serial: ActSerialEndpoint,
@@ -405,6 +407,8 @@ impl Hp67LiveMachine {
             false,
         );
         Ok(Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            print_tap: None,
             source: Hp67Firmware::default(),
             backplane,
             act_serial: ActSerialEndpoint::new(0)
@@ -579,6 +583,8 @@ impl Hp67LiveMachine {
         self.main_wait_visits = 0;
         self.card_poll_visits = 0;
         self.display_control_seen = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        { self.print_tap = None; }
         Ok(())
     }
 
@@ -1441,6 +1447,10 @@ impl Hp67LiveMachine {
         self.boot_cycle = cycle.saturating_add(1);
         if idle_after_word {
             self.phase = LiveBootPhase::Idle;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.print_tap.is_some() {
+            self.observe_print_output(executed);
         }
         Ok(executed)
     }
@@ -2325,6 +2335,72 @@ impl Hp67LiveMachine {
             self.display.clear();
         }
         Ok(())
+    }
+}
+
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
+struct PrintTap {
+    // Filter by user-program step, not the numeric value or a timer.
+    step: u16,
+    pending_scan: Option<u64>,
+    frames: Vec<HardwareDisplayFrame>,
+    missed: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Hp67LiveMachine {
+    pub(crate) fn set_print_tap(&mut self, step: Option<u16>) {
+        self.print_tap = step.map(|step| PrintTap { step, ..PrintTap::default() });
+    }
+
+    pub(crate) fn take_print_frames(&mut self) -> (Vec<HardwareDisplayFrame>, bool) {
+        self.print_tap.as_mut().map_or_else(
+            || (Vec::new(), false),
+            |tap| (std::mem::take(&mut tap.frames), std::mem::take(&mut tap.missed)),
+        )
+    }
+
+    fn observe_print_output(&mut self, executed: Option<Hp67ArchitecturalExecution>) {
+        // HP-67 bank-0 ROM PRTX display toggle, immediately after the
+        // numeric format subroutine (01353 JSB); not the pause polling loop.
+        let print = executed.is_some_and(|op| op.pc == 0o1354 && op.word == 0o0210);
+        let step = if print {
+            self.machine.ram.read(0x3d).and_then(|pc| {
+                let address = u16::from(pc[0]) | (u16::from(pc[1]) << 4);
+                let offset = 6_u16.checked_sub(u16::from(pc[2]))?;
+                (0x10..=0x2f).contains(&address).then(|| (0x2f - address) * 7 + offset + 1)
+            })
+        } else {
+            None
+        };
+        let scans = self.display_circuit.exposure().completed_scans();
+        let frame_due = {
+            let tap = self.print_tap.as_mut().expect("enabled print tap");
+            if step == Some(tap.step) {
+                if tap.pending_scan.replace(scans.saturating_add(2)).is_some() {
+                    tap.missed = true;
+                }
+            }
+            if tap.pending_scan.is_some_and(|target| scans >= target)
+                && scans >= self.optical_scan_floor
+            {
+                tap.pending_scan = None;
+                true
+            } else {
+                false
+            }
+        };
+        if frame_due {
+            let frame = self.optical_display_frame();
+            let tap = self.print_tap.as_mut().expect("enabled print tap");
+            if tap.frames.len() < 256 {
+                tap.frames.push(frame);
+            } else {
+                tap.missed = true;
+            }
+        }
     }
 }
 
@@ -4646,3 +4722,55 @@ mod program_switch_tests;
 #[cfg(test)]
 #[path = "hp67/pacing_integrity_tests.rs"]
 mod pacing_integrity_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[test]
+#[ignore = "release test uses the original Biorhythms card and firmware"]
+fn plot_biorhythms_reads_games_pac_triplets() {
+    use diagnostic_tests::{boot_live_machine, load_physical_program_card};
+    use m12_tests::press_live_key_to_dispatch;
+    use Hp67Key::*;
+
+    fn wait(live: &mut Hp67LiveMachine) {
+        let before = live.main_wait_visits;
+        for _ in 0..250_000 {
+            live.step_firmware_cycle().unwrap();
+            let status = &live.machine.act.state.status;
+            if live.main_wait_visits > before && !status[15] && !status[2] {
+                return;
+            }
+        }
+        panic!("Biorhythms did not return to RUN wait");
+    }
+
+    let card = crate::program_library::PROGRAM_LIBRARY
+        .iter()
+        .find(|entry| entry.reference == "GA1-18A")
+        .unwrap()
+        .load_card()
+        .unwrap()
+        .card;
+    let mut live = boot_live_machine().unwrap();
+    load_physical_program_card(&mut live, card).unwrap();
+    live.set_print_tap(Some(147));
+    for key in [Digit6, Decimal, Digit0, Digit7, Digit1, Digit9, Digit4, Digit8, A,
+        Digit5, Decimal, Digit3, Digit1, Digit1, Digit9, Digit7, Digit6, B] {
+        press_live_key_to_dispatch(&mut live, key);
+        wait(&mut live);
+    }
+    let (mut frames, missed) = live.take_print_frames();
+    assert!(!missed);
+    assert_eq!(frames.len(), 3, "B must publish exactly one day");
+    press_live_key_to_dispatch(&mut live, C);
+    for _ in 0..250_000 {
+        live.step_firmware_cycle().unwrap();
+        let (new, missed) = live.take_print_frames();
+        assert!(!missed);
+        frames.extend(new);
+        if frames.len() == 6 {
+            break;
+        }
+    }
+    let values: Vec<_> = frames.into_iter().map(|frame| plot_sampler::display_number(frame).unwrap()).collect();
+    assert_eq!(values, [0.82, 0.0, -0.95, 0.63, 0.22, -0.99]);
+}

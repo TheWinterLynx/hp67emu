@@ -19,3 +19,5 @@ Append a finite value at the next sample index, retain the series when closed, a
 ## Implementation
 
 The native viewport opens independently. X is the one-based sample number and Y is the displayed value. Invalid displays do not append points. The series holds at most 16,384 points. PLOT is a host control and does not alter program memory or interpret pauses automatically.
+
+The optional Biorhythms view accepts only the captured PRINT/PAUSE outputs of GA1-18A step 147, groups physical, sensitivity and cognitive samples into complete days, and uses a fixed −1..1 scale. Lost or invalid output stops grouping. CSV is one row per complete day.

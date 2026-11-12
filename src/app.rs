@@ -1397,6 +1397,14 @@ impl Hp67App {
             } else {
                 None
             };
+            #[cfg(not(target_arch = "wasm32"))]
+            if contact == Some(hp67emu::machines::hp67::Hp67Key::RunStop)
+                || self.state.mode != RunMode::Run
+                || !self.state.power_on
+            {
+                machine.set_print_tap(None);
+                self.plot_viewer.stop_biorhythms();
+            }
             machine.set_key_contact(contact);
         }
 
@@ -1469,6 +1477,13 @@ impl eframe::App for Hp67App {
                 break;
             }
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(machine) = &mut self.live_machine {
+            let (frames, missed) = machine.take_print_frames();
+            if (missed || !frames.is_empty()) && !self.plot_viewer.receive_biorhythms(frames, missed) {
+                machine.set_print_tap(None);
+            }
+        }
         self.import_dropped_card_files(ctx);
         if ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::S)) {
             self.card_save_dialog_open = true;
@@ -1489,6 +1504,13 @@ impl eframe::App for Hp67App {
                     )
                 })
             });
+        #[cfg(not(target_arch = "wasm32"))]
+        let biorhythms_ready = self.state.power_on
+            && self.state.mode == RunMode::Run
+            && self.card_library_entry.and_then(|index| PROGRAM_LIBRARY.get(index)).is_some_and(|entry| entry.reference == "GA1-18A")
+            && self.live_machine.as_ref().is_some_and(|machine| !machine.magnetic_card_inserted() && !machine.card_prompt_visible());
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut bio_requested = false;
         let mut open_program_library = false;
         let mut new_blank_from_menu = false;
         let mut save_from_menu = false;
@@ -1531,6 +1553,10 @@ impl eframe::App for Hp67App {
                 #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Gráficos…").clicked() {
                     self.plot_viewer.open = true;
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                if biorhythms_ready && ui.button("Biorritmos…").on_hover_text("Inicia la captura antes de pulsar B").clicked() {
+                    bio_requested = true;
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.push_id("hp67-help-right", |ui| crate::documentation::help_menu(ui));
@@ -1638,7 +1664,16 @@ impl eframe::App for Hp67App {
         crate::documentation::show(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         {
+            if let Some(machine) = &mut self.live_machine {
+                if bio_requested {
+                    machine.set_print_tap(Some(147));
+                    self.plot_viewer.start_biorhythms();
+                }
+            }
             if plot_requested {
+                if let Some(machine) = &mut self.live_machine {
+                    machine.set_print_tap(None);
+                }
                 let frame = if self.state.power_on
                     && self.state.mode == RunMode::Run
                     && self.live_fault.is_none()

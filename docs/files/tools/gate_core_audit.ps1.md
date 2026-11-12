@@ -25,3 +25,5 @@ coverage or the ignored firmware diagnostic suite.
 The dense-fabric failure contract also runs explicitly in release; full all-targets covers it in debug.
 
 The release gate also verifies three Standard Pac polynomial samples through the isolated plot sampler and original firmware.
+
+The Biorhythms regression reads both program tracks, enters the manual's example dates through the firmware and checks the first two PRINT/PAUSE triplets.
