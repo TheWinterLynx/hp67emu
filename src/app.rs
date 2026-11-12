@@ -1474,6 +1474,12 @@ impl eframe::App for Hp67App {
             self.card_save_dialog_open = true;
             self.card_save_status = None;
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut plot_requested = !ctx.wants_keyboard_input() && ctx.input(|input| {
+            input.events.iter().any(|event| matches!(event, egui::Event::Key {
+                key: egui::Key::F8, pressed: true, repeat: false, ..
+            }))
+        });
         let mut open_program_library = false;
         let mut new_blank_from_menu = false;
         let mut save_from_menu = false;
@@ -1509,6 +1515,10 @@ impl eframe::App for Hp67App {
                     ui.label("Reader and card animations keep real elapsed time.");
                     ui.label("Accelerated firmware may time out on card I/O. Use 1x for original timing.");
                 });
+                #[cfg(not(target_arch = "wasm32"))]
+                if ui.button("PLOT").on_hover_text("Añadir el valor de pantalla (F8)").clicked() {
+                    plot_requested = true;
+                }
                 #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Gráficos…").clicked() {
                     self.plot_viewer.open = true;
@@ -1618,7 +1628,17 @@ impl eframe::App for Hp67App {
         self.show_program_library(ctx);
         crate::documentation::show(ctx);
         #[cfg(not(target_arch = "wasm32"))]
-        self.plot_viewer.show(ctx);
+        {
+            if plot_requested {
+                let frame = if self.state.power_on && self.state.mode == RunMode::Run && self.live_fault.is_none() {
+                    self.live_machine.as_ref().map(Hp67LiveMachine::optical_display_frame)
+                } else {
+                    None
+                };
+                self.plot_viewer.plot(frame);
+            }
+            self.plot_viewer.show(ctx);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         self.pdf_viewer.show(ctx);
 

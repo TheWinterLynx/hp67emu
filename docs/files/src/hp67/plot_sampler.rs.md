@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Evaluate points by operating the existing SD1-09A card on real HP-67 firmware in an isolated instance.
+Decode complete optical display frames for desktop PLOT. The SD1-09A evaluation in an isolated machine is retained as a test fixture.
 
 ## Why it exists
 
@@ -14,7 +14,7 @@ Uses Hp67LiveMachine, the built-in program library, physical key contacts, and c
 
 ## Responsibilities
 
-Boot a separate machine, insert both card ends through the emulated reader, enter coefficients through f A and B through E, and evaluate X with A. Return the entered X and the numeric display result, or a bounded error.
+For the regression only: boot a separate machine, insert both card ends through the emulated reader, enter coefficients through f A and B through E, and evaluate X with A. Return the entered X and the numeric display result, or a bounded error.
 
 ## Implementation
 

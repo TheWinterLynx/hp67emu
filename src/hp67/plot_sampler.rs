@@ -1,15 +1,21 @@
-//! Isolated firmware-backed samples for the desktop plotter.
+//! Decode numeric optical frames; retain the Standard Pac regression fixture.
 
 use super::*;
+#[cfg(test)]
 use hp67emu::machines::hp67::Hp67CardTrack;
 
+#[cfg(test)]
 const KEY_LIMIT: usize = 512;
+#[cfg(test)]
 const RESULT_LIMIT: usize = 30_000;
+#[cfg(test)]
 const CARD_LIMIT: usize = 65_536;
 const DIGITS: [u8; 10] = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
+#[cfg(test)]
 pub(crate) struct PolynomialSampler(Hp67LiveMachine);
 
+#[cfg(test)]
 impl PolynomialSampler {
     pub(crate) fn new(coefficients: [f64; 4]) -> Result<Self, String> {
         use Hp67Key::*;
@@ -173,6 +179,7 @@ impl PolynomialSampler {
     }
 }
 
+#[cfg(test)]
 fn digit_key(c: char) -> Hp67Key {
     use Hp67Key::*;
     [
@@ -180,6 +187,7 @@ fn digit_key(c: char) -> Hp67Key {
     ][c as usize - '0' as usize]
 }
 
+#[cfg(test)]
 fn number_entry(value: f64) -> Result<(String, i32), String> {
     if !value.is_finite() || value.abs() > 1e20 || (value != 0.0 && value.abs() < 1e-20) {
         return Err("Usa cero o una magnitud entre 10⁻²⁰ y 10²⁰.".into());
@@ -213,7 +221,7 @@ fn number_entry(value: f64) -> Result<(String, i32), String> {
     Ok((mantissa.to_owned(), exponent))
 }
 
-fn display_number(frame: HardwareDisplayFrame) -> Result<f64, String> {
+pub(crate) fn display_number(frame: HardwareDisplayFrame) -> Result<f64, String> {
     const MINUS: u8 = 0x40;
     const DECIMAL: u8 = 0x80;
     let slots = frame.segments;

@@ -2,22 +2,20 @@
 
 ## Purpose
 
-Draw a desktop chart of samples obtained from the HP-67 Standard Pac polynomial evaluator.
+Draw values explicitly captured from the active HP-67 display.
 
 ## Why it exists
 
-The desktop can render and export the numeric results while the original calculator program performs the evaluation.
+PLOT builds a series without re-entering data in a graph form.
 
 ## Relationships
 
-Opened from the main menu in app.rs. The worker owns a sampler from hp67/plot_sampler.rs and sends plain coordinates back to egui.
+The desktop app dispatches PLOT or F8 and hands over a read-only optical frame. The viewer decodes it through hp67/plot_sampler.rs.
 
 ## Responsibilities
 
-Offer editable cubic coefficients and an X interval, draw a dark chart with sampled-coordinate inspection, show progress or an error, and copy successful runs as CSV.
+Append a finite value at the next sample index, retain the series when closed, and offer cursor inspection, CSV copying and clearing.
 
 ## Implementation
 
-A native worker boots a separate machine and sends up to 201 points. The UI never reads or mutates the foreground machine. Dropping the receiver stops delivery and the worker exits no later than its next completed sample or error. Chart geometry and axis scaling are host presentation only. The WASM frontend does not expose this worker-based viewer.
-
-The chart window scales its text and controls locally and reserves space for larger tick labels. Very small or large coefficients use scientific notation to keep nonzero values visible.
+The native viewport opens independently. X is the one-based sample number and Y is the displayed value. Invalid displays do not append points. The series holds at most 16,384 points. PLOT is a host control and does not alter program memory or interpret pauses automatically.
